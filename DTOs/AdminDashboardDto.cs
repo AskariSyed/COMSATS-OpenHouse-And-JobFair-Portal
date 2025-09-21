@@ -1,6 +1,5 @@
 ﻿namespace JobFairPortal.DTOs
 {
-    
     public class DashboardOverviewDto
     {
         public int TotalStudents { get; set; }

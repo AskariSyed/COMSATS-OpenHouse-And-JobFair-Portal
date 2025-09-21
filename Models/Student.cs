@@ -9,10 +9,10 @@ namespace JobFairPortal.Models
         [Required]
         public int UserId { get; set; }
         [Required]
-        public string RegistrationNo { get; set; } = null!; // FA22-BCS-155
+        public string RegistrationNo { get; set; } = null!; 
         public decimal CGPA { get; set; }
         public string? CVUrl { get; set; }
-        public string? ProfilePicUrl { get; set; } // <-- Added attribute
+        public string? ProfilePicUrl { get; set; } 
         public string? FypTitle { get; set; }
         public string? FypDemoUrl { get; set; }
         public string? FypDescription { get; set; }

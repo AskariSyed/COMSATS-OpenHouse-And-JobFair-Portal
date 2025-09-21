@@ -1,11 +1,16 @@
-﻿using JobFairPortal.Data;
+﻿using CsvHelper;
+using CsvHelper.Configuration;
+using JobFairPortal.Data;
 using JobFairPortal.DTOs;
+using JobFairPortal.Helpers;
 using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
+using OfficeOpenXml;
+using System.Globalization;
 using System.Text;
+using System.Text.Json;
 namespace JobFairPortal.Controllers
 
 {
@@ -29,7 +34,7 @@ namespace JobFairPortal.Controllers
         // -----------------------------
         // 1. Create Admin
         // -----------------------------
-        [HttpPost("admin/create-onetime")]
+        [HttpPost("create-onetime")]
         public async Task<IActionResult> CreateAdmin([FromBody] AdminCreateDto dto)
         {
             _logger.LogInformation("CreateAdmin called with email: {Email}", dto.Email);
@@ -90,8 +95,116 @@ namespace JobFairPortal.Controllers
                 Status = room.Status
             });
         }
+        [HttpPost("rooms/bulk-upload")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> BulkUploadRoomsFromFile(IFormFile file)
+        {
+            // Basic file validation
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { Message = "No file was uploaded." });
+            }
 
-        // -----------------------------
+            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (fileExtension != ".csv" && fileExtension != ".xlsx")
+            {
+                return BadRequest(new { Message = "Invalid file format. Please upload a .csv or .xlsx file." });
+            }
+
+
+            var roomsToCreate = new List<Room>();
+            var roomsToUpdate = new List<Room>();
+            var errors = new List<string>();
+
+            ExcelPackage.License.SetNonCommercialPersonal("Hassan Askari");
+
+            using (var stream = new MemoryStream())
+            {
+                await file.CopyToAsync(stream);
+                stream.Position = 0;
+
+                if (fileExtension == ".xlsx")
+                {
+                    await ParseXlsxStream(stream, roomsToCreate, roomsToUpdate, errors);
+                }
+                else // .csv
+                {
+                    await ParseCsvStream(stream, roomsToCreate, roomsToUpdate, errors);
+                }
+            }
+
+            if (!roomsToCreate.Any() && !roomsToUpdate.Any())
+            {
+                return BadRequest(new
+                {
+                    Message = "No valid room data found in the file.",
+                    Errors = errors
+                });
+            }
+
+            // Add new rooms and update only the necessary existing ones
+            if (roomsToCreate.Any())
+            {
+                await _context.Rooms.AddRangeAsync(roomsToCreate);
+            }
+            if (roomsToUpdate.Any())
+            {
+                _context.Rooms.UpdateRange(roomsToUpdate);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var message = $"Bulk upload finished. Successfully added {roomsToCreate.Count} new rooms and updated {roomsToUpdate.Count} existing rooms.";
+            string errorSummary = errors.Any() ? string.Join(", ", errors) : "No errors.";
+
+            return Ok(new
+            {
+                Message = message,
+                Errors = errorSummary
+            });
+        }
+        [HttpGet("rooms/download-template")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> DownloadRoomsTemplate()
+        {
+            // Set the EPPlus license context here
+            ExcelPackage.License.SetNonCommercialPersonal("Hassan Askari");
+
+            // Retrieve all rooms from the database
+            var rooms = await _context.Rooms.ToListAsync();
+
+            // Create the Excel file and populate it
+            var stream = new MemoryStream();
+            using (var package = new ExcelPackage(stream))
+            {
+                var worksheet = package.Workbook.Worksheets.Add("Rooms");
+
+                // Define headers
+                worksheet.Cells[1, 1].Value = "RoomName";
+                worksheet.Cells[1, 2].Value = "Capacity";
+                worksheet.Cells[1, 3].Value = "Status";
+
+                // Add data from the database starting from row 2
+                for (int i = 0; i < rooms.Count; i++)
+                {
+                    worksheet.Cells[i + 2, 1].Value = rooms[i].RoomName;
+                    worksheet.Cells[i + 2, 2].Value = rooms[i].Capacity;
+                    worksheet.Cells[i + 2, 3].Value = rooms[i].Status.ToString();
+                }
+
+                // Auto-fit columns for better readability
+                worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+
+                await package.SaveAsync();
+            }
+
+            stream.Position = 0;
+
+            // Return the file for download
+            var fileName = $"Rooms_{DateTime.Now:yyyyMMdd}.xlsx";
+            return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }  // -----------------------------
         // 3. Get All Rooms
         // -----------------------------
         [HttpGet("rooms")]
@@ -414,32 +527,32 @@ namespace JobFairPortal.Controllers
                 CompanyName = null
             });
         }
-        
 
-[HttpGet("companies/overview")]
-    public async Task<IActionResult> GetCompaniesOverview()
-    {
-        var companies = await _context.Companies
-            .Include(c => c.Room)
-            .Include(c => c.Interviews)
-            .ToListAsync();
 
-        var result = companies.Select(c => new CompanyOverviewDto
+        [HttpGet("companies/overview")]
+        public async Task<IActionResult> GetCompaniesOverview()
         {
-            CompanyId = c.CompanyId,
-            CompanyName = c.Name,
-            Field = c.Industry, // Assuming you have a "Field" column (else add one)
-            InterviewingStatus = c.IsPresent ? "Present" : "Not Present",
-            RoomAllotted = c.Room != null ? c.Room.RoomName : null,
-            TotalInterviews = c.Interviews.Count,
-            StudentsShortlisted = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-            StudentsHired = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-            StudentsRejected = c.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-            StudentsQueued = c.Interviews.Count(i => i.Status == InterviewStatus.Queued)
-        });
+            var companies = await _context.Companies
+                .Include(c => c.Room)
+                .Include(c => c.Interviews)
+                .ToListAsync();
 
-        return Ok(result);
-    }
+            var result = companies.Select(c => new CompanyOverviewDto
+            {
+                CompanyId = c.CompanyId,
+                CompanyName = c.Name,
+                Field = c.Industry, // Assuming you have a "Field" column (else add one)
+                InterviewingStatus = c.IsPresent ? "Present" : "Not Present",
+                RoomAllotted = c.Room != null ? c.Room.RoomName : null,
+                TotalInterviews = c.Interviews.Count,
+                StudentsShortlisted = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
+                StudentsHired = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
+                StudentsRejected = c.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
+                StudentsQueued = c.Interviews.Count(i => i.Status == InterviewStatus.Queued)
+            });
+
+            return Ok(result);
+        }
         [HttpPut("companies/change-room")]
         public async Task<IActionResult> ChangeCompanyRoom([FromBody] ChangeCompanyRoomDto dto)
         {
@@ -472,75 +585,75 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = $"Room {room.RoomName} assigned to {company.Name}" });
         }
 
-[HttpGet("companies/{companyId}/details")]
-public async Task<IActionResult> GetCompanyDetails(int companyId)
-{
-    try
-    {
-        var company = await _context.Companies
-            .Include(c => c.Room)
-            .Include(c => c.Jobs)
-            .Include(c => c.Interviews)
-            .Include(c => c.User)
-            .FirstOrDefaultAsync(c => c.CompanyId == companyId);
-
-        if (company == null)
-            return NotFound(new { Message = "Company not found." });
-
-        string? logoUrl = null;
-        if (!string.IsNullOrEmpty(company.LogoUrl))
+        [HttpGet("companies/{companyId}/details")]
+        public async Task<IActionResult> GetCompanyDetails(int companyId)
         {
-            
-            var filePath = Path.Combine("uploads", "companies", "logo", company.LogoUrl);
-            if (System.IO.File.Exists(filePath))
-                logoUrl = $"/uploads/companies/logo/{company.LogoUrl}";
-            else
-                logoUrl = "/uploads/companies/logo/default.png"; 
-        }
-        else
-        {
-            logoUrl = "/uploads/companies/logo/default.png";
-        }
-
-        var companyDetails = new
-        {
-            CompanyId = company.CompanyId,
-            CompanyName = company.Name,
-            Industry = company.Industry,
-            ContactEmail = company.User?.Email,
-            LogoUrl = logoUrl,
-            RoomAllotted = company.Room?.RoomName,
-            Jobs = company.Jobs.Select(j => new
+            try
             {
-                JobId = j.JobId,
-                JobTitle = j.JobTitle,
-                JobType = j.JobType.ToString(),
-                JobDescription = j.JobDescription
-            }),
-            InterviewStats = new
-            {
-                TotalInterviews = company.Interviews.Count,
-                StudentsQueued = company.Interviews.Count(i => i.Status == InterviewStatus.Queued),
-                StudentsShortlisted = company.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                StudentsHired = company.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                StudentsRejected = company.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                InterviewedStudents = company.Interviews.Select(i => new
+                var company = await _context.Companies
+                    .Include(c => c.Room)
+                    .Include(c => c.Jobs)
+                    .Include(c => c.Interviews)
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.CompanyId == companyId);
+
+                if (company == null)
+                    return NotFound(new { Message = "Company not found." });
+
+                string? logoUrl = null;
+                if (!string.IsNullOrEmpty(company.LogoUrl))
                 {
-                    StudentId = i.Student.StudentId,
-                    StudentName = i.Student.User.FullName,
-                    InterviewStatus = i.Status.ToString()
-                })
-            }
-        };
 
-        return Ok(companyDetails);
-    }
-    catch (Exception ex)
-    {
-        // Log the error if needed
-        return StatusCode(500, new { Message = "An unexpected error occurred.", Details = ex.Message });
-    }
-}
+                    var filePath = Path.Combine("uploads", "companies", "logo", company.LogoUrl);
+                    if (System.IO.File.Exists(filePath))
+                        logoUrl = $"/uploads/companies/logo/{company.LogoUrl}";
+                    else
+                        logoUrl = "/uploads/companies/logo/default.png";
+                }
+                else
+                {
+                    logoUrl = "/uploads/companies/logo/default.png";
+                }
+
+                var companyDetails = new
+                {
+                    CompanyId = company.CompanyId,
+                    CompanyName = company.Name,
+                    Industry = company.Industry,
+                    ContactEmail = company.User?.Email,
+                    LogoUrl = logoUrl,
+                    RoomAllotted = company.Room?.RoomName,
+                    Jobs = company.Jobs.Select(j => new
+                    {
+                        JobId = j.JobId,
+                        JobTitle = j.JobTitle,
+                        JobType = j.JobType.ToString(),
+                        JobDescription = j.JobDescription
+                    }),
+                    InterviewStats = new
+                    {
+                        TotalInterviews = company.Interviews.Count,
+                        StudentsQueued = company.Interviews.Count(i => i.Status == InterviewStatus.Queued),
+                        StudentsShortlisted = company.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
+                        StudentsHired = company.Interviews.Count(i => i.Status == InterviewStatus.Hired),
+                        StudentsRejected = company.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
+                        InterviewedStudents = company.Interviews.Select(i => new
+                        {
+                            StudentId = i.Student.StudentId,
+                            StudentName = i.Student.User.FullName,
+                            InterviewStatus = i.Status.ToString()
+                        })
+                    }
+                };
+
+                return Ok(companyDetails);
+            }
+            catch (Exception ex)
+            {
+                // Log the error if needed
+                return StatusCode(500, new { Message = "An unexpected error occurred.", Details = ex.Message });
+            }
+        }
 
         // -----------------------------
         // 16. Get All Students
@@ -634,5 +747,131 @@ public async Task<IActionResult> GetCompanyDetails(int companyId)
 
             return Ok(detail);
         }
-    }
+
+
+
+        private async Task ParseXlsxStream(Stream stream, List<Room> roomsToCreate, List<Room> roomsToUpdate, List<string> errors)
+        {
+            using (var package = new ExcelPackage(stream))
+            {
+                var worksheet = package.Workbook.Worksheets.FirstOrDefault();
+                if (worksheet == null)
+                {
+                    errors.Add("The XLSX file is empty or does not contain any worksheets.");
+                    return;
+                }
+
+                var existingRooms = await _context.Rooms.ToDictionaryAsync(r => r.RoomName, r => r);
+
+                for (int row = 2; row <= worksheet.Dimension.End.Row; row++)
+                {
+                    try
+                    {
+                        var roomName = worksheet.Cells[row, 1].Value?.ToString()?.Trim();
+                        var capacityStr = worksheet.Cells[row, 2].Value?.ToString()?.Trim();
+                        var statusStr = worksheet.Cells[row, 3].Value?.ToString()?.Trim();
+
+
+                        if (string.IsNullOrWhiteSpace(roomName))
+                        {
+                            errors.Add($"Row {row}: RoomName is required.");
+                            continue;
+                        }
+
+                        if (!int.TryParse(capacityStr, out int capacity))
+                        {
+                            errors.Add($"Row {row}: Invalid Capacity value '{capacityStr}'. It must be a number.");
+                            continue;
+                        }
+
+                        if (!Enum.TryParse<RoomStatus>(statusStr, true, out RoomStatus status))
+                        {
+                            errors.Add($"Row {row}: Invalid Status value '{statusStr}'.");
+                            continue;
+                        }
+
+
+
+
+                        if (existingRooms.TryGetValue(roomName, out var existingRoom))
+                        {
+                            // Check if an update is needed
+                            if (existingRoom.Capacity != capacity || existingRoom.Status != status)
+                            {
+                                // Update only if values have changed
+                                existingRoom.Capacity = capacity;
+                                existingRoom.Status = status;
+                                existingRoom.UpdatedAt = DateTime.UtcNow;
+                                roomsToUpdate.Add(existingRoom); // Add to the update list
+                            }
+                        }
+                        else
+                        {
+                            // Room is new, create a new object
+                            roomsToCreate.Add(new Room
+                            {
+                                RoomName = roomName,
+                                Capacity = capacity,
+                                Status = status,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Row {row}: An unexpected error occurred. Details: {ex.Message}");
+                    }
+                }
+            }
+        }
+        private async Task ParseCsvStream(Stream stream, List<Room> roomsToCreate, List<Room> roomsToUpdate, List<string> errors)
+        {
+            using (var reader = new StreamReader(stream))
+            using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
+            {
+                var existingRooms = await _context.Rooms.ToDictionaryAsync(r => r.RoomName, r => r);
+
+                csv.Context.RegisterClassMap<RoomMap>();
+                var records = csv.GetRecords<RoomBulkCreateDto>();
+                int row = 2;
+
+                foreach (var record in records)
+                {
+                    try
+                    {
+                        if (existingRooms.TryGetValue(record.RoomName, out var existingRoom))
+                        {
+                            // Check if an update is needed
+                            if (existingRoom.Capacity != record.Capacity || existingRoom.Status != record.Status)
+                            {
+                                // Update only if values have changed
+                                existingRoom.Capacity = record.Capacity;
+                                existingRoom.Status = record.Status;
+                                existingRoom.UpdatedAt = DateTime.UtcNow;
+                                roomsToUpdate.Add(existingRoom); // Add to the update list
+                            }
+                        }
+                        else
+                        {
+                            // Room is new, create it
+                            roomsToCreate.Add(new Room
+                            {
+                                RoomName = record.RoomName,
+                                Capacity = record.Capacity,
+                                Status = record.Status,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"Row {row}: An unexpected error occurred. Details: {ex.Message}");
+                    }
+                    row++;
+                }
+            }
+        }
+    }    
 }

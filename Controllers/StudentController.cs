@@ -147,7 +147,6 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Skills added.", Skills = student.Skills });
         }
 
-        // 5. Remove Skill
         [HttpPost("{studentId}/skills/remove")]
         public async Task<IActionResult> RemoveSkill(int studentId, [FromBody] string skill)
         {
@@ -168,6 +167,33 @@ namespace JobFairPortal.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Skill removed.", Skills = student.Skills });
+        }
+
+        // 6. Get Student Profile for Mobile App
+        [HttpGet("{studentId}/profile")]
+        public async Task<IActionResult> GetStudentProfile(int studentId)
+        {
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var profile = new
+            {
+                Name = student.User?.FullName,
+                RegistrationNo = student.RegistrationNo,
+                ProfilePicUrl = student.ProfilePicUrl,
+                Skills = student.Skills ?? Array.Empty<string>(),
+                CVUrl = student.CVUrl,
+                FypDemoUrl = student.FypDemoUrl,
+                FypDescription = student.FypDescription,
+                Department = student.Department,
+                CGPA = student.CGPA
+            };
+
+            return Ok(profile);
         }
     }
 }
