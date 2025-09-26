@@ -169,6 +169,26 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Skill removed.", Skills = student.Skills });
         }
 
+        /// <summary>
+        /// Replace all skills for a student (PUT).
+        /// </summary>
+        [HttpPut("{studentId}/skills")]
+        public async Task<IActionResult> PutSkills(int studentId, [FromBody] SkillsDto dto)
+        {
+            if (dto.Skills == null || dto.Skills.Length == 0)
+                return BadRequest("No skills provided.");
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            student.Skills = dto.Skills;
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Skills updated.", Skills = student.Skills });
+        }
+
         // 6. Get Student Profile for Mobile App
         [HttpGet("{studentId}/profile")]
         public async Task<IActionResult> GetStudentProfile(int studentId)
@@ -194,6 +214,55 @@ namespace JobFairPortal.Controllers
             };
 
             return Ok(profile);
+        }
+        [HttpPut("{studentId}/links")]
+        public async Task<IActionResult> UpdateStudentLinks(int studentId, [FromBody] StudentLinksDto dto)
+        {
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (!string.IsNullOrWhiteSpace(dto.FypDemoUrl))
+                student.FypDemoUrl = dto.FypDemoUrl;
+
+            if (!string.IsNullOrWhiteSpace(dto.LinkedIn))
+                student.LinkedIn = dto.LinkedIn;
+
+            if (!string.IsNullOrWhiteSpace(dto.GitHub))
+                student.GitHub = dto.GitHub;
+
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Student links updated successfully.",
+                FypDemoUrl = student.FypDemoUrl,
+                LinkedIn = student.LinkedIn,
+                GitHub = student.GitHub
+            });
+        }
+
+        /// <summary>
+        /// Add or update the phone number for a student.
+        /// </summary>
+        [HttpPut("{studentId}/phone")]
+        public async Task<IActionResult> UpdatePhone(int studentId, [FromBody] PhoneDto dto)
+        {
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null || student.User == null)
+                return NotFound("Student not found.");
+
+            if (string.IsNullOrWhiteSpace(dto.Phone))
+                return BadRequest("Phone number is required.");
+
+            student.User.Phone = dto.Phone;
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Phone number updated successfully.", Phone = student.User.Phone });
         }
     }
 }

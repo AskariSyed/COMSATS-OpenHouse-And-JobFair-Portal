@@ -3,13 +3,36 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ---------------------------
+// 1. Services
+// ---------------------------
 builder.Services.AddDbContext<JobFairRecruitmentDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services.AddControllers();
+
 var jwtKey = builder.Configuration["Jwt:Key"];
 var key = Encoding.ASCII.GetBytes(jwtKey);
+
+FirebaseApp.Create(new AppOptions()
+{
+    Credential = GoogleCredential.FromFile("C:\\Users\\HP\\source\\repos\\Job Fair\\JobFairPortal\\config\\hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json")
+});
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.ListenAnyIP(5158); // HTTP
+    serverOptions.ListenAnyIP(7050, listenOptions =>
+    {
+        listenOptions.UseHttps();    // HTTPS
+    });
+});
 
 builder.Services.AddAuthentication(options =>
 {
@@ -30,11 +53,10 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Add Swagger/OpenAPI for testing
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
- builder.Services.AddLogging(); // Ensure logging is added
+builder.Services.AddMemoryCache();
+builder.Services.AddLogging();
 builder.Services.AddScoped<JobFairPortal.Services.MailKitMailService>();
 
 // ---------------------------
@@ -53,7 +75,19 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Enable serving files from wwwroot
+app.UseStaticFiles();
+
+// Enable serving files from "uploads" folder
+var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+if (!Directory.Exists(uploadsPath))
+    Directory.CreateDirectory(uploadsPath);
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
 
 // Enable Authentication & Authorization
 app.UseAuthentication();

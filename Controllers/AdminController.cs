@@ -11,6 +11,17 @@ using OfficeOpenXml;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using FirebaseAdmin.Messaging;
+using Microsoft.Extensions.Configuration;
+using FirebaseAdmin.Messaging;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using FirebaseAdmin.Messaging;
+using Notification = FirebaseAdmin.Messaging.Notification;
+
+
 namespace JobFairPortal.Controllers
 
 {
@@ -25,6 +36,7 @@ namespace JobFairPortal.Controllers
         private readonly JobFairRecruitmentDbContext _context;
 
         private readonly ILogger<AdminController> _logger;
+
 
         public AdminController(JobFairRecruitmentDbContext context, ILogger<AdminController> logger)
         {
@@ -164,11 +176,11 @@ namespace JobFairPortal.Controllers
                 Errors = errorSummary
             });
         }
-        [HttpGet("rooms/download-template")]
+        [HttpGet("rooms/download")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> DownloadRoomsTemplate()
         {
-            // Set the EPPlus license context here
+
             ExcelPackage.License.SetNonCommercialPersonal("Hassan Askari");
 
             // Retrieve all rooms from the database
@@ -604,7 +616,7 @@ namespace JobFairPortal.Controllers
                 if (!string.IsNullOrEmpty(company.LogoUrl))
                 {
 
-                    var filePath = Path.Combine("uploads", "companies", "logo", company.LogoUrl);
+                    var filePath = Path.Combine("", "companies", "logo", company.LogoUrl);
                     if (System.IO.File.Exists(filePath))
                         logoUrl = $"/uploads/companies/logo/{company.LogoUrl}";
                     else
@@ -667,6 +679,7 @@ namespace JobFairPortal.Controllers
                 .Include(s => s.User)
                 .Select(s => new
                 {
+                    StudentId = s.StudentId,
                     Name = s.User.FullName,
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
@@ -731,7 +744,7 @@ namespace JobFairPortal.Controllers
             {
                 Name = student.User.FullName,
                 RegistrationNo = student.RegistrationNo,
-                FypDemoUrl = student.FypDemoUrl, // Should be a YouTube embed link
+                FypDemoUrl = student.FypDemoUrl,
                 FypTitle = student.FypTitle,
                 FypDescription = student.FypDescription,
                 CGPA = student.CGPA,
@@ -747,9 +760,6 @@ namespace JobFairPortal.Controllers
 
             return Ok(detail);
         }
-
-
-
         private async Task ParseXlsxStream(Stream stream, List<Room> roomsToCreate, List<Room> roomsToUpdate, List<string> errors)
         {
             using (var package = new ExcelPackage(stream))
@@ -873,5 +883,99 @@ namespace JobFairPortal.Controllers
                 }
             }
         }
-    }    
+        // -----------------------------
+        // Send FCM Notification to a Specific Student
+        // -----------------------------
+
+
+        [HttpPost("students/{studentId}/notify")]
+        public async Task<IActionResult> NotifyStudent(int studentId, [FromBody] FcmMessageDto dto)
+        {
+            // Fetch student
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (string.IsNullOrWhiteSpace(student.FcmToken))
+                return BadRequest("Student does not have a registered FCM token.");
+
+            // Construct the message
+            var message = new Message
+            {
+                Token = student.FcmToken,
+
+                // 🔹 This field ensures popup notifications on devices
+                Notification = new Notification
+                {
+                    Title = dto.Title ?? "Notification",
+                    Body = dto.Body ?? ""
+                },
+
+                // Optional data for app logic
+                Data = dto.Data ?? new Dictionary<string, string>()
+            };
+
+            try
+            {
+                // Send message to FCM
+                string response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                return Ok(new { Message = "Notification sent successfully.", Id = response });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to send notification.", Error = ex.Message });
+            }
+        }
+
+        // -----------------------------
+        // Send FCM Notification to All Students
+        // -----------------------------
+        [HttpPost("students/notify-all")]
+        public async Task<IActionResult> NotifyAllStudents([FromBody] FcmMessageDto dto)
+        {
+            var tokens = await _context.Students
+                .Where(s => !string.IsNullOrEmpty(s.FcmToken))
+                .Select(s => s.FcmToken)
+                .ToListAsync();
+
+            if (!tokens.Any())
+                return BadRequest("No students have registered FCM tokens.");
+
+            var message = new MulticastMessage
+            {
+                Tokens = tokens,
+                Notification = new Notification
+                {
+                    Title = dto.Title,
+                    Body = dto.Body
+                },
+                Data = dto.Data ?? new Dictionary<string, string>() // optional
+            };
+
+            try
+            {
+                var response = await FirebaseMessaging.DefaultInstance.SendMulticastAsync(message);
+
+                return Ok(new
+                {
+                    SuccessCount = response.SuccessCount,
+                    FailureCount = response.FailureCount,
+                    Responses = response.Responses.Select((r, i) => new
+                    {
+                        Token = tokens[i],
+                        Success = r.IsSuccess,
+                        Error = r.Exception?.Message
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to send notifications.", Error = ex.Message });
+            }
+        }
+
+    }
 }
