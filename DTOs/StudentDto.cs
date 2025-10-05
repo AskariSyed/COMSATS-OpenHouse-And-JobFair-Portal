@@ -2,6 +2,7 @@
 {
     public class CompleteProfileDto
     {
+        public string? Name { get; set; }
         public string? CVUrl { get; set; }
         public string? FypDemoUrl { get; set; }
         public string? FypTitle { get; set; }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251004141343_AddedJobFairEntity")]
+    partial class AddedJobFairEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -220,9 +223,6 @@ namespace JobFairPortal.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("JobFairId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ReasonForReject")
                         .HasColumnType("text");
 
@@ -241,8 +241,6 @@ namespace JobFairPortal.Migrations
                     b.HasKey("RequestId");
 
                     b.HasIndex("CompanyId");
-
-                    b.HasIndex("JobFairId");
 
                     b.HasIndex("StudentId");
 
@@ -266,7 +264,7 @@ namespace JobFairPortal.Migrations
                     b.Property<string>("JobDescription")
                         .HasColumnType("text");
 
-                    b.Property<int?>("JobFairId")
+                    b.Property<int>("JobFairId")
                         .HasColumnType("integer");
 
                     b.Property<string>("JobTitle")
@@ -395,7 +393,7 @@ namespace JobFairPortal.Migrations
                     b.Property<string>("FypTitle")
                         .HasColumnType("text");
 
-                    b.Property<int>("JobFairId")
+                    b.Property<int?>("JobFairId")
                         .HasColumnType("integer");
 
                     b.Property<Dictionary<string, string>>("Links")
@@ -570,12 +568,6 @@ namespace JobFairPortal.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("JobFair", "JobFair")
-                        .WithMany("InterviewRequests")
-                        .HasForeignKey("JobFairId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("JobFairPortal.Models.Student", "Student")
                         .WithMany("InterviewRequests")
                         .HasForeignKey("StudentId")
@@ -583,8 +575,6 @@ namespace JobFairPortal.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
-
-                    b.Navigation("JobFair");
 
                     b.Navigation("Student");
                 });
@@ -597,11 +587,15 @@ namespace JobFairPortal.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("JobFair", null)
+                    b.HasOne("JobFair", "JobFair")
                         .WithMany("Jobs")
-                        .HasForeignKey("JobFairId");
+                        .HasForeignKey("JobFairId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Company");
+
+                    b.Navigation("JobFair");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.Notification", b =>
@@ -634,19 +628,15 @@ namespace JobFairPortal.Migrations
 
             modelBuilder.Entity("JobFairPortal.Models.Student", b =>
                 {
-                    b.HasOne("JobFair", "JobFair")
+                    b.HasOne("JobFair", null)
                         .WithMany("Students")
-                        .HasForeignKey("JobFairId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("JobFairId");
 
                     b.HasOne("JobFairPortal.Models.User", "User")
                         .WithOne("Student")
                         .HasForeignKey("JobFairPortal.Models.Student", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("JobFair");
 
                     b.Navigation("User");
                 });
@@ -660,7 +650,7 @@ namespace JobFairPortal.Migrations
                         .IsRequired();
 
                     b.HasOne("JobFair", "JobFair")
-                        .WithMany("Surveys")
+                        .WithMany()
                         .HasForeignKey("JobFairId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -674,8 +664,6 @@ namespace JobFairPortal.Migrations
                 {
                     b.Navigation("Companies");
 
-                    b.Navigation("InterviewRequests");
-
                     b.Navigation("Interviews");
 
                     b.Navigation("Jobs");
@@ -683,8 +671,6 @@ namespace JobFairPortal.Migrations
                     b.Navigation("Rooms");
 
                     b.Navigation("Students");
-
-                    b.Navigation("Surveys");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.Company", b =>

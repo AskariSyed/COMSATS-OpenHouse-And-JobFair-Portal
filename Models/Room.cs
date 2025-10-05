@@ -24,6 +24,8 @@ namespace JobFairPortal.Models
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         [ForeignKey("CompanyId")]
         public Company? Company { get; set; }
+        public int JobFairId { get; set; }
+        public JobFair JobFair { get; set; } = null!;
     }
 
 }

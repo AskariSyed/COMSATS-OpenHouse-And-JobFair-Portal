@@ -26,6 +26,7 @@ namespace JobFairPortal.Models
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         public Company Company { get; set; } = null!;
+
     }
 
 }

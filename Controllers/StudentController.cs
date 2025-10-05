@@ -4,12 +4,15 @@ using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace JobFairPortal.Controllers
 {
+
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize(Roles = "Student")]
+    
+    [Authorize(Roles = "Student")]
     public class StudentController : ControllerBase
     {
         private readonly JobFairRecruitmentDbContext _context;
@@ -20,11 +23,36 @@ namespace JobFairPortal.Controllers
             _context = context;
             _logger = logger;
         }
-        [HttpPost("{studentId}/profile-pic")]
-        public async Task<IActionResult> UploadProfilePic(int studentId, [FromForm] FileUploadDto dto)
+        //[HttpGet("whoami")]
+        //[Authorize]
+        //public IActionResult WhoAmI()
+        //{
+        //    var claims = User.Claims.Select(c => new { c.Type, c.Value });
+        //    return Ok(claims);
+        //}
+
+
+        [HttpPost("profile-pic")]
+        public async Task<IActionResult> UploadProfilePic( [FromForm] FileUploadDto dto)
+
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
             var file = dto.File;
-            var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.StudentId == studentId);
+
             if (student == null)
                 return NotFound("Student not found.");
 
@@ -52,11 +80,23 @@ namespace JobFairPortal.Controllers
         }
 
         // 2. Upload/Change CV
-        [HttpPost("{studentId}/cv")]
-        public async Task<IActionResult> UploadCV(int studentId, [FromForm] FileUploadDto dto)
+        [HttpPost("cv")]
+        public async Task<IActionResult> UploadCV([FromForm] FileUploadDto dto)
         {
             var file = dto.File;
-            var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.StudentId == studentId);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
             if (student == null)
                 return NotFound("Student not found.");
 
@@ -85,12 +125,26 @@ namespace JobFairPortal.Controllers
 
         // 3. Complete Profile
      
-        [HttpPut("{studentId}/complete-profile")]
-        public async Task<IActionResult> CompleteProfile(int studentId, [FromBody] CompleteProfileDto dto)
+        [HttpPut("complete-profile")]
+        public async Task<IActionResult> CompleteProfile( [FromBody] CompleteProfileDto dto)
         {
-            var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.StudentId == studentId);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
             if (student == null)
                 return NotFound("Student not found.");
+            if (!string.IsNullOrWhiteSpace(dto.Name))
+                student.User.FullName = dto.Name;
 
             if (!string.IsNullOrWhiteSpace(dto.CVUrl))
                 student.CVUrl = dto.CVUrl;
@@ -119,15 +173,27 @@ namespace JobFairPortal.Controllers
         // DTO for multiple skills
        
 
-        [HttpPost("{studentId}/skills/add")]
-        public async Task<IActionResult> AddSkills(int studentId, [FromBody] SkillsDto dto)
+        [HttpPost("skills/add")]
+        public async Task<IActionResult> AddSkills( [FromBody] SkillsDto dto)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
             if (dto.Skills == null || dto.Skills.Length == 0)
                 return BadRequest("No skills provided.");
 
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
-            if (student == null)
-                return NotFound("Student not found.");
 
             var existingSkills = student.Skills?.ToList() ?? new List<string>();
 
@@ -147,13 +213,25 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Skills added.", Skills = student.Skills });
         }
 
-        [HttpPost("{studentId}/skills/remove")]
+        [HttpPost("skills/remove")]
         public async Task<IActionResult> RemoveSkill(int studentId, [FromBody] string skill)
         {
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
             if (student == null)
                 return NotFound("Student not found.");
-
+           
             if (string.IsNullOrWhiteSpace(skill))
                 return BadRequest("Skill cannot be empty.");
 
@@ -172,7 +250,7 @@ namespace JobFairPortal.Controllers
         /// <summary>
         /// Replace all skills for a student (PUT).
         /// </summary>
-        [HttpPut("{studentId}/skills")]
+        [HttpPut("skills")]
         public async Task<IActionResult> PutSkills(int studentId, [FromBody] SkillsDto dto)
         {
             if (dto.Skills == null || dto.Skills.Length == 0)
@@ -189,13 +267,42 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Skills updated.", Skills = student.Skills });
         }
 
-        // 6. Get Student Profile for Mobile App
-        [HttpGet("{studentId}/profile")]
-        public async Task<IActionResult> GetStudentProfile(int studentId)
+
+
+
+        [Authorize]
+        [HttpGet("debug-claims")]
+        public IActionResult DebugClaims()
         {
+            Console.WriteLine("🧩 DEBUGGING CLAIMS -------------------");
+            foreach (var claim in User.Claims)
+            {
+                Console.WriteLine($"👉 Type: {claim.Type} | Value: {claim.Value}");
+            }
+            Console.WriteLine("--------------------------------------");
+
+            return Ok(User.Claims.Select(c => new { c.Type, c.Value }));
+        }
+
+        // 6. Get Student Profile for Mobile App
+
+
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetStudentProfile()
+        {
+            
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+           
             var student = await _context.Students
                 .Include(s => s.User)
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+                .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
                 return NotFound("Student not found.");
@@ -210,26 +317,39 @@ namespace JobFairPortal.Controllers
                 FypDemoUrl = student.FypDemoUrl,
                 FypDescription = student.FypDescription,
                 Department = student.Department,
-                CGPA = student.CGPA
+                CGPA = student.CGPA,
+                Links = student.Links ?? new Dictionary<string, string>()
             };
 
             return Ok(profile);
         }
-        [HttpPut("{studentId}/links")]
+
+
+        [HttpPut("links")]
         public async Task<IActionResult> UpdateStudentLinks(int studentId, [FromBody] StudentLinksDto dto)
         {
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
             if (student == null)
                 return NotFound("Student not found.");
+           
 
             if (!string.IsNullOrWhiteSpace(dto.FypDemoUrl))
                 student.FypDemoUrl = dto.FypDemoUrl;
 
-            if (!string.IsNullOrWhiteSpace(dto.LinkedIn))
-                student.LinkedIn = dto.LinkedIn;
-
-            if (!string.IsNullOrWhiteSpace(dto.GitHub))
-                student.GitHub = dto.GitHub;
+            if (dto.Links != null)
+                student.Links = dto.Links;
 
             student.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -238,23 +358,31 @@ namespace JobFairPortal.Controllers
             {
                 Message = "Student links updated successfully.",
                 FypDemoUrl = student.FypDemoUrl,
-                LinkedIn = student.LinkedIn,
-                GitHub = student.GitHub
+                Links = student.Links
             });
         }
 
         /// <summary>
         /// Add or update the phone number for a student.
         /// </summary>
-        [HttpPut("{studentId}/phone")]
+        [HttpPut("phone")]
         public async Task<IActionResult> UpdatePhone(int studentId, [FromBody] PhoneDto dto)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+
             var student = await _context.Students
                 .Include(s => s.User)
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
-            if (student == null || student.User == null)
-                return NotFound("Student not found.");
+                .FirstOrDefaultAsync(s => s.UserId == userId);
 
+            if (student == null)
+                return NotFound("Student not found.");
             if (string.IsNullOrWhiteSpace(dto.Phone))
                 return BadRequest("Phone number is required.");
 
@@ -264,5 +392,88 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { Message = "Phone number updated successfully.", Phone = student.User.Phone });
         }
+        [HttpPut("update")]
+        [RequestSizeLimit(20_000_000)] // Optional: allow up to ~20MB
+        public async Task<IActionResult> UpdateStudentProfile([FromForm] UpdateStudentDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            // ✅ 1. Upload profile picture if provided
+            if (dto.ProfilePic != null && dto.ProfilePic.Length > 0)
+            {
+                var uploadsFolder = Path.Combine("uploads", "student", "profilepics");
+                Directory.CreateDirectory(uploadsFolder);
+
+                var fileName = $"{student.RegistrationNo}_{Guid.NewGuid()}{Path.GetExtension(dto.ProfilePic.FileName)}";
+                var filePath = Path.Combine(uploadsFolder, fileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await dto.ProfilePic.CopyToAsync(stream);
+                }
+
+                student.ProfilePicUrl = $"/uploads/student/profilepics/{fileName}";
+            }
+
+            // ✅ 2. Update text fields (if provided)
+            if (!string.IsNullOrWhiteSpace(dto.Name))
+                student.User.FullName = dto.Name;
+
+            if (!string.IsNullOrWhiteSpace(dto.CVUrl))
+                student.CVUrl = dto.CVUrl;
+
+            if (!string.IsNullOrWhiteSpace(dto.FypTitle))
+                student.FypTitle = dto.FypTitle;
+
+            if (!string.IsNullOrWhiteSpace(dto.FypDemoUrl))
+                student.FypDemoUrl = dto.FypDemoUrl;
+
+            if (!string.IsNullOrWhiteSpace(dto.FypDescription))
+                student.FypDescription = dto.FypDescription;
+
+            if (!string.IsNullOrWhiteSpace(dto.Department))
+                student.Department = dto.Department;
+
+            if (dto.CGPA.HasValue)
+                student.CGPA = dto.CGPA.Value;
+
+            if (dto.Skills != null && dto.Skills.Any())
+                student.Skills = dto.Skills;
+
+            if (dto.Links != null && dto.Links.Any())
+            {
+                student.Links ??= new Dictionary<string, string>();
+                foreach (var kv in dto.Links)
+                    student.Links[kv.Key] = kv.Value;
+            }
+
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Profile updated successfully.",
+                student.ProfilePicUrl,
+                student.CVUrl,
+                student.Skills,
+                student.FypTitle,
+                student.FypDemoUrl,
+                student.Links
+            });
+        }
+
     }
 }

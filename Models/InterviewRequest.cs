@@ -32,6 +32,9 @@ namespace JobFairPortal.Models
 
         public Company Company { get; set; } = null!;
         public Student Student { get; set; } = null!;
+        public JobFair JobFair { get; set; } = null!;
+
+
     }
 
 }

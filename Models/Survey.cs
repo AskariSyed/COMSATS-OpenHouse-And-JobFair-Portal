@@ -17,6 +17,8 @@ namespace JobFairPortal.Models
         public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 
         public Company Company { get; set; } = null!;
+        public int JobFairId { get; set; }
+        public JobFair JobFair { get; set; } = null!;
     }
 
 }

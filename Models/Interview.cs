@@ -31,6 +31,8 @@ namespace JobFairPortal.Models
         public Company Company { get; set; } = null!;
         public Student Student { get; set; } = null!;
         public InterviewRequest? Request { get; set; }
+        public int JobFairId { get; set; }
+        public JobFair JobFair { get; set; } = null!;
     }
 
 }

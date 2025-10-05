@@ -30,7 +30,7 @@ namespace JobFairPortal.Controllers
     // -----------------------------
     [ApiController]
     [Route("api/[controller]")]
-    //[Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     public class AdminController : ControllerBase
     {
         private readonly JobFairRecruitmentDbContext _context;
@@ -85,13 +85,18 @@ namespace JobFairPortal.Controllers
         // 2. Add Room
         // -----------------------------
         [HttpPost("rooms")]
-        public async Task<IActionResult> AddRoom([FromBody] RoomCreateDto dto)
+        public async Task<IActionResult> AddRoom([FromBody] RoomCreateDto dto, [FromQuery] int? jobFairId = null)
         {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null)
+                return BadRequest("No active job fair found.");
+
             var room = new Room
             {
                 RoomName = dto.RoomName,
                 Capacity = dto.Capacity,
                 Status = RoomStatus.Vacant,
+                JobFairId = jobFairId.Value,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -241,11 +246,16 @@ namespace JobFairPortal.Controllers
         // 4. Get All Companies
         // -----------------------------
         [HttpGet("companies")]
-        public async Task<IActionResult> GetCompanies()
+        public async Task<IActionResult> GetCompanies([FromQuery] int? jobFairId = null)
         {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null)
+                return BadRequest("No active job fair found.");
+
             var companies = await _context.Companies
                 .Include(c => c.User)
                 .Include(c => c.Room)
+                .Where(c => c.JobFairId == jobFairId.Value)
                 .Select(c => new CompanyResponseDto
                 {
                     CompanyId = c.CompanyId,
@@ -258,7 +268,6 @@ namespace JobFairPortal.Controllers
 
             return Ok(companies);
         }
-
         // -----------------------------
         // 5. Add On-Spot Company
         // -----------------------------
@@ -541,142 +550,25 @@ namespace JobFairPortal.Controllers
         }
 
 
-        [HttpGet("companies/overview")]
-        public async Task<IActionResult> GetCompaniesOverview()
-        {
-            var companies = await _context.Companies
-                .Include(c => c.Room)
-                .Include(c => c.Interviews)
-                .ToListAsync();
-
-            var result = companies.Select(c => new CompanyOverviewDto
-            {
-                CompanyId = c.CompanyId,
-                CompanyName = c.Name,
-                Field = c.Industry, // Assuming you have a "Field" column (else add one)
-                InterviewingStatus = c.IsPresent ? "Present" : "Not Present",
-                RoomAllotted = c.Room != null ? c.Room.RoomName : null,
-                TotalInterviews = c.Interviews.Count,
-                StudentsShortlisted = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                StudentsHired = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                StudentsRejected = c.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                StudentsQueued = c.Interviews.Count(i => i.Status == InterviewStatus.Queued)
-            });
-
-            return Ok(result);
-        }
-        [HttpPut("companies/change-room")]
-        public async Task<IActionResult> ChangeCompanyRoom([FromBody] ChangeCompanyRoomDto dto)
-        {
-            var company = await _context.Companies.FindAsync(dto.CompanyId);
-            if (company == null)
-                return NotFound("Company not found.");
-
-            var room = await _context.Rooms.FindAsync(dto.RoomId);
-            if (room == null)
-                return NotFound("Room not found.");
-
-            // Check if room is already allotted to another company
-            if (room.Status == RoomStatus.Alloted && room.CompanyId != company.CompanyId)
-                return BadRequest("Room already allotted to another company.");
-
-            // Reset old room if this company already has one
-            var oldRoom = await _context.Rooms.FirstOrDefaultAsync(r => r.CompanyId == company.CompanyId);
-            if (oldRoom != null)
-            {
-                oldRoom.CompanyId = null;
-                oldRoom.Status = RoomStatus.Vacant;
-                oldRoom.UpdatedAt = DateTime.UtcNow;
-            }
-            // Assign new room
-            room.CompanyId = company.CompanyId;
-            room.Status = RoomStatus.Alloted;
-            room.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-            return Ok(new { Message = $"Room {room.RoomName} assigned to {company.Name}" });
-        }
-
-        [HttpGet("companies/{companyId}/details")]
-        public async Task<IActionResult> GetCompanyDetails(int companyId)
-        {
-            try
-            {
-                var company = await _context.Companies
-                    .Include(c => c.Room)
-                    .Include(c => c.Jobs)
-                    .Include(c => c.Interviews)
-                    .Include(c => c.User)
-                    .FirstOrDefaultAsync(c => c.CompanyId == companyId);
-
-                if (company == null)
-                    return NotFound(new { Message = "Company not found." });
-
-                string? logoUrl = null;
-                if (!string.IsNullOrEmpty(company.LogoUrl))
-                {
-
-                    var filePath = Path.Combine("", "companies", "logo", company.LogoUrl);
-                    if (System.IO.File.Exists(filePath))
-                        logoUrl = $"/uploads/companies/logo/{company.LogoUrl}";
-                    else
-                        logoUrl = "/uploads/companies/logo/default.png";
-                }
-                else
-                {
-                    logoUrl = "/uploads/companies/logo/default.png";
-                }
-
-                var companyDetails = new
-                {
-                    CompanyId = company.CompanyId,
-                    CompanyName = company.Name,
-                    Industry = company.Industry,
-                    ContactEmail = company.User?.Email,
-                    LogoUrl = logoUrl,
-                    RoomAllotted = company.Room?.RoomName,
-                    Jobs = company.Jobs.Select(j => new
-                    {
-                        JobId = j.JobId,
-                        JobTitle = j.JobTitle,
-                        JobType = j.JobType.ToString(),
-                        JobDescription = j.JobDescription
-                    }),
-                    InterviewStats = new
-                    {
-                        TotalInterviews = company.Interviews.Count,
-                        StudentsQueued = company.Interviews.Count(i => i.Status == InterviewStatus.Queued),
-                        StudentsShortlisted = company.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                        StudentsHired = company.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                        StudentsRejected = company.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                        InterviewedStudents = company.Interviews.Select(i => new
-                        {
-                            StudentId = i.Student.StudentId,
-                            StudentName = i.Student.User.FullName,
-                            InterviewStatus = i.Status.ToString()
-                        })
-                    }
-                };
-
-                return Ok(companyDetails);
-            }
-            catch (Exception ex)
-            {
-                // Log the error if needed
-                return StatusCode(500, new { Message = "An unexpected error occurred.", Details = ex.Message });
-            }
-        }
-
         // -----------------------------
-        // 16. Get All Students
+        // 16. Get All Students (Paginated)
         // -----------------------------
         [HttpGet("students")]
-        public async Task<IActionResult> GetAllStudents()
+        public async Task<IActionResult> GetAllStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            _logger.LogInformation("GetAllStudents called by admin.");
+            _logger.LogInformation("GetAllStudents called by admin with page={Page}, pageSize={PageSize}.", page, pageSize);
 
-            var students = await _context.Students
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            var query = _context.Students
                 .Include(s => s.User)
+                .OrderBy(s => s.StudentId);
+
+            var totalCount = await query.CountAsync();
+            var students = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(s => new
                 {
                     StudentId = s.StudentId,
@@ -688,7 +580,14 @@ namespace JobFairPortal.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(students);
+            return Ok(new
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                Students = students
+            });
         }
 
         // -----------------------------
@@ -751,11 +650,9 @@ namespace JobFairPortal.Controllers
                 ContactDetails = new
                 {
                     Email = student.User.Email,
-                    Phone = student.User.Phone,
-                    LinkedIn = student.LinkedIn,
-                    GitHub = student.GitHub
-                    // Add more fields if needed
-                }
+                    Phone = student.User.Phone
+                },
+                Links = student.Links ?? new Dictionary<string, string>()
             };
 
             return Ok(detail);
@@ -975,6 +872,51 @@ namespace JobFairPortal.Controllers
             {
                 return StatusCode(500, new { Message = "Failed to send notifications.", Error = ex.Message });
             }
+        }
+        // -----------------------------
+        // Add Job Fair (Admin Only)
+        // -----------------------------
+        [HttpPost("jobfairs")]
+        public async Task<IActionResult> AddJobFair([FromBody] JobFair dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Semester))
+                return BadRequest("Semester name is required.");
+
+           
+            if (dto.IsActive)
+            {
+                var activeFairs = await _context.JobFairs.Where(j => j.IsActive).ToListAsync();
+                foreach (var fair in activeFairs)
+                {
+                    fair.IsActive = false;
+                }
+            }
+
+            var jobFair = new JobFair
+            {
+                Semester = dto.Semester,
+                date = dto.date,
+                IsActive = dto.IsActive
+            };
+
+            _context.JobFairs.Add(jobFair);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job Fair created successfully.",
+                jobFair.JobFairId,
+                jobFair.Semester,
+                jobFair.date,
+                jobFair.IsActive
+            });
+        }
+
+
+        private async Task<int?> GetActiveJobFairIdAsync()
+        {
+            var active = await _context.JobFairs.FirstOrDefaultAsync(jf => jf.IsActive);
+            return active?.JobFairId;
         }
 
     }

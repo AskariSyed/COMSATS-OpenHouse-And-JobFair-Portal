@@ -104,45 +104,67 @@ namespace JobFairPortal.Controllers
 
             if (!isProfileComplete)
             {
-                // Respond with minimal info
                 return Ok(new
                 {
                     Token = token,
                     Role = user.Role.ToString(),
                     ProfileComplete = false,
-                    UserId=user.UserId,
-
+                    UserId = user.UserId,
                     Student = new
                     {
                         student.StudentId,
-                        Name = user.FullName,
                         student.RegistrationNo,
                         user.Email,
-                        
+                        Links = student.Links ?? new Dictionary<string, string>(),
+                        // ...
+                        User = new
+                        {
+                            user.UserId,
+                            user.Email,
+                            user.Phone,
+                            user.Role,
+                            FullName = user.FullName,
+                            user.IsActive,
+                            user.CreatedAt,
+                            user.UpdatedAt
+                        }
                     }
                 });
+
             }
 
             // Build full student profile DTO
             var studentProfile = new StudentLoginResponseDto
-            {
-                StudentId = student.StudentId,
-                Name = user.FullName,
-                RegistrationNo = student.RegistrationNo,
-                ProfilePicUrl = student.ProfilePicUrl,
-                CVUrl = student.CVUrl,
-                FypTitle = student.FypTitle,
-                FypDemoUrl = student.FypDemoUrl,
-                FypDescription = student.FypDescription,
-                Department = student.Department,
-                CGPA = student.CGPA,
-                Skills = student.Skills,
-                Email = user.Email,
-                Phone = user.Phone,
-                LinkedIn = student.LinkedIn,
-                GitHub = student.GitHub,
-                FcmToken = student.FcmToken
-            };
+{
+    StudentId = student.StudentId,
+    RegistrationNo = student.RegistrationNo,
+    ProfilePicUrl = student.ProfilePicUrl,
+    CVUrl = student.CVUrl,
+    FypTitle = student.FypTitle,
+    FypDemoUrl = student.FypDemoUrl,
+    FypDescription = student.FypDescription,
+    Department = student.Department,
+    CGPA = student.CGPA,
+    Skills = student.Skills,
+    Links = student.Links ?? new Dictionary<string, string>(),
+    FcmToken = student.FcmToken,
+    CreatedAt=student.CreatedAt,
+    UpdatedAt=student.UpdatedAt,
+    
+    // NESTED USER OBJECT
+    User = new UserDto
+    {
+        UserId = user.UserId,
+        Email = user.Email,
+        FullName = user.FullName,
+        Phone = user.Phone,
+        Role = user.Role.ToString(),
+        IsActive = user.IsActive,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt
+        // Omit student to avoid circular reference
+    }
+};
 
             return Ok(new
             {
@@ -222,11 +244,16 @@ namespace JobFairPortal.Controllers
 
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Role, user.Role.ToString()),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
+        // Use NameIdentifier for userId (primary identity)
+        new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+        new Claim(ClaimTypes.Role, user.Role.ToString()),
+
+        // Optional: store email separately (won’t map to nameidentifier)
+        new Claim(JwtRegisteredClaimNames.Email, user.Email),
+
+        // Unique token ID
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+    };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
@@ -245,37 +272,40 @@ namespace JobFairPortal.Controllers
             return tokenHandler.WriteToken(token);
         }
 
+
         // -----------------------------
         // Student Registration
         // -----------------------------
         [HttpPost("student/register")]
         public async Task<IActionResult> RegisterStudent(
-            [FromServices] MailKitMailService mailService,
-            [FromBody] string registrationNo)
+    [FromServices] MailKitMailService mailService,
+    [FromBody] string registrationNo)
         {
             if (string.IsNullOrWhiteSpace(registrationNo))
                 return BadRequest("Registration number is required.");
 
-            // Registration number pattern: FA/SP + 2 digits + hyphen + 3 letters + hyphen + 3 digits
+            // 🔹 Validate registration number format
             var regNoPattern = @"^(FA|SP)\d{2}-[A-Z]{3}-\d{3}$";
-            if (!System.Text.RegularExpressions.Regex.IsMatch(registrationNo, regNoPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                registrationNo, regNoPattern,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
                 return BadRequest("Invalid registration number format. Example: FA22-BCS-155 or SP22-ABC-123");
+            }
 
             var email = $"{registrationNo}@cuiwah.edu.pk";
 
-            // Check if user already exists
+            // 🔹 Check if user already exists
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (existingUser != null)
                 return BadRequest("Student already registered.");
 
-            // Extract program code (e.g., BCS, BSE, etc.)
+            // 🔹 Extract program & map department
             var parts = registrationNo.ToUpper().Split('-');
             if (parts.Length < 3)
                 return BadRequest("Invalid registration number format.");
 
             var programCode = parts[1];
-
-            // Only allow these courses
             string department = programCode switch
             {
                 "BCS" or "BSE" or "BAI" => "Computer Science",
@@ -289,11 +319,24 @@ namespace JobFairPortal.Controllers
             if (department == null)
                 return BadRequest("Registration is only allowed for: BCS, BSE, BAI, CVE, BME, BEE, BCE, BBA, BAF.");
 
-            // Generate random password
+            // 🔹 Find Active Job Fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+            {
+                // No active Job Fair — return unique code
+                return StatusCode(460, new
+                {
+                    Code = "NO_ACTIVE_JOBFAIR",
+                    Message = "No active Job Fair available. Please contact the admin."
+                });
+            }
+
+            // 🔹 Generate password
             var password = Guid.NewGuid().ToString("N")[..8];
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
 
-            // Create User
+            // 🔹 Create User
             var user = new User
             {
                 Email = email,
@@ -304,23 +347,45 @@ namespace JobFairPortal.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Create Student
+            // 🔹 Create Student (linked to Job Fair)
             var student = new Student
             {
                 UserId = user.UserId,
                 RegistrationNo = registrationNo,
                 Department = department,
-                CGPA = 0
+                CGPA = 0,
+                JobFairId = activeJobFair.JobFairId // 🔗 Link to active JobFair
             };
             _context.Students.Add(student);
             await _context.SaveChangesAsync();
 
-            // Send email
+            // 🔹 Send Email
             var subject = "Your Job Fair Portal Account";
-            var body = $"Dear Student,\n\nYour account has been created.\nEmail: {email}\nPassword: {password}\n\nPlease change your password after first login.";
+            var body = $"""
+    Dear Student,
+
+    Your account for the Job Fair Portal has been created successfully.
+
+    Email: {email}
+    Password: {password}
+
+    Please log in and change your password after your first login.
+
+    Linked Job Fair: {activeJobFair.Semester} ({activeJobFair.date:yyyy-MM-dd})
+
+    Regards,
+    Job Fair Management Team
+    """;
+
             await mailService.SendMailAsync(email, subject, body);
 
-            return Ok(new { Message = "Student registered and password sent to email.", Email = email });
+            return Ok(new
+            {
+                Message = "Student registered successfully and password sent via email.",
+                Email = email,
+                JobFairId = activeJobFair.JobFairId,
+                JobFairSemester = activeJobFair.Semester
+            });
         }
 
         // -----------------------------

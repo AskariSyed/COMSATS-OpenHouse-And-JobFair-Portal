@@ -53,5 +53,7 @@ namespace JobFairPortal.Models
         public ICollection<InterviewRequest> InterviewRequests { get; set; } = new List<InterviewRequest>();
         public ICollection<Interview> Interviews { get; set; } = new List<Interview>();
         public ICollection<Survey> Surveys { get; set; } = new List<Survey>();
+        public int JobFairId { get; set; }
+        public JobFair JobFair { get; set; } = null!;
     }
 }

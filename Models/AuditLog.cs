@@ -15,6 +15,7 @@ namespace JobFairPortal.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public User? Actor { get; set; }
 
+
     }
 
 }

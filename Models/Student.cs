@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using System.Collections.Generic;
 
 namespace JobFairPortal.Models
 {
@@ -19,8 +21,10 @@ namespace JobFairPortal.Models
         public string Department { get; set; } = null!;
         public string[]? Skills { get; set; }
         public string? FcmToken { get; set; }
-        public string? LinkedIn { get; set; }
-        public string? GitHub { get; set; }
+
+        // Use a JSON column to store multiple links (e.g., LinkedIn, GitHub, Portfolio, etc.)
+        [JsonInclude]
+        public Dictionary<string, string>? Links { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -28,5 +32,8 @@ namespace JobFairPortal.Models
         public User User { get; set; } = null!;
         public ICollection<InterviewRequest> InterviewRequests { get; set; } = new List<InterviewRequest>();
         public ICollection<Interview> Interviews { get; set; } = new List<Interview>();
+
+        public int JobFairId { get; set; }
+        public JobFair JobFair { get; set; } = null!;
     }
 }

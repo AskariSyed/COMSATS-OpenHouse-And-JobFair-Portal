@@ -21,6 +21,7 @@ namespace JobFairPortal.Data
         public DbSet<Notification> Notifications { get; set; } = null!;
         public DbSet<Survey> Surveys { get; set; } = null!;
         public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+        public DbSet<JobFair> JobFairs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
