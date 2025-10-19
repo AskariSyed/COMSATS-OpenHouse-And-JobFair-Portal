@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251005090140_FixSkillsColumn")]
+    partial class FixSkillsColumn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -409,7 +412,7 @@ namespace JobFairPortal.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Skills")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("json");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");

@@ -8,10 +8,12 @@
         public string? FypTitle { get; set; }
         public string? FypDescription { get; set; }
         public decimal? CGPA { get; set; }
-        public string[]? Skills { get; set; }
+        public List<string>? Skills { get; set; }
+
     }
     public class SkillsDto
     {
-        public string[] Skills { get; set; }
+        public List<string>? Skills { get; set; }
+
     }
 }

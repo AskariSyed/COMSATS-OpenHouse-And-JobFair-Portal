@@ -11,7 +11,8 @@ namespace JobFairPortal.DTOs
         public string? FypDescription { get; set; }
         public string Department { get; set; } = null!;
         public decimal CGPA { get; set; }
-        public string[]? Skills { get; set; }
+        public List<string>? Skills { get; set; }
+
         public Dictionary<string, string>? Links { get; set; }
         public string? FcmToken { get; set; }
         public DateTime CreatedAt { get; set; }

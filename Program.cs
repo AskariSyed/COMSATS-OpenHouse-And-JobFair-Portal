@@ -1,12 +1,14 @@
-﻿using JobFairPortal.Data;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using FirebaseAdmin;
+﻿using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using JobFairPortal.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
+using Npgsql;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 
 // Disable default inbound claim mapping
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
@@ -16,8 +18,12 @@ var builder = WebApplication.CreateBuilder(args);
 // ---------------------------
 // 1. Services
 // ---------------------------
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
+dataSourceBuilder.EnableDynamicJson(); // 👈 this line enables List<> / object JSON writing
+var dataSource = dataSourceBuilder.Build();
+
 builder.Services.AddDbContext<JobFairRecruitmentDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(dataSource));
 
 builder.Services.AddControllers();
 

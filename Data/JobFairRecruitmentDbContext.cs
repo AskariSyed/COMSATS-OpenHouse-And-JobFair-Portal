@@ -1,5 +1,6 @@
 ﻿using JobFairPortal.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Text.Json;
 
 namespace JobFairPortal.Data
@@ -26,12 +27,15 @@ namespace JobFairPortal.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
             modelBuilder.Entity<Student>()
-       .Property(s => s.Skills)
-       .HasConversion(
-           v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-           v => JsonSerializer.Deserialize<string[]>(v, (JsonSerializerOptions?)null)
-       );
+    .Property(s => s.Skills)
+    .HasConversion(
+        v => JsonSerializer.Serialize(v, new JsonSerializerOptions()), 
+        v => JsonSerializer.Deserialize<List<string>>(v, new JsonSerializerOptions()) ?? new List<string>()
+    )
+    .HasColumnType("jsonb");
+
 
             base.OnModelCreating(modelBuilder);
 

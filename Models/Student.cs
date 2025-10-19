@@ -19,7 +19,8 @@ namespace JobFairPortal.Models
         public string? FypDemoUrl { get; set; }
         public string? FypDescription { get; set; }
         public string Department { get; set; } = null!;
-        public string[]? Skills { get; set; }
+        public List<string>? Skills { get; set; }
+
         public string? FcmToken { get; set; }
 
         // Use a JSON column to store multiple links (e.g., LinkedIn, GitHub, Portfolio, etc.)
