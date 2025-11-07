@@ -16,4 +16,16 @@
         public List<string>? Skills { get; set; }
 
     }
-}
+    public class StudentListDto
+    {
+        public int StudentId { get; set; }
+        public string? Name { get; set; }
+        public string RegistrationNo { get; set; }
+        public string Department { get; set; }
+        public float CGPA { get; set; }
+        public List<string> Skills { get; set; }
+        public string? ProfilePicUrl { get; set; }
+    }
+
+
+    }

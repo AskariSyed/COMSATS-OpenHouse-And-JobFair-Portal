@@ -13,7 +13,7 @@ namespace JobFairPortal.Models
         public int SurveyId { get; set; }
         public SurveyType Type { get; set; }
         public int CompanyId { get; set; }
-        public string? Responses { get; set; }  // JSON string of multiple-choice + descriptive answers
+        public string? Responses { get; set; } 
         public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
 
         public Company Company { get; set; } = null!;

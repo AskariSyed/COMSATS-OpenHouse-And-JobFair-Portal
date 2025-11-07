@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
-using OfficeOpenXml;
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Mail;
 using System.Security.Claims;
@@ -69,6 +69,9 @@ namespace JobFairPortal.Controllers
             {
                 student = await _context.Students
                     .Include(s => s.User)
+                    .Include(s => s.ContactLinks)
+                    .Include(s => s.StudentProjects)
+                        .ThenInclude(sp => sp.Project)
                     .FirstOrDefaultAsync(s => s.RegistrationNo.ToUpper() == input.ToUpper());
                 user = student?.User;
             }
@@ -76,6 +79,10 @@ namespace JobFairPortal.Controllers
             {
                 user = await _context.Users
                     .Include(u => u.Student)
+                        .ThenInclude(s => s.ContactLinks)
+                    .Include(u => u.Student)
+                        .ThenInclude(s => s.StudentProjects)
+                            .ThenInclude(sp => sp.Project)
                     .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == UserRole.Student);
                 student = user?.Student;
             }
@@ -97,10 +104,12 @@ namespace JobFairPortal.Controllers
             // Generate JWT token
             var token = GenerateJwtToken(user);
 
-            // ✅ Check if profile is incomplete (first-time login)
-            bool isProfileComplete = !string.IsNullOrWhiteSpace(student.CVUrl) &&
-                                     !string.IsNullOrWhiteSpace(student.Department) &&
-                                     (student.Skills != null && student.Skills.Count > 0); 
+            // Check if profile is incomplete (first-time login)
+            bool isProfileComplete = !string.IsNullOrWhiteSpace(student.Department)
+                && (student.Skills != null && student.Skills.Count > 0)
+                && (student.Certifications != null && student.Certifications.Count > 0)
+                && (student.Achievements != null && student.Achievements.Count > 0)
+                && !string.IsNullOrWhiteSpace(student.ProfilePicUrl);
 
             if (!isProfileComplete)
             {
@@ -115,8 +124,11 @@ namespace JobFairPortal.Controllers
                         student.StudentId,
                         student.RegistrationNo,
                         user.Email,
-                        Links = student.Links ?? new Dictionary<string, string>(),
-                        // ...
+                        Links = student.ContactLinks != null
+                            ? student.ContactLinks.ToDictionary(
+                                cl => cl.Platform.ToString(),
+                                cl => cl.Url)
+                            : new Dictionary<string, string>(),
                         User = new
                         {
                             user.UserId,
@@ -130,48 +142,87 @@ namespace JobFairPortal.Controllers
                         }
                     }
                 });
-
             }
 
-            // Build full student profile DTO
+            // Get FYP details from StudentProjects
+            var fyp = student.StudentProjects
+                .FirstOrDefault(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)?.Project;
+
             var studentProfile = new StudentLoginResponseDto
-{
-    StudentId = student.StudentId,
-    RegistrationNo = student.RegistrationNo,
-    ProfilePicUrl = student.ProfilePicUrl,
-    CVUrl = student.CVUrl,
-    FypTitle = student.FypTitle,
-    FypDemoUrl = student.FypDemoUrl,
-    FypDescription = student.FypDescription,
-    Department = student.Department,
-    CGPA = student.CGPA,
-    Skills = student.Skills,
-    Links = student.Links ?? new Dictionary<string, string>(),
-    FcmToken = student.FcmToken,
-    CreatedAt=student.CreatedAt,
-    UpdatedAt=student.UpdatedAt,
-    
-    // NESTED USER OBJECT
-    User = new UserDto
-    {
-        UserId = user.UserId,
-        Email = user.Email,
-        FullName = user.FullName,
-        Phone = user.Phone,
-        Role = user.Role.ToString(),
-        IsActive = user.IsActive,
-        CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdatedAt
-        // Omit student to avoid circular reference
-    }
-};
+            {
+                StudentId = student.StudentId,
+                RegistrationNo = student.RegistrationNo,
+                ProfilePicUrl = student.ProfilePicUrl,
+                Department = student.Department,
+                CGPA = student.CGPA,
+                Skills = student.Skills,
+                Links = student.ContactLinks != null
+                    ? student.ContactLinks.ToDictionary(
+                        cl => cl.Platform.ToString(),
+                        cl => cl.Url)
+                    : new Dictionary<string, string>(),
+                FcmToken = student.FcmToken,
+                CreatedAt = student.CreatedAt,
+                UpdatedAt = student.UpdatedAt,
+                Experiences = student.Experiences.Select(e => new ExperienceDto
+
+                {
+                    ExperienceId = e.ExperienceId,
+                    CompanyName = e.CompanyName,
+                    Role = e.Role,
+                    Description = e.Description,
+                    StartDate = e.StartDate,
+                    EndDate = e.EndDate,
+                    IsCurrent = e.IsCurrent,
+                    Location = e.Location
+                }).ToList(),
+                Educations=student.Educations.Select(ed=>new EducationDto
+                {
+                    EducationId=ed.EducationId,
+                    InstitutionName=ed.InstitutionName,
+                    Degree=ed.Degree,
+                    FieldOfStudy=ed.FieldOfStudy,
+                    StartDate=ed.StartDate,
+                    EndDate=ed.EndDate,
+                    IsCurrent=ed.IsCurrent,
+                    CGPA=ed.CGPA,
+                    Location=ed.Location
+                }).ToList(),
+                Achievements = student.Achievements.Select(a => new AchievementDto
+                {
+                    AchievementId = a.AchievementId,
+                    Title = a.Title,
+                    Description = a.Description,
+                    DateAchieved = a.DateAchieved
+                }).ToList(),
+                Certifications = student.Certifications.Select(c => new CertificationDto
+                {
+                    CertificationId = c.CertificationId,
+                    Title = c.Title,
+                    Issuer = c.Issuer,
+                    IssueDate = c.IssueDate,
+                    CredentialUrl = c.CredentialUrl,
+                    CredentialId = c.CredentialId
+                }).ToList(),
+                User = new UserDto
+                {
+                    UserId = user.UserId,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    Phone = user.Phone,
+                    Role = user.Role.ToString(),
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    UpdatedAt = user.UpdatedAt
+                }
+            };
 
             return Ok(new
             {
                 Token = token,
                 Role = user.Role.ToString(),
                 ProfileComplete = true,
-                UserId=user.UserId,
+                UserId = user.UserId,
                 Student = studentProfile
             });
         }
@@ -354,7 +405,7 @@ namespace JobFairPortal.Controllers
                 RegistrationNo = registrationNo,
                 Department = department,
                 CGPA = 0,
-                JobFairId = activeJobFair.JobFairId // 🔗 Link to active JobFair
+                JobFairId = activeJobFair.JobFairId 
             };
             _context.Students.Add(student);
             await _context.SaveChangesAsync();
@@ -394,14 +445,16 @@ namespace JobFairPortal.Controllers
         [HttpPost("company-signup")]
         public async Task<IActionResult> CompanySignup([FromForm] CompanySignupDto dto)
         {
-            // Validate email and phone
+            // Validate input
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Check if user email or rep email already exists
+            // Check if user email or focal person email already exists
             if (await _context.Users.AnyAsync(u => u.Email == dto.UserEmail) ||
-                await _context.Companies.AnyAsync(c => c.RepEmail == dto.RepEmail))
-                return BadRequest("User email or representative email already exists.");
+                await _context.Companies.AnyAsync(c => c.FocalPersonEmail == dto.FocalPersonEmail))
+            {
+                return BadRequest("User email or focal person email already exists.");
+            }
 
             // Save logo if provided
             string? logoUrl = null;
@@ -418,7 +471,6 @@ namespace JobFairPortal.Controllers
                     await dto.Logo.CopyToAsync(stream);
                 }
 
-                // Save relative path for serving via static files
                 logoUrl = $"/uploads/companies/logo/{fileName}";
             }
 
@@ -441,9 +493,13 @@ namespace JobFairPortal.Controllers
                 Name = dto.Name,
                 Description = dto.Description,
                 RepsCount = dto.RepsCount,
-                RepEmail = dto.RepEmail,
-                RepPhone = dto.RepPhone,
+                FocalPersonName = dto.FocalPersonName,
+                FocalPersonEmail = dto.FocalPersonEmail,
+                FocalPersonPhone = dto.FocalPersonPhone,
+                CompanyEmail = dto.CompanyEmail,
+                CompanyPhone = dto.CompanyPhone,
                 Address = dto.Address,
+                Website = dto.Website,
                 InterviewDurationMinutes = dto.InterviewDurationMinutes,
                 Industry = dto.Industry,
                 LogoUrl = logoUrl,
@@ -463,26 +519,41 @@ namespace JobFairPortal.Controllers
                     CompanyId = company.CompanyId,
                     JobTitle = jobDto.JobTitle,
                     JobDescription = jobDto.JobDescription,
-                    RequiredSkills = jobDto.RequiredSkills
+                    RequiredSkills = jobDto.RequiredSkills?.Split(',', StringSplitOptions.TrimEntries),
+                    JobType = jobDto.Type
                 };
                 _context.Jobs.Add(job);
             }
+
+            // Add company contact links
+            foreach (var linkDto in dto.ContactLinks)
+            {
+                var contactLink = new CompanyContactLink
+                {
+                    CompanyId = company.CompanyId,
+                    Platform = linkDto.Platform,
+                    Url = linkDto.Url
+                };
+                _context.CompanyContactLinks.Add(contactLink);
+            }
+
             await _context.SaveChangesAsync();
 
-            // Generate OTP and send to RepEmail
+            // Generate OTP and send to FocalPersonEmail
             var otp = new Random().Next(100000, 999999).ToString();
-            var cacheKey = $"company-otp:{dto.RepEmail.ToLower()}";
+            var cacheKey = $"company-otp:{dto.FocalPersonEmail.ToLower()}";
             _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(10));
 
-            await _mailService.SendMailAsync(dto.RepEmail, "Company Signup OTP", $"Your OTP is: {otp}");
+            await _mailService.SendMailAsync(dto.FocalPersonEmail, "Company Signup OTP", $"Your OTP is: {otp}");
 
             return Ok(new
             {
-                Message = "Signup successful. OTP sent to representative email.",
+                Message = "Signup successful. OTP sent to focal person email.",
                 CompanyId = company.CompanyId,
                 LogoUrl = logoUrl
             });
         }
+
 
         // -----------------------------
         // Company OTP Verification

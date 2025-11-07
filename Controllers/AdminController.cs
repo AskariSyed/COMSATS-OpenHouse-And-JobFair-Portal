@@ -15,10 +15,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FirebaseAdmin.Messaging;
 using Microsoft.Extensions.Configuration;
-using FirebaseAdmin.Messaging;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using FirebaseAdmin.Messaging;
 using Notification = FirebaseAdmin.Messaging.Notification;
 
 
@@ -563,6 +559,8 @@ namespace JobFairPortal.Controllers
 
             var query = _context.Students
                 .Include(s => s.User)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project)
                 .OrderBy(s => s.StudentId);
 
             var totalCount = await query.CountAsync();
@@ -575,7 +573,10 @@ namespace JobFairPortal.Controllers
                     Name = s.User.FullName,
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
-                    FypTitle = s.FypTitle,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
                     CGPA = s.CGPA
                 })
                 .ToListAsync();
@@ -593,36 +594,73 @@ namespace JobFairPortal.Controllers
         // -----------------------------
         // 17. Filter Students by Department, Min CGPA, or Registration Number
         // -----------------------------
-        [HttpGet("students/filter")]
-        public async Task<IActionResult> FilterStudents(
+        [HttpGet("students/advanced-filter")]
+        public async Task<IActionResult> AdvancedFilterStudents(
             [FromQuery] string? department,
-            [FromQuery] decimal? minCgpa
-            )
+            [FromQuery] decimal? minCgpa,
+            [FromQuery] string? fypTitleContains)
         {
-            _logger.LogInformation("FilterStudents called with department: {Department}, minCgpa: {MinCgpa}, ", department, minCgpa);
+            _logger.LogInformation("AdvancedFilterStudents called with department: {Department}, minCgpa: {MinCgpa}, fypTitleContains: {FypTitle}",
+                department, minCgpa, fypTitleContains);
 
-            var query = _context.Students.Include(s => s.User).AsQueryable();
+            var query = _context.Students
+                .Include(s => s.User)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project)
+                .AsQueryable();
 
+            // Apply department filter
             if (!string.IsNullOrWhiteSpace(department))
                 query = query.Where(s => s.Department == department);
 
+            // Apply CGPA filter
             if (minCgpa.HasValue)
                 query = query.Where(s => s.CGPA >= minCgpa.Value);
 
+            // Apply FYP title filter
+            if (!string.IsNullOrWhiteSpace(fypTitleContains))
+            {
+                query = query.Where(s =>
+                    s.StudentProjects.Any(sp =>
+                        sp.Project.Type == ProjectType.FinalYear &&
+                        sp.Project.Title.Contains(fypTitleContains)));
+            }
 
             var students = await query
                 .Select(s => new
                 {
+                    StudentId = s.StudentId,
                     Name = s.User.FullName,
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
-                    FypTitle = s.FypTitle,
-                    CGPA = s.CGPA
+                    CGPA = s.CGPA,
+                    FYPs = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear)
+                        .Select(sp => new
+                        {
+                            Title = sp.Project.Title,
+                            Description = sp.Project.Description,
+                            Status = sp.Status
+                        }).ToList(),
+                    Skills = s.Skills ?? new List<string>(),
+                    Links = s.ContactLinks != null
+    ? s.ContactLinks.ToDictionary(
+        cl => cl.Platform.ToString(),
+        cl => cl.Url)
+    : new Dictionary<string, string>()
                 })
                 .ToListAsync();
 
-            return Ok(students);
+            return Ok(new
+            {
+                TotalCount = students.Count,
+                Students = students
+            });
         }
+
+
+
+
 
         // -----------------------------
         // 18. Get Student Detail by Id
@@ -634,25 +672,36 @@ namespace JobFairPortal.Controllers
 
             var student = await _context.Students
                 .Include(s => s.User)
+                .Include(s => s.ContactLinks)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project)
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
 
             if (student == null || student.User == null)
                 return NotFound(new { Message = "Student not found." });
+            var fyp = student.StudentProjects
+                .FirstOrDefault(sp => sp.Project?.Type == ProjectType.FinalYear)?
+                .Project;
 
             var detail = new
             {
                 Name = student.User.FullName,
                 RegistrationNo = student.RegistrationNo,
-                FypDemoUrl = student.FypDemoUrl,
-                FypTitle = student.FypTitle,
-                FypDescription = student.FypDescription,
+                FypDemoUrl = fyp?.DemoUrl,
+                FypTitle = fyp?.Title,
+                FypDescription = fyp?.Description,
                 CGPA = student.CGPA,
                 ContactDetails = new
                 {
                     Email = student.User.Email,
                     Phone = student.User.Phone
                 },
-                Links = student.Links ?? new Dictionary<string, string>()
+                Links = student.ContactLinks != null
+                    ? student.ContactLinks.ToDictionary(
+                        cl => cl.Platform.ToString(),
+                        cl => cl.Url)
+                    : new Dictionary<string, string>()
+            
             };
 
             return Ok(detail);

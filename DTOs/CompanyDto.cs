@@ -1,4 +1,7 @@
-﻿namespace JobFairPortal.DTOs
+﻿using JobFairPortal.Models;
+using System.ComponentModel.DataAnnotations;
+
+namespace JobFairPortal.DTOs
 {
     public class CompanyDto
     {
@@ -42,5 +45,22 @@
         public int CompanyId { get; set; }
         public int RoomId { get; set; }
     }
+    
+        public class CompanyContactLinkAddDto
+        {
+            [Required]
+            public CompanyContactPlatform Platform { get; set; }
 
+            [Required]
+            [Url]
+            public string Url { get; set; } = null!;
+        }
+
+        public class CompanyContactLinkUpdateDto
+        {
+            public CompanyContactPlatform? Platform { get; set; }
+
+            [Url]
+            public string? Url { get; set; }
+        }
 }

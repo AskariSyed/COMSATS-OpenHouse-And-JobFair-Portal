@@ -3,6 +3,7 @@ using System;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251106060727_StudentExtendedTables")]
+    partial class StudentExtendedTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -160,33 +163,16 @@ namespace JobFairPortal.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CompanyId"));
 
                     b.Property<string>("Address")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("ArrivalStatus")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CompanyEmail")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CompanyPhone")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FocalPersonEmail")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FocalPersonName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FocalPersonPhone")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Industry")
@@ -214,6 +200,14 @@ namespace JobFairPortal.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("RepEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RepPhone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int>("RepsCount")
                         .HasColumnType("integer");
 
@@ -226,9 +220,6 @@ namespace JobFairPortal.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Website")
-                        .HasColumnType("text");
-
                     b.HasKey("CompanyId");
 
                     b.HasIndex("JobFairId");
@@ -237,33 +228,6 @@ namespace JobFairPortal.Migrations
                         .IsUnique();
 
                     b.ToTable("Companies");
-                });
-
-            modelBuilder.Entity("JobFairPortal.Models.CompanyContactLink", b =>
-                {
-                    b.Property<int>("LinkId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LinkId"));
-
-                    b.Property<int>("CompanyId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("LinkId");
-
-                    b.HasIndex("CompanyId", "Platform")
-                        .IsUnique();
-
-                    b.ToTable("CompanyContactLinks");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.ContactLink", b =>
@@ -495,22 +459,20 @@ namespace JobFairPortal.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("JobDescription")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                        .HasColumnType("text");
 
                     b.Property<int?>("JobFairId")
                         .HasColumnType("integer");
 
                     b.Property<string>("JobTitle")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("text");
 
                     b.Property<int>("JobType")
                         .HasColumnType("integer");
 
-                    b.Property<string>("RequiredSkills")
-                        .HasColumnType("jsonb");
+                    b.PrimitiveCollection<string[]>("RequiredSkills")
+                        .HasColumnType("text[]");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -861,17 +823,6 @@ namespace JobFairPortal.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("JobFairPortal.Models.CompanyContactLink", b =>
-                {
-                    b.HasOne("JobFairPortal.Models.Company", "Company")
-                        .WithMany("CompanyContactLinks")
-                        .HasForeignKey("CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Company");
-                });
-
             modelBuilder.Entity("JobFairPortal.Models.ContactLink", b =>
                 {
                     b.HasOne("JobFairPortal.Models.Student", "Student")
@@ -1086,8 +1037,6 @@ namespace JobFairPortal.Migrations
 
             modelBuilder.Entity("JobFairPortal.Models.Company", b =>
                 {
-                    b.Navigation("CompanyContactLinks");
-
                     b.Navigation("InterviewRequests");
 
                     b.Navigation("Interviews");

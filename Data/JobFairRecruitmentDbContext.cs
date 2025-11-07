@@ -23,6 +23,15 @@ namespace JobFairPortal.Data
         public DbSet<Survey> Surveys { get; set; } = null!;
         public DbSet<AuditLog> AuditLogs { get; set; } = null!;
         public DbSet<JobFair> JobFairs { get; set; }
+        public DbSet<StudentProject> StudentProjects { get; set; } = null!;
+        public DbSet<Project> Projects { get; set; } = null!;
+        public DbSet<Achievement> Achievements { get; set; } = null!;
+        public DbSet<Certification> Certifications { get; set; } = null!;
+        public DbSet<ContactLink> ContactLinks { get; set; } = null!;
+        public DbSet<Experience> Experiences { get; set; } = null!;
+        public DbSet<Education> Educations { get; set; } = null!;
+        public DbSet<CompanyContactLink> CompanyContactLinks { get; set; } = null!;
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -71,6 +80,17 @@ namespace JobFairPortal.Data
                 .WithMany(c => c.Jobs)
                 .HasForeignKey(j => j.CompanyId);
 
+            modelBuilder.Entity<Job>(entity =>
+            {
+             
+                entity.Property(j => j.RequiredSkills)
+                    .HasConversion(
+                        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),  // object -> JSON string
+                        v => JsonSerializer.Deserialize<string[]>(v, (JsonSerializerOptions?)null) // JSON string -> object
+                    )
+                    .HasColumnType("jsonb"); 
+            });
+
             // -----------------------------
             // One-to-Many: Student ↔ InterviewRequests
             // -----------------------------
@@ -115,6 +135,193 @@ namespace JobFairPortal.Data
                 .WithMany()
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+
+            // -----------------------------
+            // Student ↔ StudentProject (Many-to-Many via Join Table)
+            // -----------------------------
+            modelBuilder.Entity<StudentProject>()
+                .HasOne(sp => sp.Student)
+                .WithMany(s => s.StudentProjects)
+                .HasForeignKey(sp => sp.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<StudentProject>()
+                .HasOne(sp => sp.Project)
+                .WithMany(p => p.StudentProjects)
+                .HasForeignKey(sp => sp.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure a student cannot be linked twice to the same project
+            modelBuilder.Entity<StudentProject>()
+                .HasIndex(sp => new { sp.StudentId, sp.ProjectId })
+                .IsUnique();
+
+            // Default values for status and creator flag
+            modelBuilder.Entity<StudentProject>()
+                .Property(sp => sp.Status)
+                .HasConversion<string>() // store enum as string for readability
+                .HasDefaultValue(ProjectInviteStatus.Pending);
+
+            modelBuilder.Entity<StudentProject>()
+                .Property(sp => sp.IsCreator)
+                .HasDefaultValue(false);
+
+            // -----------------------------
+            // Project ↔ StudentProject (Many-to-Many already handled)
+            // Add optional constraints for Project
+            // -----------------------------
+            modelBuilder.Entity<Project>()
+                .Property(p => p.Type)
+                .HasConversion<string>(); // store ProjectType as readable string
+
+            modelBuilder.Entity<Project>()
+                .Property(p => p.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            modelBuilder.Entity<Achievement>()
+                .HasOne(a => a.Student)
+                .WithMany(s => s.Achievements)
+                .HasForeignKey(a => a.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Achievement>()
+                .Property(a => a.Title)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<Achievement>()
+                .Property(a => a.Description)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<Achievement>()
+                .Property(a => a.DateAchieved)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            modelBuilder.Entity<Student>()
+                .Property(s => s.CGPA)
+                .HasPrecision(3, 2); // e.g., 3.75
+            // -----------------------------
+            // Student ↔ Certification (One-to-Many)
+            // -----------------------------
+            modelBuilder.Entity<Certification>()
+                .HasOne(c => c.Student)
+                .WithMany(s => s.Certifications)
+                .HasForeignKey(c => c.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure Certification entity
+            modelBuilder.Entity<Certification>()
+                .Property(c => c.Title)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<Certification>()
+                .Property(c => c.Issuer)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<Certification>()
+                .Property(c => c.CredentialUrl)
+                .HasMaxLength(500); // safety limit for URL length
+
+            modelBuilder.Entity<Certification>()
+                .Property(c => c.IssueDate)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // -----------------------------
+            // Student ↔ ContactLink (One-to-Many)
+            // -----------------------------
+            modelBuilder.Entity<ContactLink>()
+                .HasOne(cl => cl.Student)
+                .WithMany(s => s.ContactLinks)
+                .HasForeignKey(cl => cl.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<ContactLink>()
+        .Property(c => c.Platform)
+        .HasConversion<string>();
+
+            // Configure ContactLink entity
+            modelBuilder.Entity<ContactLink>()
+                .Property(cl => cl.Platform)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<ContactLink>()
+                .Property(cl => cl.Url)
+                .IsRequired();
+
+            
+
+
+            modelBuilder.Entity<ContactLink>()
+                .HasIndex(cl => new { cl.StudentId, cl.Platform })
+                .IsUnique(); // Prevent duplicate platforms for the same student
+            // -----------------------------
+            // Student ↔ Experience (One-to-Many)
+            // -----------------------------
+            modelBuilder.Entity<Experience>()
+                .HasOne(e => e.Student)
+                .WithMany(s => s.Experiences)
+                .HasForeignKey(e => e.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Experience>()
+                .Property(e => e.CompanyName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<Experience>()
+                .Property(e => e.Description)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<Experience>()
+                .Property(e => e.StartDate)
+                .IsRequired();
+
+            modelBuilder.Entity<Experience>()
+                .Property(e => e.IsCurrent)
+                .HasDefaultValue(false);
+
+            modelBuilder.Entity<Experience>()
+                .HasIndex(e => new { e.StudentId, e.StartDate });
+
+
+            modelBuilder.Entity<Education>()
+    .HasOne(e => e.Student)
+    .WithMany(s => s.Educations)
+    .HasForeignKey(e => e.StudentId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure properties
+            modelBuilder.Entity<Education>()
+                .Property(e => e.InstitutionName)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<Education>()
+                .Property(e => e.Degree)
+                .IsRequired()
+                .HasMaxLength(100);
+
+
+            // Company ↔ CompanyContactLink (One-to-Many)
+            modelBuilder.Entity<CompanyContactLink>()
+                .HasOne(ccl => ccl.Company)
+                .WithMany(c => c.CompanyContactLinks)
+                .HasForeignKey(ccl => ccl.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CompanyContactLink>()
+                .Property(ccl => ccl.Platform)
+                .HasConversion<string>(); // Store enum as string for readability
+
+            modelBuilder.Entity<CompanyContactLink>()
+                .HasIndex(ccl => new { ccl.CompanyId, ccl.Platform })
+                .IsUnique(); // Prevent duplicate platform entries per company
+          
+            
+
+
         }
     }
 }
