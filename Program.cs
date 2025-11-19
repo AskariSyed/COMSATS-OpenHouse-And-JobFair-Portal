@@ -29,7 +29,7 @@ var key = Encoding.UTF8.GetBytes(jwtKey);
 
 FirebaseApp.Create(new AppOptions()
 {
-    Credential = GoogleCredential.FromFile("C:\\Users\\HP\\source\\repos\\Job Fair\\JobFairPortal\\config\\hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json")
+    Credential = GoogleCredential.FromFile("C:\\Users\\thinkpad\\Source\\Repos\\JobFairPortal\\config\\hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json")
 });
 
 builder.WebHost.ConfigureKestrel(serverOptions =>

@@ -439,9 +439,120 @@ namespace JobFairPortal.Controllers
             });
         }
 
-        // -----------------------------
-        // Company Signup
-        // -----------------------------
+        //// -----------------------------
+        //// Company Signup
+        //// -----------------------------
+        //[HttpPost("company-signup")]
+        //public async Task<IActionResult> CompanySignup([FromForm] CompanySignupDto dto)
+        //{
+        //    // Validate input
+        //    if (!ModelState.IsValid)
+        //        return BadRequest(ModelState);
+
+        //    // Check if user email or focal person email already exists
+        //    if (await _context.Users.AnyAsync(u => u.Email == dto.UserEmail) ||
+        //        await _context.Companies.AnyAsync(c => c.FocalPersonEmail == dto.FocalPersonEmail))
+        //    {
+        //        return BadRequest("User email or focal person email already exists.");
+        //    }
+
+        //    // Save logo if provided
+        //    string? logoUrl = null;
+        //    if (dto.Logo != null && dto.Logo.Length > 0)
+        //    {
+        //        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "companies", "logo");
+        //        Directory.CreateDirectory(uploadsFolder);
+
+        //        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(dto.Logo.FileName)}";
+        //        var filePath = Path.Combine(uploadsFolder, fileName);
+
+        //        using (var stream = new FileStream(filePath, FileMode.Create))
+        //        {
+        //            await dto.Logo.CopyToAsync(stream);
+        //        }
+
+        //        logoUrl = $"/uploads/companies/logo/{fileName}";
+        //    }
+
+        //    // Create user
+        //    var user = new User
+        //    {
+        //        Email = dto.UserEmail,
+        //        FullName = dto.UserFullName,
+        //        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword),
+        //        Role = UserRole.Company,
+        //        IsActive = false // Activate after OTP
+        //    };
+        //    _context.Users.Add(user);
+        //    await _context.SaveChangesAsync();
+
+        //    // Create company
+        //    var company = new Company
+        //    {
+        //        UserId = user.UserId,
+        //        Name = dto.Name,
+        //        Description = dto.Description,
+        //        RepsCount = dto.RepsCount,
+        //        FocalPersonName = dto.FocalPersonName,
+        //        FocalPersonEmail = dto.FocalPersonEmail,
+        //        FocalPersonPhone = dto.FocalPersonPhone,
+        //        CompanyEmail = dto.CompanyEmail,
+        //        CompanyPhone = dto.CompanyPhone,
+        //        Address = dto.Address,
+        //        Website = dto.Website,
+        //        InterviewDurationMinutes = dto.InterviewDurationMinutes,
+        //        Industry = dto.Industry,
+        //        LogoUrl = logoUrl,
+        //        ArrivalStatus = ArrivalStatus.PreRegistered,
+        //        IsPresent = false,
+        //        CreatedAt = DateTime.UtcNow,
+        //        UpdatedAt = DateTime.UtcNow
+        //    };
+        //    _context.Companies.Add(company);
+        //    await _context.SaveChangesAsync();
+
+        //    // Add job offerings
+        //    foreach (var jobDto in dto.JobOfferings)
+        //    {
+        //        var job = new Job
+        //        {
+        //            CompanyId = company.CompanyId,
+        //            JobTitle = jobDto.JobTitle,
+        //            JobDescription = jobDto.JobDescription,
+        //            RequiredSkills = jobDto.RequiredSkills?.Split(',', StringSplitOptions.TrimEntries),
+        //            JobType = jobDto.Type
+        //        };
+        //        _context.Jobs.Add(job);
+        //    }
+
+        //    // Add company contact links
+        //    foreach (var linkDto in dto.ContactLinks)
+        //    {
+        //        var contactLink = new CompanyContactLink
+        //        {
+        //            CompanyId = company.CompanyId,
+        //            Platform = linkDto.Platform,
+        //            Url = linkDto.Url
+        //        };
+        //        _context.CompanyContactLinks.Add(contactLink);
+        //    }
+
+        //    await _context.SaveChangesAsync();
+
+        //    // Generate OTP and send to FocalPersonEmail
+        //    var otp = new Random().Next(100000, 999999).ToString();
+        //    var cacheKey = $"company-otp:{dto.FocalPersonEmail.ToLower()}";
+        //    _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(10));
+
+        //    await _mailService.SendMailAsync(dto.FocalPersonEmail, "Company Signup OTP", $"Your OTP is: {otp}");
+
+        //    return Ok(new
+        //    {
+        //        Message = "Signup successful. OTP sent to focal person email.",
+        //        CompanyId = company.CompanyId,
+        //        LogoUrl = logoUrl
+        //    });
+        //}
         [HttpPost("company-signup")]
         public async Task<IActionResult> CompanySignup([FromForm] CompanySignupDto dto)
         {
@@ -449,14 +560,25 @@ namespace JobFairPortal.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Check if user email or focal person email already exists
+            // Check if user or focal email already exists
             if (await _context.Users.AnyAsync(u => u.Email == dto.UserEmail) ||
                 await _context.Companies.AnyAsync(c => c.FocalPersonEmail == dto.FocalPersonEmail))
             {
                 return BadRequest("User email or focal person email already exists.");
             }
 
-            // Save logo if provided
+            // ----------------------------
+            // 📌 FIND ACTIVE JOB FAIR
+            // ----------------------------
+            var activeJobFair = await _context.JobFairs
+                .FirstOrDefaultAsync(j => j.IsActive == true);
+
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found. Please activate a Job Fair first.");
+
+            // ----------------------------
+            // SAVE LOGO
+            // ----------------------------
             string? logoUrl = null;
             if (dto.Logo != null && dto.Logo.Length > 0)
             {
@@ -466,30 +588,33 @@ namespace JobFairPortal.Controllers
                 var fileName = $"{Guid.NewGuid()}{Path.GetExtension(dto.Logo.FileName)}";
                 var filePath = Path.Combine(uploadsFolder, fileName);
 
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await dto.Logo.CopyToAsync(stream);
-                }
+                using var stream = new FileStream(filePath, FileMode.Create);
+                await dto.Logo.CopyToAsync(stream);
 
                 logoUrl = $"/uploads/companies/logo/{fileName}";
             }
 
-            // Create user
+            // ----------------------------
+            // CREATE USER
+            // ----------------------------
             var user = new User
             {
                 Email = dto.UserEmail,
                 FullName = dto.UserFullName,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.UserPassword),
                 Role = UserRole.Company,
-                IsActive = false // Activate after OTP
+                IsActive = false
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Create company
+            // ----------------------------
+            // CREATE COMPANY
+            // ----------------------------
             var company = new Company
             {
                 UserId = user.UserId,
+                JobFairId = activeJobFair.JobFairId,   // ⭐ ASSIGN ACTIVE JOB FAIR
                 Name = dto.Name,
                 Description = dto.Description,
                 RepsCount = dto.RepsCount,
@@ -511,7 +636,9 @@ namespace JobFairPortal.Controllers
             _context.Companies.Add(company);
             await _context.SaveChangesAsync();
 
-            // Add job offerings
+            // ----------------------------
+            // JOB OFFERINGS
+            // ----------------------------
             foreach (var jobDto in dto.JobOfferings)
             {
                 var job = new Job
@@ -525,7 +652,9 @@ namespace JobFairPortal.Controllers
                 _context.Jobs.Add(job);
             }
 
-            // Add company contact links
+            // ----------------------------
+            // CONTACT LINKS
+            // ----------------------------
             foreach (var linkDto in dto.ContactLinks)
             {
                 var contactLink = new CompanyContactLink
@@ -539,7 +668,9 @@ namespace JobFairPortal.Controllers
 
             await _context.SaveChangesAsync();
 
-            // Generate OTP and send to FocalPersonEmail
+            // ----------------------------
+            // SEND OTP
+            // ----------------------------
             var otp = new Random().Next(100000, 999999).ToString();
             var cacheKey = $"company-otp:{dto.FocalPersonEmail.ToLower()}";
             _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(10));
@@ -550,6 +681,7 @@ namespace JobFairPortal.Controllers
             {
                 Message = "Signup successful. OTP sent to focal person email.",
                 CompanyId = company.CompanyId,
+                JobFairId = activeJobFair.JobFairId,     // ⭐ send back active job fair
                 LogoUrl = logoUrl
             });
         }

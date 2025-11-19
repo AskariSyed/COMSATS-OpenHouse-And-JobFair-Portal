@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="wwwroot\" />
     <Folder Include="uploads\companies\logo\" />
     <Folder Include="uploads\student\cv\" />
     <Folder Include="uploads\student\profilepics\" />
