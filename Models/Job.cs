@@ -10,7 +10,8 @@ namespace JobFairPortal.Models
         FullTime,
         Internship,
         PartTime,
-        Remote
+        Remote,
+        Onsite
     }
 
     public class Job
@@ -21,6 +22,7 @@ namespace JobFairPortal.Models
         [Required]
         public int CompanyId { get; set; }
 
+
         [Required]
         [MaxLength(200)]
         public string JobTitle { get; set; } = null!;
@@ -29,6 +31,9 @@ namespace JobFairPortal.Models
 
         [MaxLength(2000)]
         public string? JobDescription { get; set; }
+        [Required]
+        public int NumberOfJobs { get; set; }
+
 
         // Store array as JSON in the DB
         public string[]? RequiredSkills { get; set; }

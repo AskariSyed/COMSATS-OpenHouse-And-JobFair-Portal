@@ -533,7 +533,8 @@ namespace JobFairPortal.Controllers
                     JobTitle = jobDto.JobTitle,
                     JobDescription = jobDto.JobDescription,
                     RequiredSkills = jobDto.RequiredSkills?.Split(',', StringSplitOptions.TrimEntries),
-                    JobType = jobDto.Type
+                    JobType = jobDto.Type,
+                    NumberOfJobs= jobDto.JobCount
                 };
                 _context.Jobs.Add(job);
             }

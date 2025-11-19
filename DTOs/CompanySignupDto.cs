@@ -72,6 +72,7 @@ namespace JobFairPortal.DTOs
         public string? JobDescription { get; set; }
 
         public string? RequiredSkills { get; set; }
+        public int JobCount { get; set; }
 
         [Required]
         public JobType Type { get; set; }
