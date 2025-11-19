@@ -15,9 +15,6 @@ JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------------------------
-// 1. Services
-// ---------------------------
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
 dataSourceBuilder.EnableDynamicJson(); // 👈 this line enables List<> / object JSON writing
 var dataSource = dataSourceBuilder.Build();
@@ -43,12 +40,23 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
         listenOptions.UseHttps();    // HTTPS
     });
 });
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
+
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -83,7 +91,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Name = "Authorization",
         Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "bearer",  // 👈 this tells Swagger it’s the bearer HTTP scheme
+        Scheme = "bearer",  
         BearerFormat = "JWT",
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Description = "Paste only your JWT token below (no need to type 'Bearer ')."
@@ -138,6 +146,8 @@ app.Use(async (context, next) =>
 
 // Enable serving files from wwwroot
 app.UseStaticFiles();
+app.UseCors("AllowAll");
+
 
 // Enable serving files from "uploads" folder
 var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads");

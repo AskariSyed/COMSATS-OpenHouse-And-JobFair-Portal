@@ -5,6 +5,7 @@ using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Claims;
 
 namespace JobFairPortal.Controllers
@@ -12,6 +13,7 @@ namespace JobFairPortal.Controllers
 
     [ApiController]
     [Route("api/[controller]")]
+
 
     [Authorize(Roles = "Student")]
     public class StudentController : ControllerBase
@@ -24,6 +26,113 @@ namespace JobFairPortal.Controllers
             _context = context;
             _logger = logger;
         }
+
+        // GET: api/Student/profile
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            // 1. Get User ID from Token
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            // 2. Fetch Data (Include all related tables)
+            var student = await _context.Students
+                .Include(s => s.User)
+                .Include(s => s.Educations)
+                .Include(s => s.Certifications)
+                .Include(s => s.Achievements)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project) // Important to get Project details
+                .Include(s => s.ContactLinks)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student profile not found.");
+
+            // 3. Flatten EVERYTHING manually
+            var response = new
+            {
+                // --- Main Student Info ---
+                student.StudentId,
+                student.RegistrationNo,
+                student.Department,
+                student.ProfilePicUrl,
+                student.Skills, // List<string> is primitive, so it's safe
+                student.CGPA,
+                student.FcmToken,
+
+                // --- User Info (Flattened) ---
+                User = new
+                {
+                    student.User.UserId,
+                    student.User.FullName,
+                    student.User.Email,
+                    student.User.Phone,
+                    student.User.IsActive,
+                    student.User.CreatedAt
+                },
+
+                // --- Educations (Flattened List) ---
+                Educations = student.Educations.Select(e => new
+                {
+                    e.EducationId,
+                    e.InstitutionName,
+                    e.Degree,
+                    e.FieldOfStudy,
+                    e.StartDate,
+                    e.EndDate,
+                    e.IsCurrent,
+                    e.CGPA,
+                    e.Location
+                }).ToList(),
+
+                // --- Certifications (Flattened List) ---
+                Certifications = student.Certifications.Select(c => new
+                {
+                    c.CertificationId,
+                    c.Title,
+                    c.Issuer,
+                    c.IssueDate,
+                    c.CredentialUrl,
+                    c.CredentialId
+                }).ToList(),
+
+                // --- Achievements (Flattened List) ---
+                Achievements = student.Achievements.Select(a => new
+                {
+                    a.AchievementId,
+                    a.Title,
+                    a.Description,
+                    a.DateAchieved
+                }).ToList(),
+
+                // --- Contact Links (Flattened List) ---
+                ContactLinks = student.ContactLinks.Select(cl => new
+                {
+                    cl.LinkId,
+                    Platform = cl.Platform.ToString(), // Convert Enum to String (e.g., "LinkedIn")
+                    cl.Url
+                }).ToList(),
+
+                // --- Projects (Flattened List) ---
+                // Note: We access sp.Project because we are querying the Join Table
+                Projects = student.StudentProjects
+                    .Where(sp => sp.Project != null) // Safety check
+                    .Select(sp => new
+                    {
+                        sp.Project.ProjectId,
+                        sp.Project.Title,
+                        sp.Project.Description,
+                        sp.Project.DemoUrl,
+                        sp.Project.GitHubUrl,
+                        Type = sp.Project.Type.ToString() // Convert Enum to String (e.g., "FinalYear")
+                    }).ToList()
+            };
+
+            return Ok(new { student = response });
+        }
+
         [HttpGet("experiences")]
         public async Task<IActionResult> GetExperiences()
         {
@@ -291,10 +400,21 @@ namespace JobFairPortal.Controllers
             _context.StudentProjects.Add(studentProject);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Project created successfully", Project = project });
+            return Ok(new
+            {
+                Message = "Project created successfully",
+                Project = new
+                {
+                    project.ProjectId,
+                    project.Title,
+                    project.Type,
+                    project.Description,
+                    project.DemoUrl,
+                    project.GitHubUrl
+                }
+            });
+
         }
-
-
         [HttpPost("projects/{projectId}/invite")]
         public async Task<IActionResult> InviteStudentToProject(int projectId, [FromBody] ProjectInviteDto dto)
         {
@@ -304,12 +424,16 @@ namespace JobFairPortal.Controllers
 
             var inviter = await _context.Students
                 .Include(s => s.StudentProjects)
+                .Include(s => s.User) // Ensure User is included for FullName
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (inviter == null)
                 return NotFound("Inviting student not found.");
 
-            bool isInProject = inviter.StudentProjects.Any(sp => sp.ProjectId == projectId && sp.Status == ProjectInviteStatus.Accepted);
+            // 🔹 FIX: Handle null StudentProjects safely
+            bool isInProject = inviter.StudentProjects != null &&
+                               inviter.StudentProjects.Any(sp => sp.ProjectId == projectId && sp.Status == ProjectInviteStatus.Accepted);
+
             if (!isInProject)
                 return BadRequest("You must be part of the project to invite others.");
 
@@ -337,6 +461,7 @@ namespace JobFairPortal.Controllers
 
             _context.StudentProjects.Add(newInvite);
             await _context.SaveChangesAsync();
+
             if (!string.IsNullOrWhiteSpace(invitee.FcmToken))
             {
                 var message = new Message
@@ -432,6 +557,7 @@ namespace JobFairPortal.Controllers
             var project = await _context.Projects
                 .Include(p => p.StudentProjects)
                 .ThenInclude(sp => sp.Student)
+                    .ThenInclude(s => s.User) // 👈 THIS WAS MISSING
                 .FirstOrDefaultAsync(p => p.ProjectId == projectId);
 
             if (project == null)
@@ -439,7 +565,8 @@ namespace JobFairPortal.Controllers
 
             var members = project.StudentProjects.Select(sp => new
             {
-                sp.Student.User.FullName,
+                // Now User is loaded, so this won't crash
+                FullName = sp.Student.User?.FullName ?? "Unknown",
                 sp.Student.RegistrationNo,
                 sp.role,
                 sp.Status,
@@ -478,17 +605,11 @@ namespace JobFairPortal.Controllers
             bool isCreator = currentUserMembership.IsCreator;
             bool isRemovingSelf = currentUser.StudentId == studentId;
 
-            // ✅ Rules:
-            // 1. Creator can remove anyone (including self)
-            // 2. Normal member can only remove themselves
             if (!isCreator && !isRemovingSelf)
                 return Forbid("You are not authorized to remove other members.");
 
-            // ✅ Remove member
             _context.StudentProjects.Remove(targetMembership);
             await _context.SaveChangesAsync();
-
-            // ✅ If creator removed themselves → assign new creator
             if (targetMembership.IsCreator)
             {
                 var newCreator = await _context.StudentProjects
@@ -525,7 +646,7 @@ namespace JobFairPortal.Controllers
         }
 
 
-        [HttpPost]
+        [HttpPost("ContactLink")]
         public async Task<IActionResult> AddContactLink([FromBody] ContactLinkAddDto dto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -539,14 +660,17 @@ namespace JobFairPortal.Controllers
             if (student == null)
                 return NotFound("Student not found.");
 
-            // Check for duplicates
-            if (student.ContactLinks.Any(cl => cl.Platform == dto.Platform))
-                return BadRequest($"You already have a {dto.Platform} link.");
+            // 🔥 Convert string to enum safely
+            if (!Enum.TryParse<ContactPlatform>(dto.Platform, true, out var platformEnum))
+                return BadRequest("Invalid platform value.");
+
+            if (student.ContactLinks.Any(cl => cl.Platform == platformEnum))
+                return BadRequest($"You already have a {platformEnum} link.");
 
             var contactLink = new ContactLink
             {
                 StudentId = student.StudentId,
-                Platform = dto.Platform,
+                Platform = platformEnum,
                 Url = dto.Url
             };
 
@@ -570,26 +694,37 @@ namespace JobFairPortal.Controllers
             if (contactLink == null)
                 return NotFound("Contact link not found or does not belong to you.");
 
-            // Update Platform if provided
-            if (dto.Platform.HasValue && dto.Platform.Value != contactLink.Platform)
+            // 🔥 Convert string → enum if sent
+            if (!string.IsNullOrWhiteSpace(dto.Platform))
             {
-                bool exists = await _context.ContactLinks
-                    .AnyAsync(cl => cl.StudentId == contactLink.StudentId && cl.Platform == dto.Platform.Value);
+                if (!Enum.TryParse<ContactPlatform>(dto.Platform, true, out var platformEnum))
+                    return BadRequest("Invalid platform value.");
 
-                if (exists)
-                    return BadRequest($"You already have a {dto.Platform.Value} link.");
+                // Check for duplicates
+                if (platformEnum != contactLink.Platform)
+                {
+                    bool exists = await _context.ContactLinks
+                        .AnyAsync(cl => cl.StudentId == contactLink.StudentId && cl.Platform == platformEnum);
 
-                contactLink.Platform = dto.Platform.Value;
+                    if (exists)
+                        return BadRequest($"You already have a {platformEnum} link.");
+
+                    contactLink.Platform = platformEnum;
+                }
             }
 
+            // 🔗 Update URL if provided
             if (!string.IsNullOrWhiteSpace(dto.Url))
                 contactLink.Url = dto.Url;
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Contact link updated successfully", ContactLink = contactLink });
+            return Ok(new
+            {
+                Message = "Contact link updated successfully",
+                ContactLink = contactLink
+            });
         }
-
 
         [HttpDelete("{linkId}")]
         public async Task<IActionResult> DeleteContactLink(int linkId)
@@ -673,7 +808,6 @@ namespace JobFairPortal.Controllers
             return Ok(student.Educations);
         }
 
-
         [HttpPost("Education")]
         public async Task<IActionResult> AddEducation([FromBody] EducationAddDto dto)
         {
@@ -694,20 +828,41 @@ namespace JobFairPortal.Controllers
                 InstitutionName = dto.InstitutionName,
                 Degree = dto.Degree,
                 FieldOfStudy = dto.FieldOfStudy,
-                StartDate = dto.StartDate,
-                EndDate = dto.EndDate,
+                StartDate = DateTime.SpecifyKind(dto.StartDate, DateTimeKind.Utc), // Ensure UTC fix is here
+                EndDate = dto.EndDate.HasValue
+                    ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc)
+                    : null,
                 IsCurrent = dto.IsCurrent,
                 CGPA = dto.CGPA,
                 Location = dto.Location
             };
 
+            // 🔹 1. Add to Context
             _context.Educations.Add(education);
+
+            // 🔹 2. Save Once (Database generates the ID here)
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Education added successfully", Education = education });
+            // 🔹 3. Map to DTO (Using the ID generated above)
+            var responseDto = new EducationDto
+            {
+                EducationId = education.EducationId,
+                InstitutionName = education.InstitutionName,
+                Degree = education.Degree,
+                FieldOfStudy = education.FieldOfStudy,
+                StartDate = education.StartDate,
+                EndDate = education.EndDate,
+                IsCurrent = education.IsCurrent,
+                CGPA = education.CGPA,
+                Location = education.Location
+            };
+
+            // ❌ REMOVED THE DUPLICATE SAVE CODE HERE
+
+            return Ok(new { Message = "Education added successfully", Education = responseDto });
         }
 
-        [HttpPut("{educationId}")]
+        [HttpPut("education/{educationId}")]
         public async Task<IActionResult> UpdateEducation(int educationId, [FromBody] EducationUpdateDto dto)
         {
             if (!ModelState.IsValid)
@@ -755,7 +910,7 @@ namespace JobFairPortal.Controllers
         }
 
 
-        [HttpDelete("{educationId}")]
+        [HttpDelete("education/{educationId}")]
         public async Task<IActionResult> DeleteEducation(int educationId)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -916,7 +1071,256 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Phone number updated successfully.", Phone = student.User.Phone });
         }
 
+        [HttpGet("achievements")]
+        public async Task<IActionResult> GetAchievements()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
 
+            var student = await _context.Students
+                .Include(s => s.Achievements)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
 
+            if (student == null)
+                return NotFound("Student not found.");
+
+            return Ok(student.Achievements);
+        }
+
+        [HttpPost("achievements")]
+        public async Task<IActionResult> AddAchievement([FromBody] AchievementAddDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var achievement = new Achievement
+            {
+                StudentId = student.StudentId,
+                Title = dto.Title,
+                Description = dto.Description,
+                DateAchieved = dto.DateAchieved ?? DateTime.UtcNow
+            };
+
+            _context.Achievements.Add(achievement);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Achievement added successfully",
+                Achievement = new
+                {
+                    achievement.AchievementId,
+                    achievement.Title,
+                    achievement.Description,
+                    achievement.DateAchieved
+                }
+            });
+        }
+
+        [HttpPut("achievements/{achievementId}")]
+        public async Task<IActionResult> UpdateAchievement(int achievementId, [FromBody] AchievementUpdateDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var achievement = await _context.Achievements
+                .Include(a => a.Student)
+                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student.UserId == userId);
+
+            if (achievement == null)
+                return NotFound("Achievement not found or does not belong to this student.");
+
+            if (!string.IsNullOrWhiteSpace(dto.Title))
+                achievement.Title = dto.Title;
+
+            if (!string.IsNullOrWhiteSpace(dto.Description))
+                achievement.Description = dto.Description;
+
+            if (dto.DateAchieved.HasValue)
+                achievement.DateAchieved = dto.DateAchieved.Value;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Achievement updated successfully",
+                Achievement = new
+                {
+                    achievement.AchievementId,
+                    achievement.Title,
+                    achievement.Description,
+                    achievement.DateAchieved
+                }
+            });
+        }
+
+        [HttpDelete("achievements/{achievementId}")]
+        public async Task<IActionResult> DeleteAchievement(int achievementId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var achievement = await _context.Achievements
+                .Include(a => a.Student)
+                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student.UserId == userId);
+
+            if (achievement == null)
+                return NotFound("Achievement not found or does not belong to this student.");
+
+            _context.Achievements.Remove(achievement);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Achievement deleted successfully" });
+        }
+
+        [HttpPut("projects/{projectId}")]
+        public async Task<IActionResult> UpdateProject(int projectId, [FromBody] ProjectUpdateDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var project = await _context.Projects
+                .Include(p => p.StudentProjects)
+                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+            if (project == null)
+                return NotFound("Project not found.");
+
+            // Check if student is the creator
+            var studentProject = project.StudentProjects
+                .FirstOrDefault(sp => sp.StudentId == student.StudentId && sp.IsCreator);
+
+            if (studentProject == null)
+                return Forbid("Only the project creator can edit this project.");
+
+            // Update project fields
+            if (!string.IsNullOrWhiteSpace(dto.Title))
+                project.Title = dto.Title;
+
+            if (!string.IsNullOrWhiteSpace(dto.Description))
+                project.Description = dto.Description;
+
+            if (!string.IsNullOrWhiteSpace(dto.Skills))
+                project.Skills = dto.Skills;
+
+            if (dto.Type.HasValue)
+                project.Type = dto.Type.Value;
+
+            if (!string.IsNullOrWhiteSpace(dto.ClientName))
+                project.ClientName = dto.ClientName;
+
+            if (!string.IsNullOrWhiteSpace(dto.Supervisor))
+                project.Supervisor = dto.Supervisor;
+
+            if (!string.IsNullOrWhiteSpace(dto.DemoUrl))
+                project.DemoUrl = dto.DemoUrl;
+
+            if (!string.IsNullOrWhiteSpace(dto.GitHubUrl))
+                project.GitHubUrl = dto.GitHubUrl;
+
+            if (dto.StartDate.HasValue)
+                project.StartDate = dto.StartDate.Value;
+
+            if (dto.EndDate.HasValue)
+                project.EndDate = dto.EndDate.Value;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Project updated successfully",
+                Project = new
+                {
+                    project.ProjectId,
+                    project.Title,
+                    project.Type,
+                    project.Description,
+                    project.Skills,
+                    project.ClientName,
+                    project.Supervisor,
+                    project.DemoUrl,
+                    project.GitHubUrl,
+                    project.StartDate,
+                    project.EndDate
+                }
+            });
+        }
+        [HttpPut("profile-pic")]
+        public async Task<IActionResult> UpdateProfilePic([FromForm] FileUploadDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var file = dto.File;
+
+            if (file == null || file.Length == 0)
+                return BadRequest("No file uploaded.");
+
+            // Delete old profile picture if it exists
+            if (!string.IsNullOrWhiteSpace(student.ProfilePicUrl))
+            {
+                var oldFileName = student.ProfilePicUrl.Split('/').Last();
+                var oldUploadsFolder = Path.Combine("uploads", "student", "profilepics");
+                var oldFilePath = Path.Combine(oldUploadsFolder, oldFileName);
+
+                if (System.IO.File.Exists(oldFilePath))
+                {
+                    try
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("Failed to delete old profile picture: {Error}", ex.Message);
+                    }
+                }
+            }
+
+            // Upload new profile picture
+            var uploadsFolder = Path.Combine("uploads", "student", "profilepics");
+            Directory.CreateDirectory(uploadsFolder);
+
+            var fileName = $"{student.RegistrationNo}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            student.ProfilePicUrl = $"/uploads/student/profilepics/{fileName}";
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Profile picture updated successfully.", ProfilePicUrl = student.ProfilePicUrl });
+        }
     }
 }

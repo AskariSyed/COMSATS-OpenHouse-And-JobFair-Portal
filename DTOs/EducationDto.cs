@@ -16,8 +16,11 @@ namespace JobFairPortal.DTOs
         [MaxLength(100)]
         public string? FieldOfStudy { get; set; }
 
-        public DateTime? StartDate { get; set; }
-        public DateTime? EndDate { get; set; }
+        // 🔹 FIX 1: Add [Required] and remove '?' to make it non-nullable
+        [Required]
+        public DateTime StartDate { get; set; }
+
+        public DateTime? EndDate { get; set; } // EndDate can stay nullable (e.g., currently studying)
 
         public bool IsCurrent { get; set; } = false;
 

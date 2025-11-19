@@ -5,20 +5,19 @@ namespace JobFairPortal.DTOs
 {
     public class ContactLinkAddDto
     {
-        [Required]
+   
         [MaxLength(50)]
-        public ContactPlatform Platform { get; set; }
+        [Required]
+        public string Platform { get; set; } = null!;
 
         [Required]
         [Url]
         public string Url { get; set; } = null!;
     }
     public class ContactLinkUpdateDto
-    {
-        [MaxLength(50)]
-        public ContactPlatform? Platform { get; set; }
+{
+    public string? Platform { get; set; }
+    public string? Url { get; set; }
+}
 
-        [Url]
-        public string? Url { get; set; }
-    }
 }

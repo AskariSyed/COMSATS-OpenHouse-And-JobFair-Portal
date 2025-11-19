@@ -291,6 +291,9 @@ namespace JobFairPortal.Data
     .WithMany(s => s.Educations)
     .HasForeignKey(e => e.StudentId)
     .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Education>()
+        .Property(e => e.EducationId)
+        .ValueGeneratedOnAdd(); 
 
             // Configure properties
             modelBuilder.Entity<Education>()

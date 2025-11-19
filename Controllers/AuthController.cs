@@ -107,8 +107,6 @@ namespace JobFairPortal.Controllers
             // Check if profile is incomplete (first-time login)
             bool isProfileComplete = !string.IsNullOrWhiteSpace(student.Department)
                 && (student.Skills != null && student.Skills.Count > 0)
-                && (student.Certifications != null && student.Certifications.Count > 0)
-                && (student.Achievements != null && student.Achievements.Count > 0)
                 && !string.IsNullOrWhiteSpace(student.ProfilePicUrl);
 
             if (!isProfileComplete)
@@ -121,6 +119,8 @@ namespace JobFairPortal.Controllers
                     UserId = user.UserId,
                     Student = new
                     {
+                        student.ProfilePicUrl,
+                        student.Skills,
                         student.StudentId,
                         student.RegistrationNo,
                         user.Email,
