@@ -148,10 +148,13 @@ Widget buildHeader(
           runSpacing: 12,
           children: [
             // Email Button
-            buildSocialButton(
-              icon: Icons.email_outlined,
-              color: Colors.redAccent,
-              onTap: () => launchURL("mailto:${student.user.email}", context),
+            Tooltip(
+              message: student.user.email,
+              child: buildSocialButton(
+                icon: Icons.email_outlined,
+                color: Colors.redAccent,
+                onTap: () => launchURL("mailto:${student.user.email}", context),
+              ),
             ),
 
             if (student.contactLinks != null)

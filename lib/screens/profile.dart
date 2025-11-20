@@ -1,9 +1,10 @@
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
+import 'dart:ui'; // Required for ImageFilter
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/main.dart';
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
+import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/model/project.dart';
 import 'package:student_job_fair_portal/widgets/appbar.dart';
 import 'package:student_job_fair_portal/widgets/build_bottom_navbar.dart';
@@ -12,9 +13,11 @@ import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
+import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -29,6 +32,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late List<CollapsibleItem> _sidebarItems;
   String _currentRoute = 'Profile';
   bool _isInitLoading = true;
+
+  // Variable to hold the SnackBar controller for manual dismissal
+  AnimationController? _persistentSnackBarController;
+
+  // Define which routes are actually ready
+  final List<String> _implementedRoutes = ['Profile', 'Dashboard'];
 
   @override
   void initState() {
@@ -49,8 +58,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
   }
-
-  // --- ACTION HANDLERS ---
 
   void _onUpdateNamePressed() {
     final student = Provider.of<StudentProvider>(
@@ -81,28 +88,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // --- UPDATED METHOD WITH PERSISTENT SNACKBAR ---
   Future<void> _onEditPicturePressed() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
+    // 1. Show Persistent "Uploading" SnackBar
+    if (mounted) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.info(
+          message: "Uploading profile picture... Please wait.",
+        ),
+        persistent: true, // Keeps it visible
+        onAnimationControllerInit: (controller) {
+          // Capture the controller to dismiss it manually later
+          _persistentSnackBarController = controller;
+        },
+      );
+    }
+
     final provider = Provider.of<StudentProvider>(context, listen: false);
     try {
       await provider.uploadProfilePic(image);
-      showTopSnackBar(
-        Overlay.of(context),
-        const CustomSnackBar.success(message: "Profile picture updated!"),
-      );
-      await _loadProfileData();
+
+      // 2. Upload finished successfully: Dismiss the "Uploading" snackbar
+      _persistentSnackBarController?.reverse();
+
+      // 3. Show Success SnackBar
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.success(message: "Profile picture updated!"),
+        );
+        await _loadProfileData();
+      }
     } catch (e) {
-      showTopSnackBar(
-        Overlay.of(context),
-        const CustomSnackBar.error(message: "Failed to upload picture."),
-      );
+      // 2. Upload failed: Dismiss the "Uploading" snackbar
+      _persistentSnackBarController?.reverse();
+
+      // 3. Show Error SnackBar
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.error(message: "Failed to upload picture."),
+        );
+      }
     }
   }
+  // -----------------------------------------------
 
   void onEditLink(dynamic link) {
+    final contactLink = link as ContactLink;
+
     showContactLinkDialog(
       navigatorKey.currentContext!,
       link: link,
@@ -110,16 +149,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await Provider.of<StudentProvider>(
           navigatorKey.currentContext!,
           listen: false,
-        ).updateContactLink(link["id"], updated);
+        ).updateContactLink(contactLink.linkId, updated);
       },
     );
   }
 
   void onDeleteLink(dynamic link) async {
+    final contactLink = link as ContactLink;
+
     await Provider.of<StudentProvider>(
       navigatorKey.currentContext!,
       listen: false,
-    ).deleteContactLink(link["id"]);
+    ).deleteContactLink(contactLink.linkId);
   }
 
   void _showAddContactLinkDialog() {
@@ -253,23 +294,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- BUILD METHOD ---
-
   @override
   Widget build(BuildContext context) {
     final studentProvider = Provider.of<StudentProvider>(context);
     final student = studentProvider.student;
 
+    // 1. Loading State
     if (_isInitLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    // 2. Error State
     if (student == null) {
       return const Scaffold(
         body: Center(child: Text("Failed to load profile. Check connection.")),
       );
     }
 
+    // 3. Prepare Profile Image URL
     final String? profileImageUrl =
         (student.profilePicUrl != null && student.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
@@ -277,12 +319,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : _serverBaseUrl + student.profilePicUrl!)
         : null;
 
-    // 🚀 ROOT LAYOUT BUILDER (Handles Screen Size)
     return LayoutBuilder(
       builder: (context, constraints) {
         final double screenWidth = constraints.maxWidth;
 
-        // --- MOBILE LAYOUT (< 800px) ---
+        // ====================================================================
+        // MOBILE LAYOUT (< 800px)
+        // ====================================================================
         if (screenWidth < 800) {
           return Scaffold(
             backgroundColor: Colors.grey.shade50,
@@ -314,88 +357,217 @@ class _ProfileScreenState extends State<ProfileScreen> {
             bottomNavigationBar: buildBottomNav(context, 0),
           );
         }
-        // --- WEB LAYOUT (>= 800px) ---
+        // ====================================================================
+        // WEB / DESKTOP LAYOUT (>= 800px)
+        // ====================================================================
         else {
-          return SafeArea(
-            child: CollapsibleSidebar(
-              isCollapsed:
-                  screenWidth < 1100, // Auto-collapse on medium screens
-              items: _sidebarItems,
-              title: student.user.fullName ?? 'Student',
-              avatarImg: profileImageUrl != null
-                  ? NetworkImage(profileImageUrl)
-                  : null,
-              backgroundColor: Colors.white,
-              selectedIconColor: Colors.white,
-              selectedIconBox: Theme.of(context).primaryColor,
-              unselectedIconColor: Colors.grey.shade600,
-              textStyle: const TextStyle(
-                fontSize: 15,
-                fontStyle: FontStyle.italic,
-              ),
-              titleStyle: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-              toggleTitleStyle: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-              sidebarBoxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 20,
-                  spreadRadius: 0.01,
-                  offset: const Offset(3, 3),
-                ),
-              ],
+          // Regenerate sidebar items to ensure state freshness
+          _sidebarItems = generateSidebarItems(
+            context,
+            setState,
+            _currentRoute,
+          );
 
-              // ⚠️ FIX 1: Material Wrap for InkWells
-              // ⚠️ FIX 2: No hard width constraints (removes overlap)
-              body: Material(
-                color: Colors.grey.shade50,
-                child: LayoutBuilder(
-                  // ⚠️ FIX 3: Inner Builder detects sidebar squeezing
-                  builder: (context, contentConstraints) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 30,
-                        horizontal: 20,
-                      ),
-                      child: Align(
-                        alignment: Alignment
-                            .topCenter, // Keeps it centered in the remaining space
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            // Fill the SQUEEZED available width
-                            // Capped at 1600 so it doesn't stretch infinitely on ultrawide
-                            maxWidth: contentConstraints.maxWidth > 1600
-                                ? 1600
-                                : contentConstraints.maxWidth,
-                          ),
-                          child: Column(
-                            children: [
-                              const SizedBox(height: 20),
-                              buildProfileContent(
-                                context,
-                                student,
-                                profileImageUrl,
-                                _onManageProject,
-                                _onEditPicturePressed,
-                                _showAddContactLinkDialog,
-                                onEditLink,
-                                onDeleteLink,
-                                _onUpdateNamePressed,
-                                mounted,
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: Stack(
+              children: [
+                // A. SCROLLABLE CONTENT LAYER
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: 80.0,
+                  ), // Make room for TopBar
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // 1. Main Profile Content (Centered & Constrained)
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1200),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 30,
+                                horizontal: 20,
                               ),
-                            ],
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Welcome Text
+                                  Text(
+                                    "Welcome back, ${student.user.fullName}",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blueGrey.shade800,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  // The actual Profile Widget
+                                  buildProfileContent(
+                                    context,
+                                    student,
+                                    profileImageUrl,
+                                    _onManageProject,
+                                    _onEditPicturePressed,
+                                    _showAddContactLinkDialog,
+                                    onEditLink,
+                                    onDeleteLink,
+                                    _onUpdateNamePressed,
+                                    mounted,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+
+                        // 2. Spacing
+                        const SizedBox(height: 20),
+
+                        // 3. WEB FOOTER (Full Width)
+                        const WebFooter(),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+
+                // B. FROSTED GLASS TOP BAR LAYER
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 80,
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.7),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey.shade200,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 30),
+                        child: Row(
+                          children: [
+                            // Logo
+                            Image.asset(
+                              'lib/assets/StudentJobFairPortalLogo.png',
+                              height: 35,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              "COMSATS Job Fair",
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
+
+                            const Spacer(),
+
+                            // Navigation Items
+                            ..._sidebarItems.map((item) {
+                              final isSelected = item.isSelected;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6.0,
+                                ),
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        if (_implementedRoutes.contains(
+                                          item.text,
+                                        )) {
+                                          item.onPressed();
+                                          setState(() {
+                                            for (var i in _sidebarItems) {
+                                              i.isSelected = false;
+                                            }
+                                            item.isSelected = true;
+                                            _currentRoute = item.text;
+                                          });
+                                        } else {
+                                          showTopSnackBar(
+                                            Overlay.of(context),
+                                            CustomSnackBar.info(
+                                              message:
+                                                  "${item.text} feature is upcoming!",
+                                              backgroundColor:
+                                                  Colors.orange.shade400,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: isSelected
+                                            ? Theme.of(
+                                                context,
+                                              ).primaryColor.withOpacity(0.15)
+                                            : Colors.transparent,
+                                        foregroundColor: isSelected
+                                            ? Theme.of(context).primaryColor
+                                            : Colors.grey.shade700,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 18,
+                                          vertical: 18,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      icon: Icon(item.icon, size: 20),
+                                      label: Text(
+                                        item.text,
+                                        style: TextStyle(
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+
+                            const SizedBox(width: 20),
+
+                            // Profile Avatar in Header
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.grey.shade300,
+                              backgroundImage: profileImageUrl != null
+                                  ? NetworkImage(profileImageUrl)
+                                  : null,
+                              child: profileImageUrl == null
+                                  ? Text(
+                                      (student.user.fullName ?? "U")[0]
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         }

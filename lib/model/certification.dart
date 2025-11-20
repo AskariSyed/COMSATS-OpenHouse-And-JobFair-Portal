@@ -1,5 +1,3 @@
-import 'package:student_job_fair_portal/model/student.dart';
-
 class Certification {
   final int certificationId;
   final int studentId;

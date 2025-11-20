@@ -28,7 +28,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Check if we are NOT on the web AND if the platform is Android
   if (!kIsWeb && Platform.isAndroid) {
     FirebaseMessaging.instance.requestPermission();
   }
@@ -47,8 +46,6 @@ void main() async {
       if (kDebugMode) {
         print("📩 Notification clicked: ${response.payload}");
       }
-      // You can handle notification taps here, e.g., navigate
-      // if (response.payload != null) { ... }
     },
   );
 

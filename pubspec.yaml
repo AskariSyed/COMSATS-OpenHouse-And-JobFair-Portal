@@ -78,6 +78,7 @@ flutter:
   assets:
     - lib/assets/icons/github-mark-white.png
     - lib/assets/skills.json
+    - lib/assets/StudentJobFairPortalLogo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
