@@ -1,0 +1,223 @@
+{
+  "departments": [
+    {
+      "name": "Computer Science",
+      "technical_skills": [
+        "Python Programming", "Java Programming", "C++ Programming", "C Programming",
+        "JavaScript", "TypeScript", "Go Programming", "Rust Programming", "R Programming",
+        "PHP Development", "Laravel Framework", "React.js", "Next.js", "Vue.js", "Angular.js",
+        "Node.js", "Express.js", "Django", "Flask", "Spring Boot", "REST API Development",
+        "GraphQL API Development", "Microservices Architecture", "Software Architecture Design",
+        "Database Design", "MySQL", "PostgreSQL", "MongoDB", "Cassandra", "Redis", "SQLite",
+        "Cloud Computing (AWS)", "Cloud Computing (Azure)", "Cloud Computing (GCP)",
+        "Cloud Security", "Docker", "Kubernetes", "Terraform", "CI/CD Pipelines",
+        "Git & GitHub", "Linux Administration", "Cybersecurity", "Penetration Testing",
+        "Ethical Hacking", "Machine Learning", "Deep Learning", "TensorFlow", "PyTorch",
+        "NLP", "Computer Vision", "Big Data (Hadoop)", "Apache Spark", "Data Engineering",
+        "Business Intelligence", "Tableau", "Power BI", "Mobile App Development (Flutter)",
+        "Android Development", "iOS Development", "Blockchain Development", "AR/VR Development"
+      ],
+      "tools": [
+        "VS Code", "IntelliJ IDEA", "PyCharm", "Eclipse", "Android Studio", "Xcode",
+        "GitHub", "GitLab", "Bitbucket", "Postman", "Insomnia", "Docker Desktop",
+        "Jupyter Notebook", "Kubernetes Dashboard", "Figma", "Adobe XD", "MySQL Workbench",
+        "PgAdmin", "RStudio"
+      ],
+      "certifications": [
+        "AWS Cloud Practitioner",
+        "AWS Developer Associate",
+        "Google Data Analytics",
+        "Google IT Support",
+        "Meta Front-End Developer",
+        "Microsoft Azure Fundamentals",
+        "CompTIA Security+",
+        "Certified Ethical Hacker (CEH)",
+        "Oracle Java Programmer",
+        "TensorFlow Developer Certificate",
+        "Cisco CCNA"
+      ]
+    },
+
+    {
+      "name": "Management Sciences",
+      "technical_skills": [
+        "Business Strategy Development", "Financial Accounting", "Cost Accounting",
+        "Corporate Finance", "Taxation Basics", "Financial Modeling", "Investment Analysis",
+        "Portfolio Management", "Risk Management", "Microeconomics", "Macroeconomics",
+        "Business Analytics", "Excel Advanced", "Power BI", "Data Interpretation",
+        "Market Research", "Consumer Behavior Analysis", "Marketing Strategy",
+        "Brand Management", "Sales Strategy", "CRM Tools", "Supply Chain Management",
+        "Operations Management", "Inventory Management", "Procurement", "Logistics Management",
+        "Lean Management", "Six Sigma Basics", "Project Management", "Agile Management",
+        "Scrum Framework", "MS Project", "Human Resource Management", "Recruitment & Selection",
+        "Performance Evaluation", "Business Communication", "Negotiation Skills",
+        "Digital Marketing", "SEO", "Google Ads", "Facebook Ads", "Business Planning",
+        "Content Marketing", "Public Relations"
+      ],
+      "tools": [
+        "Microsoft Excel", "Power BI", "Google Analytics", "Microsoft Project",
+        "SAP ERP", "QuickBooks", "Zoho CRM", "Salesforce", "HubSpot CRM", "SPSS", 
+        "Tableau", "Slack", "Trello", "Asana", "Google Workspace"
+      ],
+      "certifications": [
+        "Google Digital Marketing Certification",
+        "Chartered Financial Analyst (CFA) Level 1",
+        "Project Management Professional (PMP)",
+        "Certified Supply Chain Professional (CSCP)",
+        "Six Sigma Yellow Belt",
+        "Six Sigma Green Belt",
+        "HubSpot Social Media Marketing Certification",
+        "Google Analytics Certification",
+        "HRCI HR Associate",
+        "SAP ERP Business Process Certification"
+      ]
+    },
+
+    {
+      "name": "Electrical and Computer Engineering",
+      "technical_skills": [
+        "Circuit Analysis", "Analog Circuit Design", "Digital Circuit Design",
+        "Microprocessors", "Microcontrollers (PIC, AVR, STM32)", "Embedded C",
+        "Arduino Development", "Raspberry Pi Projects", "FPGA Design", "Verilog Programming",
+        "VHDL Programming", "Signal Processing", "Digital Signal Processing",
+        "Power Systems Analysis", "Power Electronics", "Control Systems Engineering",
+        "Automation Engineering", "SCADA Systems", "PLC Programming", "Instrumentation",
+        "IoT System Design", "Wireless Sensor Networks", "Communication Systems",
+        "RF Engineering", "Antenna Design", "Renewable Energy Systems", "Solar System Design",
+        "Wind Energy Systems", "Electric Machines", "PCB Design (Altium)", "PCB Design (Proteus)",
+        "MATLAB", "Simulink", "Multisim", "LabVIEW", "Battery Management Systems",
+        "Electric Vehicle Systems", "Smart Grid Technologies", "High Voltage Engineering"
+      ],
+      "tools": [
+        "MATLAB", "Simulink", "Proteus", "Multisim", "Altium Designer", "LTspice",
+        "KiCad", "LabVIEW", "PLC Scada Software", "Arduino IDE", "Keil uVision",
+        "Code Composer Studio", "AutoCAD Electrical", "PSIM"
+      ],
+      "certifications": [
+        "PLC Programming Certification",
+        "LabVIEW Associate Developer",
+        "MATLAB Certification",
+        "Professional Engineer (PE)",
+        "Arduino Professional Certification",
+        "Renewable Energy Certification",
+        "Electric Vehicle Engineering Certification",
+        "Cisco CCNA",
+        "NI Certified TestStand Developer"
+      ]
+    },
+
+    {
+      "name": "Mechanical Engineering",
+      "technical_skills": [
+        "Mechanical Design", "AutoCAD", "SolidWorks", "CATIA", "Fusion 360", "PTC Creo",
+        "3D Modeling", "Finite Element Analysis (FEA)", "ANSYS Workbench", "Thermodynamics",
+        "Heat Transfer", "Fluid Mechanics", "CFD Analysis", "CNC Programming",
+        "CAM Systems", "Machine Design", "Material Selection", "Failure Analysis",
+        "Vibrations Analysis", "Dynamics of Machines", "Mechatronics", "Robotics Basics",
+        "Automotive Mechanics", "HVAC System Design", "Boiler Systems", "Piping Design",
+        "Welding Technologies", "Industrial Safety", "Maintenance Engineering",
+        "Quality Control", "Reliability Engineering", "3D Printing", "Hydraulics", 
+        "Pneumatics", "Energy Systems", "Power Plant Operations"
+      ],
+      "tools": [
+        "SolidWorks", "AutoCAD", "CATIA", "Fusion 360", "Inventor", "ANSYS Workbench",
+        "ANSYS Fluent", "MATLAB", "Simulink", "MasterCAM", "Cura Slicer", "3D Printers",
+        "Creo", "HyperMesh"
+      ],
+      "certifications": [
+        "SolidWorks CSWA/CSWP",
+        "AutoCAD Professional Certification",
+        "ANSYS Structural Certification",
+        "HVAC Design Certification",
+        "Mechanical Design Professional Certificate",
+        "Six Sigma Yellow Belt",
+        "Six Sigma Green Belt",
+        "ASME Certification",
+        "Robotics Fundamentals Certification"
+      ]
+    },
+
+    {
+      "name": "Civil Engineering",
+      "technical_skills": [
+        "Structural Analysis", "Reinforced Concrete Design", "Steel Structure Design",
+        "AutoCAD Drafting", "Revit Architecture", "ETABS Modeling", "SAFE Analysis",
+        "STAAD.Pro", "Soil Mechanics", "Foundation Engineering", "Construction Management",
+        "Project Scheduling", "Primavera P6", "MS Project", "Quantity Surveying",
+        "Cost Estimation", "Highway Engineering", "Transportation Engineering",
+        "Hydraulics", "Water Supply Design", "Sewerage Design", "GIS Mapping", "ArcGIS",
+        "Geotechnical Analysis", "Urban Planning", "Concrete Technology", 
+        "Earthquake Engineering", "Site Supervision", "Contract Management"
+      ],
+      "tools": [
+        "AutoCAD", "Revit", "ETABS", "SAFE", "STAAD.Pro", "Primavera P6", "MS Project",
+        "ArcGIS", "Civil 3D", "SketchUp", "GeoStudio", "Plaxis"
+      ],
+      "certifications": [
+        "AutoCAD Certified Professional",
+        "Revit Architecture Certification",
+        "ETABS Professional Certification",
+        "Primavera P6 Certification",
+        "GIS Professional Certification",
+        "Civil 3D Certification",
+        "LEED Green Associate",
+        "Construction Safety Certification",
+        "Project Management Professional (PMP)"
+      ]
+    }
+  ],
+
+  "soft_skills": [
+    {
+      "category": "Communication Skills",
+      "skills": [
+        "Verbal Communication", "Written Communication", "Active Listening",
+        "Public Speaking", "Presentation Skills", "Negotiation", "Persuasion",
+        "Storytelling", "Email Etiquette", "Professional Communication"
+      ]
+    },
+    {
+      "category": "Leadership & Management",
+      "skills": [
+        "Team Leadership", "Decision Making", "Conflict Management", "Delegation",
+        "Strategic Thinking", "Mentoring", "People Management", "Change Management"
+      ]
+    },
+    {
+      "category": "Interpersonal Skills",
+      "skills": [
+        "Teamwork", "Collaboration", "Empathy", "Relationship Building",
+        "Cultural Awareness", "Emotional Intelligence", "Networking"
+      ]
+    },
+    {
+      "category": "Problem Solving & Critical Thinking",
+      "skills": [
+        "Analytical Thinking", "Logical Reasoning", "Critical Thinking",
+        "Creative Problem Solving", "Brainstorming", "Root Cause Analysis"
+      ]
+    },
+    {
+      "category": "Organizational Skills",
+      "skills": [
+        "Time Management", "Prioritization", "Planning & Scheduling",
+        "Attention to Detail", "Task Management", "Multitasking",
+        "Stress Management"
+      ]
+    },
+    {
+      "category": "Creativity & Innovation",
+      "skills": [
+        "Creative Thinking", "Design Thinking", "Idea Generation",
+        "Problem Ideation", "User-Focused Thinking"
+      ]
+    },
+    {
+      "category": "Professionalism",
+      "skills": [
+        "Work Ethic", "Reliability", "Punctuality", "Integrity",
+        "Self-Motivation", "Adaptability", "Continuous Learning"
+      ]
+    }
+  ]
+}

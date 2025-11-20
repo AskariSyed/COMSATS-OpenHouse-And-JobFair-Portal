@@ -1,0 +1,46 @@
+import 'package:collapsible_sidebar/collapsible_sidebar/collapsible_item.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/screens/sigin.dart';
+
+List<CollapsibleItem> generateSidebarItems(
+  BuildContext context,
+  void Function(void Function()) setState,
+  String _currentRoute,
+) {
+  return [
+    CollapsibleItem(
+      text: 'Profile',
+      icon: Icons.person_outline,
+      onPressed: () => setState(() => _currentRoute = 'Profile'),
+      isSelected: true,
+    ),
+    CollapsibleItem(
+      text: 'Queue',
+      icon: Icons.list_alt_outlined,
+      onPressed: () => setState(() => _currentRoute = 'Queue'),
+    ),
+    CollapsibleItem(
+      text: 'Companies',
+      icon: Icons.business_outlined,
+      onPressed: () => setState(() => _currentRoute = 'Companies'),
+    ),
+    CollapsibleItem(
+      text: 'Requests',
+      icon: Icons.inbox_outlined,
+      onPressed: () => setState(() => _currentRoute = 'Requests'),
+    ),
+    CollapsibleItem(
+      text: 'Logout',
+      icon: Icons.logout,
+      onPressed: () {
+        Provider.of<StudentProvider>(context, listen: false).logout();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const StudentLoginScreen()),
+          (route) => false,
+        );
+      },
+    ),
+  ];
+}

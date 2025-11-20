@@ -1,0 +1,914 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart'; // Import XFile
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_job_fair_portal/model/achievement.dart';
+import 'package:student_job_fair_portal/model/certification.dart';
+import 'package:student_job_fair_portal/model/contact_link.dart';
+import 'package:student_job_fair_portal/model/education.dart';
+import 'package:student_job_fair_portal/model/experience.dart';
+import 'package:student_job_fair_portal/model/projectInvitiation.dart';
+import 'package:student_job_fair_portal/model/projectMember.dart';
+import 'package:student_job_fair_portal/model/student.dart';
+
+class StudentProvider with ChangeNotifier {
+  Student? _student;
+  String? _token;
+  bool _isLoading = false;
+
+  Student? get student => _student;
+  String? get token => _token;
+  bool get isLoading => _isLoading;
+  bool get isLoggedIn => _student != null && _token != null;
+  List<ProjectInvitation> _invitations = [];
+  List<ProjectInvitation> get invitations => _invitations;
+
+  // Base URL for your API
+  final String baseUrl = "http://192.168.137.1:5158/api";
+  final String imageBaseUrl = "http://192.168.137.1:5158";
+  // Helper to get auth headers
+  Map<String, String> get _authHeaders => {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $_token',
+  };
+
+  // Helper to set loading state
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  // --- 1. AUTH & SESSION ---
+
+  void setStudent(Student student) {
+    _student = student;
+    notifyListeners();
+  }
+
+  Future<void> setToken(String token) async {
+    _token = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('authToken', token);
+    notifyListeners();
+  }
+
+  Future<void> logout() async {
+    _student = null;
+    _token = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('authToken');
+    notifyListeners();
+  }
+
+  Future<bool> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('authToken')) {
+      return false;
+    }
+    _token = prefs.getString('authToken');
+
+    if (_student == null) {
+      _token = null;
+      return false;
+    }
+
+    notifyListeners();
+    return true;
+  }
+
+  // --- 2. CORE PROFILE UPDATES ---
+
+  /// ✅ UPDATED FOR WEB & MOBILE
+  /// Accepts an XFile directly from image_picker
+  Future<bool> uploadProfilePic(XFile xFile) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final request = http.MultipartRequest(
+      "POST",
+      Uri.parse("$baseUrl/Student/profile-pic"),
+    )..headers.addAll({"Authorization": "Bearer $_token"});
+
+    // Platform-agnostic way to read bytes and create a multipart file
+    final bytes = await xFile.readAsBytes();
+    final multipartFile = http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: xFile.name,
+    );
+
+    request.files.add(multipartFile);
+
+    debugPrint("📤 Uploading Profile Pic => ${xFile.name}");
+
+    final response = await request.send();
+    final resBody = await response.stream.bytesToString();
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(resBody);
+      _student = _student!.copyWith(
+        profilePicUrl: data["profilePicUrl"],
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Profile Pic upload failed: $resBody");
+    return false;
+  }
+
+  Future<bool> updatePhoneNumber(String phone) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/phone"),
+      headers: _authHeaders,
+      // C# PhoneDto expects 'phone' (camelCase)
+      body: json.encode({"phone": phone}),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      _student = _student!.copyWith(
+        user: _student!.user.copyWith(phone: phone),
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update phone: ${response.body}");
+    return false;
+  }
+
+  // --- 3. SKILLS ---
+
+  Future<bool> addSkills(List<String> skills) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/skills/add"),
+      headers: _authHeaders,
+      // C# SkillsDto expects 'skills' (camelCase)
+      body: json.encode({"skills": skills}),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      _student = _student!.copyWith(
+        skills: List<String>.from(data['skills'] ?? []),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to add skills: ${response.body}");
+    return false;
+  }
+
+  Future<bool> removeSkill(String skill) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/skills/remove"),
+      headers: _authHeaders,
+      body: json.encode(skill), // Send raw string
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      _student = _student!.copyWith(
+        skills: List<String>.from(data['skills'] ?? []),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to remove skill: ${response.body}");
+    return false;
+  }
+
+  Future<bool> putSkills(List<String> skills) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/skills"),
+      headers: _authHeaders,
+      // C# SkillsDto expects 'skills' (camelCase)
+      body: json.encode({"skills": skills}),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      _student = _student!.copyWith(
+        skills: List<String>.from(data['skills'] ?? []),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update skills: ${response.body}");
+    return false;
+  }
+
+  // --- 4. EXPERIENCE (Full CRUD) ---
+
+  // DTOs like ExperienceAddDto will expect camelCase
+  Future<bool> addExperience(Map<String, dynamic> experienceData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/experiences"),
+      headers: _authHeaders,
+      body: json.encode(experienceData), // Assuming data is already camelCase
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final newExperience = Experience.fromJson(data['experience']);
+      final updatedList = List<Experience>.from(_student!.experiences)
+        ..add(newExperience);
+      _student = _student!.copyWith(experiences: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to add experience: ${response.body}");
+    return false;
+  }
+
+  Future<bool> updateExperience(
+    int experienceId,
+    Map<String, dynamic> experienceData,
+  ) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/experiences/$experienceId"),
+      headers: _authHeaders,
+      body: json.encode(experienceData), // Assuming data is already camelCase
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      // Optimistic update
+      final index = _student!.experiences.indexWhere(
+        (e) => e.experienceId == experienceId,
+      );
+      if (index != -1) {
+        final oldExp = _student!.experiences[index];
+        final updatedList = List<Experience>.from(_student!.experiences);
+        updatedList[index] = Experience(
+          experienceId: oldExp.experienceId,
+          studentId: oldExp.studentId,
+          companyName: experienceData['companyName'] ?? oldExp.companyName,
+          role: experienceData['role'] ?? oldExp.role,
+          description: experienceData['description'] ?? oldExp.description,
+          startDate: experienceData['startDate'] != null
+              ? DateTime.parse(experienceData['startDate'])
+              : oldExp.startDate,
+          endDate: experienceData['endDate'] != null
+              ? DateTime.parse(experienceData['endDate'])
+              : oldExp.endDate,
+          isCurrent: experienceData['isCurrent'] ?? oldExp.isCurrent,
+          location: experienceData['location'] ?? oldExp.location,
+        );
+        _student = _student!.copyWith(experiences: updatedList);
+        notifyListeners();
+      }
+      return true;
+    }
+    debugPrint("❌ Failed to update experience: ${response.body}");
+    return false;
+  }
+
+  Future<bool> deleteExperience(int experienceId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.delete(
+      Uri.parse("$baseUrl/Student/experiences/$experienceId"),
+      headers: _authHeaders,
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final updatedList = _student!.experiences
+          .where((e) => e.experienceId != experienceId)
+          .toList();
+      _student = _student!.copyWith(experiences: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to delete experience: ${response.body}");
+    return false;
+  }
+
+  // --- 5. EDUCATION (Full CRUD) ---
+  Future<bool> addEducation(Map<String, dynamic> educationData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/Education"),
+        headers: _authHeaders,
+        body: json.encode(educationData),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // 1. Parse the object (studentId will be 0 here)
+        Education newEducation = Education.fromJson(data['education']);
+
+        // 2. 🔹 FIX: Inject the real Student ID from the provider
+        newEducation = newEducation.copyWith(studentId: _student!.studentId);
+
+        // 3. Add to list
+        final updatedList = List<Education>.from(_student!.educations)
+          ..add(newEducation);
+
+        _student = _student!.copyWith(educations: updatedList);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // --- FETCH FULL PROFILE ---
+  Future<void> fetchProfile() async {
+    if (_token == null) return;
+
+    // Don't trigger global loading here to avoid screen flickering,
+    // or handle it gracefully in UI
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/profile"), // Matches the C# endpoint above
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // Assuming response is { "student": { ... } }
+        if (data['student'] != null) {
+          _student = Student.fromJson(data['student']);
+          notifyListeners(); // Update UI with new data
+        }
+      } else {
+        debugPrint("Failed to load profile: ${response.body}");
+      }
+    } catch (e) {
+      debugPrint("Error fetching profile: $e");
+    }
+  }
+  // Inside lib/provider/student_provider.dart
+
+  // 🎯 New: Update Name Method
+  Future<bool> updateFullName(String fullName) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    // Use PUT or POST based on whether the name already exists.
+    // Since C# has both and they perform the same function, we'll use PUT for updates.
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/name"),
+      headers: _authHeaders,
+      body: json.encode({"fullName": fullName}),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      // Optimistically update the local user object
+      _student = _student!.copyWith(
+        user: _student!.user.copyWith(fullName: fullName),
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update name: ${response.body}");
+    return false;
+  }
+
+  Future<bool> updateEducation(
+    int educationId,
+    Map<String, dynamic> educationData,
+  ) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse(
+        "$baseUrl/Student/education/$educationId",
+      ), // Uses root /Student/{id} route
+      headers: _authHeaders,
+      body: json.encode(educationData), // Assuming data is already camelCase
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final updatedEducation = Education.fromJson(data['education']);
+      final updatedList = _student!.educations
+          .map((e) => e.educationId == educationId ? updatedEducation : e)
+          .toList();
+      _student = _student!.copyWith(educations: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update education: ${response.body}");
+    return false;
+  }
+
+  Future<bool> deleteEducation(int educationId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.delete(
+      Uri.parse(
+        "$baseUrl/Student/education/$educationId",
+      ), // Uses root /Student/{id} route
+      headers: _authHeaders,
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final updatedList = _student!.educations
+          .where((e) => e.educationId != educationId)
+          .toList();
+      _student = _student!.copyWith(educations: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to delete education: ${response.body}");
+    return false;
+  }
+
+  // --- 6. CERTIFICATION (Full CRUD) ---
+
+  Future<bool> addCertification(Map<String, dynamic> certificationData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/certifications"),
+      headers: _authHeaders,
+      body: json.encode(
+        certificationData,
+      ), // Assuming data is already camelCase
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final newCertification = Certification.fromJson(data['certification']);
+      final updatedList = List<Certification>.from(_student!.certifications)
+        ..add(newCertification);
+      _student = _student!.copyWith(certifications: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to add certification: ${response.body}");
+    return false;
+  }
+
+  Future<bool> updateCertification(
+    int certificationId,
+    Map<String, dynamic> certificationData,
+  ) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/certifications/$certificationId"),
+      headers: _authHeaders,
+      body: json.encode(
+        certificationData,
+      ), // Assuming data is already camelCase
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final updatedCertification = Certification.fromJson(
+        data['certification'],
+      );
+      final updatedList = _student!.certifications
+          .map(
+            (c) =>
+                c.certificationId == certificationId ? updatedCertification : c,
+          )
+          .toList();
+      _student = _student!.copyWith(certifications: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update certification: ${response.body}");
+    return false;
+  }
+
+  Future<bool> deleteCertification(int certificationId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.delete(
+      Uri.parse("$baseUrl/Student/certifications/$certificationId"),
+      headers: _authHeaders,
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final updatedList = _student!.certifications
+          .where((c) => c.certificationId != certificationId)
+          .toList();
+      _student = _student!.copyWith(certifications: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to delete certification: ${response.body}");
+    return false;
+  }
+
+  Future<bool> addContactLink(Map<String, dynamic> linkData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/ContactLink"),
+      headers: _authHeaders,
+      body: json.encode(linkData), // Assumes 'platform' and 'url' (camelCase)
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final newLink = ContactLink.fromJson(data['contactLink']);
+      final updatedList = List<ContactLink>.from(_student!.contactLinks)
+        ..add(newLink);
+      _student = _student!.copyWith(contactLinks: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to add contact link: ${response.body}");
+    return false;
+  }
+
+  Future<bool> updateContactLink(
+    int linkId,
+    Map<String, dynamic> linkData,
+  ) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/$linkId"),
+      headers: _authHeaders,
+      body: json.encode(linkData),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final updatedLink = ContactLink.fromJson(data['contactLink']);
+      final updatedList = _student!.contactLinks
+          .map((c) => c.linkId == linkId ? updatedLink : c)
+          .toList();
+      _student = _student!.copyWith(contactLinks: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to update contact link: ${response.body}");
+    return false;
+  }
+
+  Future<bool> deleteContactLink(int linkId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.delete(
+      Uri.parse("$baseUrl/Student/$linkId"),
+      headers: _authHeaders,
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final updatedList = _student!.contactLinks
+          .where((c) => c.linkId != linkId)
+          .toList();
+      _student = _student!.copyWith(contactLinks: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to delete contact link: ${response.body}");
+    return false;
+  }
+
+  Future<bool> createProject(Map<String, dynamic> projectData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/projects"),
+      headers: _authHeaders,
+      body: json.encode(
+        projectData,
+      ), // Assumes 'title', 'type', etc. (camelCase)
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body)['project'];
+
+      if (projectData['type'] == 2) {
+        // 2 = FinalYear
+        _student = _student!.copyWith(
+          fypTitle: data['title'],
+          fypDescription: data['description'],
+          fypDemoUrl: data['demoUrl'],
+          fypGithubUrl: data['gitHubUrl'],
+        );
+        notifyListeners();
+      }
+      return true;
+    }
+    debugPrint("❌ Failed to create project: ${response.body}");
+    return false;
+  }
+  // --- 7. PROJECT MANAGEMENT ---
+
+  // Inside StudentProvider class
+
+  Future<bool> inviteStudent(int projectId, String regNo) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/projects/$projectId/invite"),
+        headers: _authHeaders,
+        body: json.encode({"registrationNumber": regNo}),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        return true;
+      }
+
+      // --- Handle Error Response (Non-200 status code) ---
+      String errorBody = response.body;
+      String errorMessage =
+          "Invitation failed. Server returned status ${response.statusCode}.";
+
+      try {
+        final errorJson = json.decode(errorBody);
+        // Try to extract the message from the backend response structure
+        errorMessage =
+            errorJson['Message'] ?? errorJson['message'] ?? errorBody;
+      } catch (_) {
+        // If response body is not JSON (e.g., raw string error), use the raw body.
+        errorMessage = errorBody.isNotEmpty ? errorBody : errorMessage;
+      }
+
+      // 🔹 Check for the specific error and append the instruction
+      if (errorMessage.contains("Student not found") ||
+          errorMessage.contains("registration number")) {
+        errorMessage += " Ask your friend to sign up on OpenHouse Portal.";
+      }
+
+      debugPrint("❌ Invite failed: $errorMessage");
+
+      // 🔹 Throw the processed error. This will be caught by the dialog's onSave block.
+      throw Exception(errorMessage);
+    } catch (e) {
+      _setLoading(false);
+      rethrow; // Re-throw the exception so the UI's catch block can display it
+    }
+  }
+
+  // Leave a project (Remove Self)
+  Future<bool> leaveProject(int projectId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      // Endpoint: DELETE api/projects/{projectId}/members/{studentId}
+      final response = await http.delete(
+        Uri.parse(
+          "$baseUrl/Student/projects/$projectId/members/${_student!.studentId}",
+        ),
+        headers: _authHeaders,
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Remove locally to update UI instantly
+        _student!.projects.removeWhere((p) => p.projectId == projectId);
+        notifyListeners();
+        return true;
+      }
+      debugPrint("❌ Leave project failed: ${response.body}");
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Edit Project Details
+  // Note: Ensure you have [HttpPut("projects/{id}")] on backend similar to CreateProject
+  Future<bool> updateProject(int projectId, Map<String, dynamic> data) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.put(
+        Uri.parse(
+          "$baseUrl/Student/projects/$projectId",
+        ), // Standard REST convention
+        headers: _authHeaders,
+        body: json.encode(data),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Trigger a fetch to refresh the list with new details
+        await fetchProfile();
+        return true;
+      }
+      debugPrint("❌ Update project failed: ${response.body}");
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<void> fetchInvitations() async {
+    if (_student == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/projects/invitations"),
+        headers: _authHeaders,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        _invitations = data
+            .map((json) => ProjectInvitation.fromJson(json))
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error fetching invitations: $e");
+    }
+  }
+
+  // 2. Respond to Invitation (Accept/Reject)
+  Future<bool> respondToInvitation(int inviteId, bool accept) async {
+    try {
+      _setLoading(true);
+      final response = await http.post(
+        Uri.parse(
+          "$baseUrl/Student/projects/invitations/$inviteId/respond?accept=$accept",
+        ),
+        headers: _authHeaders,
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Remove from local list immediately
+        _invitations.removeWhere((i) => i.id == inviteId);
+        // If accepted, we should refresh the full profile to see the new project in the list
+        if (accept) await fetchProfile();
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // 3. Get Members of a specific Project
+  Future<List<ProjectMember>> fetchProjectMembers(int projectId) async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/projects/$projectId/members"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => ProjectMember.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error fetching members: $e");
+      return [];
+    }
+  }
+
+  Future<bool> addAchievement(Map<String, dynamic> achievementData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/achievements"),
+      headers: _authHeaders,
+      body: json.encode(achievementData),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+
+      final achievementJson =
+          (data['achievement'] ?? data['Achievement']) as Map<String, dynamic>?;
+
+      if (achievementJson != null) {
+        // 1. Create the new Achievement model instance
+        final newAchievement = Achievement.fromJson(achievementJson);
+
+        // 2. Inject StudentId
+        final studentId = _student!.studentId;
+        final finalAchievement = newAchievement.copyWith(studentId: studentId);
+
+        // 3. 💥 FIX: Resolve Type Collision by mapping existing items
+        _student = _student!.copyWith(
+          achievements: [
+            // Force existing items to be re-read into the current type definition
+            ..._student!.achievements.map((a) => a as Achievement),
+            finalAchievement,
+          ],
+        );
+
+        notifyListeners();
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  Future<bool> updateAchievement(
+    int achievementId,
+    Map<String, dynamic> achievementData,
+  ) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.put(
+      Uri.parse("$baseUrl/Student/achievements/$achievementId"),
+      headers: _authHeaders,
+      body: json.encode(achievementData),
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      // Ideally, refresh the full list or implement local update logic
+      await fetchProfile();
+      return true;
+    }
+    debugPrint("❌ Failed to update achievement: ${response.body}");
+    return false;
+  }
+
+  Future<bool> deleteAchievement(int achievementId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    final response = await http.delete(
+      Uri.parse("$baseUrl/Student/achievements/$achievementId"),
+      headers: _authHeaders,
+    );
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      // Remove locally to update UI immediately
+      final updatedList = _student!.achievements
+          .where((a) => a.achievementId != achievementId)
+          .toList();
+
+      _student = _student!.copyWith(achievements: updatedList);
+      notifyListeners();
+      return true;
+    }
+    debugPrint("❌ Failed to delete achievement: ${response.body}");
+    return false;
+  }
+}
