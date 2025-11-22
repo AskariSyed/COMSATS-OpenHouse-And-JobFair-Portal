@@ -37,7 +37,8 @@ namespace JobFairPortal.Models
         public string? CompanyEmail { get; set; }   
 
         [Phone]
-        public string? CompanyPhone { get; set; }   
+        public string? CompanyPhone { get; set; }
+        public string? FcmToken { get; set; }
 
         public string? Address { get; set; }         
 

@@ -1,4 +1,6 @@
-﻿namespace JobFairPortal.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace JobFairPortal.DTOs
 {
     public class CompleteProfileDto
     {
@@ -26,6 +28,13 @@
         public List<string> Skills { get; set; }
         public string? ProfilePicUrl { get; set; }
     }
-
-
+    
+        public class NameDto
+        {
+            [Required]
+            [MaxLength(150)]
+            public string FullName { get; set; } = null!;
+        }
     }
+
+

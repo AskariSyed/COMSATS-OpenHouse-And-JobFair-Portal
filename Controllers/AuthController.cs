@@ -226,7 +226,6 @@ namespace JobFairPortal.Controllers
                 Student = studentProfile
             });
         }
-
         private async Task<IActionResult> Login(LoginDto loginDto, UserRole role)
         {
             var regNoPattern = @"^(FA|SP)\d{2}-[A-Z]{3}-\d{3}$";
@@ -235,6 +234,7 @@ namespace JobFairPortal.Controllers
             User? user = null;
             Student? student = null;
 
+            // --- User Lookup Logic (Student/Company) ---
             if (role == UserRole.Student)
             {
                 if (System.Text.RegularExpressions.Regex.IsMatch(input, regNoPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
@@ -256,15 +256,24 @@ namespace JobFairPortal.Controllers
             }
             else
             {
+                // Company or Admin lookup by email
                 user = await _context.Users
                     .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == role);
             }
 
+            // 1. Check if user exists
             if (user == null)
                 return Unauthorized("Invalid credentials.");
 
+            // 2. Check password
             if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
                 return Unauthorized("Invalid credentials.");
+
+            // 🎯 NEW SECURITY CHECK: Block login if account is not active
+            if (user.IsActive == false)
+            {
+                return Unauthorized("Account not verified. Please complete the OTP verification process.");
+            }
 
             // ✅ Save/Update FCM Token if Student login
             if (role == UserRole.Student && student != null && !string.IsNullOrWhiteSpace(loginDto.FcmToken))
@@ -276,14 +285,14 @@ namespace JobFairPortal.Controllers
 
             // Generate JWT token
             var token = GenerateJwtToken(user);
-          
+
             return Ok(new
             {
                 Token = token,
                 UserId = user.UserId,
                 Name = user.FullName,
                 Role = user.Role.ToString(),
-                FcmToken = student?.FcmToken // ✅ return it back too
+                FcmToken = student?.FcmToken // return it back too
             });
         }
         // -----------------------------
