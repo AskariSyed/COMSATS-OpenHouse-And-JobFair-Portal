@@ -7,9 +7,10 @@ class CompanyProvider with ChangeNotifier {
   // State Variables
   List<Company> _companies = [];
   List<Company> _filteredCompanies = [];
-
-  // 🔹 CHANGED: Use CompanyDetail for the full profile view
   CompanyDetail? _selectedCompany;
+
+  // 🔹 NEW: Cache map to store visited company profiles
+  final Map<int, CompanyDetail> _detailsCache = {};
 
   bool _isLoading = false;
   String? _error;
@@ -21,8 +22,6 @@ class CompanyProvider with ChangeNotifier {
       : _filteredCompanies;
 
   List<Company> get displayCompanies => _filteredCompanies;
-
-  // 🔹 CHANGED: Expose CompanyDetail
   CompanyDetail? get selectedCompany => _selectedCompany;
 
   bool get isLoading => _isLoading;
@@ -66,11 +65,22 @@ class CompanyProvider with ChangeNotifier {
     }
   }
 
-  /// Fetches the full profile of a specific company
-  Future<bool> fetchCompanyDetails(int companyId, String token) async {
+  Future<bool> fetchCompanyDetails(
+    int companyId,
+    String token, {
+    bool forceRefresh = false,
+  }) async {
+    // 1. Check Cache First
+    if (!forceRefresh && _detailsCache.containsKey(companyId)) {
+      _selectedCompany = _detailsCache[companyId];
+      _error = null;
+      notifyListeners();
+      return true;
+    }
+
     _setLoading(true);
     _error = null;
-    _selectedCompany = null; // Clear previous selection
+    _selectedCompany = null;
 
     try {
       final response = await http.get(
@@ -85,8 +95,14 @@ class CompanyProvider with ChangeNotifier {
         final data = json.decode(response.body);
 
         if (data['company'] != null) {
-          // 🔹 CHANGED: Parse into CompanyDetail
-          _selectedCompany = CompanyDetail.fromJson(data['company']);
+          // Parse data
+          final detail = CompanyDetail.fromJson(data['company']);
+
+          // 🔹 Save to Cache
+          _detailsCache[companyId] = detail;
+
+          // Set selected
+          _selectedCompany = detail;
           notifyListeners();
           return true;
         }
@@ -162,6 +178,15 @@ class CompanyProvider with ChangeNotifier {
 
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  // Clear cache when logging out
+  void clearCache() {
+    _detailsCache.clear();
+    _companies = [];
+    _filteredCompanies = [];
+    _selectedCompany = null;
     notifyListeners();
   }
 }
