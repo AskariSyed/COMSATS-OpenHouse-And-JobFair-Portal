@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart'; // Import XFile
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_job_fair_portal/model/InterviewRequest.dart';
 import 'package:student_job_fair_portal/model/achievement.dart';
 import 'package:student_job_fair_portal/model/certification.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
@@ -23,6 +24,8 @@ class StudentProvider with ChangeNotifier {
   bool get isLoggedIn => _student != null && _token != null;
   List<ProjectInvitation> _invitations = [];
   List<ProjectInvitation> get invitations => _invitations;
+  List<InterviewRequest> _interviewRequests = [];
+  List<InterviewRequest> get interviewRequests => _interviewRequests;
 
   // Base URL for your API
   final String baseUrl = "http://192.168.137.1:5158/api";
@@ -910,5 +913,124 @@ class StudentProvider with ChangeNotifier {
     }
     debugPrint("❌ Failed to delete achievement: ${response.body}");
     return false;
+  }
+
+  Future<String?> sendInterviewRequest(int companyId) async {
+    if (_student == null) return "Not logged in";
+
+    // Note: We do not use _setLoading(true) here to prevent blocking the whole UI.
+    // The local widget calling this function should handle its own loading state.
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/interview-requests/send"),
+        headers: _authHeaders,
+        body: json.encode({"companyId": companyId}),
+      );
+
+      if (response.statusCode == 200) {
+        return null; // Success
+      } else {
+        // Try to parse a friendly error message from the response
+        // Response might be plain text (like "You already have a pending request...")
+        // or JSON (like { "message": "..." })
+        String errorMsg = response.body;
+        try {
+          final bodyJson = json.decode(response.body);
+          if (bodyJson is Map && bodyJson.containsKey('message')) {
+            errorMsg = bodyJson['message'];
+          }
+        } catch (_) {
+          // If not JSON, stick with the raw body (e.g. simple string from BadRequest)
+        }
+
+        return errorMsg.isNotEmpty
+            ? errorMsg
+            : "Request failed with status ${response.statusCode}";
+      }
+    } catch (e) {
+      return "Network error: $e";
+    }
+  }
+
+  Future<void> fetchInterviewRequests() async {
+    if (_student == null) return;
+    _setLoading(true);
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/interview-requests"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['requests'] != null) {
+          _interviewRequests = (data['requests'] as List)
+              .map((json) => InterviewRequest.fromJson(json))
+              .toList();
+        } else {
+          _interviewRequests = [];
+        }
+      } else if (response.statusCode == 404) {
+        _interviewRequests = [];
+      }
+    } catch (e) {
+      debugPrint("Error fetching requests: $e");
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<String?> withdrawRequest(int requestId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/Student/interview-requests/$requestId"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        _interviewRequests.removeWhere((r) => r.requestId == requestId);
+        notifyListeners();
+        return null; // Success
+      }
+      return "Failed to withdraw: ${response.body}";
+    } catch (e) {
+      return "Error: $e";
+    }
+  }
+
+  Future<String?> acceptCompanyInvite(int requestId) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/interview-requests/$requestId/accept"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        await fetchInterviewRequests(); // Refresh list
+        return null;
+      }
+      return "Failed to accept: ${response.body}";
+    } catch (e) {
+      return "Error: $e";
+    }
+  }
+
+  Future<String?> rejectCompanyInvite(int requestId, String reason) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/interview-requests/$requestId/reject"),
+        headers: _authHeaders,
+        body: json.encode({"reason": reason}),
+      );
+
+      if (response.statusCode == 200) {
+        await fetchInterviewRequests(); // Refresh list
+        return null;
+      }
+      return "Failed to reject: ${response.body}";
+    } catch (e) {
+      return "Error: $e";
+    }
   }
 }

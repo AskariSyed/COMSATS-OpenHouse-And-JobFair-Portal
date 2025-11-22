@@ -1,4 +1,5 @@
 import 'package:student_job_fair_portal/mixins/contactPlatform.dart';
+import 'package:student_job_fair_portal/mixins/enums.dart';
 
 String contactPlatformToString(ContactPlatform platform) {
   switch (platform) {

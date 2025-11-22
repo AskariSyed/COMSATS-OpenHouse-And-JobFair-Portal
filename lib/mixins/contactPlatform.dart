@@ -1,14 +1,6 @@
-enum ContactPlatform {
-  LinkedIn,
-  GitHub,
-  Portfolio,
-  Twitter,
-  Facebook,
-  Instagram,
-  Other,
-}
-
 // Helper function to parse the enum safely
+import 'package:student_job_fair_portal/mixins/enums.dart';
+
 ContactPlatform contactPlatformFromString(String? platform) {
   switch (platform) {
     case 'LinkedIn':

@@ -7,6 +7,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/firebase_options.dart';
+import 'package:student_job_fair_portal/provider/company_provider.dart';
+import 'package:student_job_fair_portal/provider/job_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'screens/sigin.dart';
 
@@ -55,7 +57,11 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => StudentProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => StudentProvider()),
+        ChangeNotifierProvider(create: (_) => CompanyProvider()),
+        ChangeNotifierProvider(create: (_) => JobProvider()),
+      ],
       child: const MyApp(),
     ),
   );

@@ -51,6 +51,7 @@ dependencies:
   foundation: ^0.0.5
   font_awesome_flutter: ^10.12.0
   collapsible_sidebar: ^2.0.7
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

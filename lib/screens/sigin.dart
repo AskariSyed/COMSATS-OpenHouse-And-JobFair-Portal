@@ -167,8 +167,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         const SizedBox(height: 20),
 
         // 🔹 Header Image
-        Image.network(
-          "https://media.istockphoto.com/id/1356312511/vector/hr-recruiting-announcement-we-are-hiring-advertisement-human-resources-or-employer-looking.jpg?s=612x612&w=0&k=20&c=MrZc3DimNa24FoVhHrnZbIR29GZqahGMDn3ryfc9OlY=",
+        Image.asset(
+          "lib/assets/StudentJobFairPortalLogo.png",
           height: 200,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => const Icon(

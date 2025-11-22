@@ -32,6 +32,11 @@ List<CollapsibleItem> generateSidebarItems(
       onPressed: () => setState(() => _currentRoute = 'Requests'),
     ),
     CollapsibleItem(
+      text: 'Jobs',
+      icon: Icons.work_outline_sharp,
+      onPressed: () => setState(() => _currentRoute = 'Jobs'),
+    ),
+    CollapsibleItem(
       text: 'Logout',
       icon: Icons.logout,
       onPressed: () {

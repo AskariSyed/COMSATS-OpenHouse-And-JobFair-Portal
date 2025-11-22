@@ -2,13 +2,18 @@ import 'dart:ui'; // Required for ImageFilter
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart'; // Added shimmer package
 import 'package:student_job_fair_portal/main.dart';
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/model/project.dart';
+import 'package:student_job_fair_portal/screens/companies_screen.dart';
+import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:student_job_fair_portal/screens/requestScreen.dart';
 import 'package:student_job_fair_portal/widgets/appbar.dart';
 import 'package:student_job_fair_portal/widgets/build_bottom_navbar.dart';
 import 'package:student_job_fair_portal/widgets/build_profile_content.dart';
+import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
 import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
@@ -33,16 +38,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _currentRoute = 'Profile';
   bool _isInitLoading = true;
 
-  // Variable to hold the SnackBar controller for manual dismissal
   AnimationController? _persistentSnackBarController;
 
-  // Define which routes are actually ready
-  final List<String> _implementedRoutes = ['Profile', 'Dashboard'];
+  final List<String> _implementedRoutes = [
+    'Profile',
+    'Dashboard',
+    'Companies',
+    'Jobs',
+    'Requests',
+  ];
 
   @override
   void initState() {
     super.initState();
     _sidebarItems = generateSidebarItems(context, setState, _currentRoute);
+
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    if (studentProvider.student != null) {
+      _isInitLoading = false;
+    } else {
+      _isInitLoading = true;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProfileData();
@@ -88,22 +107,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- UPDATED METHOD WITH PERSISTENT SNACKBAR ---
   Future<void> _onEditPicturePressed() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    // 1. Show Persistent "Uploading" SnackBar
     if (mounted) {
       showTopSnackBar(
         Overlay.of(context),
         const CustomSnackBar.info(
           message: "Uploading profile picture... Please wait.",
         ),
-        persistent: true, // Keeps it visible
+        persistent: true,
         onAnimationControllerInit: (controller) {
-          // Capture the controller to dismiss it manually later
           _persistentSnackBarController = controller;
         },
       );
@@ -112,11 +128,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final provider = Provider.of<StudentProvider>(context, listen: false);
     try {
       await provider.uploadProfilePic(image);
-
-      // 2. Upload finished successfully: Dismiss the "Uploading" snackbar
       _persistentSnackBarController?.reverse();
 
-      // 3. Show Success SnackBar
       if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
@@ -125,10 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await _loadProfileData();
       }
     } catch (e) {
-      // 2. Upload failed: Dismiss the "Uploading" snackbar
       _persistentSnackBarController?.reverse();
-
-      // 3. Show Error SnackBar
       if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
@@ -137,11 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
   }
-  // -----------------------------------------------
 
   void onEditLink(dynamic link) {
     final contactLink = link as ContactLink;
-
     showContactLinkDialog(
       navigatorKey.currentContext!,
       link: link,
@@ -156,7 +164,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void onDeleteLink(dynamic link) async {
     final contactLink = link as ContactLink;
-
     await Provider.of<StudentProvider>(
       navigatorKey.currentContext!,
       listen: false,
@@ -294,24 +301,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildShimmerProfile(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Shimmer.fromColors(
+            baseColor: Colors.grey.shade300,
+            highlightColor: Colors.grey.shade100,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(width: 200, height: 24, color: Colors.white),
+                const SizedBox(height: 10),
+                Container(width: 150, height: 16, color: Colors.white),
+                const SizedBox(height: 40),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(width: 120, height: 20, color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(width: 120, height: 20, color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final studentProvider = Provider.of<StudentProvider>(context);
     final student = studentProvider.student;
 
-    // 1. Loading State
     if (_isInitLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: _buildShimmerProfile(context),
+      );
     }
 
-    // 2. Error State
     if (student == null) {
       return const Scaffold(
         body: Center(child: Text("Failed to load profile. Check connection.")),
       );
     }
 
-    // 3. Prepare Profile Image URL
     final String? profileImageUrl =
         (student.profilePicUrl != null && student.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
@@ -323,9 +391,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context, constraints) {
         final double screenWidth = constraints.maxWidth;
 
-        // ====================================================================
-        // MOBILE LAYOUT (< 800px)
-        // ====================================================================
         if (screenWidth < 800) {
           return Scaffold(
             backgroundColor: Colors.grey.shade50,
@@ -356,12 +421,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             bottomNavigationBar: buildBottomNav(context, 0),
           );
-        }
-        // ====================================================================
-        // WEB / DESKTOP LAYOUT (>= 800px)
-        // ====================================================================
-        else {
-          // Regenerate sidebar items to ensure state freshness
+        } else {
           _sidebarItems = generateSidebarItems(
             context,
             setState,
@@ -372,15 +432,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.white,
             body: Stack(
               children: [
-                // A. SCROLLABLE CONTENT LAYER
                 Padding(
-                  padding: const EdgeInsets.only(
-                    top: 80.0,
-                  ), // Make room for TopBar
+                  padding: const EdgeInsets.only(top: 80.0),
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        // 1. Main Profile Content (Centered & Constrained)
                         Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 1200),
@@ -392,7 +448,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Welcome Text
                                   Text(
                                     "Welcome back, ${student.user.fullName}",
                                     style: Theme.of(context)
@@ -404,7 +459,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         ),
                                   ),
                                   const SizedBox(height: 20),
-                                  // The actual Profile Widget
                                   buildProfileContent(
                                     context,
                                     student,
@@ -422,18 +476,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                         ),
-
-                        // 2. Spacing
                         const SizedBox(height: 20),
-
-                        // 3. WEB FOOTER (Full Width)
                         const WebFooter(),
                       ],
                     ),
                   ),
                 ),
 
-                // B. FROSTED GLASS TOP BAR LAYER
                 Positioned(
                   top: 0,
                   left: 0,
@@ -455,7 +504,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 30),
                         child: Row(
                           children: [
-                            // Logo
                             Image.asset(
                               'lib/assets/StudentJobFairPortalLogo.png',
                               height: 35,
@@ -469,10 +517,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 fontSize: 20,
                               ),
                             ),
-
                             const Spacer(),
-
-                            // Navigation Items
                             ..._sidebarItems.map((item) {
                               final isSelected = item.isSelected;
                               return Padding(
@@ -484,18 +529,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     child: TextButton.icon(
-                                      onPressed: () {
+                                      onPressed: () async {
                                         if (_implementedRoutes.contains(
                                           item.text,
                                         )) {
                                           item.onPressed();
                                           setState(() {
-                                            for (var i in _sidebarItems) {
+                                            for (var i in _sidebarItems)
                                               i.isSelected = false;
-                                            }
                                             item.isSelected = true;
                                             _currentRoute = item.text;
                                           });
+
+                                          // --- NAVIGATION WITH FADE ---
+                                          if (item.text == 'Profile') {
+                                            // Already Here
+                                          } else if (item.text == 'Companies') {
+                                            Navigator.pushReplacement(
+                                              context,
+                                              FadePageRoute(
+                                                page: const CompaniesScreen(),
+                                              ),
+                                            );
+                                          } else if (item.text == 'Jobs') {
+                                            Navigator.pushReplacement(
+                                              context,
+                                              FadePageRoute(
+                                                page: const JobsScreen(),
+                                              ),
+                                            );
+                                          } else if (item.text == 'Requests') {
+                                            Navigator.pushReplacement(
+                                              context,
+                                              FadePageRoute(
+                                                page: const RequestsScreen(),
+                                              ),
+                                            );
+                                          }
+                                        } else if (item.text == 'Logout') {
+                                          item.onPressed();
+                                          await Provider.of<StudentProvider>(
+                                            context,
+                                            listen: false,
+                                          ).logout();
+                                          if (mounted) {
+                                            Navigator.of(
+                                              context,
+                                            ).pushReplacementNamed('/login');
+                                          }
                                         } else {
                                           showTopSnackBar(
                                             Overlay.of(context),
@@ -541,10 +622,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               );
                             }).toList(),
-
                             const SizedBox(width: 20),
-
-                            // Profile Avatar in Header
                             CircleAvatar(
                               radius: 20,
                               backgroundColor: Colors.grey.shade300,

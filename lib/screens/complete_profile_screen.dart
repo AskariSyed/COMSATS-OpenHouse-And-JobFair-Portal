@@ -1,470 +1,1228 @@
-import 'dart:typed_data';
+import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:student_job_fair_portal/provider/company_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:student_job_fair_portal/screens/profile.dart';
+import 'package:student_job_fair_portal/model/company.dart';
+import 'package:collapsible_sidebar/collapsible_sidebar.dart';
+import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
+import 'package:student_job_fair_portal/widgets/web_footer.dart';
+import 'package:shimmer/shimmer.dart'; // Added Shimmer package
 
-class CompleteProfileScreen extends StatefulWidget {
-  const CompleteProfileScreen({super.key});
+// Navigation targets
+import 'package:student_job_fair_portal/screens/profile.dart';
+import 'package:student_job_fair_portal/screens/companies_screen.dart';
+import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
+
+class CompanyProfileScreen extends StatefulWidget {
+  final int companyId;
+  final String companyName;
+
+  const CompanyProfileScreen({
+    super.key,
+    required this.companyId,
+    required this.companyName,
+  });
 
   @override
-  State<CompleteProfileScreen> createState() => _CompleteProfileScreenState();
+  State<CompanyProfileScreen> createState() => _CompanyProfileScreenState();
 }
 
-class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-
+class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
+  late List<CollapsibleItem> _sidebarItems;
 
-  // Controllers for the form fields
-  final _phoneController = TextEditingController();
-  final _skillsController = TextEditingController();
-  final _linkedInController = TextEditingController();
-  final _githubController = TextEditingController();
-  final _fypTitleController = TextEditingController();
-  final _fypDescController = TextEditingController();
-  final _fypDemoUrlController = TextEditingController();
-  final _fypGithubUrlController = TextEditingController();
+  // Local state for request button loading
+  bool _isSendingRequest = false;
 
-  // --- Image State ---
-  XFile? _pickedImage; // Store the NEW file from image_picker
-  Uint8List? _imageBytes; // Store the bytes for NEW image display
-  String? _existingProfilePicUrl;
-  final ImagePicker _picker = ImagePicker();
-
-  // 🔹 1. Flags to control visibility
-  // We'll show the picture section always, so the user can update it.
-  bool _showPhoneField = true;
-  bool _showSkillsField = true;
-  bool _showLinksSection = true;
-  bool _showFypSection = true;
+  final List<String> _implementedRoutes = [
+    'Profile',
+    'Dashboard',
+    'Companies',
+    'Jobs',
+  ];
 
   @override
   void initState() {
     super.initState();
+    _sidebarItems = generateSidebarItems(context, setState, 'Companies');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCompanyDetails();
+    });
+  }
 
-    // Access the provider *without* listening
-    final student = Provider.of<StudentProvider>(
+  Future<void> _loadCompanyDetails() async {
+    final studentToken = Provider.of<StudentProvider>(
       context,
       listen: false,
-    ).student;
-
-    if (student != null) {
-      // --- Pre-fill Basic Info ---
-      _phoneController.text = student.user.phone ?? '';
-      _skillsController.text = (student.skills ?? []).join(', ');
-      _existingProfilePicUrl = student.profilePicUrl;
-
-      // --- Pre-fill Contact Links ---
-      String getLinkUrl(String platform) {
-        if (student.contactLinks == null) return '';
-        try {
-          final link = student.contactLinks.firstWhere(
-            (link) =>
-                link.platform.name.toLowerCase() == platform.toLowerCase(),
-          );
-          return link.url ?? '';
-        } catch (e) {
-          return '';
-        }
-      }
-
-      _linkedInController.text = getLinkUrl('LinkedIn');
-      _githubController.text = getLinkUrl('GitHub');
-
-      // --- Pre-fill Final Year Project ---
-      _fypTitleController.text = student.fypTitle ?? '';
-      _fypDescController.text = student.fypDescription ?? '';
-      _fypDemoUrlController.text = student.fypDemoUrl ?? '';
-      _fypGithubUrlController.text = student.fypGithubUrl ?? '';
-
-      // 🔹 2. Set visibility flags based on pre-filled data
-      // If the field is NOT empty, we hide it.
-      _showPhoneField = _phoneController.text.isEmpty;
-      _showSkillsField = _skillsController.text.isEmpty;
-      // If both links are filled, hide the whole section
-      _showLinksSection =
-          _linkedInController.text.isEmpty || _githubController.text.isEmpty;
-      // If the FYP title is filled, hide the whole section
-      _showFypSection = _fypTitleController.text.isEmpty;
+    ).token;
+    if (studentToken != null) {
+      await Provider.of<CompanyProvider>(
+        context,
+        listen: false,
+      ).fetchCompanyDetails(widget.companyId, studentToken);
     }
   }
 
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _skillsController.dispose();
-    _linkedInController.dispose();
-    _githubController.dispose();
-    _fypTitleController.dispose();
-    _fypDescController.dispose();
-    _fypDemoUrlController.dispose();
-    _fypGithubUrlController.dispose();
-    super.dispose();
-  }
+  Future<void> _handleSendInterviewRequest() async {
+    setState(() {
+      _isSendingRequest = true;
+    });
 
-  // --- Image Picking Logic ---
-  Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final errorMessage = await studentProvider.sendInterviewRequest(
+      widget.companyId,
     );
 
-    if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
-      setState(() {
-        _pickedImage = pickedFile;
-        _imageBytes = bytes;
-      });
-    }
-  }
+    if (!mounted) return;
 
-  // --- Form Submission Logic ---
-  Future<void> _submitProfile() async {
-    // 🔹 3. Validation only runs on visible fields
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    setState(() {
+      _isSendingRequest = false;
+    });
 
-    // Pic validation: Only require if no new one is picked AND no old one exists
-    if (_pickedImage == null &&
-        (_existingProfilePicUrl == null || _existingProfilePicUrl!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a profile picture.'),
-          backgroundColor: Colors.red,
+    if (errorMessage == null) {
+      // Success
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.success(
+          message: "Interview request sent successfully!",
         ),
       );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final provider = Provider.of<StudentProvider>(context, listen: false);
-
-    try {
-      // 1. Upload Profile Pic (Only if a new one was picked)
-      if (_pickedImage != null) {
-        bool picSuccess = await provider.uploadProfilePic(_pickedImage!);
-        if (!picSuccess) throw Exception('Profile picture upload failed.');
-      }
-
-      // 🔹 4. Only submit data for sections that were shown
-
-      // 2. Update Phone
-      if (_showPhoneField) {
-        bool phoneSuccess = await provider.updatePhoneNumber(
-          _phoneController.text,
-        );
-        if (!phoneSuccess) throw Exception('Phone number update failed.');
-      }
-
-      // 3. Add Skills
-      if (_showSkillsField) {
-        final skills = _skillsController.text
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
-        bool skillsSuccess = await provider.addSkills(skills);
-        if (!skillsSuccess) throw Exception('Skills update failed.');
-      }
-
-      // 4. Add Links (Only if the section was visible)
-      if (_showLinksSection) {
-        if (_linkedInController.text.isNotEmpty) {
-          await provider.addContactLink({
-            'platform': 'LinkedIn',
-            'url': _linkedInController.text,
-          });
-        }
-        if (_githubController.text.isNotEmpty) {
-          await provider.addContactLink({
-            'platform': 'GitHub',
-            'url': _githubController.text,
-          });
-        }
-      }
-
-      // 5. Add FYP (Only if the section was visible)
-      if (_showFypSection) {
-        bool fypSuccess = await provider.createProject({
-          'title': _fypTitleController.text,
-          'description': _fypDescController.text,
-          'demoUrl': _fypDemoUrlController.text,
-          'gitHubUrl': _fypGithubUrlController.text,
-          'type': 'FinalYear',
-        });
-        if (!fypSuccess) throw Exception('FYP creation failed.');
-      }
-
-      // All successful, navigate to the main profile screen
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile completed successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const ProfileScreen()),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An error occurred: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    } else {
+      // Error (e.g., already pending)
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: errorMessage),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine the correct image to show.
-    ImageProvider? displayImage;
-    if (_imageBytes != null) {
-      displayImage = MemoryImage(_imageBytes!);
-    } else if (_existingProfilePicUrl != null &&
-        _existingProfilePicUrl!.isNotEmpty) {
-      displayImage = NetworkImage("$_serverBaseUrl$_existingProfilePicUrl");
-    } else {
-      displayImage = null;
-    }
+    final companyProvider = Provider.of<CompanyProvider>(context);
+    final studentProvider = Provider.of<StudentProvider>(context);
+    final student = studentProvider.student;
+    final company = companyProvider.selectedCompany;
+    final isLoading = companyProvider.isLoading;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Complete Your Profile'),
-        automaticallyImplyLeading: false,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 10),
-                    // We always show the profile pic so it can be updated
-                    Center(
-                      child: GestureDetector(
-                        onTap: _pickImage,
-                        child: CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: displayImage,
-                          child: (displayImage == null)
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.camera_alt,
-                                      color: Colors.grey.shade700,
-                                      size: 30,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Add Photo',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade700,
+    final String? profileImageUrl =
+        (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
+        ? (student.profilePicUrl!.startsWith('http')
+              ? student.profilePicUrl
+              : _serverBaseUrl + student.profilePicUrl!)
+        : null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double screenWidth = constraints.maxWidth;
+        final bool isMobile = screenWidth < 800;
+
+        if (isMobile) {
+          return Scaffold(
+            backgroundColor: Colors.grey.shade100,
+            appBar: AppBar(
+              title: Text(
+                widget.companyName,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              backgroundColor: Colors.white,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.black87),
+              centerTitle: true,
+            ),
+            body: isLoading
+                ? SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildShimmerContent(context),
+                  )
+                : company == null
+                ? _buildErrorState(companyProvider)
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildContent(company),
+                  ),
+          );
+        }
+
+        // --- WEB LAYOUT ---
+        return Scaffold(
+          backgroundColor: Colors.grey.shade50,
+          body: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 80.0),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 40,
+                              horizontal: 30,
+                            ),
+                            child: isLoading
+                                ? _buildShimmerContent(context)
+                                : company == null
+                                ? _buildErrorState(companyProvider)
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 20,
+                                        ),
+                                        child: InkWell(
+                                          onTap: () => Navigator.pop(context),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.arrow_back_ios_new,
+                                                size: 16,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                "Back to Companies",
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                )
-                              : null,
+                                      _buildContent(company),
+                                    ],
+                                  ),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 30),
+                      const SizedBox(height: 60),
+                      const WebFooter(),
+                    ],
+                  ),
+                ),
+              ),
+              _buildWebHeader(context, student, profileImageUrl),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-                    // --- Basic Info ---
-                    _buildSectionHeader('Basic Information'),
-                    const SizedBox(height: 16),
+  // --- Shimmer Loading Widget ---
+  Widget _buildShimmerContent(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Hero Card Shimmer
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+          ),
+          const SizedBox(height: 30),
 
-                    // 🔹 5. Use Visibility widget
-                    Visibility(
-                      visible: _showPhoneField,
-                      child: TextFormField(
-                        controller: _phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number*',
-                        ),
-                        keyboardType: TextInputType.phone,
-                        validator: (value) {
-                          // Validator only runs if visible
-                          if (_showPhoneField &&
-                              (value == null || value.isEmpty)) {
-                            return 'Please enter your phone number';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    // Add padding if both are visible
-                    if (_showPhoneField && _showSkillsField)
-                      const SizedBox(height: 16),
+          // Split Layout Shimmer
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 800;
 
-                    Visibility(
-                      visible: _showSkillsField,
-                      child: TextFormField(
-                        controller: _skillsController,
-                        decoration: const InputDecoration(
-                          labelText: 'Skills*',
-                          hintText: 'e.g., Flutter, React, Node.js',
-                        ),
-                        validator: (value) {
-                          if (_showSkillsField &&
-                              (value == null || value.isEmpty)) {
-                            return 'Please enter at least one skill';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-
-                    // If both fields are hidden, show a helper message
-                    if (!_showPhoneField && !_showSkillsField)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Phone and skills already provided.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-
-                    const SizedBox(height: 30),
-
-                    // --- Contact Links ---
-                    Visibility(
-                      visible: _showLinksSection,
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column (Jobs + Skills)
+                    Expanded(
+                      flex: 3,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionHeader('Contact Links'),
-                          const SizedBox(height: 16),
-                          // We can show/hide individual links too
-                          if (_linkedInController.text.isEmpty)
-                            TextFormField(
-                              controller: _linkedInController,
-                              decoration: const InputDecoration(
-                                labelText: 'LinkedIn Profile URL',
-                                prefixIcon: Icon(Icons.link),
+                          // Fake Job Cards
+                          for (int i = 0; i < 3; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Container(
+                                height: 140,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
-                              keyboardType: TextInputType.url,
                             ),
-                          if (_linkedInController.text.isEmpty &&
-                              _githubController.text.isEmpty)
-                            const SizedBox(height: 16),
-
-                          if (_githubController.text.isEmpty)
-                            TextFormField(
-                              controller: _githubController,
-                              decoration: const InputDecoration(
-                                labelText: 'GitHub Profile URL',
-                                prefixIcon: Icon(Icons.link),
-                              ),
-                              keyboardType: TextInputType.url,
-                            ),
-                          const SizedBox(height: 30),
                         ],
                       ),
                     ),
-
-                    // --- Final Year Project ---
-                    Visibility(
-                      visible: _showFypSection,
+                    const SizedBox(width: 30),
+                    // Right Column (Info Cards)
+                    Expanded(
+                      flex: 2,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionHeader('Final Year Project'),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _fypTitleController,
-                            decoration: const InputDecoration(
-                              labelText: 'Project Title*',
+                          Container(
+                            height: 200,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            validator: (value) {
-                              if (_showFypSection &&
-                                  (value == null || value.isEmpty)) {
-                                return 'Please enter your project title';
-                              }
-                              return null;
-                            },
                           ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _fypDescController,
-                            decoration: const InputDecoration(
-                              labelText: 'Project Description*',
-                              alignLabelWithHint: true,
+                          const SizedBox(height: 20),
+                          Container(
+                            height: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            maxLines: 4,
-                            validator: (value) {
-                              if (_showFypSection &&
-                                  (value == null || value.isEmpty)) {
-                                return 'Please enter a project description';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _fypDemoUrlController,
-                            decoration: const InputDecoration(
-                              labelText: 'Project Demo URL',
-                            ),
-                            keyboardType: TextInputType.url,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _fypGithubUrlController,
-                            decoration: const InputDecoration(
-                              labelText: 'Project GitHub URL',
-                            ),
-                            keyboardType: TextInputType.url,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 40),
+                  ],
+                );
+              } else {
+                // Mobile Stack
+                return Column(
+                  children: [
+                    // Info Cards
+                    Container(
+                      height: 180,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      height: 150,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    // Fake Jobs
+                    for (int i = 0; i < 3; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // --- Submit Button ---
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _submitProfile,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(
-                          fontSize: 18,
+  Widget _buildErrorState(CompanyProvider provider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.domain_disabled, size: 64, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text(
+            provider.error ?? "Unable to load company details",
+            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _loadCompanyDetails,
+            icon: const Icon(Icons.refresh),
+            label: const Text("Try Again"),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(CompanyDetail company) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHeroCard(company),
+        const SizedBox(height: 30),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return constraints.maxWidth > 800
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          children: [
+                            _buildJobsSection(company),
+                            const SizedBox(height: 30),
+                            _buildSkillsSection(company),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 30),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            _buildInfoCard(company),
+                            const SizedBox(height: 20),
+                            _buildContactCard(company),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _buildInfoCard(company),
+                      const SizedBox(height: 20),
+                      _buildContactCard(company),
+                      const SizedBox(height: 30),
+                      _buildSkillsSection(company),
+                      const SizedBox(height: 30),
+                      _buildJobsSection(company),
+                    ],
+                  );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeroCard(CompanyDetail company) {
+    final String? logoUrl =
+        (company.logoUrl != null && company.logoUrl!.isNotEmpty)
+        ? (company.logoUrl!.startsWith('http')
+              ? company.logoUrl
+              : "$_serverBaseUrl${company.logoUrl}")
+        : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade100),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(19),
+                    child: logoUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: logoUrl,
+                            fit: BoxFit.contain,
+                            errorWidget: (context, url, error) =>
+                                _buildFallbackIcon(),
+                          )
+                        : _buildFallbackIcon(),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        company.name,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          if (company.industry != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                company.industry!,
+                                style: TextStyle(
+                                  color: Colors.blue.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: company.isPresent
+                                  ? Colors.green.shade50
+                                  : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: company.isPresent
+                                    ? Colors.green.shade200
+                                    : Colors.orange.shade200,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  company.isPresent
+                                      ? Icons.check_circle
+                                      : Icons.schedule,
+                                  size: 16,
+                                  color: company.isPresent
+                                      ? Colors.green.shade700
+                                      : Colors.orange.shade800,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  company.isPresent ? "On-Spot" : "Registered",
+                                  style: TextStyle(
+                                    color: company.isPresent
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade800,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Description
+            if (company.description != null &&
+                company.description!.isNotEmpty) ...[
+              Text(
+                company.description!,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade700,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            // --- REQUEST INTERVIEW BUTTON ---
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSendingRequest
+                    ? null
+                    : _handleSendInterviewRequest,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: _isSendingRequest
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        "Request Interview",
+                        style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 3,
-                              ),
-                            )
-                          : const Text('Save & Continue'),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackIcon() {
+    return Container(
+      color: Colors.grey.shade50,
+      child: Center(
+        child: Icon(Icons.business, size: 40, color: Colors.grey.shade300),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(CompanyDetail company) {
+    return _buildCard(
+      title: "Highlights",
+      icon: Icons.flash_on,
+      child: Column(
+        children: [
+          _buildHighlightRow(
+            Icons.timer_outlined,
+            "Interview Duration",
+            "${company.interviewDurationMinutes} mins",
+          ),
+          const Divider(height: 24),
+          _buildHighlightRow(
+            Icons.groups_outlined,
+            "Representatives",
+            "${company.repsCount > 0 ? company.repsCount : 'N/A'} Attending",
+          ),
+          if (company.focalPersonName != null) ...[
+            const Divider(height: 24),
+            _buildHighlightRow(
+              Icons.badge_outlined,
+              "Focal Person",
+              company.focalPersonName!,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactCard(CompanyDetail company) {
+    return _buildCard(
+      title: "Get in Touch",
+      icon: Icons.connect_without_contact,
+      child: Column(
+        children: [
+          if (company.website != null)
+            _buildContactRow(
+              Icons.language,
+              "Website",
+              company.website!,
+              isLink: true,
+            ),
+          if (company.email != null)
+            _buildContactRow(
+              Icons.email_outlined,
+              "Email",
+              company.email!,
+              isLink: true,
+              urlPrefix: 'mailto:',
+            ),
+          if (company.phone != null)
+            _buildContactRow(
+              Icons.phone_outlined,
+              "Phone",
+              company.phone!,
+              isLink: true,
+              urlPrefix: 'tel:',
+            ),
+          if (company.address != null)
+            _buildContactRow(
+              Icons.location_on_outlined,
+              "Address",
+              company.address!,
+            ),
+
+          if (company.contactLinks.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text(
+              "Social Profiles",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: company.contactLinks
+                  .map((link) => _buildSocialButton(link))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialButton(CompanyContactLink link) {
+    return InkWell(
+      onTap: () =>
+          launchUrl(Uri.parse(link.url), mode: LaunchMode.externalApplication),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _getPlatformIcon(link.platform),
+            const SizedBox(width: 8),
+            Text(
+              link.platform,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJobsSection(CompanyDetail company) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Open Positions",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueGrey.shade900,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "${company.jobs.length} Active",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (company.jobs.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.work_off_outlined,
+                  size: 48,
+                  color: Colors.grey.shade300,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "No positions listed currently",
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: company.jobs.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (ctx, i) {
+              final job = company.jobs[i];
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  job.jobTitle,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  job.jobTypeString,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              // Future: Navigate to job application if separate
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            child: const Text("View Details"),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // --- Positions & Description ---
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.group,
+                            size: 16,
+                            color: Colors.blue.shade600,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "${job.numberOfJobs} ${job.numberOfJobs == 1 ? 'Position' : 'Positions'} Available",
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (job.jobDescription != null)
+                        Text(
+                          job.jobDescription!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            height: 1.5,
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: job.requiredSkills
+                            .map(
+                              (s) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  s,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSkillsSection(CompanyDetail company) {
+    if (company.uniqueSkillsRequired.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Technology Stack",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.blueGrey.shade900,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: company.uniqueSkillsRequired.map((skill) {
+              return Chip(
+                label: Text(skill),
+                backgroundColor: Colors.blue.shade50,
+                labelStyle: TextStyle(
+                  color: Colors.blue.shade800,
+                  fontWeight: FontWeight.w600,
+                ),
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 20, color: Colors.blueGrey.shade700),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueGrey.shade900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHighlightRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.grey.shade400),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isLink = false,
+    String urlPrefix = '',
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.grey.shade400),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                isLink
+                    ? InkWell(
+                        onTap: () => launchUrl(
+                          Uri.parse("$urlPrefix$value"),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: Text(
+                          value,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebHeader(
+    BuildContext context,
+    dynamic student,
+    String? profileImageUrl,
+  ) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 80,
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Row(
+              children: [
+                Image.asset(
+                  'lib/assets/StudentJobFairPortalLogo.png',
+                  height: 35,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "COMSATS Job Fair",
+                  style: TextStyle(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+                const Spacer(),
+                ..._sidebarItems.map((item) {
+                  final isSelected = item.text == 'Companies';
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                    child: TextButton.icon(
+                      onPressed: () {
+                        if (_implementedRoutes.contains(item.text)) {
+                          if (item.text == 'Profile')
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfileScreen(),
+                              ),
+                            );
+                          else if (item.text == 'Companies')
+                            Navigator.pop(context);
+                          else if (item.text == 'Jobs')
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const JobsScreen(),
+                              ),
+                            );
+                        }
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: isSelected
+                            ? Theme.of(context).primaryColor
+                            : Colors.grey.shade700,
+                        backgroundColor: isSelected
+                            ? Theme.of(context).primaryColor.withOpacity(0.1)
+                            : Colors.transparent,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: Icon(item.icon, size: 18),
+                      label: Text(
+                        item.text,
+                        style: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(width: 20),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.grey.shade200,
+                  backgroundImage: profileImageUrl != null
+                      ? NetworkImage(profileImageUrl)
+                      : null,
+                  child: profileImageUrl == null
+                      ? Text(
+                          (student?.user.fullName ?? "U")[0].toUpperCase(),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+              ],
             ),
           ),
         ),
@@ -472,14 +1230,35 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
-        color: Colors.blue,
-      ),
-    );
+  Widget _getPlatformIcon(String platform) {
+    IconData icon;
+    Color color;
+    switch (platform.toLowerCase()) {
+      case 'linkedin':
+        icon = Icons.business;
+        color = const Color(0xFF0077B5);
+        break;
+      case 'facebook':
+        icon = Icons.facebook;
+        color = const Color(0xFF1877F2);
+        break;
+      case 'twitter':
+        icon = Icons.chat_bubble;
+        color = const Color(0xFF1DA1F2);
+        break;
+      case 'github':
+        icon = Icons.code;
+        color = Colors.black87;
+        break;
+      case 'instagram':
+        icon = Icons.camera_alt;
+        color = const Color(0xFFE1306C);
+        break;
+      default:
+        icon = Icons.link;
+        color = Colors.grey;
+        break;
+    }
+    return Icon(icon, size: 18, color: color);
   }
 }
