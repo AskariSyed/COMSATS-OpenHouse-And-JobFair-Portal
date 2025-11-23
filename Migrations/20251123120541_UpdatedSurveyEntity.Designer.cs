@@ -3,6 +3,7 @@ using System;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251123120541_UpdatedSurveyEntity")]
+    partial class UpdatedSurveyEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -530,44 +533,6 @@ namespace JobFairPortal.Migrations
                     b.ToTable("Jobs");
                 });
 
-            modelBuilder.Entity("JobFairPortal.Models.Notice", b =>
-                {
-                    b.Property<int>("NoticeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("NoticeId"));
-
-                    b.Property<int>("Audience")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsHidden")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("JobFairId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("NoticeId");
-
-                    b.HasIndex("JobFairId");
-
-                    b.ToTable("Notices");
-                });
-
             modelBuilder.Entity("JobFairPortal.Models.Notification", b =>
                 {
                     b.Property<int>("NotificationId")
@@ -1024,17 +989,6 @@ namespace JobFairPortal.Migrations
                         .HasForeignKey("JobFairId");
 
                     b.Navigation("Company");
-                });
-
-            modelBuilder.Entity("JobFairPortal.Models.Notice", b =>
-                {
-                    b.HasOne("JobFair", "JobFair")
-                        .WithMany()
-                        .HasForeignKey("JobFairId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("JobFair");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.Notification", b =>

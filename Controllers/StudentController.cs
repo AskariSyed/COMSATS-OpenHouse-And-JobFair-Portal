@@ -1853,6 +1853,96 @@ namespace JobFairPortal.Controllers
                 Requests = requests
             });
         }
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateNotice([FromBody] NoticeCreateDto dto)
+        {
+            // Find active job fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found. Cannot create notice.");
+
+            var notice = new Notice
+            {
+                Title = dto.Title,
+                Content = dto.Content,
+                Audience = dto.Audience,
+                JobFairId = activeJobFair.JobFairId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Notices.Add(notice);
+            await _context.SaveChangesAsync();
+
+            return Ok(new NoticeResponseDto
+            {
+                NoticeId = notice.NoticeId,
+                Title = notice.Title,
+                Content = notice.Content,
+                Audience = notice.Audience.ToString(),
+                CreatedAt = notice.CreatedAt
+            });
+        }
+
+        // -----------------------------
+        // 2. Get Notices (Dynamic based on Role)
+        // -----------------------------
+        [HttpGet]
+        [Authorize] // Requires login (Admin, Student, or Company)
+        public async Task<IActionResult> GetNotices()
+        {
+            // 1. Get Active Job Fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return Ok(new List<NoticeResponseDto>()); // Return empty if no event
+
+            // 2. Determine User Role
+            var isStudent = User.IsInRole("Student");
+            var isCompany = User.IsInRole("Company");
+            var isAdmin = User.IsInRole("Admin");
+
+            // 3. Build Query
+            var query = _context.Notices
+                .Where(n => n.JobFairId == activeJobFair.JobFairId)
+                .AsQueryable();
+
+            // 4. Filter based on Audience
+            if (isAdmin)
+            {
+                // Admins see everything
+            }
+            else if (isStudent)
+            {
+                // Students see "Student" AND "All"
+                query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
+            }
+            else if (isCompany)
+            {
+                // Companies see "Company" AND "All"
+                query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+            }
+            else
+            {
+                // Fallback for unknown roles
+                return Forbid();
+            }
+
+            // 5. Execute and Return
+            var notices = await query
+                .OrderByDescending(n => n.CreatedAt)
+                .Select(n => new NoticeResponseDto
+                {
+                    NoticeId = n.NoticeId,
+                    Title = n.Title,
+                    Content = n.Content,
+                    Audience = n.Audience.ToString(),
+                    CreatedAt = n.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(notices);
+        }
         [HttpPost("interview-requests/{requestId}/accept")]
         public async Task<IActionResult> AcceptInterviewRequest(int requestId)
         {

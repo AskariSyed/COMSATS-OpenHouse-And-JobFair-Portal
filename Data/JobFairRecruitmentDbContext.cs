@@ -31,7 +31,7 @@ namespace JobFairPortal.Data
         public DbSet<Experience> Experiences { get; set; } = null!;
         public DbSet<Education> Educations { get; set; } = null!;
         public DbSet<CompanyContactLink> CompanyContactLinks { get; set; } = null!;
-
+        public DbSet<Notice> Notices { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

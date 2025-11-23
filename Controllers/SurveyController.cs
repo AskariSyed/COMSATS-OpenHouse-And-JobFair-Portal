@@ -94,6 +94,7 @@ namespace JobFairPortal.Controllers
                         s.SurveyId,
                         Type = s.Type.ToString(),
                         s.SubmittedAt,
+                        // UPDATED: Uses the specific Deserializer logic
                         Responses = DeserializeResponses(s.Responses)
                     }).ToList()
                 })
@@ -109,6 +110,7 @@ namespace JobFairPortal.Controllers
 
             return Ok(companiesWithSurveys);
         }
+
         // GET: api/admin/survey/no-surveys
         [HttpGet("no-surveys")]
         public async Task<IActionResult> GetCompaniesWithNoSurveys()
@@ -154,8 +156,8 @@ namespace JobFairPortal.Controllers
             return Ok(noSurveyCompanies);
         }
 
-
         #region Helper
+        // UPDATED: Tries to deserialize into your specific SurveyResponseData class
         private static object? DeserializeResponses(string? responses)
         {
             if (string.IsNullOrEmpty(responses))
@@ -163,11 +165,23 @@ namespace JobFairPortal.Controllers
 
             try
             {
-                return JsonSerializer.Deserialize<object>(responses);
+                // Try to deserialize into the specific SurveyResponseData structure
+                return JsonSerializer.Deserialize<SurveyResponseData>(responses, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
             }
             catch
             {
-                return responses; // fallback to raw string if JSON is invalid
+                try
+                {
+                    // Fallback to generic object if structure doesn't match
+                    return JsonSerializer.Deserialize<object>(responses);
+                }
+                catch
+                {
+                    return responses; // Final fallback to raw string
+                }
             }
         }
         #endregion
