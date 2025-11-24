@@ -300,9 +300,20 @@ namespace JobFairPortal.Controllers
         [HttpGet("students")]
         public async Task<IActionResult> GetAllStudents()
         {
+            var companyIdClaim = GetUserIdFromToken();
+            
+            // Get current company if authenticated, otherwise return all students
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var students = await _context.Students
                 .Include(s => s.User)
-                .Select(s => new StudentListDto
+                .Include(s => s.InterviewRequests)
+                .Select(s => new
                 {
                     StudentId = s.StudentId,
                     Name = s.User.FullName,
@@ -310,7 +321,31 @@ namespace JobFairPortal.Controllers
                     Department = s.Department,
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
-                    ProfilePicUrl = s.ProfilePicUrl
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    
+                    // --- Interview Request Status (if company is logged in) ---
+                    InterviewRequest = currentCompany != null 
+                        ? new
+                        {
+                            HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                            Status = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.Status.ToString())
+                                .FirstOrDefault(),
+                            RequestId = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => (int?)ir.RequestId)
+                                .FirstOrDefault(),
+                            RequestDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.CreatedAt)
+                                .FirstOrDefault(),
+                            ResponseDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.UpdatedAt)
+                                .FirstOrDefault()
+                        }
+                        : null
                 })
                 .ToListAsync();
 
@@ -322,10 +357,19 @@ namespace JobFairPortal.Controllers
             if (string.IsNullOrWhiteSpace(skill))
                 return BadRequest("Skill parameter is required.");
 
+            var companyIdClaim = GetUserIdFromToken();
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var students = await _context.Students
                 .Include(s => s.User)
+                .Include(s => s.InterviewRequests)
                 .Where(s => s.Skills != null && s.Skills.Any(sk => sk.ToLower().Contains(skill.ToLower())))
-                .Select(s => new StudentListDto
+                .Select(s => new
                 {
                     StudentId = s.StudentId,
                     Name = s.User.FullName,
@@ -333,7 +377,27 @@ namespace JobFairPortal.Controllers
                     Department = s.Department,
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
-                    ProfilePicUrl = s.ProfilePicUrl
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    
+                    // --- Interview Request Status ---
+                    InterviewRequest = currentCompany != null
+                        ? new
+                        {
+                            HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                            Status = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.Status.ToString())
+                                .FirstOrDefault(),
+                            RequestId = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => (int?)ir.RequestId)
+                                .FirstOrDefault(),
+                            RequestDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.CreatedAt)
+                                .FirstOrDefault()
+                        }
+                        : null
                 })
                 .ToListAsync();
 
@@ -345,10 +409,19 @@ namespace JobFairPortal.Controllers
             if (string.IsNullOrWhiteSpace(registrationNo))
                 return BadRequest("Registration number parameter is required.");
 
+            var companyIdClaim = GetUserIdFromToken();
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var students = await _context.Students
                 .Include(s => s.User)
+                .Include(s => s.InterviewRequests)
                 .Where(s => s.RegistrationNo.ToLower().Contains(registrationNo.ToLower()))
-                .Select(s => new StudentListDto
+                .Select(s => new
                 {
                     StudentId = s.StudentId,
                     Name = s.User.FullName,
@@ -356,7 +429,27 @@ namespace JobFairPortal.Controllers
                     Department = s.Department,
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
-                    ProfilePicUrl = s.ProfilePicUrl
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    
+                    // --- Interview Request Status ---
+                    InterviewRequest = currentCompany != null
+                        ? new
+                        {
+                            HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                            Status = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.Status.ToString())
+                                .FirstOrDefault(),
+                            RequestId = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => (int?)ir.RequestId)
+                                .FirstOrDefault(),
+                            RequestDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.CreatedAt)
+                                .FirstOrDefault()
+                        }
+                        : null
                 })
                 .ToListAsync();
 
@@ -368,10 +461,19 @@ namespace JobFairPortal.Controllers
             if (string.IsNullOrWhiteSpace(department))
                 return BadRequest("Department parameter is required.");
 
+            var companyIdClaim = GetUserIdFromToken();
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var students = await _context.Students
                 .Include(s => s.User)
+                .Include(s => s.InterviewRequests)
                 .Where(s => s.Department.ToLower().Contains(department.ToLower()))
-                .Select(s => new StudentListDto
+                .Select(s => new
                 {
                     StudentId = s.StudentId,
                     Name = s.User.FullName,
@@ -379,7 +481,27 @@ namespace JobFairPortal.Controllers
                     Department = s.Department,
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
-                    ProfilePicUrl = s.ProfilePicUrl
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    
+                    // --- Interview Request Status ---
+                    InterviewRequest = currentCompany != null
+                        ? new
+                        {
+                            HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                            Status = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.Status.ToString())
+                                .FirstOrDefault(),
+                            RequestId = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => (int?)ir.RequestId)
+                                .FirstOrDefault(),
+                            RequestDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.CreatedAt)
+                                .FirstOrDefault()
+                        }
+                        : null
                 })
                 .ToListAsync();
 
@@ -408,6 +530,14 @@ namespace JobFairPortal.Controllers
         [HttpGet("students/{studentId}/profile")]
         public async Task<IActionResult> GetStudentProfile(int studentId)
         {
+            var companyIdClaim = GetUserIdFromToken();
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var student = await _context.Students
                 .Include(s => s.User)
                 .Include(s => s.Educations)
@@ -417,6 +547,7 @@ namespace JobFairPortal.Controllers
                 .Include(s => s.StudentProjects)
                     .ThenInclude(sp => sp.Project)
                 .Include(s => s.ContactLinks)
+                .Include(s => s.InterviewRequests)
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
 
             if (student == null)
@@ -445,6 +576,34 @@ namespace JobFairPortal.Controllers
                     student.User.IsActive,
                     student.User.CreatedAt
                 },
+
+                // --- Interview Request Status from Current Company ---
+                InterviewRequest = currentCompany != null
+                    ? new
+                    {
+                        HasRequest = student.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                        Status = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.Status.ToString())
+                            .FirstOrDefault(),
+                        RequestId = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => (int?)ir.RequestId)
+                            .FirstOrDefault(),
+                        RejectionReason = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.ReasonForReject)
+                            .FirstOrDefault(),
+                        RequestDate = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.CreatedAt)
+                            .FirstOrDefault(),
+                        ResponseDate = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.UpdatedAt)
+                            .FirstOrDefault()
+                    }
+                    : null,
 
                 // --- Educations ---
                 Educations = student.Educations.Select(e => new
@@ -716,6 +875,14 @@ namespace JobFairPortal.Controllers
         {
             _logger.LogInformation("GetStudentDetail called for studentId: {StudentId}", studentId);
 
+            var companyIdClaim = GetUserIdFromToken();
+            Company? currentCompany = null;
+            if (companyIdClaim > 0)
+            {
+                currentCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+            }
+
             var student = await _context.Students
                 .Include(s => s.User)
                 .Include(s => s.ContactLinks)
@@ -728,6 +895,7 @@ namespace JobFairPortal.Controllers
                 .Include(s => s.Certifications)
                 .Include(s => s.Educations)
                 .Include(s => s.Experiences)
+                .Include(s => s.InterviewRequests)
                 .FirstOrDefaultAsync(s => s.StudentId == studentId);
 
             if (student == null || student.User == null)
@@ -761,6 +929,34 @@ namespace JobFairPortal.Controllers
                         cl => cl.Platform.ToString(),
                         cl => cl.Url)
                     : new Dictionary<string, string>(),
+
+                // --- Interview Request Status from Current Company ---
+                InterviewRequest = currentCompany != null
+                    ? new
+                    {
+                        HasRequest = student.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId),
+                        Status = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.Status.ToString())
+                            .FirstOrDefault(),
+                        RequestId = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => (int?)ir.RequestId)
+                            .FirstOrDefault(),
+                        RejectionReason = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.ReasonForReject)
+                            .FirstOrDefault(),
+                        RequestDate = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.CreatedAt)
+                            .FirstOrDefault(),
+                        ResponseDate = student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.UpdatedAt)
+                            .FirstOrDefault()
+                    }
+                    : null,
 
                 // --- FYP Details ---
                 FinalYearProject = fyp != null ? new
@@ -838,7 +1034,7 @@ namespace JobFairPortal.Controllers
                     a.DateAchieved
                 }).ToList(),
 
-                // --- Work Experience ---
+                // --- Experiences ---
                 Experiences = student.Experiences.Select(ex => new
                 {
                     ex.ExperienceId,
@@ -1188,97 +1384,101 @@ public async Task<IActionResult> GetAllInterviewRequests(
     });
 }
 
-/// <summary>
-/// Company: Request interview with a student (send interview request)
-/// </summary>
-[Authorize(Roles = "Company")]
-[HttpPost("interview-requests/send")]
-public async Task<IActionResult> SendInterviewRequest([FromBody] SendCompanyInterviewRequestDto dto)
-{
-    var companyIdClaim = GetUserIdFromToken();
-    if (companyIdClaim <= 0)
-        return Unauthorized();
-
-    var company = await _context.Companies
-        .Include(c => c.User)
-        .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
-
-    if (company == null)
-        return NotFound("Company not found.");
-
-    var student = await _context.Students
-        .Include(s => s.User)
-        .FirstOrDefaultAsync(s => s.StudentId == dto.StudentId);
-
-    if (student == null)
-        return NotFound("Student not found.");
-
-    // Check if request already exists
-    var existingRequest = await _context.InterviewRequests
-        .FirstOrDefaultAsync(r => r.CompanyId == company.CompanyId && 
-                                   r.StudentId == student.StudentId &&
-                                   r.Status == RequestStatus.Pending);
-
-    if (existingRequest != null)
-        return BadRequest("A pending interview request already exists for this student.");
-
-    // Create interview request
-    var interviewRequest = new InterviewRequest
-    {
-        CompanyId = company.CompanyId,
-        StudentId = student.StudentId,
-        Status = RequestStatus.Pending,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow
-    };
-
-    _context.InterviewRequests.Add(interviewRequest);
-    await _context.SaveChangesAsync();
-
-    // Send FCM notification to student
-    if (!string.IsNullOrWhiteSpace(student.FcmToken))
-    {
-        try
+        /// <summary>
+        /// Company: Request interview with a student (send interview request)
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPost("interview-requests/send")]
+        public async Task<IActionResult> SendInterviewRequest([FromBody] SendCompanyInterviewRequestDto dto)
         {
-            var message = new Message
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            // 1. Get the Active Job Fair (CRITICAL FIX)
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found. Cannot send interview requests.");
+
+            var company = await _context.Companies
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == dto.StudentId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            // Check if request already exists
+            var existingRequest = await _context.InterviewRequests
+                .FirstOrDefaultAsync(r => r.CompanyId == company.CompanyId &&
+                                           r.StudentId == student.StudentId &&
+                                           r.Status == RequestStatus.Pending);
+
+            if (existingRequest != null)
+                return BadRequest("A pending interview request already exists for this student.");
+
+            // Create interview request
+            var interviewRequest = new InterviewRequest
             {
-                Token = student.FcmToken,
-                Notification = new FirebaseAdmin.Messaging.Notification
+                JobFairId = activeJobFair.JobFairId, // <--- ADDED THIS LINE
+                CompanyId = company.CompanyId,
+                StudentId = student.StudentId,
+                Status = RequestStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.InterviewRequests.Add(interviewRequest);
+            await _context.SaveChangesAsync();
+
+            // Send FCM notification to student
+            if (!string.IsNullOrWhiteSpace(student.FcmToken))
+            {
+                try
                 {
-                    Title = "Interview Request",
-                    Body = $"{company.Name} has sent you an interview request"
-                },
-                Data = new Dictionary<string, string>
+                    var message = new Message
+                    {
+                        Token = student.FcmToken,
+                        Notification = new FirebaseAdmin.Messaging.Notification
+                        {
+                            Title = "Interview Request",
+                            Body = $"{company.Name} has sent you an interview request"
+                        },
+                        Data = new Dictionary<string, string>
                 {
                     { "RequestId", interviewRequest.RequestId.ToString() },
                     { "CompanyId", company.CompanyId.ToString() },
                     { "CompanyName", company.Name },
                     { "Type", "InterviewRequest" }
                 }
-            };
+                    };
 
-            await FirebaseMessaging.DefaultInstance.SendAsync(message);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
-        }
-    }
+                    await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
+                }
+            }
 
-    return Ok(new
-    {
-        Message = "Interview request sent successfully.",
-        RequestId = interviewRequest.RequestId,
-        StudentName = student.User.FullName,
-        StudentEmail = student.User.Email,
-        Status = interviewRequest.Status.ToString()
-    });
-}
-
-/// <summary>
-/// Get interview requests statistics for company
-/// </summary>
-[Authorize(Roles = "Company")]
+            return Ok(new
+            {
+                Message = "Interview request sent successfully.",
+                RequestId = interviewRequest.RequestId,
+                StudentName = student.User.FullName,
+                StudentEmail = student.User.Email,
+                Status = interviewRequest.Status.ToString()
+            });
+        }/// <summary>
+         /// Get interview requests statistics for company
+         /// </summary>
+        [Authorize(Roles = "Company")]
 [HttpGet("interview-requests/statistics")]
 public async Task<IActionResult> GetInterviewRequestStatistics()
 {

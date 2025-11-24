@@ -23,6 +23,7 @@ namespace JobFairPortal.Models
         public int CompanyId { get; set; }
         [Required]
         public int StudentId { get; set; }
+        public int JobFairId { get; set; }
         public RequestedBy RequestedBy { get; set; }
         public RequestStatus Status { get; set; } = RequestStatus.Pending;
         public string? ReasonForReject { get; set; }
