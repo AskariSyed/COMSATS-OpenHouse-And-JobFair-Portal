@@ -12,5 +12,15 @@ namespace JobFairPortal.DTOs
             [MaxLength(500)]
             public string? Reason { get; set; }
         }
-    
+
+    public class AcceptInterviewRequestDto
+    {
+        [Required]
+        public DateTime? ScheduledTime { get; set; }
+    }
+    public class SendCompanyInterviewRequestDto
+    {
+        [Required]
+        public int StudentId { get; set; }
+    }
 }

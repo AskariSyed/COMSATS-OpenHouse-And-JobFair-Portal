@@ -654,7 +654,7 @@ namespace JobFairPortal.Controllers
 
 
 
-        [HttpGet]
+        [HttpGet("contactLinks")]
         public async Task<IActionResult> GetContactLinks()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -1888,7 +1888,7 @@ namespace JobFairPortal.Controllers
         // -----------------------------
         // 2. Get Notices (Dynamic based on Role)
         // -----------------------------
-        [HttpGet]
+        [HttpGet("notices")]
         [Authorize] // Requires login (Admin, Student, or Company)
         public async Task<IActionResult> GetNotices()
         {

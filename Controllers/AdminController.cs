@@ -1483,14 +1483,23 @@ namespace JobFairPortal.Controllers
                 JobFairs = jobFairs
             });
         }
-
-        // 20. Get Job Fair Analytics by ID
         [HttpGet("jobfairs/{jobFairId}/analytics")]
         public async Task<IActionResult> GetJobFairAnalytics(int jobFairId)
         {
             _logger.LogInformation("GetJobFairAnalytics called for jobFairId: {JobFairId}", jobFairId);
 
+            // 1. ⚡ CHECK CACHE FIRST
+            string cacheKey = $"jobfair_analytics_{jobFairId}";
+            if (_cache.TryGetValue(cacheKey, out object cachedData))
+            {
+                _logger.LogInformation("Returning Analytics from Cache 🚀");
+                return Ok(cachedData);
+            }
+
+            // 2. 🐢 FETCH FROM DB (Only if not in cache)
+            // Added AsSplitQuery() to fix the slow database call
             var jobFair = await _context.JobFairs
+                .AsSplitQuery()
                 .Include(jf => jf.Students)
                     .ThenInclude(s => s.User)
                 .Include(jf => jf.Companies)
@@ -1505,55 +1514,52 @@ namespace JobFairPortal.Controllers
             if (jobFair == null)
                 return NotFound(new { Message = "Job Fair not found." });
 
+            // 3. CALCULATION LOGIC (Same as before)
             var analytics = new
             {
-                // --- Job Fair Info ---
                 JobFairId = jobFair.JobFairId,
                 Semester = jobFair.Semester,
                 Date = jobFair.date,
                 IsActive = jobFair.IsActive,
 
-                // --- Overall Statistics ---
                 OverallStats = new
                 {
-                    TotalStudents = jobFair.Students.Count,
-                    TotalCompanies = jobFair.Companies.Count,
-                    TotalRooms = jobFair.Rooms.Count,
-                    TotalJobs = jobFair.Jobs.Count,
-                    TotalInterviews = jobFair.Interviews.Count,
-                    TotalInterviewRequests = jobFair.InterviewRequests.Count
+                    TotalStudents = jobFair.Students?.Count ?? 0,
+                    TotalCompanies = jobFair.Companies?.Count ?? 0,
+                    TotalRooms = jobFair.Rooms?.Count ?? 0,
+                    TotalJobs = jobFair.Jobs?.Count ?? 0,
+                    TotalInterviews = jobFair.Interviews?.Count ?? 0,
+                    TotalInterviewRequests = jobFair.InterviewRequests?.Count ?? 0
                 },
 
-                // --- Interview Breakdown ---
                 InterviewStats = new
                 {
-                    Hired = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    Shortlisted = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    Rejected = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                    Pending = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Queued),
-                    HiringRate = jobFair.Interviews.Count > 0
+                    Hired = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Hired) ?? 0,
+                    Shortlisted = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Shortlisted) ?? 0,
+                    Rejected = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Rejected) ?? 0,
+                    Pending = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Queued) ?? 0,
+                    HiringRate = (jobFair.Interviews?.Count ?? 0) > 0
                         ? Math.Round((double)jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired) / jobFair.Interviews.Count * 100, 2)
                         : 0
                 },
 
-                // --- Department Breakdown ---
-                StudentsByDepartment = jobFair.Students
+                StudentsByDepartment = jobFair.Students?
+                    .Where(s => s.Department != null)
                     .GroupBy(s => s.Department)
                     .Select(g => new
                     {
                         Department = g.Key,
                         Count = g.Count(),
-                        AverageCGPA = Math.Round(g.Average(s => s.CGPA), 2),
-                        Hired = jobFair.Interviews.Count(i => i.Student.Department == g.Key && i.Status == InterviewStatus.Hired)
+                        AverageCGPA = g.Any() ? Math.Round(g.Average(s => s.CGPA), 2) : 0,
+                        Hired = jobFair.Interviews.Count(i => i.Student != null && i.Student.Department == g.Key && i.Status == InterviewStatus.Hired)
                     })
-                    .ToList(),
+                    .ToList() ?? new(),
 
-                // --- Company Participation ---
-                CompanyParticipation = jobFair.Companies
+                CompanyParticipation = jobFair.Companies?
                     .Select(c => new
                     {
                         CompanyId = c.CompanyId,
-                        CompanyName = c.Name,
+                        CompanyName = c.Name ?? "Unknown",
                         Industry = c.Industry,
                         LogoUrl = c.LogoUrl,
                         IsPresent = c.IsPresent,
@@ -1566,51 +1572,53 @@ namespace JobFairPortal.Controllers
                         InterviewRequestsReceived = jobFair.InterviewRequests.Count(ir => ir.CompanyId == c.CompanyId)
                     })
                     .OrderByDescending(c => c.HiredCount)
-                    .ToList(),
+                    .ToList() ?? new(),
 
-                // --- Student Participation ---
                 StudentParticipation = new
                 {
-                    TotalRegistered = jobFair.Students.Count,
-                    StudentsApplied = jobFair.InterviewRequests.Select(ir => ir.StudentId).Distinct().Count(),
-                    StudentsHired = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    StudentsShortlisted = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    ApplicationRate = jobFair.Students.Count > 0
+                    TotalRegistered = jobFair.Students?.Count ?? 0,
+                    StudentsApplied = jobFair.InterviewRequests?.Select(ir => ir.StudentId).Distinct().Count() ?? 0,
+                    StudentsHired = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Hired) ?? 0,
+                    ApplicationRate = (jobFair.Students?.Count ?? 0) > 0
                         ? Math.Round((double)jobFair.InterviewRequests.Select(ir => ir.StudentId).Distinct().Count() / jobFair.Students.Count * 100, 2)
                         : 0,
-                    HiringRate = jobFair.InterviewRequests.Count > 0
+                    HiringRate = (jobFair.InterviewRequests?.Select(ir => ir.StudentId).Distinct().Count() ?? 0) > 0
                         ? Math.Round((double)jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired) / jobFair.InterviewRequests.Select(ir => ir.StudentId).Distinct().Count() * 100, 2)
                         : 0
                 },
 
-                // --- Top Performers (Highest CGPA Students) ---
-                TopStudents = jobFair.Students
+                TopStudents = jobFair.Students?
                     .OrderByDescending(s => s.CGPA)
                     .Take(10)
                     .Select(s => new
                     {
                         StudentId = s.StudentId,
-                        Name = s.User.FullName,
+                        Name = s.User?.FullName ?? "Unknown",
                         RegistrationNo = s.RegistrationNo,
                         Department = s.Department,
                         CGPA = s.CGPA,
                         InterviewsAttended = jobFair.Interviews.Count(i => i.StudentId == s.StudentId),
                         Hired = jobFair.Interviews.Any(i => i.StudentId == s.StudentId && i.Status == InterviewStatus.Hired)
                     })
-                    .ToList(),
+                    .ToList() ?? new(),
 
-                // --- Room Utilization ---
                 RoomUtilization = new
                 {
-                    TotalRooms = jobFair.Rooms.Count,
-                    VacantRooms = jobFair.Rooms.Count(r => r.Status == RoomStatus.Vacant),
-                    AllottedRooms = jobFair.Rooms.Count(r => r.Status == RoomStatus.Alloted),
-                    TentativeRooms = jobFair.Rooms.Count(r => r.Status == RoomStatus.TentativelyAlloted),
-                    AllocationRate = jobFair.Rooms.Count > 0
+                    TotalRooms = jobFair.Rooms?.Count ?? 0,
+                    VacantRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.Vacant) ?? 0,
+                    AllottedRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.Alloted) ?? 0,
+                    TentativeRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.TentativelyAlloted) ?? 0,
+                    AllocationRate = (jobFair.Rooms?.Count ?? 0) > 0
                         ? Math.Round((double)jobFair.Rooms.Count(r => r.Status == RoomStatus.Alloted) / jobFair.Rooms.Count * 100, 2)
                         : 0
                 }
             };
+
+            // 4. 💾 SAVE TO CACHE (Expire in 10 minutes)
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+
+            _cache.Set(cacheKey, analytics, cacheOptions);
 
             return Ok(analytics);
         }
@@ -1961,6 +1969,35 @@ namespace JobFairPortal.Controllers
             {
                 Message = notice.IsHidden ? "Notice hidden." : "Notice is now visible.",
                 IsHidden = notice.IsHidden
+            });
+        }
+        // -----------------------------
+        // Update Notice
+        // -----------------------------
+        [HttpPut("notices/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateNotice(int id, [FromBody] NoticeCreateDto dto)
+        {
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound("Notice not found.");
+
+            // Update fields
+            notice.Title = dto.Title;
+            notice.Content = dto.Content;
+            notice.Audience = dto.Audience;
+            notice.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new NoticeResponseDto
+            {
+                NoticeId = notice.NoticeId,
+                Title = notice.Title,
+                Content = notice.Content,
+                Audience = notice.Audience.ToString(),
+                IsHidden = notice.IsHidden,
+                CreatedAt = notice.CreatedAt
             });
         }
     }

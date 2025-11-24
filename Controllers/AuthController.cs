@@ -25,7 +25,7 @@ namespace JobFairPortal.Controllers
         private readonly IMemoryCache _cache;
 
 
-        public AuthController(JobFairRecruitmentDbContext context, IConfiguration configuration, MailKitMailService mailService,IMemoryCache cache)
+        public AuthController(JobFairRecruitmentDbContext context, IConfiguration configuration, MailKitMailService mailService, IMemoryCache cache)
         {
             _context = context;
             _configuration = configuration;
@@ -176,17 +176,17 @@ namespace JobFairPortal.Controllers
                     IsCurrent = e.IsCurrent,
                     Location = e.Location
                 }).ToList(),
-                Educations=student.Educations.Select(ed=>new EducationDto
+                Educations = student.Educations.Select(ed => new EducationDto
                 {
-                    EducationId=ed.EducationId,
-                    InstitutionName=ed.InstitutionName,
-                    Degree=ed.Degree,
-                    FieldOfStudy=ed.FieldOfStudy,
-                    StartDate=ed.StartDate,
-                    EndDate=ed.EndDate,
-                    IsCurrent=ed.IsCurrent,
-                    CGPA=ed.CGPA,
-                    Location=ed.Location
+                    EducationId = ed.EducationId,
+                    InstitutionName = ed.InstitutionName,
+                    Degree = ed.Degree,
+                    FieldOfStudy = ed.FieldOfStudy,
+                    StartDate = ed.StartDate,
+                    EndDate = ed.EndDate,
+                    IsCurrent = ed.IsCurrent,
+                    CGPA = ed.CGPA,
+                    Location = ed.Location
                 }).ToList(),
                 Achievements = student.Achievements.Select(a => new AchievementDto
                 {
@@ -414,7 +414,7 @@ namespace JobFairPortal.Controllers
                 RegistrationNo = registrationNo,
                 Department = department,
                 CGPA = 0,
-                JobFairId = activeJobFair.JobFairId 
+                JobFairId = activeJobFair.JobFairId
             };
             _context.Students.Add(student);
             await _context.SaveChangesAsync();
@@ -543,7 +543,7 @@ namespace JobFairPortal.Controllers
                     JobDescription = jobDto.JobDescription,
                     RequiredSkills = jobDto.RequiredSkills?.Split(',', StringSplitOptions.TrimEntries),
                     JobType = jobDto.Type,
-                    NumberOfJobs= jobDto.JobCount
+                    NumberOfJobs = jobDto.JobCount
                 };
                 _context.Jobs.Add(job);
             }
@@ -642,6 +642,373 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { Message = "OTP resent to representative email." });
         }
+
+        // --------------------------------
+        // Password Reset Functionality
+        // --------------------------------
+
+        // ========================================
+        // Forget Password Flow
+        // ========================================
+
+        /// <summary>
+        /// Request password reset - sends reset link to email
+        /// </summary>
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required.");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower());
+
+            if (user == null)
+            {
+                // Security: Don't reveal if email exists or not
+                return Ok(new
+                {
+                    Message = "If the email exists in our system, a password reset link has been sent."
+                });
+            }
+
+            // Generate reset token (unique, time-limited)
+            var resetToken = GenerateResetToken();
+            var tokenHash = BCrypt.Net.BCrypt.HashPassword(resetToken);
+            var expiryTime = DateTime.UtcNow.AddMinutes(15); // Token valid for 15 minutes
+
+            // Store token in cache with expiry
+            var cacheKey = $"password-reset:{user.UserId}";
+            _cache.Set(cacheKey, new PasswordResetToken
+            {
+                Token = tokenHash,
+                ExpiryTime = expiryTime,
+                Email = user.Email,
+                IsUsed = false
+            }, TimeSpan.FromMinutes(15));
+
+            // Create reset link (frontend URL)
+            var resetLink = $"{_configuration["App:FrontendUrl"]}/reset-password?token={resetToken}&userId={user.UserId}";
+
+            // Send email with reset link
+            var subject = "Password Reset Request";
+            var body = $"""
+    Dear {user.FullName ?? "User"},
+
+    You have requested to reset your password. Click the link below to proceed:
+
+    Reset Link: {resetLink}
+
+    This link will expire in 15 minutes.
+
+    If you did not request this, please ignore this email.
+
+    Regards,
+    Job Fair Management Team
+    """;
+
+            try
+            {
+                await _mailService.SendMailAsync(user.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to send reset email.", Error = ex.Message });
+            }
+
+            return Ok(new
+            {
+                Message = "Password reset link has been sent to your email.",
+                ExpiryMinutes = 15
+            });
+        }
+
+        /// <summary>
+        /// Verify reset token before allowing password change
+        /// </summary>
+        [HttpPost("verify-reset-token")]
+        public async Task<IActionResult> VerifyResetToken([FromBody] VerifyResetTokenDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token) || dto.UserId <= 0)
+                return BadRequest("Token and UserId are required.");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == dto.UserId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            var cacheKey = $"password-reset:{user.UserId}";
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken cachedToken))
+                return BadRequest("Reset token expired or not found. Please request a new one.");
+
+            // Check if token has already been used
+            if (cachedToken.IsUsed)
+                return BadRequest("This reset token has already been used.");
+
+            // Check if token has expired
+            if (DateTime.UtcNow > cachedToken.ExpiryTime)
+            {
+                _cache.Remove(cacheKey);
+                return BadRequest("Reset token has expired. Please request a new one.");
+            }
+
+            // Verify token
+            if (!BCrypt.Net.BCrypt.Verify(dto.Token, cachedToken.Token))
+                return BadRequest("Invalid reset token.");
+
+            return Ok(new
+            {
+                Message = "Token verified successfully.",
+                UserId = user.UserId,
+                Email = user.Email
+            });
+        }
+
+        /// <summary>
+        /// Reset password using valid reset token
+        /// </summary>
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token) || dto.UserId <= 0 || string.IsNullOrWhiteSpace(dto.NewPassword))
+                return BadRequest("Token, UserId, and new password are required.");
+
+            if (dto.NewPassword.Length < 8)
+                return BadRequest("Password must be at least 8 characters long.");
+
+            if (dto.NewPassword != dto.ConfirmPassword)
+                return BadRequest("Passwords do not match.");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == dto.UserId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            var cacheKey = $"password-reset:{user.UserId}";
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken cachedToken))
+                return BadRequest("Reset token expired or not found. Please request a new one.");
+
+            // Check if token has already been used
+            if (cachedToken.IsUsed)
+                return BadRequest("This reset token has already been used.");
+
+            // Check if token has expired
+            if (DateTime.UtcNow > cachedToken.ExpiryTime)
+            {
+                _cache.Remove(cacheKey);
+                return BadRequest("Reset token has expired. Please request a new one.");
+            }
+
+            // Verify token
+            if (!BCrypt.Net.BCrypt.Verify(dto.Token, cachedToken.Token))
+                return BadRequest("Invalid reset token.");
+
+            // Update password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Mark token as used and remove from cache
+            cachedToken.IsUsed = true;
+            _cache.Set(cacheKey, cachedToken, TimeSpan.FromMinutes(1)); // Keep for 1 more minute for audit trail
+
+            // Optional: Clear after audit
+            _cache.Remove(cacheKey);
+
+            // Send confirmation email
+            var subject = "Password Changed Successfully";
+            var body = $"""
+    Dear {user.FullName ?? "User"},
+
+    Your password has been changed successfully.
+
+    If you did not make this change, please contact support immediately.
+
+    Regards,
+    Job Fair Management Team
+    """;
+
+            try
+            {
+                await _mailService.SendMailAsync(user.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the response
+                Console.WriteLine($"Failed to send confirmation email: {ex.Message}");
+            }
+
+            return Ok(new
+            {
+                Message = "Password reset successfully. You can now login with your new password."
+            });
+        }
+
+        /// <summary>
+        /// Request password reset via email or registration number (for students)
+        /// </summary>
+        [HttpPost("forgot-password/send-otp")]
+        public async Task<IActionResult> SendPasswordResetOtp([FromBody] ForgotPasswordOtpDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.EmailOrRegNo))
+                return BadRequest("Email or Registration Number is required.");
+
+            var regNoPattern = @"^(FA|SP)\d{2}-[A-Z]{3}-\d{3}$";
+            var input = dto.EmailOrRegNo.Trim();
+
+            User? user = null;
+
+            // Check if input is Registration No or Email
+            if (System.Text.RegularExpressions.Regex.IsMatch(input, regNoPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var student = await _context.Students
+                    .Include(s => s.User)
+                    .FirstOrDefaultAsync(s => s.RegistrationNo.ToUpper() == input.ToUpper());
+                user = student?.User;
+            }
+            else
+            {
+                user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower());
+            }
+
+            if (user == null)
+            {
+                // Security: Don't reveal if user exists
+                return Ok(new
+                {
+                    Message = "If the account exists, an OTP has been sent to the registered email."
+                });
+            }
+
+            // Generate OTP
+            var otp = new Random().Next(100000, 999999).ToString();
+            var cacheKey = $"password-reset-otp:{user.UserId}";
+
+            _cache.Set(cacheKey, new PasswordResetOtpToken
+            {
+                Otp = otp,
+                UserId = user.UserId,
+                Email = user.Email,
+                CreatedAt = DateTime.UtcNow,
+                IsUsed = false
+            }, TimeSpan.FromMinutes(10));
+
+            // Send OTP via email
+            var subject = "Password Reset OTP";
+            var body = $"""
+    Dear {user.FullName ?? "User"},
+
+    Your password reset OTP is: {otp}
+
+    This OTP will expire in 10 minutes.
+
+    Do not share this OTP with anyone.
+
+    Regards,
+    Job Fair Management Team
+    """;
+
+            try
+            {
+                await _mailService.SendMailAsync(user.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to send OTP email.", Error = ex.Message });
+            }
+
+            return Ok(new
+            {
+                Message = "OTP has been sent to your registered email.",
+                ExpiryMinutes = 10,
+                UserId = user.UserId
+            });
+        }
+
+        /// <summary>
+        /// Verify OTP and reset password
+        /// </summary>
+        [HttpPost("forgot-password/verify-otp")]
+        public async Task<IActionResult> VerifyPasswordResetOtp([FromBody] VerifyPasswordResetOtpDto dto)
+        {
+            if (dto.UserId <= 0 || string.IsNullOrWhiteSpace(dto.Otp) || string.IsNullOrWhiteSpace(dto.NewPassword))
+                return BadRequest("UserId, OTP, and new password are required.");
+
+            if (dto.NewPassword.Length < 8)
+                return BadRequest("Password must be at least 8 characters long.");
+
+            if (dto.NewPassword != dto.ConfirmPassword)
+                return BadRequest("Passwords do not match.");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == dto.UserId);
+            if (user == null)
+                return NotFound("User not found.");
+
+            var cacheKey = $"password-reset-otp:{user.UserId}";
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetOtpToken otpToken))
+                return BadRequest("OTP expired or not found. Please request a new one.");
+
+            // Check if OTP has already been used
+            if (otpToken.IsUsed)
+                return BadRequest("This OTP has already been used.");
+
+            // Verify OTP
+            if (otpToken.Otp != dto.Otp)
+                return BadRequest("Invalid OTP.");
+
+            // Check if OTP has expired
+            if (DateTime.UtcNow.Subtract(otpToken.CreatedAt).TotalMinutes > 10)
+            {
+                _cache.Remove(cacheKey);
+                return BadRequest("OTP has expired. Please request a new one.");
+            }
+
+            // Update password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Mark OTP as used and remove from cache
+            otpToken.IsUsed = true;
+            _cache.Remove(cacheKey);
+
+            // Send confirmation email
+            var subject = "Password Changed Successfully";
+            var body = $"""
+    Dear {user.FullName ?? "User"},
+
+    Your password has been changed successfully.
+
+    If you did not make this change, please contact support immediately.
+
+    Regards,
+    Job Fair Management Team
+    """;
+
+            try
+            {
+                await _mailService.SendMailAsync(user.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to send reset email.", Error = ex.Message });
+            }
+
+            return Ok(new
+            {
+                Message = "Password reset link has been sent to your email.",
+                ExpiryMinutes = 15
+            });
+        }
+
+      
+        private string GenerateResetToken()
+        {
+            var randomBytes = new byte[32];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
+            return Convert.ToBase64String(randomBytes);
+        }
+
     }
 }
 
