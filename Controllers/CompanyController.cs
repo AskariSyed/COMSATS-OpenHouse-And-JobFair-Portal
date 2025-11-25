@@ -343,6 +343,10 @@ namespace JobFairPortal.Controllers
                             ResponseDate = s.InterviewRequests
                                 .Where(ir => ir.CompanyId == currentCompany.CompanyId)
                                 .Select(ir => ir.UpdatedAt)
+                                .FirstOrDefault(),
+                            RequestedBy=s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                                .Select(ir => ir.RequestedBy)
                                 .FirstOrDefault()
                         }
                         : null
@@ -569,12 +573,9 @@ namespace JobFairPortal.Controllers
                 // --- User Info ---
                 User = new
                 {
-                    student.User.UserId,
                     student.User.FullName,
                     student.User.Email,
                     student.User.Phone,
-                    student.User.IsActive,
-                    student.User.CreatedAt
                 },
 
                 // --- Interview Request Status from Current Company ---
@@ -601,6 +602,10 @@ namespace JobFairPortal.Controllers
                         ResponseDate = student.InterviewRequests
                             .Where(ir => ir.CompanyId == currentCompany.CompanyId)
                             .Select(ir => ir.UpdatedAt)
+                            .FirstOrDefault(),
+                        RequestedBy=student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.RequestedBy)
                             .FirstOrDefault()
                     }
                     : null,
@@ -622,7 +627,6 @@ namespace JobFairPortal.Controllers
                 // --- Certifications ---
                 Certifications = student.Certifications.Select(c => new
                 {
-                    c.CertificationId,
                     c.Title,
                     c.Issuer,
                     c.IssueDate,
@@ -633,7 +637,6 @@ namespace JobFairPortal.Controllers
                 // --- Achievements ---
                 Achievements = student.Achievements.Select(a => new
                 {
-                    a.AchievementId,
                     a.Title,
                     a.Description,
                     a.DateAchieved
@@ -642,7 +645,6 @@ namespace JobFairPortal.Controllers
                 // --- Experiences ---
                 Experiences = student.Experiences.Select(e => new
                 {
-                    e.ExperienceId,
                     e.CompanyName,
                     e.Role,
                     e.Description,
@@ -655,7 +657,6 @@ namespace JobFairPortal.Controllers
                 // --- Contact Links ---
                 ContactLinks = student.ContactLinks.Select(cl => new
                 {
-                    cl.LinkId,
                     Platform = cl.Platform.ToString(),
                     cl.Url
                 }).ToList(),
@@ -954,6 +955,10 @@ namespace JobFairPortal.Controllers
                         ResponseDate = student.InterviewRequests
                             .Where(ir => ir.CompanyId == currentCompany.CompanyId)
                             .Select(ir => ir.UpdatedAt)
+                            .FirstOrDefault(),
+                        RequestedBy=student.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId)
+                            .Select(ir => ir.RequestedBy)
                             .FirstOrDefault()
                     }
                     : null,
@@ -1273,6 +1278,7 @@ public async Task<IActionResult> GetPendingInterviewRequests([FromQuery] int pag
             StudentRegistration = r.Student.RegistrationNo,
             StudentDepartment = r.Student.Department,
             StudentCGPA = r.Student.CGPA,
+            RequestedBy= r.RequestedBy,
             StudentProfilePic = r.Student.ProfilePicUrl,
             StudentSkills = r.Student.Skills,
             Status = r.Status.ToString(),
@@ -1384,9 +1390,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
     });
 }
 
-        /// <summary>
-        /// Company: Request interview with a student (send interview request)
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpPost("interview-requests/send")]
         public async Task<IActionResult> SendInterviewRequest([FromBody] SendCompanyInterviewRequestDto dto)
@@ -1430,6 +1434,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
                 CompanyId = company.CompanyId,
                 StudentId = student.StudentId,
                 Status = RequestStatus.Pending,
+
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -1478,7 +1483,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
         }/// <summary>
          /// Get interview requests statistics for company
          /// </summary>
-        [Authorize(Roles = "Company")]
+[Authorize(Roles = "Company")]
 [HttpGet("interview-requests/statistics")]
 public async Task<IActionResult> GetInterviewRequestStatistics()
 {
@@ -1542,9 +1547,7 @@ public async Task<IActionResult> GetInterviewRequestStatistics()
     return Ok(statistics);
 }
 
-/// <summary>
-/// Get complete Final Year Project details with all student information
-/// </summary>
+
 [HttpGet("finalyear-projects/{projectId}/full-details")]
 public async Task<IActionResult> GetFinalYearProjectFullDetails(int projectId)
 {
@@ -1910,5 +1913,513 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
     return BadRequest("Unsupported format. Use 'json'.");
 }
+        // Add these new endpoints for Company Jobs, Profile Management, and Profile Details
+
+        // ========================================
+        // Job Management Endpoints
+        // ========================================
+
+        /// <summary>
+        /// Company: Get all jobs posted by this company
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpGet("jobs")]
+        public async Task<IActionResult> GetCompanyJobs([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            var query = _context.Jobs
+                .Where(j => j.CompanyId == company.CompanyId);
+
+            var totalCount = await query.CountAsync();
+            var jobs = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(j => new
+                {
+                    j.JobId,
+                    j.JobTitle,
+                    j.JobDescription,
+                    j.RequiredSkills,
+                    j.JobType,
+                    j.NumberOfJobs,
+                    j.CreatedAt,
+                    j.UpdatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                CompanyId = company.CompanyId,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                Jobs = jobs
+            });
+        }
+
+        /// <summary>
+        /// Company: Create a new job posting
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPost("jobs")]
+        public async Task<IActionResult> CreateJob([FromBody] CreateJobDto dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var job = new Job
+            {
+                CompanyId = company.CompanyId,
+                JobTitle = dto.JobTitle,
+                JobDescription = dto.JobDescription,
+                RequiredSkills = dto.RequiredSkills?.ToArray() ?? Array.Empty<string>(),
+                JobType = dto.JobType,
+                NumberOfJobs = dto.NumberOfJobs,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Jobs.Add(job);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job posted successfully.",
+                JobId = job.JobId,
+                JobTitle = job.JobTitle,
+                Status = "Published"
+            });
+        }
+
+        /// <summary>
+        /// Company: Update a job posting
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPut("jobs/{jobId}")]
+        public async Task<IActionResult> UpdateJob(int jobId, [FromBody] UpdateJobDto dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var job = await _context.Jobs
+                .FirstOrDefaultAsync(j => j.JobId == jobId && j.CompanyId == company.CompanyId);
+
+            if (job == null)
+                return NotFound("Job not found.");
+
+            // Update fields
+            if (!string.IsNullOrWhiteSpace(dto.JobTitle))
+                job.JobTitle = dto.JobTitle;
+
+            if (!string.IsNullOrWhiteSpace(dto.JobDescription))
+                job.JobDescription = dto.JobDescription;
+
+            if (dto.RequiredSkills != null && dto.RequiredSkills.Count > 0)
+                job.RequiredSkills = dto.RequiredSkills.ToArray();
+
+            if (dto.JobType.HasValue)
+                job.JobType = dto.JobType.Value;
+
+            if (dto.NumberOfJobs.HasValue && dto.NumberOfJobs.Value > 0)
+                job.NumberOfJobs = dto.NumberOfJobs.Value;
+
+            job.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job updated successfully.",
+                JobId = job.JobId,
+                JobTitle = job.JobTitle
+            });
+        }
+
+        /// <summary>
+        /// Company: Delete a job posting
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpDelete("jobs/{jobId}")]
+        public async Task<IActionResult> DeleteJob(int jobId)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var job = await _context.Jobs
+                .FirstOrDefaultAsync(j => j.JobId == jobId && j.CompanyId == company.CompanyId);
+
+            if (job == null)
+                return NotFound("Job not found.");
+
+            _context.Jobs.Remove(job);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job deleted successfully.",
+                JobId = jobId
+            });
+        }
+
+        // ========================================
+        // Company Profile Management Endpoints
+        // ========================================
+
+        /// <summary>
+        /// Company: Get their own full profile
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetCompanyProfile()
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .Include(c => c.User)
+                .Include(c => c.Room)
+                .Include(c => c.Jobs)
+                .Include(c => c.CompanyContactLinks)
+                .Include(c => c.Interviews)
+                .Include(c => c.InterviewRequests)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var profile = new
+            {
+                // --- Basic Info ---
+                CompanyId = company.CompanyId,
+                Name = company.Name,
+                Description = company.Description,
+                Industry = company.Industry,
+                LogoUrl = company.LogoUrl,
+                Website = company.Website,
+                Address = company.Address,
+
+                // --- Contact Information ---
+                ContactInfo = new
+                {
+                    Email = company.CompanyEmail,
+                    Phone = company.CompanyPhone
+                },
+
+                // --- Focal Person ---
+                FocalPerson = new
+                {
+                    Name = company.FocalPersonName,
+                    Email = company.FocalPersonEmail,
+                    Phone = company.FocalPersonPhone
+                },
+
+                // --- User Account ---
+                UserAccount = new
+                {
+                    Email = company.User.Email,
+                    Phone = company.User.Phone,
+                    IsActive = company.User.IsActive,
+                    CreatedAt = company.User.CreatedAt
+                },
+
+                // --- Social Links ---
+                SocialLinks = company.CompanyContactLinks.Select(cl => new
+                {
+                    LinkId = cl.LinkId,
+                    Platform = cl.Platform.ToString(),
+                    Url = cl.Url
+                }).ToList(),
+
+                // --- Room Assignment ---
+                RoomAssignment = company.Room != null ? new
+                {
+                    RoomId = company.Room.RoomId,
+                    RoomName = company.Room.RoomName,
+                    Capacity = company.Room.Capacity
+                } : null,
+
+                // --- Job Information ---
+                Jobs = new
+                {
+                    TotalJobs = company.Jobs.Count,
+                    Jobs = company.Jobs.Select(j => new
+                    {
+                        j.JobId,
+                        j.JobTitle,
+                        j.JobDescription,
+                        j.RequiredSkills,
+                        j.JobType,
+                        j.NumberOfJobs
+                    }).ToList()
+                },
+
+                // --- Interview Statistics ---
+                InterviewStats = new
+                {
+                    TotalRequests = company.InterviewRequests.Count,
+                    PendingRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Pending),
+                    AcceptedRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Accepted),
+                    RejectedRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Rejected),
+                    TotalInterviews = company.Interviews.Count,
+                    HiredCandidates = company.Interviews.Count(i => i.Status == InterviewStatus.Hired),
+                    ShortlistedCandidates = company.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted)
+                },
+
+                // --- Company Settings ---
+                CompanySettings = new
+                {
+                    RepsCount = company.RepsCount,
+                    InterviewDurationMinutes = company.InterviewDurationMinutes,
+                    ArrivalStatus = company.ArrivalStatus.ToString(),
+                    IsPresent = company.IsPresent
+                },
+
+                // --- Timestamps ---
+                CreatedAt = company.CreatedAt,
+                UpdatedAt = company.UpdatedAt
+            };
+
+            return Ok(profile);
+        }
+
+        /// <summary>
+        /// Company: Edit profile (logo, website, contact links)
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPut("profile")]
+        public async Task<IActionResult> EditCompanyProfile([FromForm] EditCompanyProfileDto dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            // --- Update Logo if provided ---
+            if (dto.Logo != null && dto.Logo.Length > 0)
+            {
+                // Delete old logo if exists
+                if (!string.IsNullOrWhiteSpace(company.LogoUrl))
+                {
+                    var oldFileName = company.LogoUrl.Split('/').Last();
+                    var oldPath = Path.Combine("wwwroot", "uploads", "companies", "logo", oldFileName);
+                    if (System.IO.File.Exists(oldPath))
+                    {
+                        try
+                        {
+                            System.IO.File.Delete(oldPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning($"Failed to delete old logo: {ex.Message}");
+                        }
+                    }
+                }
+
+                // Upload new logo
+                var uploadsFolder = Path.Combine("wwwroot", "uploads", "companies", "logo");
+                Directory.CreateDirectory(uploadsFolder);
+
+                var fileName = $"{company.CompanyId}_{Guid.NewGuid()}{Path.GetExtension(dto.Logo.FileName)}";
+                var filePath = Path.Combine(uploadsFolder, fileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await dto.Logo.CopyToAsync(stream);
+                }
+
+                company.LogoUrl = $"/uploads/companies/logo/{fileName}";
+            }
+
+            // --- Update Website ---
+            if (!string.IsNullOrWhiteSpace(dto.Website))
+                company.Website = dto.Website;
+
+            // --- Update Email ---
+            if (!string.IsNullOrWhiteSpace(dto.CompanyEmail))
+                company.CompanyEmail = dto.CompanyEmail;
+
+            // --- Update Phone ---
+            if (!string.IsNullOrWhiteSpace(dto.CompanyPhone))
+                company.CompanyPhone = dto.CompanyPhone;
+
+            // --- Update Address ---
+            if (!string.IsNullOrWhiteSpace(dto.Address))
+                company.Address = dto.Address;
+
+            // --- Update Description ---
+            if (!string.IsNullOrWhiteSpace(dto.Description))
+                company.Description = dto.Description;
+
+            // --- Update User Phone ---
+            if (!string.IsNullOrWhiteSpace(dto.UserPhone))
+                company.User.Phone = dto.UserPhone;
+
+            company.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Profile updated successfully.",
+                CompanyId = company.CompanyId,
+                LogoUrl = company.LogoUrl,
+                Website = company.Website
+            });
+        }
+
+        /// <summary>
+        /// Company: Add or update contact link (social media, etc.)
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPost("contact-links")]
+        public async Task<IActionResult> AddContactLink([FromBody] AddContactLinkDto dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            // Check if link for this platform already exists
+            var existingLink = await _context.CompanyContactLinks
+                .FirstOrDefaultAsync(cl => cl.CompanyId == company.CompanyId && cl.Platform == dto.Platform);
+
+            if (existingLink != null)
+                return BadRequest($"A {dto.Platform} link already exists. Use PUT to update it.");
+
+            var contactLink = new CompanyContactLink
+            {
+                CompanyId = company.CompanyId,
+                Platform = dto.Platform,
+                Url = dto.Url
+            };
+
+            _context.CompanyContactLinks.Add(contactLink);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Contact link added successfully.",
+                LinkId = contactLink.LinkId,
+                Platform = contactLink.Platform.ToString(),
+                Url = contactLink.Url
+            });
+        }
+
+        /// <summary>
+        /// Company: Update existing contact link
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpPut("contact-links/{linkId}")]
+        public async Task<IActionResult> UpdateContactLink(int linkId, [FromBody] UpdateContactLinkDto dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var contactLink = await _context.CompanyContactLinks
+                .FirstOrDefaultAsync(cl => cl.LinkId == linkId && cl.CompanyId == company.CompanyId);
+
+            if (contactLink == null)
+                return NotFound("Contact link not found.");
+
+            if (!string.IsNullOrWhiteSpace(dto.Url))
+                contactLink.Url = dto.Url;
+
+            if (dto.Platform.HasValue)
+                contactLink.Platform = dto.Platform.Value;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Contact link updated successfully.",
+                LinkId = contactLink.LinkId,
+                Platform = contactLink.Platform.ToString(),
+                Url = contactLink.Url
+            });
+        }
+
+        /// <summary>
+        /// Company: Delete contact link
+        /// </summary>
+        [Authorize(Roles = "Company")]
+        [HttpDelete("contact-links/{linkId}")]
+        public async Task<IActionResult> DeleteContactLink(int linkId)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var contactLink = await _context.CompanyContactLinks
+                .FirstOrDefaultAsync(cl => cl.LinkId == linkId && cl.CompanyId == company.CompanyId);
+
+            if (contactLink == null)
+                return NotFound("Contact link not found.");
+
+            _context.CompanyContactLinks.Remove(contactLink);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Contact link deleted successfully.",
+                LinkId = linkId
+            });
+        }
     }
 }

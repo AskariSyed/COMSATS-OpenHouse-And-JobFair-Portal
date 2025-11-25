@@ -260,22 +260,14 @@ namespace JobFairPortal.Controllers
                 user = await _context.Users
                     .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == role);
             }
-
-            // 1. Check if user exists
             if (user == null)
                 return Unauthorized("Invalid credentials.");
-
-            // 2. Check password
             if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
                 return Unauthorized("Invalid credentials.");
-
-            // 🎯 NEW SECURITY CHECK: Block login if account is not active
             if (user.IsActive == false)
             {
                 return Unauthorized("Account not verified. Please complete the OTP verification process.");
             }
-
-            // ✅ Save/Update FCM Token if Student login
             if (role == UserRole.Student && student != null && !string.IsNullOrWhiteSpace(loginDto.FcmToken))
             {
                 student.FcmToken = loginDto.FcmToken;
