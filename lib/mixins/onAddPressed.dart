@@ -1,3 +1,6 @@
+//
+// Update lib/mixins/onAddPressed.dart
+
 import 'package:flutter/material.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 
@@ -8,6 +11,9 @@ void onAddPressed(String sectionName, BuildContext context, bool mounted) {
       break;
     case 'Education':
       showAddEducationDialog(context);
+      break;
+    case 'Experience': // 👈 Added Case
+      showAddExperienceDialog(context);
       break;
     case 'Certification':
       showAddCertificationDialog(context);

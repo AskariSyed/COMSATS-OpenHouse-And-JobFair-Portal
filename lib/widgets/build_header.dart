@@ -5,6 +5,7 @@ import 'package:student_job_fair_portal/mixins/getPlatformIcon.dart';
 import 'package:student_job_fair_portal/mixins/launchUrl.dart';
 import 'package:student_job_fair_portal/widgets/build_social_button.dart';
 import 'package:student_job_fair_portal/widgets/socialButton.dart';
+import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 
 Widget buildHeader(
   BuildContext context,
@@ -19,15 +20,24 @@ Widget buildHeader(
   final bool nameMissing =
       student.user.fullName == null || student.user.fullName.isEmpty;
 
+  // 🔹 Theme Colors
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final cardColor = Theme.of(context).cardColor;
+  final textColor = Theme.of(context).textTheme.bodyMedium?.color;
+  final subTextColor = Theme.of(context).textTheme.bodySmall?.color;
+  final borderColor = Theme.of(context).dividerColor.withOpacity(0.1);
+
   return Container(
     width: double.infinity,
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: cardColor, // 🔹 Dynamic Background
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.grey.shade200,
+          color: Colors.black.withOpacity(
+            isDark ? 0.3 : 0.05,
+          ), // 🔹 Dynamic Shadow
           blurRadius: 10,
           offset: const Offset(0, 5),
         ),
@@ -35,7 +45,7 @@ Widget buildHeader(
     ),
     child: Column(
       children: [
-        // 1. Profile Picture (clickable)
+        // 1. Profile Picture
         GestureDetector(
           onTap: onEditPicture,
           child: Stack(
@@ -44,11 +54,13 @@ Widget buildHeader(
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade100, width: 4),
+                  border: Border.all(color: borderColor, width: 4),
                 ),
                 child: CircleAvatar(
                   radius: 58,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: isDark
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade200,
                   backgroundImage: imageUrl != null
                       ? NetworkImage(imageUrl)
                       : null,
@@ -66,9 +78,12 @@ Widget buildHeader(
                 decoration: BoxDecoration(
                   color: Theme.of(context).primaryColor,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(
+                    color: cardColor,
+                    width: 2,
+                  ), // Border matches bg
                 ),
-                child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                child: Icon(Icons.edit, color: cardColor, size: 16),
               ),
             ],
           ),
@@ -76,33 +91,32 @@ Widget buildHeader(
 
         const SizedBox(height: 16),
 
+        // 2. Name
         GestureDetector(
-          onTap: onUpdateName, // 👈 Triggers name dialog
+          onTap: onUpdateName,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  nameMissing ? 'Click to Add Name' : student.user.fullName,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: nameMissing ? Colors.red.shade700 : Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(width: 8),
-                // Only show the edit icon explicitly when the name is MISSING
-                Visibility(
-                  visible: nameMissing,
-                  child: Icon(
-                    Icons.edit_note,
-                    size: 24,
-                    color: Colors.red.shade700,
+                Flexible(
+                  child: Text(
+                    nameMissing ? 'Click to Add Name' : student.user.fullName,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: nameMissing
+                          ? Colors.red.shade700
+                          : textColor, // 🔹 Dynamic Text
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
+                if (nameMissing) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.edit_note, size: 24, color: Colors.red.shade700),
+                ],
               ],
             ),
           ),
@@ -113,41 +127,107 @@ Widget buildHeader(
         // 3. Department + Reg #
         Text(
           "${student.department ?? 'Department N/A'} • ${student.registrationNo}",
-          style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 16,
+            color: subTextColor,
+          ), // 🔹 Dynamic Subtext
           textAlign: TextAlign.center,
         ),
 
-        // 🎯 4. Phone Number Display
-        if (student.user.phone != null && student.user.phone.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
+        // 4. Phone Number
+        const SizedBox(height: 8),
+        if (student.user.phone != null && student.user.phone.isNotEmpty) ...[
+          InkWell(
+            onTap: () => showUpdatePhoneDialog(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.phone_outlined, size: 16, color: subTextColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    student.user.phone,
+                    style: TextStyle(fontSize: 15, color: subTextColor),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.edit, size: 14, color: Colors.grey.shade400),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          InkWell(
+            onTap: () => showUpdatePhoneDialog(context),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_call, size: 18, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text(
+                    "Add Phone Number",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        // 5. CGPA
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: () => showUpdateCGPADialog(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.phone_outlined,
-                  size: 18,
-                  color: Colors.grey.shade600,
+                const Icon(Icons.school, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  "CGPA: ${student.cgpa.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  student.user.phone,
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                  textAlign: TextAlign.center,
-                ),
+                Icon(Icons.edit, size: 14, color: Colors.blue.withOpacity(0.7)),
               ],
             ),
           ),
+        ),
 
         const SizedBox(height: 20),
 
-        // 5. Social Links
+        // 6. Social Links
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 16,
           runSpacing: 12,
           children: [
-            // Email Button
             Tooltip(
               message: student.user.email,
               child: buildSocialButton(
@@ -156,7 +236,6 @@ Widget buildHeader(
                 onTap: () => launchURL("mailto:${student.user.email}", context),
               ),
             ),
-
             if (student.contactLinks != null)
               for (var link in student.contactLinks)
                 interactiveSocialButton(

@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 
 // Providers
 import 'package:student_job_fair_portal/provider/job_provider.dart';
@@ -10,20 +9,15 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 
 // Models
 import 'package:student_job_fair_portal/model/job.dart';
-import 'package:student_job_fair_portal/screens/complete_profile_screen.dart';
+
+// Screens
+import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 
 // Widgets
-import 'package:student_job_fair_portal/widgets/appbar.dart';
-import 'package:student_job_fair_portal/widgets/build_bottom_navbar.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:student_job_fair_portal/widgets/build_shimmer_grid.dart';
-import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
-
-// Screens for Navigation
-import 'package:student_job_fair_portal/screens/profile.dart';
-import 'package:student_job_fair_portal/screens/companies_screen.dart';
-import 'package:student_job_fair_portal/screens/requestScreen.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({super.key});
@@ -34,24 +28,11 @@ class JobsScreen extends StatefulWidget {
 
 class _JobsScreenState extends State<JobsScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
-  late List<CollapsibleItem> _sidebarItems;
-  String _currentRoute = 'Jobs';
-
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-  ];
-
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _sidebarItems = generateSidebarItems(context, setState, _currentRoute);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
@@ -102,17 +83,25 @@ class _JobsScreenState extends State<JobsScreen> {
         final double screenWidth = constraints.maxWidth;
 
         if (screenWidth < 800) {
-          // --- MOBILE LAYOUT ---
+          // ==================================================================
+          // MOBILE LAYOUT
+          // ==================================================================
           return Scaffold(
-            backgroundColor: Colors.grey.shade50,
-            appBar: buildAppBar(context, studentProvider),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            extendBody: true,
+            appBar: const BeautifulAppBar(title: "Available Jobs"),
             body: Stack(
               children: [
                 RefreshIndicator(
                   onRefresh: _loadData,
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      100,
+                    ), // Extra padding for bottom nav
                     child: Column(
                       children: [
                         _buildSearchBar(),
@@ -122,14 +111,13 @@ class _JobsScreenState extends State<JobsScreen> {
                             : jobProvider.error != null &&
                                   jobProvider.displayJobs.isEmpty
                             ? SizedBox(
-                                height: 400,
+                                height: 100,
                                 child: Center(child: Text(jobProvider.error!)),
                               )
                             : _buildJobsGrid(
                                 jobProvider.displayJobs,
                                 isMobile: true,
                               ),
-                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -143,22 +131,18 @@ class _JobsScreenState extends State<JobsScreen> {
                   ),
               ],
             ),
-            bottomNavigationBar: buildBottomNav(context, 1),
+            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 1),
           );
         } else {
-          // --- WEB LAYOUT ---
-          _sidebarItems = generateSidebarItems(
-            context,
-            setState,
-            _currentRoute,
-          );
-
+          // ==================================================================
+          // WEB LAYOUT
+          // ==================================================================
           return Scaffold(
-            backgroundColor: Colors.white,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 80.0),
+                  padding: const EdgeInsets.only(top: 100.0),
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
@@ -188,16 +172,19 @@ class _JobsScreenState extends State<JobsScreen> {
                                                 .headlineSmall
                                                 ?.copyWith(
                                                   fontWeight: FontWeight.bold,
-                                                  color:
-                                                      Colors.blueGrey.shade800,
                                                 ),
                                           ),
                                           const SizedBox(height: 10),
                                           Text(
-                                            "Explore opportunities tailored for you.",
-                                            style: TextStyle(
-                                              color: Colors.grey.shade600,
-                                            ),
+                                            "Explore opportunities grouped by company.",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall?.color,
+                                                ),
                                           ),
                                         ],
                                       ),
@@ -232,7 +219,11 @@ class _JobsScreenState extends State<JobsScreen> {
                     ),
                   ),
                 ),
-                _buildWebHeader(context, student, profileImageUrl),
+                BeautifulWebNavBar(
+                  currentRoute: 'Jobs',
+                  profileImageUrl: profileImageUrl,
+                  userName: student?.user.fullName ?? "User",
+                ),
                 if (showDataWithLoading)
                   const Positioned(
                     top: 80,
@@ -249,6 +240,7 @@ class _JobsScreenState extends State<JobsScreen> {
   }
 
   Widget _buildSearchBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: _searchController,
       onChanged: _onSearchChanged,
@@ -256,18 +248,34 @@ class _JobsScreenState extends State<JobsScreen> {
         hintText: "Search jobs, companies, skills...",
         prefixIcon: const Icon(Icons.search),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Theme.of(context).cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark ? Colors.white24 : Colors.grey.shade200,
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
       ),
     );
   }
 
+  // Grouping Logic
   Widget _buildJobsGrid(List<Job> jobs, {required bool isMobile}) {
     if (jobs.isEmpty) return const Center(child: Text("No jobs found."));
+    final Map<int, List<Job>> groupedJobs = {};
+    for (var job in jobs) {
+      if (!groupedJobs.containsKey(job.companyId)) {
+        groupedJobs[job.companyId] = [];
+      }
+      groupedJobs[job.companyId]!.add(job);
+    }
+
+    final groups = groupedJobs.values.toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -278,288 +286,338 @@ class _JobsScreenState extends State<JobsScreen> {
         else if (availableWidth > 900)
           columns = 2;
 
-        final double spacing = 16.0;
+        final double spacing = 12.0;
         final double totalSpacing = (columns - 1) * spacing;
         final double cardWidth = (availableWidth - totalSpacing) / columns;
 
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
-          children: jobs
-              .map(
-                (job) => SizedBox(
-                  width: columns > 1 ? cardWidth : double.infinity,
-                  child: _buildJobCard(job),
-                ),
-              )
-              .toList(),
+          children: groups.map((companyJobs) {
+            return SizedBox(
+              width: columns > 1 ? cardWidth : double.infinity,
+              child: _buildCompanyGroupCard(companyJobs),
+            );
+          }).toList(),
         );
       },
     );
   }
 
-  Widget _buildJobCard(Job job) {
+  Widget _buildCompanyGroupCard(List<Job> jobs) {
+    if (jobs.isEmpty) return const SizedBox.shrink();
+
+    return CompanyJobCard(jobs: jobs, serverBaseUrl: _serverBaseUrl);
+  }
+}
+
+class CompanyJobCard extends StatefulWidget {
+  final List<Job> jobs;
+  final String serverBaseUrl;
+
+  const CompanyJobCard({
+    super.key,
+    required this.jobs,
+    required this.serverBaseUrl,
+  });
+
+  @override
+  State<CompanyJobCard> createState() => _CompanyJobCardState();
+}
+
+class _CompanyJobCardState extends State<CompanyJobCard> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final jobs = widget.jobs;
+    final companyData = jobs.first;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final String? logoUrl =
-        (job.companyLogoUrl != null && job.companyLogoUrl!.isNotEmpty)
-        ? (job.companyLogoUrl!.startsWith('http')
-              ? job.companyLogoUrl
-              : "$_serverBaseUrl${job.companyLogoUrl}")
+        (companyData.companyLogoUrl != null &&
+            companyData.companyLogoUrl!.isNotEmpty)
+        ? (companyData.companyLogoUrl!.startsWith('http')
+              ? companyData.companyLogoUrl
+              : "${widget.serverBaseUrl}${companyData.companyLogoUrl}")
         : null;
 
+    final isMobile = MediaQuery.of(context).size.width < 700;
+    final hasMultipleJobs = jobs.length > 1;
     return Card(
-      elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.05),
+      elevation: isDark ? 4 : 6,
+      shadowColor: isDark
+          ? const Color.fromARGB(255, 169, 190, 207).withOpacity(0.3)
+          : const Color.fromARGB(255, 10, 149, 255).withOpacity(0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: logoUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: CachedNetworkImage(
-                            imageUrl: logoUrl,
-                            fit: BoxFit.contain,
-                            errorWidget: (_, __, ___) =>
-                                const Icon(Icons.business, color: Colors.grey),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [Colors.grey.shade900, Colors.grey.shade800]
+                : [Colors.white, Colors.blue.shade50.withOpacity(0.3)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          // 🔹 ADJUSTED PADDING: reduced bottom padding to ensure it's not too spacious
+          padding: EdgeInsets.only(
+            left: isMobile ? 10 : 16.0,
+            right: isMobile ? 10 : 16.0,
+            top: isMobile ? 10 : 16.0,
+            bottom: isMobile ? 8 : 8.0,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CompanyProfileScreen(
+                            companyId: companyData.companyId,
+                            companyName: companyData.companyName,
                           ),
-                        )
-                      : const Icon(Icons.work, color: Colors.blueGrey),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.jobTitle,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        job.companyName,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: isMobile ? 46 : 54,
+                      height: isMobile ? 46 : 54,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark ? Colors.white24 : Colors.grey.shade200,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    job.jobTypeString,
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                      child: logoUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: CachedNetworkImage(
+                                imageUrl: logoUrl,
+                                fit: BoxFit.contain,
+                                errorWidget: (_, __, ___) => const Icon(
+                                  Icons.business,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.business, color: Colors.blueGrey),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CompanyProfileScreen(
+                              companyId: companyData.companyId,
+                              companyName: companyData.companyName,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            companyData.companyName,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            "${jobs.length} Open Position${jobs.length == 1 ? '' : 's'}",
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (hasMultipleJobs)
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _isExpanded = !_isExpanded;
+                        });
+                      },
+                      icon: Icon(
+                        _isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      tooltip: _isExpanded ? "Show Less" : "Show All Jobs",
+                    ),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CompanyProfileScreen(
+                            companyId: companyData.companyId,
+                            companyName: companyData.companyName,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      Icons.arrow_forward,
+                      color: Theme.of(
+                        context,
+                      ).iconTheme.color?.withOpacity(0.6),
+                    ),
+                    tooltip: "View Company Profile",
+                  ),
+                ],
+              ),
+              if (hasMultipleJobs || jobs.isNotEmpty) ...[
+                SizedBox(height: isMobile ? 8 : 12),
+                const Divider(height: 1),
+                SizedBox(height: isMobile ? 8 : 12),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "Skills: ${job.requiredSkills.join(', ')}",
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CompanyProfileScreen(
-                        companyId: job.companyId,
-                        companyName: job.companyName,
+
+              ListView.separated(
+                padding:
+                    EdgeInsets.zero, // 🔹 FIX: Removes internal List padding
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: hasMultipleJobs && !_isExpanded ? 1 : jobs.length,
+                separatorBuilder: (ctx, i) => const SizedBox(height: 2),
+                itemBuilder: (ctx, index) {
+                  final job = jobs[index];
+                  return InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CompanyProfileScreen(
+                            companyId: job.companyId,
+                            companyName: job.companyName,
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.grey.shade900
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDark ? Colors.white12 : Colors.grey.shade100,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  job.jobTitle,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                if (job.requiredSkills.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2.0),
+                                    child: Text(
+                                      job.requiredSkills.take(3).join(", ") +
+                                          (job.requiredSkills.length > 3
+                                              ? "..."
+                                              : ""),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.blue.shade900.withOpacity(0.3)
+                                  : Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              job.jobTypeString,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.blue.shade300
+                                    : Colors.blue.shade700,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: const Text("View Details"),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildWebHeader(
-    BuildContext context,
-    dynamic student,
-    String? profileImageUrl,
-  ) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 80,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
-              border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200, width: 1),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Row(
-              children: [
-                Image.asset(
-                  'lib/assets/StudentJobFairPortalLogo.png',
-                  height: 35,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  "COMSATS Job Fair",
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-                const Spacer(),
-                ..._sidebarItems.map((item) {
-                  final isSelected = item.text == 'Jobs';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        child: TextButton.icon(
-                          onPressed: () async {
-                            if (_implementedRoutes.contains(item.text)) {
-                              item.onPressed();
-
-                              if (item.text == 'Profile') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const ProfileScreen()),
-                                );
-                              } else if (item.text == 'Companies') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const CompaniesScreen()),
-                                );
-                              } else if (item.text == 'Jobs') {
-                                // Already here
-                              } else if (item.text == 'Requests') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const RequestsScreen()),
-                                );
-                              }
-                            } else if (item.text == 'Logout') {
-                              item.onPressed();
-                              await Provider.of<StudentProvider>(
-                                context,
-                                listen: false,
-                              ).logout();
-                              if (mounted) {
-                                Navigator.of(
-                                  context,
-                                ).pushReplacementNamed('/login');
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("${item.text} is coming soon!"),
-                                ),
-                              );
-                            }
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: isSelected
-                                ? Theme.of(
-                                    context,
-                                  ).primaryColor.withOpacity(0.15)
-                                : Colors.transparent,
-                            foregroundColor: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey.shade700,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 18,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: Icon(item.icon, size: 20),
-                          label: Text(
-                            item.text,
-                            style: TextStyle(
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
-                          ),
+              if (hasMultipleJobs && !_isExpanded)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2.0),
+                  child: Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _isExpanded = true;
+                        });
+                      },
+                      icon: Icon(
+                        Icons.expand_more,
+                        size: 18,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      label: Text(
+                        '+${jobs.length - 1} more position${jobs.length - 1 == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
                         ),
                       ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 2,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
-                  );
-                }).toList(),
-
-                const SizedBox(width: 20),
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey.shade300,
-                  backgroundImage: profileImageUrl != null
-                      ? NetworkImage(profileImageUrl)
-                      : null,
-                  child: profileImageUrl == null
-                      ? Text(
-                          (student?.user.fullName ?? "U")[0].toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        )
-                      : null,
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),

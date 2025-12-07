@@ -12,12 +12,14 @@ import 'package:student_job_fair_portal/model/InterviewRequest.dart';
 
 // Providers
 import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:student_job_fair_portal/screens/complete_profile_screen.dart';
+import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 
 // Screens for Navigation
 import 'package:student_job_fair_portal/screens/profile.dart';
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
 
 // Widgets
@@ -111,51 +113,60 @@ class _RequestsScreenState extends State<RequestsScreen>
         // MOBILE LAYOUT
         // ====================================================================
         if (isMobile) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Scaffold(
-            backgroundColor: Colors.grey.shade50,
-            appBar: AppBar(
-              title: const Text(
-                "Interview Requests",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              backgroundColor: Colors.white,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.black87),
-              bottom: TabBar(
-                controller: _tabController,
-                labelColor: Theme.of(context).primaryColor,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: Theme.of(context).primaryColor,
-                tabs: [
-                  Tab(text: "Sent (${sentRequests.length})"),
-                  Tab(text: "Received (${receivedRequests.length})"),
-                ],
-              ),
-            ),
-            body: TabBarView(
-              controller: _tabController,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            appBar: BeautifulAppBar(title: "Interview Requests"),
+            body: Column(
               children: [
-                _buildSentList(sentRequests, studentProvider, isMobile: true),
-                _buildReceivedList(
-                  receivedRequests,
-                  studentProvider,
-                  isMobile: true,
+                Container(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: Theme.of(context).primaryColor,
+                    unselectedLabelColor: isDark
+                        ? Colors.grey.shade400
+                        : Colors.grey,
+                    indicatorColor: Theme.of(context).primaryColor,
+                    indicatorWeight: 3,
+                    tabs: const [
+                      Tab(text: "Sent Requests"),
+                      Tab(text: "Received Requests"),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSentList(
+                          sentRequests,
+                          studentProvider,
+                          isMobile: true,
+                        ),
+                        _buildReceivedList(
+                          receivedRequests,
+                          studentProvider,
+                          isMobile: true,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-            // 🔹 ADDED: Bottom Navigation Bar for Mobile
-            bottomNavigationBar: buildBottomNav(context, 4),
+            bottomNavigationBar: BeautifulMobileNavBar(currentIndex: 4),
           );
         }
 
         // ====================================================================
         // WEB LAYOUT
         // ====================================================================
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: Stack(
             children: [
               Padding(
@@ -186,7 +197,9 @@ class _RequestsScreenState extends State<RequestsScreen>
                                           .headlineSmall
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.blueGrey.shade800,
+                                            color: isDark
+                                                ? Colors.white
+                                                : Colors.blueGrey.shade800,
                                           ),
                                     ),
                                     IconButton(
@@ -201,7 +214,9 @@ class _RequestsScreenState extends State<RequestsScreen>
                                 // Custom Web Tabs
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
+                                    color: isDark
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade100,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   padding: const EdgeInsets.all(4),
@@ -247,7 +262,11 @@ class _RequestsScreenState extends State<RequestsScreen>
                 ),
               ),
               // 🔹 ADDED: Web Header (Top Bar)
-              _buildWebHeader(context, student, profileImageUrl),
+              BeautifulWebNavBar(
+                currentRoute: 'Request', // or 'Jobs', 'Companies', etc.
+                profileImageUrl: profileImageUrl,
+                userName: student?.user.fullName ?? "User",
+              ),
             ],
           ),
         );
@@ -256,6 +275,7 @@ class _RequestsScreenState extends State<RequestsScreen>
   }
 
   Widget _buildWebTab(String title, int count, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _webTabIndex == index;
     return InkWell(
       onTap: () => setState(() => _webTabIndex = index),
@@ -263,12 +283,14 @@ class _RequestsScreenState extends State<RequestsScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected
+              ? (isDark ? Theme.of(context).cardColor : Colors.white)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                     blurRadius: 4,
                   ),
                 ]
@@ -280,7 +302,9 @@ class _RequestsScreenState extends State<RequestsScreen>
               title,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.black87 : Colors.grey.shade600,
+                color: isSelected
+                    ? (isDark ? Colors.white : Colors.black87)
+                    : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
               ),
             ),
             const SizedBox(width: 8),
@@ -289,7 +313,7 @@ class _RequestsScreenState extends State<RequestsScreen>
               decoration: BoxDecoration(
                 color: isSelected
                     ? Theme.of(context).primaryColor.withOpacity(0.1)
-                    : Colors.grey.shade200,
+                    : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -299,7 +323,7 @@ class _RequestsScreenState extends State<RequestsScreen>
                   fontWeight: FontWeight.bold,
                   color: isSelected
                       ? Theme.of(context).primaryColor
-                      : Colors.grey.shade600,
+                      : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                 ),
               ),
             ),
@@ -337,16 +361,39 @@ class _RequestsScreenState extends State<RequestsScreen>
           req,
           actions: req.status == RequestStatus.Pending
               ? [
-                  TextButton.icon(
-                    onPressed: () => _confirmWithdraw(req.requestId, provider),
-                    icon: const Icon(
-                      Icons.cancel_outlined,
-                      size: 18,
-                      color: Colors.red,
-                    ),
-                    label: const Text(
-                      "Withdraw",
-                      style: TextStyle(color: Colors.red),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _confirmWithdraw(req.requestId, provider),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.red.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.close, size: 14, color: Colors.red),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Withdraw",
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ]
@@ -414,6 +461,8 @@ class _RequestsScreenState extends State<RequestsScreen>
     List<Widget>? actions,
     bool isReceived = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 700;
     final dateStr = DateFormat('MMM d, yyyy').format(req.requestDate);
     final String? logoUrl = (req.logoUrl != null && req.logoUrl!.isNotEmpty)
         ? (req.logoUrl!.startsWith('http')
@@ -422,10 +471,14 @@ class _RequestsScreenState extends State<RequestsScreen>
         : null;
 
     return Card(
-      elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.05),
+      elevation: isDark ? 2 : 4,
+      shadowColor: Colors.black.withOpacity(isDark ? 0.3 : 0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
+      margin: EdgeInsets.symmetric(
+        horizontal: isMobile ? 0 : 0,
+        vertical: isMobile ? 6 : 8,
+      ),
       // 🔹 NAVIGATION: Click card to visit Company Profile
       child: InkWell(
         onTap: () {
@@ -441,20 +494,25 @@ class _RequestsScreenState extends State<RequestsScreen>
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: EdgeInsets.all(isMobile ? 12.0 : 20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Logo with Beautiful Fallback
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: isMobile ? 50 : 60,
+                    height: isMobile ? 50 : 60,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? Colors.grey.shade800 : Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.grey.shade700
+                            : Colors.grey.shade200,
+                      ),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -478,10 +536,10 @@ class _RequestsScreenState extends State<RequestsScreen>
                       children: [
                         Text(
                           req.companyName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            color: Colors.black87,
+                            color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
                         if (req.industry != null) ...[
@@ -489,7 +547,9 @@ class _RequestsScreenState extends State<RequestsScreen>
                           Text(
                             req.industry!,
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                               fontSize: 13,
                             ),
                           ),
@@ -500,48 +560,65 @@ class _RequestsScreenState extends State<RequestsScreen>
                               ? "Invited you on $dateStr"
                               : "Sent on $dateStr",
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: isMobile ? 11 : 12,
                             color: Colors.grey.shade500,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  // Status Badge
-                  _buildStatusBadge(req.status),
+                  // Status Badge and Actions in Column
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _buildStatusBadge(req.status),
+                      if (actions != null && actions.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ...actions.map(
+                          (action) => Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: action,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-              if (actions != null && actions.isNotEmpty) ...[
-                const Divider(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: actions,
-                ),
-              ],
               if (req.status == RequestStatus.Rejected &&
                   req.reasonForReject != null) ...[
-                const SizedBox(height: 16),
+                SizedBox(height: isMobile ? 12 : 16),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(isMobile ? 10 : 12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
+                    color: isDark
+                        ? Colors.red.shade900.withOpacity(0.2)
+                        : Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade100),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.red.shade700.withOpacity(0.5)
+                          : Colors.red.shade100,
+                    ),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         Icons.info_outline,
                         size: 16,
-                        color: Colors.red.shade700,
+                        color: isDark
+                            ? Colors.red.shade300
+                            : Colors.red.shade700,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           "Reason: ${req.reasonForReject}",
                           style: TextStyle(
-                            color: Colors.red.shade700,
+                            color: isDark
+                                ? Colors.red.shade300
+                                : Colors.red.shade700,
                             fontSize: 13,
                           ),
                         ),
@@ -559,15 +636,21 @@ class _RequestsScreenState extends State<RequestsScreen>
 
   // 🔹 BEAUTIFUL FALLBACK ICON
   Widget _buildFallbackIcon() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: Colors.grey.shade50,
+      color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
       child: Center(
-        child: Icon(Icons.business, color: Colors.grey.shade400, size: 28),
+        child: Icon(
+          Icons.business,
+          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+          size: 28,
+        ),
       ),
     );
   }
 
   Widget _buildStatusBadge(RequestStatus status) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
     String text;
     IconData icon;
@@ -592,9 +675,11 @@ class _RequestsScreenState extends State<RequestsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: isDark ? color.withOpacity(0.15) : color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(
+          color: isDark ? color.withOpacity(0.4) : color.withOpacity(0.2),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -615,17 +700,25 @@ class _RequestsScreenState extends State<RequestsScreen>
   }
 
   Widget _buildEmptyState(String message) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade200),
+            Icon(
+              Icons.inbox_outlined,
+              size: 80,
+              color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+            ),
             const SizedBox(height: 16),
             Text(
               message,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                fontSize: 16,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -707,147 +800,5 @@ class _RequestsScreenState extends State<RequestsScreen>
         CustomSnackBar.error(message: error),
       );
     }
-  }
-
-  // 🔹 WEB HEADER (Top Navigation Bar)
-  Widget _buildWebHeader(
-    BuildContext context,
-    dynamic student,
-    String? profileImageUrl,
-  ) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 80,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
-              border: Border(
-                bottom: BorderSide(color: Colors.grey.shade200, width: 1),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Row(
-              children: [
-                Image.asset(
-                  'lib/assets/StudentJobFairPortalLogo.png',
-                  height: 35,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  "COMSATS Job Fair",
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-                const Spacer(),
-                ..._sidebarItems.map((item) {
-                  final isSelected = item.text == 'Requests';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        child: TextButton.icon(
-                          onPressed: () async {
-                            if (_implementedRoutes.contains(item.text)) {
-                              item.onPressed();
-
-                              if (item.text == 'Profile') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const ProfileScreen()),
-                                );
-                              } else if (item.text == 'Companies') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const CompaniesScreen()),
-                                );
-                              } else if (item.text == 'Jobs') {
-                                Navigator.pushReplacement(
-                                  context,
-                                  FadePageRoute(page: const JobsScreen()),
-                                );
-                              } else if (item.text == 'Requests') {
-                                // Already here
-                              }
-                            } else if (item.text == 'Logout') {
-                              item.onPressed();
-                              await Provider.of<StudentProvider>(
-                                context,
-                                listen: false,
-                              ).logout();
-                              if (mounted) {
-                                Navigator.of(
-                                  context,
-                                ).pushReplacementNamed('/login');
-                              }
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("${item.text} is coming soon!"),
-                                ),
-                              );
-                            }
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: isSelected
-                                ? Theme.of(
-                                    context,
-                                  ).primaryColor.withOpacity(0.15)
-                                : Colors.transparent,
-                            foregroundColor: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey.shade700,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 18,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: Icon(item.icon, size: 20),
-                          label: Text(
-                            item.text,
-                            style: TextStyle(
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-
-                const SizedBox(width: 20),
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey.shade300,
-                  backgroundImage: profileImageUrl != null
-                      ? NetworkImage(profileImageUrl)
-                      : null,
-                  child: profileImageUrl == null
-                      ? Text(
-                          (student?.user.fullName ?? "U")[0].toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        )
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

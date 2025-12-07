@@ -6,6 +6,7 @@ Widget buildSectionHeader(
   BuildContext context,
   mounted,
 ) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return Padding(
     padding: const EdgeInsets.only(bottom: 12.0, left: 4, right: 4),
     child: Row(
@@ -13,10 +14,10 @@ Widget buildSectionHeader(
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: isDark ? Colors.white : Colors.black87,
           ),
         ),
         if (onAdd != null)

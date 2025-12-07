@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/screens/job_screen.dart';
 import 'package:student_job_fair_portal/screens/profile.dart';
+import 'package:student_job_fair_portal/screens/queue_screen.dart';
 import 'package:student_job_fair_portal/screens/requestScreen.dart';
 import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart'; // Import the new route
 
@@ -22,6 +23,9 @@ Widget buildBottomNav(BuildContext context, int currentIndex) {
           break;
         case 1:
           nextScreen = const JobsScreen();
+          break;
+        case 3:
+          nextScreen = const QueueScreen();
           break;
         case 2:
           nextScreen = const CompaniesScreen();

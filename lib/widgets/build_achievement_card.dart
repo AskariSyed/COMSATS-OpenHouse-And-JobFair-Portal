@@ -168,21 +168,25 @@ class _AchievementCardState extends State<AchievementCard>
     final ach = widget.achievement;
     final hasDescription =
         ach.description != null && ach.description!.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 700;
 
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       margin: EdgeInsets.zero, // Layout handles margin
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -191,31 +195,37 @@ class _AchievementCardState extends State<AchievementCard>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade50,
+                        color: isDark
+                            ? Colors.purple.shade900.withOpacity(0.3)
+                            : Colors.purple.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const FaIcon(
+                      child: FaIcon(
                         FontAwesomeIcons.trophy,
-                        color: Colors.purple,
-                        size: 16,
+                        color: isDark ? Colors.purple.shade400 : Colors.purple,
+                        size: isMobile ? 14 : 16,
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 6 : 8,
+                        vertical: isMobile ? 3 : 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         formatDate(ach.dateAchieved),
                         style: TextStyle(
-                          color: Colors.grey.shade800,
-                          fontSize: 10,
+                          color: isDark
+                              ? Colors.grey.shade300
+                              : Colors.grey.shade800,
+                          fontSize: isMobile ? 9 : 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -223,15 +233,16 @@ class _AchievementCardState extends State<AchievementCard>
                   ],
                 ),
 
-                const SizedBox(height: 12),
+                SizedBox(height: isMobile ? 8 : 12),
 
                 // --- 2. Title (Full Text, No truncation) ---
                 Text(
                   ach.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontSize: isMobile ? 13 : 15,
                     height: 1.2,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                   maxLines: null, // Allow wrapping
                 ),
@@ -247,7 +258,9 @@ class _AchievementCardState extends State<AchievementCard>
                           child: Text(
                             ach.description!,
                             style: TextStyle(
-                              color: Colors.grey.shade700,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
                               fontSize: 13,
                             ),
                           ),
@@ -258,13 +271,20 @@ class _AchievementCardState extends State<AchievementCard>
             ),
           ),
 
-          Divider(height: 1, color: Colors.grey.shade100),
+          Divider(
+            height: 1,
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.grey.shade100,
+          ),
 
           // --- 4. Bottom Footer (No Overlap using Row) ---
           Container(
             height: 44, // Fixed height footer
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            color: Colors.grey.shade50.withOpacity(0.3),
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : Colors.grey.shade50.withOpacity(0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

@@ -24,6 +24,27 @@ class CompanyListResponse {
   }
 }
 
+// 🔹 NEW: Helper Class for Interview Status
+class CompanyInterviewStatus {
+  final int requestId;
+  final String status; // Pending, Accepted, Rejected
+  final String requestedBy; // Student, Company
+
+  CompanyInterviewStatus({
+    required this.requestId,
+    required this.status,
+    required this.requestedBy,
+  });
+
+  factory CompanyInterviewStatus.fromJson(Map<String, dynamic> json) {
+    return CompanyInterviewStatus(
+      requestId: json['requestId'] ?? 0,
+      status: json['status'] ?? 'Pending',
+      requestedBy: json['requestedBy'] ?? 'Student',
+    );
+  }
+}
+
 class Company {
   final int companyId;
   final String name;
@@ -43,6 +64,10 @@ class Company {
   final int jobCount;
   final List<Job> jobs;
 
+  // 🔹 NEW FIELDS
+  final bool canRequestInterview;
+  final CompanyInterviewStatus? interviewRequest;
+
   Company({
     required this.companyId,
     required this.name,
@@ -61,6 +86,8 @@ class Company {
     required this.arrivalStatus,
     required this.jobCount,
     required this.jobs,
+    this.canRequestInterview = true,
+    this.interviewRequest,
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
@@ -86,6 +113,12 @@ class Company {
               ?.map((x) => Job.fromJson(x))
               .toList() ??
           [],
+
+      // 🔹 Parse New Fields
+      canRequestInterview: json['canRequestInterview'] ?? true,
+      interviewRequest: json['interviewRequest'] != null
+          ? CompanyInterviewStatus.fromJson(json['interviewRequest'])
+          : null,
     );
   }
 
@@ -119,6 +152,10 @@ class CompanyDetail {
   final List<String> uniqueSkillsRequired;
   final int arrivalStatus;
 
+  // 🔹 NEW FIELDS
+  final bool canRequestInterview;
+  final CompanyInterviewStatus? interviewRequest;
+
   bool get isPresent => arrivalStatus == 1;
 
   CompanyDetail({
@@ -139,6 +176,8 @@ class CompanyDetail {
     required this.jobs,
     required this.uniqueSkillsRequired,
     this.arrivalStatus = 0,
+    this.canRequestInterview = true,
+    this.interviewRequest,
   });
 
   factory CompanyDetail.fromJson(Map<String, dynamic> json) {
@@ -152,36 +191,34 @@ class CompanyDetail {
       logoUrl: json['logoUrl'],
       website: json['website'],
       address: json['address'],
-
-      // Parse Flattened Contact Info
       email: contactObj?['email'] ?? json['companyEmail'],
       phone: contactObj?['phone'] ?? json['companyPhone'],
-
       interviewDurationMinutes: json['interviewDurationMinutes'] ?? 0,
-      // Handle missing fields gracefully
       repsCount: json['repsCount'] ?? 0,
       focalPersonName: json['focalPersonName'],
       arrivalStatus: Company._parseArrivalStatus(json['arrivalStatus']),
-
       contactLinks:
           (json['contactLinks'] as List<dynamic>?)
               ?.map((x) => CompanyContactLink.fromJson(x))
               .toList() ??
           [],
-
       totalJobs: json['totalJobs'] ?? 0,
-
       jobs:
           (json['jobs'] as List<dynamic>?)
               ?.map((x) => Job.fromJson(x))
               .toList() ??
           [],
-
       uniqueSkillsRequired:
           (json['uniqueSkillsRequired'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
+
+      // 🔹 Parse New Fields
+      canRequestInterview: json['canRequestInterview'] ?? true,
+      interviewRequest: json['interviewRequest'] != null
+          ? CompanyInterviewStatus.fromJson(json['interviewRequest'])
+          : null,
     );
   }
 }

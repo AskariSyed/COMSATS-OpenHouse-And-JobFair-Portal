@@ -219,101 +219,7 @@ class StudentProvider with ChangeNotifier {
     return false;
   }
 
-  // --- 4. EXPERIENCE (Full CRUD) ---
-
   // DTOs like ExperienceAddDto will expect camelCase
-  Future<bool> addExperience(Map<String, dynamic> experienceData) async {
-    if (_student == null) return false;
-    _setLoading(true);
-
-    final response = await http.post(
-      Uri.parse("$baseUrl/Student/experiences"),
-      headers: _authHeaders,
-      body: json.encode(experienceData), // Assuming data is already camelCase
-    );
-    _setLoading(false);
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final newExperience = Experience.fromJson(data['experience']);
-      final updatedList = List<Experience>.from(_student!.experiences)
-        ..add(newExperience);
-      _student = _student!.copyWith(experiences: updatedList);
-      notifyListeners();
-      return true;
-    }
-    debugPrint("❌ Failed to add experience: ${response.body}");
-    return false;
-  }
-
-  Future<bool> updateExperience(
-    int experienceId,
-    Map<String, dynamic> experienceData,
-  ) async {
-    if (_student == null) return false;
-    _setLoading(true);
-
-    final response = await http.put(
-      Uri.parse("$baseUrl/Student/experiences/$experienceId"),
-      headers: _authHeaders,
-      body: json.encode(experienceData), // Assuming data is already camelCase
-    );
-    _setLoading(false);
-
-    if (response.statusCode == 200) {
-      // Optimistic update
-      final index = _student!.experiences.indexWhere(
-        (e) => e.experienceId == experienceId,
-      );
-      if (index != -1) {
-        final oldExp = _student!.experiences[index];
-        final updatedList = List<Experience>.from(_student!.experiences);
-        updatedList[index] = Experience(
-          experienceId: oldExp.experienceId,
-          studentId: oldExp.studentId,
-          companyName: experienceData['companyName'] ?? oldExp.companyName,
-          role: experienceData['role'] ?? oldExp.role,
-          description: experienceData['description'] ?? oldExp.description,
-          startDate: experienceData['startDate'] != null
-              ? DateTime.parse(experienceData['startDate'])
-              : oldExp.startDate,
-          endDate: experienceData['endDate'] != null
-              ? DateTime.parse(experienceData['endDate'])
-              : oldExp.endDate,
-          isCurrent: experienceData['isCurrent'] ?? oldExp.isCurrent,
-          location: experienceData['location'] ?? oldExp.location,
-        );
-        _student = _student!.copyWith(experiences: updatedList);
-        notifyListeners();
-      }
-      return true;
-    }
-    debugPrint("❌ Failed to update experience: ${response.body}");
-    return false;
-  }
-
-  Future<bool> deleteExperience(int experienceId) async {
-    if (_student == null) return false;
-    _setLoading(true);
-
-    final response = await http.delete(
-      Uri.parse("$baseUrl/Student/experiences/$experienceId"),
-      headers: _authHeaders,
-    );
-    _setLoading(false);
-
-    if (response.statusCode == 200) {
-      final updatedList = _student!.experiences
-          .where((e) => e.experienceId != experienceId)
-          .toList();
-      _student = _student!.copyWith(experiences: updatedList);
-      notifyListeners();
-      return true;
-    }
-    debugPrint("❌ Failed to delete experience: ${response.body}");
-    return false;
-  }
-
   // --- 5. EDUCATION (Full CRUD) ---
   Future<bool> addEducation(Map<String, dynamic> educationData) async {
     if (_student == null) return false;
@@ -1031,6 +937,213 @@ class StudentProvider with ChangeNotifier {
       return "Failed to reject: ${response.body}";
     } catch (e) {
       return "Error: $e";
+    }
+  }
+
+  Future<bool> updateCGPA(double newCgpa) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.put(
+        Uri.parse("$baseUrl/Student/cgpa"),
+        headers: _authHeaders,
+        body: json.encode({"cgpa": newCgpa}),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Update local state
+        _student = _student!.copyWith(cgpa: newCgpa, updatedAt: DateTime.now());
+        notifyListeners();
+        return true;
+      }
+      debugPrint("❌ Failed to update CGPA: ${response.body}");
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      debugPrint("Error updating CGPA: $e");
+      return false;
+    }
+  }
+  // Open lib/provider/student_provider.dart and add these methods inside the StudentProvider class
+
+  // --------------------------------------------------------------------------
+  // CGPA MANAGEMENT
+  // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // EXPERIENCE MANAGEMENT
+  // --------------------------------------------------------------------------
+
+  // Although GetProfile loads experiences, this is useful for refreshing just this list
+  Future<void> fetchExperiences() async {
+    if (_student == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/experiences"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final List<Experience> experiences = data
+            .map((json) => Experience.fromJson(json))
+            .toList();
+
+        _student = _student!.copyWith(experiences: experiences);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error fetching experiences: $e");
+    }
+  }
+
+  Future<int> sendPasswordResetOtp(String emailOrRegNo) async {
+    _setLoading(true);
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Auth/forgot-password/send-otp"),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({"emailOrRegNo": emailOrRegNo}),
+      );
+
+      _setLoading(false);
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        // 🔹 FIX: Check if 'userId' actually exists in the response
+        if (data['userId'] != null) {
+          return data['userId'];
+        } else {
+          // 🔹 HANDLE SECURITY RESPONSE:
+          // The backend returned 200 OK but hid the UserID (meaning user likely doesn't exist).
+          // We throw an exception with the backend's message so the UI shows it
+          // but DOES NOT try to navigate to the next screen (which requires an ID).
+          throw Exception(
+            data['message'] ??
+                data['Message'] ??
+                "If the account exists, an OTP has been sent.",
+          );
+        }
+      } else {
+        throw Exception(
+          data['message'] ?? data['Message'] ?? "Failed to send OTP.",
+        );
+      }
+    } catch (e) {
+      _setLoading(false);
+      // Clean up the exception message for the UI
+      final msg = e.toString().replaceAll("Exception: ", "");
+      throw Exception(msg);
+    }
+  }
+
+  Future<String?> resetPassword({
+    required int userId,
+    required String otp,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    _setLoading(true);
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Auth/forgot-password/verify-otp"),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          "userId": userId,
+          "otp": otp,
+          "newPassword": newPassword,
+          "confirmPassword": confirmPassword,
+        }),
+      );
+
+      _setLoading(false);
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return null; // Success
+      } else {
+        return data['Message'] ?? "Failed to reset password.";
+      }
+    } catch (e) {
+      _setLoading(false);
+      return "Network error: $e";
+    }
+  }
+
+  Future<bool> addExperience(Map<String, dynamic> experienceData) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/experiences"),
+        headers: _authHeaders,
+        body: json.encode(experienceData),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Refresh to get the new ID and data
+        await fetchExperiences();
+        return true;
+      }
+      debugPrint("❌ Add Experience Failed: ${response.body}");
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> updateExperience(int id, Map<String, dynamic> data) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.put(
+        Uri.parse("$baseUrl/Student/experiences/$id"),
+        headers: _authHeaders,
+        body: json.encode(data),
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        await fetchExperiences();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> deleteExperience(int id) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/Student/experiences/$id"),
+        headers: _authHeaders,
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Remove locally
+        final updated = _student!.experiences
+            .where((e) => e.experienceId != id)
+            .toList();
+        _student = _student!.copyWith(experiences: updated);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      return false;
     }
   }
 }

@@ -1,28 +1,31 @@
-import 'dart:ui'; // Required for ImageFilter
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart'; // Added shimmer package
-import 'package:student_job_fair_portal/main.dart';
-import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
+import 'package:shimmer/shimmer.dart';
+
+// Providers & Models
+import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/provider/theme_provider.dart'; // 🔹 Theme Provider
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/model/project.dart';
-import 'package:student_job_fair_portal/screens/companies_screen.dart';
-import 'package:student_job_fair_portal/screens/job_screen.dart';
-import 'package:student_job_fair_portal/screens/requestScreen.dart';
-import 'package:student_job_fair_portal/widgets/appbar.dart';
-import 'package:student_job_fair_portal/widgets/build_bottom_navbar.dart';
+
+// Mixins
+import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
+
+// Screens
+import 'package:student_job_fair_portal/screens/settings_screen.dart';
+
+// Widgets
+import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
+import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/build_profile_content.dart';
-import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
-import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -33,25 +36,12 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
-
-  late List<CollapsibleItem> _sidebarItems;
-  String _currentRoute = 'Profile';
   bool _isInitLoading = true;
-
   AnimationController? _persistentSnackBarController;
-
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _sidebarItems = generateSidebarItems(context, setState, _currentRoute);
 
     final studentProvider = Provider.of<StudentProvider>(
       context,
@@ -151,11 +141,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void onEditLink(dynamic link) {
     final contactLink = link as ContactLink;
     showContactLinkDialog(
-      navigatorKey.currentContext!,
+      context, // Updated context reference
       link: link,
       onSaveLink: (updated) async {
         await Provider.of<StudentProvider>(
-          navigatorKey.currentContext!,
+          context,
           listen: false,
         ).updateContactLink(contactLink.linkId, updated);
       },
@@ -165,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void onDeleteLink(dynamic link) async {
     final contactLink = link as ContactLink;
     await Provider.of<StudentProvider>(
-      navigatorKey.currentContext!,
+      context,
       listen: false,
     ).deleteContactLink(contactLink.linkId);
   }
@@ -302,14 +292,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildShimmerProfile(BuildContext context) {
+    // 🔹 Theme-Aware Shimmer Logic
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final highlightColor = isDark ? Colors.grey[700]! : Colors.grey[100]!;
+    final cardColor = Theme.of(context).cardColor;
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Shimmer.fromColors(
-            baseColor: Colors.grey.shade300,
-            highlightColor: Colors.grey.shade100,
+            baseColor: baseColor,
+            highlightColor: highlightColor,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -317,40 +313,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Container(
                   width: 100,
                   height: 100,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: cardColor,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(height: 20),
-                Container(width: 200, height: 24, color: Colors.white),
+                Container(width: 200, height: 24, color: cardColor),
                 const SizedBox(height: 10),
-                Container(width: 150, height: 16, color: Colors.white),
+                Container(width: 150, height: 16, color: cardColor),
                 const SizedBox(height: 40),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Container(width: 120, height: 20, color: Colors.white),
+                  child: Container(width: 120, height: 20, color: cardColor),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Container(width: 120, height: 20, color: Colors.white),
+                  child: Container(width: 120, height: 20, color: cardColor),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
@@ -367,16 +363,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final studentProvider = Provider.of<StudentProvider>(context);
     final student = studentProvider.student;
 
+    // 🔹 Theme Colors
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).textTheme.bodyMedium?.color;
+    final primaryColor = Theme.of(context).primaryColor;
+
     if (_isInitLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: scaffoldBg, // 🔹 Theme
         body: _buildShimmerProfile(context),
       );
     }
 
     if (student == null) {
-      return const Scaffold(
-        body: Center(child: Text("Failed to load profile. Check connection.")),
+      return Scaffold(
+        backgroundColor: scaffoldBg, // 🔹 Theme
+        body: Center(
+          child: Text(
+            "Failed to load profile. Check connection.",
+            style: TextStyle(color: textColor),
+          ),
+        ),
       );
     }
 
@@ -392,16 +399,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final double screenWidth = constraints.maxWidth;
 
         if (screenWidth < 800) {
+          // ==================================================================
+          // MOBILE LAYOUT (Theme Updated)
+          // ==================================================================
           return Scaffold(
-            backgroundColor: Colors.grey.shade50,
-            appBar: buildAppBar(context, studentProvider),
+            backgroundColor: scaffoldBg, // 🔹 Theme
+            extendBody: true, // 🔹 Important for floating nav bar
+            appBar: BeautifulAppBar(
+              title: "My Profile",
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
+                ),
+                // BeautifulAppBar adds logout automatically if hideLogout is false (default)
+              ],
+            ),
             body: RefreshIndicator(
               onRefresh: _loadProfileData,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 800),
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: buildProfileContent(
                       context,
@@ -419,21 +442,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            bottomNavigationBar: buildBottomNav(context, 0),
+            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 0),
           );
         } else {
-          _sidebarItems = generateSidebarItems(
-            context,
-            setState,
-            _currentRoute,
-          );
-
+          // ==================================================================
+          // WEB LAYOUT (Theme Updated)
+          // ==================================================================
           return Scaffold(
-            backgroundColor: Colors.white,
+            backgroundColor: scaffoldBg, // 🔹 Theme
             body: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 80.0),
+                  padding: const EdgeInsets.only(top: 100.0),
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
@@ -455,7 +475,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         .headlineSmall
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.blueGrey.shade800,
+                                          // 🔹 Dynamic Color
+                                          color: primaryColor,
                                         ),
                                   ),
                                   const SizedBox(height: 20),
@@ -483,167 +504,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
 
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 80,
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.7),
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Colors.grey.shade200,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 30),
-                        child: Row(
-                          children: [
-                            Image.asset(
-                              'lib/assets/StudentJobFairPortalLogo.png',
-                              height: 35,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              "COMSATS Job Fair",
-                              style: TextStyle(
-                                color: Theme.of(context).primaryColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                              ),
-                            ),
-                            const Spacer(),
-                            ..._sidebarItems.map((item) {
-                              final isSelected = item.isSelected;
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6.0,
-                                ),
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    child: TextButton.icon(
-                                      onPressed: () async {
-                                        if (_implementedRoutes.contains(
-                                          item.text,
-                                        )) {
-                                          item.onPressed();
-                                          setState(() {
-                                            for (var i in _sidebarItems)
-                                              i.isSelected = false;
-                                            item.isSelected = true;
-                                            _currentRoute = item.text;
-                                          });
-
-                                          // --- NAVIGATION WITH FADE ---
-                                          if (item.text == 'Profile') {
-                                            // Already Here
-                                          } else if (item.text == 'Companies') {
-                                            Navigator.pushReplacement(
-                                              context,
-                                              FadePageRoute(
-                                                page: const CompaniesScreen(),
-                                              ),
-                                            );
-                                          } else if (item.text == 'Jobs') {
-                                            Navigator.pushReplacement(
-                                              context,
-                                              FadePageRoute(
-                                                page: const JobsScreen(),
-                                              ),
-                                            );
-                                          } else if (item.text == 'Requests') {
-                                            Navigator.pushReplacement(
-                                              context,
-                                              FadePageRoute(
-                                                page: const RequestsScreen(),
-                                              ),
-                                            );
-                                          }
-                                        } else if (item.text == 'Logout') {
-                                          item.onPressed();
-                                          await Provider.of<StudentProvider>(
-                                            context,
-                                            listen: false,
-                                          ).logout();
-                                          if (mounted) {
-                                            Navigator.of(
-                                              context,
-                                            ).pushReplacementNamed('/login');
-                                          }
-                                        } else {
-                                          showTopSnackBar(
-                                            Overlay.of(context),
-                                            CustomSnackBar.info(
-                                              message:
-                                                  "${item.text} feature is upcoming!",
-                                              backgroundColor:
-                                                  Colors.orange.shade400,
-                                            ),
-                                          );
-                                        }
-                                      },
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: isSelected
-                                            ? Theme.of(
-                                                context,
-                                              ).primaryColor.withOpacity(0.15)
-                                            : Colors.transparent,
-                                        foregroundColor: isSelected
-                                            ? Theme.of(context).primaryColor
-                                            : Colors.grey.shade700,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                          vertical: 18,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                      icon: Icon(item.icon, size: 20),
-                                      label: Text(
-                                        item.text,
-                                        style: TextStyle(
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            const SizedBox(width: 20),
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: Colors.grey.shade300,
-                              backgroundImage: profileImageUrl != null
-                                  ? NetworkImage(profileImageUrl)
-                                  : null,
-                              child: profileImageUrl == null
-                                  ? Text(
-                                      (student.user.fullName ?? "U")[0]
-                                          .toUpperCase(),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                // 🔹 Beautiful Web Navigation Bar
+                BeautifulWebNavBar(
+                  currentRoute: 'Profile',
+                  profileImageUrl: profileImageUrl,
+                  userName: student.user.fullName ?? "User",
                 ),
               ],
             ),

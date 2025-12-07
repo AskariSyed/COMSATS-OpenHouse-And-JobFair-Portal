@@ -3,6 +3,7 @@ import 'package:student_job_fair_portal/mixins/onAddPressed.dart';
 import 'package:student_job_fair_portal/widgets/build_achievement_card.dart';
 import 'package:student_job_fair_portal/widgets/build_certification.dart';
 import 'package:student_job_fair_portal/widgets/build_education_list.dart';
+import 'package:student_job_fair_portal/widgets/build_experience_list.dart';
 import 'package:student_job_fair_portal/widgets/build_header.dart';
 import 'package:student_job_fair_portal/widgets/build_project_list.dart';
 import 'package:student_job_fair_portal/widgets/build_skills_wrap.dart';
@@ -60,7 +61,14 @@ Widget buildProfileContent(
       ),
       buildEducationList(student.educations, context),
       const SizedBox(height: 30),
-
+      buildSectionHeader(
+        'Experience',
+        () => onAddPressed('Experience', context, mounted),
+        context,
+        mounted,
+      ),
+      buildExperienceList(student.experiences, context),
+      const SizedBox(height: 30),
       // ⭐ Certifications
       buildSectionHeader(
         'Certifications',

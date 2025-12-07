@@ -9,12 +9,181 @@ import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/widgets/skill_selection_dialog.dart';
 
+// ---------------------------------------------------------------------------
+// 🌍 NEW: Searchable Location Picker (World Cities)
+// ---------------------------------------------------------------------------
+Future<void> selectLocation(
+  BuildContext context,
+  TextEditingController controller,
+) async {
+  final String? selected = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true, // Full screen height behavior
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => const CitySearchSheet(),
+  );
+
+  if (selected != null && selected.isNotEmpty) {
+    controller.text = selected;
+  }
+}
+
+class CitySearchSheet extends StatefulWidget {
+  const CitySearchSheet({super.key});
+
+  @override
+  State<CitySearchSheet> createState() => _CitySearchSheetState();
+}
+
+class _CitySearchSheetState extends State<CitySearchSheet> {
+  final TextEditingController _searchController = TextEditingController();
+  List<String> _filteredLocations = [];
+
+  // 🌏 Huge List of Major World Cities
+  final List<String> _allLocations = [
+    // --- Work Modes ---
+    "Remote", "Onsite", "Hybrid",
+    // --- Pakistan (Local Context) ---
+    "Islamabad, Pakistan", "Rawalpindi, Pakistan", "Lahore, Pakistan",
+    "Karachi, Pakistan", "Peshawar, Pakistan", "Quetta, Pakistan",
+    "Multan, Pakistan", "Faisalabad, Pakistan", "Sialkot, Pakistan",
+    "Gujranwala, Pakistan", "Hyderabad, Pakistan", "Abbottabad, Pakistan",
+    "Wah Cantt, Pakistan", "Taxila, Pakistan",
+    // --- North America ---
+    "New York, USA", "San Francisco, USA", "Los Angeles, USA", "Chicago, USA",
+    "Seattle, USA", "Austin, USA", "Boston, USA", "Toronto, Canada",
+    "Vancouver, Canada", "Montreal, Canada",
+    // --- Europe ---
+    "London, UK", "Manchester, UK", "Berlin, Germany", "Munich, Germany",
+    "Paris, France", "Amsterdam, Netherlands", "Dublin, Ireland",
+    "Stockholm, Sweden", "Zurich, Switzerland", "Barcelona, Spain",
+    "Madrid, Spain", "Rome, Italy", "Lisbon, Portugal",
+    // --- Middle East ---
+    "Dubai, UAE", "Abu Dhabi, UAE", "Riyadh, Saudi Arabia",
+    "Jeddah, Saudi Arabia", "Doha, Qatar", "Kuwait City, Kuwait",
+    // --- Asia Pacific ---
+    "Singapore", "Tokyo, Japan", "Seoul, South Korea", "Sydney, Australia",
+    "Melbourne, Australia", "Hong Kong", "Bangkok, Thailand",
+    "Kuala Lumpur, Malaysia", "Mumbai, India", "Bangalore, India",
+    "Delhi, India", "Beijing, China", "Shanghai, China",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredLocations = _allLocations;
+  }
+
+  void _filterLocations(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredLocations = _allLocations;
+      } else {
+        _filteredLocations = _allLocations
+            .where((city) => city.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Handle keyboard height
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        height: 600, // Fixed height for the sheet
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Select Location",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // 🔍 Search Bar
+            TextField(
+              controller: _searchController,
+              autofocus: true, // Open keyboard immediately
+              decoration: InputDecoration(
+                hintText: "Search city (e.g. London, Dubai)...",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+              ),
+              onChanged: _filterLocations,
+            ),
+            const SizedBox(height: 10),
+
+            // 🏙️ List of Cities
+            Expanded(
+              child: ListView.separated(
+                itemCount: _filteredLocations.length + 1, // +1 for custom add
+                separatorBuilder: (ctx, i) => const Divider(height: 1),
+                itemBuilder: (ctx, index) {
+                  // Option to add custom city if not found
+                  if (index == _filteredLocations.length) {
+                    if (_searchController.text.isNotEmpty &&
+                        !_filteredLocations.contains(_searchController.text)) {
+                      return ListTile(
+                        leading: const Icon(
+                          Icons.add_location_alt,
+                          color: Colors.blue,
+                        ),
+                        title: Text("Use '${_searchController.text}'"),
+                        subtitle: const Text("Tap to add this custom location"),
+                        onTap: () =>
+                            Navigator.pop(context, _searchController.text),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }
+
+                  final city = _filteredLocations[index];
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.location_city,
+                      color: Colors.grey,
+                    ),
+                    title: Text(city),
+                    onTap: () => Navigator.pop(context, city),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ... [Keep the rest of your existing dialog functions below exactly as they were] ...
+
 Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
   final bool isWeb = MediaQuery.of(context).size.width > 800;
   List<String>? result;
 
   if (isWeb) {
-    // WEB: Large Dialog
     result = await showDialog<List<String>>(
       context: context,
       builder: (context) => Dialog(
@@ -26,7 +195,6 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
       ),
     );
   } else {
-    // MOBILE: Full Screen Bottom Sheet
     result = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
@@ -36,7 +204,6 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
     );
   }
 
-  // Save Result
   if (result != null && result.isNotEmpty) {
     try {
       await Provider.of<StudentProvider>(
@@ -49,7 +216,6 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
             content: Text("Added ${result.length} skills successfully!"),
           ),
         );
-        // Refresh profile to see changes
         Provider.of<StudentProvider>(context, listen: false).fetchProfile();
       }
     } catch (e) {
@@ -62,7 +228,37 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
   }
 }
 
-// 2. Add Education
+void showUpdatePhoneDialog(BuildContext context) {
+  final student = Provider.of<StudentProvider>(context, listen: false).student;
+  final phoneCtrl = TextEditingController(text: student?.user.phone ?? "");
+
+  showGenericDialog(
+    context: context,
+    title: (student?.user.phone == null || student!.user.phone!.isEmpty)
+        ? "Add Phone Number"
+        : "Update Phone Number",
+    content: TextField(
+      controller: phoneCtrl,
+      keyboardType: TextInputType.phone,
+      decoration: const InputDecoration(
+        labelText: "Phone Number",
+        hintText: "e.g. +92 300 1234567",
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.phone),
+      ),
+    ),
+    onSave: () async {
+      if (phoneCtrl.text.trim().isEmpty) {
+        throw Exception("Phone number cannot be empty.");
+      }
+      await Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).updatePhoneNumber(phoneCtrl.text.trim());
+    },
+  );
+}
+
 void showAddEducationDialog(BuildContext context) {
   final institutionCtrl = TextEditingController();
   final degreeCtrl = TextEditingController();
@@ -94,11 +290,9 @@ void showAddEducationDialog(BuildContext context) {
           ),
         ),
         const SizedBox(height: 10),
-
-        // 🔹 START DATE PICKER
         TextField(
           controller: startCtrl,
-          readOnly: true, // Prevents manual keyboard input
+          readOnly: true,
           onTap: () => selectDate(context, startCtrl),
           decoration: const InputDecoration(
             labelText: "Start Date",
@@ -107,11 +301,9 @@ void showAddEducationDialog(BuildContext context) {
           ),
         ),
         const SizedBox(height: 10),
-
-        // 🔹 END DATE PICKER
         TextField(
           controller: endCtrl,
-          readOnly: true, // Prevents manual keyboard input
+          readOnly: true,
           onTap: () => selectDate(context, endCtrl),
           decoration: const InputDecoration(
             labelText: "End Date",
@@ -120,7 +312,6 @@ void showAddEducationDialog(BuildContext context) {
           ),
         ),
         const SizedBox(height: 10),
-
         TextField(
           controller: cgpaCtrl,
           decoration: const InputDecoration(labelText: "CGPA (Optional)"),
@@ -133,7 +324,6 @@ void showAddEducationDialog(BuildContext context) {
         "institutionName": institutionCtrl.text,
         "degree": degreeCtrl.text,
         "fieldOfStudy": fieldCtrl.text,
-        // Force UTC format for backend compatibility
         "startDate": "${startCtrl.text}T00:00:00Z",
         "endDate": endCtrl.text.isNotEmpty ? "${endCtrl.text}T00:00:00Z" : null,
         "isCurrent": endCtrl.text.isEmpty,
@@ -143,8 +333,6 @@ void showAddEducationDialog(BuildContext context) {
   );
 }
 
-// 3. Add Certification
-// 3. Add Certification
 void showAddCertificationDialog(BuildContext context) {
   final titleCtrl = TextEditingController();
   final issuerCtrl = TextEditingController();
@@ -183,19 +371,14 @@ void showAddCertificationDialog(BuildContext context) {
       ],
     ),
     onSave: () async {
-      // 🔹 1. Collect required data
       final Map<String, dynamic> data = {
         "title": titleCtrl.text,
         "issuer": issuerCtrl.text,
         "issueDate": "${dateCtrl.text}T00:00:00Z",
       };
-
-      // 🔹 2. FIX: Only add URL if the TextField is not empty
       if (urlCtrl.text.isNotEmpty) {
         data["credentialUrl"] = urlCtrl.text;
       }
-      // If empty, the key is omitted, and the backend handles it as null.
-
       await Provider.of<StudentProvider>(
         context,
         listen: false,
@@ -204,12 +387,10 @@ void showAddCertificationDialog(BuildContext context) {
   );
 }
 
-// 4. Add Achievement
-// 4. Add Achievement
 void showAddAchievementDialog(BuildContext context) {
   final titleCtrl = TextEditingController();
   final descCtrl = TextEditingController();
-  final dateCtrl = TextEditingController(); // YYYY-MM-DD
+  final dateCtrl = TextEditingController();
 
   showGenericDialog(
     context: context,
@@ -237,18 +418,17 @@ void showAddAchievementDialog(BuildContext context) {
       ],
     ),
     onSave: () async {
-      // 🔹 Call the real provider method
-      await Provider.of<StudentProvider>(context, listen: false).addAchievement(
-        {
-          "title": titleCtrl.text,
-          "description": descCtrl.text,
-          // 🔹 FIX: Ensure date is sent as UTC ISO 8601 string
-          "dateAchieved": "${dateCtrl.text}T00:00:00Z",
-        },
-      );
+      await Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).addAchievement({
+        "title": titleCtrl.text,
+        "description": descCtrl.text,
+        "dateAchieved": "${dateCtrl.text}T00:00:00Z",
+      });
     },
   );
-} // --- Invite Member Dialog ---
+}
 
 void showInviteMemberDialog(int projectId, BuildContext context) {
   final regNoCtrl = TextEditingController();
@@ -275,7 +455,6 @@ void showInviteMemberDialog(int projectId, BuildContext context) {
   );
 }
 
-// --- Confirm Leave Project ---
 void confirmLeaveProject(int projectId, BuildContext context) {
   showDialog(
     context: context,
@@ -316,13 +495,9 @@ void confirmLeaveProject(int projectId, BuildContext context) {
   );
 }
 
-// 5. Add Project (Dynamic Types)
 void showAddProjectDialog(BuildContext context) {
   final studentProvider = Provider.of<StudentProvider>(context, listen: false);
   final student = studentProvider.student;
-
-  // 1. Check if student already has an FYP
-  // Assuming ProjectType.FinalYear is defined in your Project model
   bool hasFyp =
       student?.projects.any((p) => p.type == ProjectType.FinalYear) ?? false;
 
@@ -330,20 +505,16 @@ void showAddProjectDialog(BuildContext context) {
   final descCtrl = TextEditingController();
   final demoCtrl = TextEditingController();
   final githubCtrl = TextEditingController();
-
-  // Default to Semester (0)
   int selectedType = 0;
 
   showGenericDialog(
     context: context,
     title: "Add New Project",
-    // 2. Use StatefulBuilder to update Dropdown state inside the dialog
     content: StatefulBuilder(
       builder: (context, setState) {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- Project Type Dropdown ---
             DropdownButtonFormField<int>(
               value: selectedType,
               decoration: const InputDecoration(
@@ -363,7 +534,6 @@ void showAddProjectDialog(BuildContext context) {
                   value: 1,
                   child: Text("Freelance Project"),
                 ),
-                // 3. Conditionally add Final Year Project option
                 if (!hasFyp)
                   const DropdownMenuItem(
                     value: 2,
@@ -378,8 +548,6 @@ void showAddProjectDialog(BuildContext context) {
               },
             ),
             const SizedBox(height: 10),
-
-            // --- Text Fields ---
             TextField(
               controller: titleCtrl,
               decoration: const InputDecoration(labelText: "Project Title"),
@@ -410,7 +578,7 @@ void showAddProjectDialog(BuildContext context) {
         "description": descCtrl.text,
         "demoUrl": demoCtrl.text,
         "gitHubUrl": githubCtrl.text,
-        "type": selectedType, // Send the selected integer type
+        "type": selectedType,
       });
     },
   );
@@ -418,12 +586,10 @@ void showAddProjectDialog(BuildContext context) {
 
 void showProjectDialog(BuildContext context, {Project? project}) {
   final isEditing = project != null;
-
   final titleCtrl = TextEditingController(text: project?.title ?? "");
   final descCtrl = TextEditingController(text: project?.description ?? "");
   final demoCtrl = TextEditingController(text: project?.demoUrl ?? "");
   final githubCtrl = TextEditingController(text: project?.gitHubUrl ?? "");
-
   int selectedType = project?.type.index ?? 0;
 
   showGenericDialog(
@@ -449,13 +615,11 @@ void showProjectDialog(BuildContext context, {Project? project}) {
               onChanged: (v) => setState(() => selectedType = v!),
             ),
             const SizedBox(height: 10),
-
             TextField(
               controller: titleCtrl,
               decoration: const InputDecoration(labelText: "Project Title"),
             ),
             const SizedBox(height: 10),
-
             TextField(
               controller: descCtrl,
               decoration: const InputDecoration(
@@ -464,13 +628,11 @@ void showProjectDialog(BuildContext context, {Project? project}) {
               maxLines: 2,
             ),
             const SizedBox(height: 10),
-
             TextField(
               controller: demoCtrl,
               decoration: const InputDecoration(labelText: "Demo URL"),
             ),
             const SizedBox(height: 10),
-
             TextField(
               controller: githubCtrl,
               decoration: const InputDecoration(labelText: "GitHub URL"),
@@ -487,12 +649,8 @@ void showProjectDialog(BuildContext context, {Project? project}) {
         "gitHubUrl": githubCtrl.text.trim(),
         "type": selectedType,
       };
-
-      // Remove empty or untouched URLs (this prevents backend validation errors)
       data.removeWhere((key, value) => value == null || value == "");
-
       final provider = Provider.of<StudentProvider>(context, listen: false);
-
       if (isEditing) {
         await provider.updateProject(project!.projectId, data);
       } else {
@@ -502,18 +660,12 @@ void showProjectDialog(BuildContext context, {Project? project}) {
   );
 }
 
-// Ensure ContactLink is imported here:
-// import 'package:student_job_fair_portal/model/contact_link.dart';
-
 void showContactLinkDialog(
   BuildContext context, {
-  // 🎯 FIX 1: Change parameter type to ContactLink?
   ContactLink? link,
   required Function(Map<String, dynamic>) onSaveLink,
 }) {
   final isEditing = link != null;
-
-  // 🎯 FIX 2: Access properties using dot notation
   final platformCtrl = TextEditingController(
     text: link?.platform.toString() ?? "",
   );
@@ -545,7 +697,6 @@ void showContactLinkDialog(
     ),
     onSave: () async {
       final data = {
-        // Send back as Map<String, dynamic> for the provider
         "platform": platformCtrl.text.trim(),
         "url": urlCtrl.text.trim(),
       };
@@ -585,5 +736,126 @@ void showContactLinkActions(
         ],
       ),
     ),
+  );
+}
+
+void showUpdateCGPADialog(BuildContext context) {
+  final student = Provider.of<StudentProvider>(context, listen: false).student;
+  final cgpaCtrl = TextEditingController(
+    text: student?.cgpa.toString() ?? "0.0",
+  );
+
+  showGenericDialog(
+    context: context,
+    title: "Update CGPA",
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          "Enter your current CGPA (0.00 - 4.00)",
+          style: TextStyle(color: Colors.grey),
+        ),
+        const SizedBox(height: 15),
+        TextField(
+          controller: cgpaCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: "CGPA",
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.school_outlined),
+          ),
+        ),
+      ],
+    ),
+    onSave: () async {
+      final val = double.tryParse(cgpaCtrl.text);
+      if (val == null || val < 0 || val > 4.0) {
+        throw Exception("Please enter a valid CGPA between 0.0 and 4.0");
+      }
+      await Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).updateCGPA(val);
+    },
+  );
+}
+
+void showAddExperienceDialog(BuildContext context) {
+  final companyCtrl = TextEditingController();
+  final roleCtrl = TextEditingController();
+  final locationCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  final startCtrl = TextEditingController();
+  final endCtrl = TextEditingController();
+
+  showGenericDialog(
+    context: context,
+    title: "Add Experience",
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: companyCtrl,
+            decoration: const InputDecoration(labelText: "Company Name"),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: roleCtrl,
+            decoration: const InputDecoration(labelText: "Role / Job Title"),
+          ),
+          const SizedBox(height: 10),
+
+          // 🎯 Updated Location Field to use Searchable List
+          TextField(
+            controller: locationCtrl,
+            readOnly: true,
+            onTap: () => selectLocation(context, locationCtrl),
+            decoration: const InputDecoration(
+              labelText: "Location",
+              suffixIcon: Icon(Icons.arrow_drop_down),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+          TextField(
+            controller: startCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, startCtrl),
+            decoration: const InputDecoration(
+              labelText: "Start Date",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: endCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, endCtrl),
+            decoration: const InputDecoration(
+              labelText: "End Date (Leave empty if Current)",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: descCtrl,
+            decoration: const InputDecoration(labelText: "Description"),
+            maxLines: 3,
+          ),
+        ],
+      ),
+    ),
+    onSave: () async {
+      await Provider.of<StudentProvider>(context, listen: false).addExperience({
+        "companyName": companyCtrl.text,
+        "role": roleCtrl.text,
+        "location": locationCtrl.text,
+        "description": descCtrl.text,
+        "startDate": "${startCtrl.text}T00:00:00Z",
+        "endDate": endCtrl.text.isNotEmpty ? "${endCtrl.text}T00:00:00Z" : null,
+        "isCurrent": endCtrl.text.isEmpty,
+      });
+    },
   );
 }
