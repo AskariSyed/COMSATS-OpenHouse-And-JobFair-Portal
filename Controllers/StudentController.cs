@@ -20,7 +20,9 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<StudentController> _logger;
-
+        
+       
+        
         public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger)
         {
             _context = context;
@@ -41,6 +43,7 @@ namespace JobFairPortal.Controllers
                 .Include(s => s.Certifications)
                 .Include(s => s.Achievements)
                 .Include(s => s.ContactLinks)
+                .Include(s=>s.Experiences)
                 .Include(s => s.StudentProjects)
                     .ThenInclude(sp => sp.Project)
                         .ThenInclude(p => p.StudentProjects)
@@ -107,6 +110,16 @@ namespace JobFairPortal.Controllers
                     Platform = cl.Platform.ToString(),
                     cl.Url
                 }).ToList(),
+                Experiences=student.Experiences.Select(ex=>new {
+                    ex.ExperienceId,
+                    ex.CompanyName,
+                    ex.Location,
+                    ex.StartDate,
+                    ex.EndDate,
+                    ex.Description,
+                    ex.IsCurrent,
+                    ex.Role
+                }).ToList(),
 
                 Projects = student.StudentProjects
                     .Where(sp => sp.Project != null)
@@ -156,10 +169,20 @@ namespace JobFairPortal.Controllers
             var student = await _context.Students
                 .Include(s => s.Experiences)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
+           var Response = student.Experiences.Select(ex => new
+            {
+                ex.ExperienceId,
+                ex.CompanyName,
+                ex.Location,
+                ex.StartDate,
+                ex.EndDate,
+                ex.Description,
+                ex.IsCurrent,
+                ex.Role
+            }).ToList();
 
-            return Ok(student.Experiences);
+            return Ok(Response);
         }
-
         [HttpPost("experiences")]
         public async Task<IActionResult> AddExperience([FromBody] ExperienceAddDto dto)
         {
@@ -173,7 +196,6 @@ namespace JobFairPortal.Controllers
 
             var experience = new Experience
             {
-
                 CompanyName = dto.CompanyName,
                 Location = dto.Location,
                 StartDate = dto.StartDate,
@@ -182,67 +204,28 @@ namespace JobFairPortal.Controllers
                 StudentId = student.StudentId,
                 IsCurrent = dto.IsCurrent,
                 Role = dto.Role
-
             };
 
             _context.Experiences.Add(experience);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Experience added successfully", Experience = experience });
-        }
-
-
-        [HttpPut("experiences/{experienceId}")]
-        public async Task<IActionResult> UpdateExperience(int experienceId, [FromBody] ExperienceUpdateDto dto)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(userIdClaim, out int userId))
-                return Unauthorized();
-
-            var experience = await _context.Experiences
-                .Include(e => e.Student)
-                .FirstOrDefaultAsync(e => e.ExperienceId == experienceId && e.Student.UserId == userId);
-
-            if (experience == null)
-                return NotFound("Experience not found or does not belong to this student.");
-
-            if (!string.IsNullOrWhiteSpace(dto.CompanyName))
-                experience.CompanyName = dto.CompanyName;
-
-            if (!string.IsNullOrWhiteSpace(dto.Role))
-                experience.Role = dto.Role;
-
-            if (!string.IsNullOrWhiteSpace(dto.Location))
-                experience.Location = dto.Location;
-
-            if (!string.IsNullOrWhiteSpace(dto.Description))
-                experience.Description = dto.Description;
-
-            if (dto.StartDate.HasValue)
-                experience.StartDate = dto.StartDate.Value;
-
-            if (dto.EndDate.HasValue)
-                experience.EndDate = dto.EndDate.Value;
-
-            if (dto.IsCurrent.HasValue)
-                experience.IsCurrent = dto.IsCurrent.Value;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
+            // ---------------------------------------------------------
+            // 🟢 FIX: Map to an anonymous object to break the cycle
+            // ---------------------------------------------------------
+            var responseDto = new
             {
-                Message = "Experience updated successfully",
-                Experience = new
-                {
-                    experience.CompanyName,
-                    experience.Role,
-                    experience.StartDate,
-                    experience.EndDate,
-                    experience.IsCurrent,
-                    experience.Description,
-                    experience.Location
-                }
-            });
+                experience.ExperienceId,
+                experience.CompanyName,
+                experience.Location,
+                experience.StartDate,
+                experience.EndDate,
+                experience.Description,
+                experience.IsCurrent,
+                experience.Role,
+                // Do NOT include 'experience.Student' here
+            };
+
+            return Ok(new { Message = "Experience added successfully", Experience = responseDto });
         }
 
         [HttpDelete("experiences/{experienceId}")]
@@ -1019,9 +1002,7 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Skill removed.", Skills = student.Skills });
         }
 
-        /// <summary>
-        /// Replace all skills for a student (PUT).
-        /// </summary>
+        
         [HttpPut("skills")]
         public async Task<IActionResult> PutSkills(int studentId, [FromBody] SkillsDto dto)
         {
@@ -1038,9 +1019,6 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { Message = "Skills updated.", Skills = student.Skills });
         }
-
-
-
 
         [Authorize]
         [HttpGet("debug-claims")]
@@ -1413,7 +1391,6 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { FullName = student.User.FullName });
         }
-
         [HttpGet("companies")]
         public async Task<IActionResult> GetAvailableCompanies()
         {
@@ -1422,6 +1399,7 @@ namespace JobFairPortal.Controllers
                 return Unauthorized();
 
             var student = await _context.Students
+                .Include(s => s.InterviewRequests)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
@@ -1432,6 +1410,7 @@ namespace JobFairPortal.Controllers
                 .Where(c => c.JobFairId == student.JobFairId)
                 .Include(c => c.User)
                 .Include(c => c.Jobs)
+                .Include(c => c.CompanyContactLinks)
                 .Select(c => new
                 {
                     c.CompanyId,
@@ -1450,6 +1429,35 @@ namespace JobFairPortal.Controllers
                     c.InterviewDurationMinutes,
                     c.ArrivalStatus,
                     JobCount = c.Jobs.Count,
+
+                    // --- Interview Request Status ---
+                    InterviewRequest = c.InterviewRequests
+                        .Where(ir => ir.StudentId == student.StudentId)
+                        .Select(ir => new
+                        {
+                            RequestId = ir.RequestId,
+                            Status = ir.Status.ToString(),
+                            RequestedBy = ir.RequestedBy.ToString(),
+                            ReasonForReject = ir.ReasonForReject,
+                            RequestDate = ir.CreatedAt,
+                            ResponseDate = ir.UpdatedAt,
+
+                            // Flags for UI/UX
+                            CanRequest = false,
+                            CanAccept = ir.Status == RequestStatus.Pending && ir.RequestedBy == RequestedBy.Company,
+                            CanReject = ir.Status == RequestStatus.Pending && ir.RequestedBy == RequestedBy.Company,
+                            CanWithdraw = ir.Status == RequestStatus.Pending && ir.RequestedBy == RequestedBy.Student,
+                            RequestStatus = ir.Status == RequestStatus.Pending
+                                ? "Pending"
+                                : ir.Status == RequestStatus.Accepted
+                                    ? "Accepted"
+                                    : "Rejected"
+                        })
+                        .FirstOrDefault(),
+
+                    // Check if student can request (no existing request)
+                    CanRequestInterview = !c.InterviewRequests.Any(ir => ir.StudentId == student.StudentId),
+
                     Jobs = c.Jobs.Select(j => new
                     {
                         j.JobId,
@@ -1457,6 +1465,14 @@ namespace JobFairPortal.Controllers
                         j.JobDescription,
                         j.RequiredSkills,
                         j.JobType
+                    }).ToList(),
+
+                    // --- Contact Links ---
+                    ContactLinks = c.CompanyContactLinks.Select(cl => new
+                    {
+                        cl.LinkId,
+                        Platform = cl.Platform.ToString(),
+                        cl.Url
                     }).ToList()
                 })
                 .ToListAsync();
@@ -1637,6 +1653,7 @@ namespace JobFairPortal.Controllers
             });
         }
 
+        // Update the GetCompanyProfile endpoint to include interview request status
         [HttpGet("companies/{companyId}")]
         public async Task<IActionResult> GetCompanyProfile(int companyId)
         {
@@ -1645,6 +1662,7 @@ namespace JobFairPortal.Controllers
                 return Unauthorized();
 
             var student = await _context.Students
+                .Include(s => s.InterviewRequests)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
@@ -1656,10 +1674,15 @@ namespace JobFairPortal.Controllers
                 .Include(c => c.User)
                 .Include(c => c.Jobs)
                 .Include(c => c.CompanyContactLinks)
+                .Include(c => c.InterviewRequests)
                 .FirstOrDefaultAsync();
 
             if (company == null)
                 return NotFound("Company not found in your job fair.");
+
+            // Get interview request status between this student and company
+            var interviewRequest = company.InterviewRequests
+                .FirstOrDefault(ir => ir.StudentId == student.StudentId);
 
             var companyProfile = new
             {
@@ -1670,14 +1693,18 @@ namespace JobFairPortal.Controllers
                 company.LogoUrl,
                 company.Website,
                 company.Address,
-                
+
                 CompanyContact = new
                 {
                     Email = company.CompanyEmail,
-                    Phone = company.CompanyPhone
+                    Phone = company.CompanyPhone,
+                    FocalPersonName = company.FocalPersonName,
+                    FocalPersonEmail = company.FocalPersonEmail,
+                    FocalPersonPhone = company.FocalPersonPhone
                 },
-                
+
                 company.InterviewDurationMinutes,
+                company.RepsCount,
 
                 // --- Contact Links (Social Media, LinkedIn, etc.) ---
                 ContactLinks = company.CompanyContactLinks.Select(cl => new
@@ -1686,7 +1713,7 @@ namespace JobFairPortal.Controllers
                     Platform = cl.Platform.ToString(),
                     cl.Url
                 }).ToList(),
-                
+
                 // --- All Job Openings ---
                 TotalJobs = company.Jobs.Count,
                 Jobs = company.Jobs.Select(j => new
@@ -1699,14 +1726,46 @@ namespace JobFairPortal.Controllers
                     j.NumberOfJobs,
                     AllSkillsRequired = string.Join(", ", j.RequiredSkills ?? new string[] { })
                 }).ToList(),
-                
+
                 // --- Unique Skills Required Across All Jobs ---
                 UniqueSkillsRequired = company.Jobs
                     .Where(j => j.RequiredSkills != null)
                     .SelectMany(j => j.RequiredSkills)
                     .Distinct()
                     .ToList(),
-                
+
+                // --- Interview Request Status Between Student and Company ---
+                InterviewRequest = interviewRequest != null ? new
+                {
+                    RequestId = interviewRequest.RequestId,
+                    Status = interviewRequest.Status.ToString(),
+                    RequestedBy = interviewRequest.RequestedBy.ToString(),
+                    ReasonForReject = interviewRequest.ReasonForReject,
+                    RequestDate = interviewRequest.CreatedAt,
+                    ResponseDate = interviewRequest.UpdatedAt,
+
+                    // --- UI/UX Flags ---
+                    IsPending = interviewRequest.Status == RequestStatus.Pending,
+                    IsAccepted = interviewRequest.Status == RequestStatus.Accepted,
+                    IsRejected = interviewRequest.Status == RequestStatus.Rejected,
+
+                    // Request action flags
+                    CanAccept = interviewRequest.Status == RequestStatus.Pending && interviewRequest.RequestedBy == RequestedBy.Company,
+                    CanReject = interviewRequest.Status == RequestStatus.Pending && interviewRequest.RequestedBy == RequestedBy.Company,
+                    CanWithdraw = interviewRequest.Status == RequestStatus.Pending && interviewRequest.RequestedBy == RequestedBy.Student,
+
+                    // Message for student
+                    StatusMessage = interviewRequest.RequestedBy == RequestedBy.Student
+                        ? $"You sent a request on {interviewRequest.CreatedAt:MMM dd, yyyy}"
+                        : $"{company.Name} sent you a request on {interviewRequest.CreatedAt:MMM dd, yyyy}",
+
+                    
+                } : null,
+
+
+                // Flag: Can student send interview request
+                CanRequestInterview = interviewRequest == null,
+
                 // --- Timestamps ---
                 company.CreatedAt,
                 company.UpdatedAt
@@ -1714,6 +1773,10 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { company = companyProfile });
         }
+
+
+
+
         [HttpPost("interview-requests/send")]
         public async Task<IActionResult> SendInterviewRequest([FromBody] SendInterviewRequestDto dto)
         {
@@ -1885,9 +1948,7 @@ namespace JobFairPortal.Controllers
             });
         }
 
-        // -----------------------------
-        // 2. Get Notices (Dynamic based on Role)
-        // -----------------------------
+       
         [HttpGet("notices")]
         [Authorize] // Requires login (Admin, Student, or Company)
         public async Task<IActionResult> GetNotices()
@@ -2158,5 +2219,577 @@ namespace JobFairPortal.Controllers
                 CompanyName = interviewRequest.Company.Name
             });
         }
+    
+        [HttpGet("cgpa")]
+        public async Task<IActionResult> GetCGPA()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            return Ok(new
+            {
+                StudentId = student.StudentId,
+                CGPA = student.CGPA,
+                UpdatedAt = student.UpdatedAt
+            });
+        }
+
+        
+        [HttpPut("cgpa")]
+        public async Task<IActionResult> UpdateCGPA([FromBody] UpdateCGPADto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            // Validate CGPA range (typically 0 to 4.0)
+            // Add 'm' to 0 and 4.0
+            if (dto.CGPA < 0m || dto.CGPA > 4.0m)
+                return BadRequest("CGPA must be between 0.0 and 4.0.");
+
+            var oldCGPA = student.CGPA;
+            student.CGPA = dto.CGPA;
+            student.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "CGPA updated successfully.",
+                StudentId = student.StudentId,
+                OldCGPA = oldCGPA,
+                NewCGPA = student.CGPA,
+                UpdatedAt = student.UpdatedAt
+            });
+        }
+
+      
+        [HttpPost("cgpa")]
+        public async Task<IActionResult> AddCGPA([FromBody] UpdateCGPADto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            // Validate CGPA range
+            // Add 'm' to 0 and 4.0
+            if (dto.CGPA < 0m || dto.CGPA > 4.0m)
+                return BadRequest("CGPA must be between 0.0 and 4.0.");
+
+            // Check if CGPA already exists (not 0)
+            if (student.CGPA > 0)
+                return BadRequest("CGPA already exists. Use PUT to update it.");
+
+            student.CGPA = dto.CGPA;
+            student.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "CGPA added successfully.",
+                StudentId = student.StudentId,
+                CGPA = student.CGPA,
+                CreatedAt = student.UpdatedAt
+            });
+        }
+
+       
+        [HttpDelete("cgpa")]
+        public async Task<IActionResult> DeleteCGPA()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (student.CGPA == 0)
+                return BadRequest("CGPA is not set or already deleted.");
+
+            var oldCGPA = student.CGPA;
+            student.CGPA = 0;
+            student.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "CGPA deleted successfully.",
+                StudentId = student.StudentId,
+                DeletedCGPA = oldCGPA,
+                NewCGPA = student.CGPA,
+                DeletedAt = student.UpdatedAt
+            });
+        }
+
+      
+        [HttpPut("experiences/{experienceId}")]
+        public async Task<IActionResult> UpdateExperience(int experienceId, [FromBody] ExperienceUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var experience = await _context.Experiences
+                .Include(e => e.Student)
+                .FirstOrDefaultAsync(e => e.ExperienceId == experienceId && e.Student.UserId == userId);
+
+            if (experience == null)
+                return NotFound("Experience not found or does not belong to this student.");
+
+            // Update fields if provided
+            if (!string.IsNullOrWhiteSpace(dto.CompanyName))
+                experience.CompanyName = dto.CompanyName;
+
+            if (!string.IsNullOrWhiteSpace(dto.Role))
+                experience.Role = dto.Role;
+
+            if (!string.IsNullOrWhiteSpace(dto.Location))
+                experience.Location = dto.Location;
+
+            if (!string.IsNullOrWhiteSpace(dto.Description))
+                experience.Description = dto.Description;
+
+            if (dto.StartDate.HasValue)
+                experience.StartDate = dto.StartDate.Value;
+
+            if (dto.EndDate.HasValue)
+                experience.EndDate = dto.EndDate.Value;
+            else if (dto.IsCurrent.HasValue && dto.IsCurrent.Value)
+                experience.EndDate = null; // Clear end date if current
+
+            if (dto.IsCurrent.HasValue)
+                experience.IsCurrent = dto.IsCurrent.Value;
+
+            // Validate dates
+            if (experience.EndDate.HasValue && experience.EndDate.Value < experience.StartDate && !experience.IsCurrent)
+                return BadRequest("End date cannot be before start date.");
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Experience updated successfully.",
+                Experience = new
+                {
+                    experience.ExperienceId,
+                    experience.CompanyName,
+                    experience.Role,
+                    experience.Location,
+                    experience.Description,
+                    experience.StartDate,
+                    experience.EndDate,
+                    experience.IsCurrent,
+                    Duration = CalculateDuration(experience.StartDate, experience.EndDate, experience.IsCurrent)
+                }
+            });
+        }
+        private string CalculateDuration(DateTime startDate, DateTime? endDate, bool isCurrent)
+        {
+            var end = isCurrent ? DateTime.UtcNow : (endDate ?? DateTime.UtcNow);
+            var duration = end - startDate;
+
+            int years = duration.Days / 365;
+            int months = (duration.Days % 365) / 30;
+
+            return (years, months) switch
+            {
+                ( > 0, > 0) => $"{years}y {months}m",
+                ( > 0, _) => $"{years}y",
+                (_, > 0) => $"{months}m",
+                _ => $"{duration.Days}d"
+            };
+        }
+        
+
+        [HttpGet("interview-requests/all")]
+        public async Task<IActionResult> GetAllInterviewRequests([FromQuery] string? status = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            // Query interview requests where student is involved
+            var requestsQuery = _context.InterviewRequests
+                .Include(r => r.Company)
+                .Include(r => r.Student)
+                .Where(r => r.StudentId == student.StudentId)
+                .AsQueryable();
+
+            // Filter by status if provided
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (Enum.TryParse<RequestStatus>(status, true, out var statusEnum))
+                {
+                    requestsQuery = requestsQuery.Where(r => r.Status == statusEnum);
+                }
+                else
+                {
+                    return BadRequest("Invalid status. Valid values: Pending, Accepted, Rejected");
+                }
+            }
+
+            var totalCount = await requestsQuery.CountAsync();
+
+            var requests = await requestsQuery
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.RequestId,
+                    CompanyId = r.Company.CompanyId,
+                    CompanyName = r.Company.Name,
+                    CompanyLogoUrl = r.Company.LogoUrl,
+                    CompanyIndustry = r.Company.Industry,
+                    CompanyEmail = r.Company.CompanyEmail,
+                    CompanyPhone = r.Company.CompanyPhone,
+                    CompanyWebsite = r.Company.Website,
+                    Status = r.Status.ToString(),
+                    RequestedBy = r.RequestedBy.ToString(),
+                    ReasonForReject = r.ReasonForReject,
+                    RequestDate = r.CreatedAt,
+                    ResponseDate = r.UpdatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                StudentId = student.StudentId,
+                TotalRequests = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                InterviewRequests = requests
+            });
+        }
+
+        
+        [HttpGet("interview-requests/sent")]
+        public async Task<IActionResult> GetSentInterviewRequests([FromQuery] string? status = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            // Only requests sent BY the student
+            var requestsQuery = _context.InterviewRequests
+                .Include(r => r.Company)
+                .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student)
+                .AsQueryable();
+
+            // Filter by status if provided
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (Enum.TryParse<RequestStatus>(status, true, out var statusEnum))
+                {
+                    requestsQuery = requestsQuery.Where(r => r.Status == statusEnum);
+                }
+                else
+                {
+                    return BadRequest("Invalid status. Valid values: Pending, Accepted, Rejected");
+                }
+            }
+
+            var totalCount = await requestsQuery.CountAsync();
+
+            var requests = await requestsQuery
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.RequestId,
+                    CompanyId = r.Company.CompanyId,
+                    CompanyName = r.Company.Name,
+                    CompanyLogoUrl = r.Company.LogoUrl,
+                    CompanyIndustry = r.Company.Industry,
+                    CompanyEmail = r.Company.CompanyEmail,
+                    CompanyPhone = r.Company.CompanyPhone,
+                    Status = r.Status.ToString(),
+                    ReasonForReject = r.ReasonForReject,
+                    SentDate = r.CreatedAt,
+                    ResponseDate = r.UpdatedAt,
+                    TimeInQueue = DateTime.UtcNow - r.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                StudentId = student.StudentId,
+                Type = "Sent by Student",
+                TotalRequests = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                InterviewRequests = requests
+            });
+        }
+        [HttpGet("interview-requests/received")]
+        public async Task<IActionResult> GetReceivedInterviewRequests([FromQuery] string? status = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            // Only requests sent BY the company TO the student
+            var requestsQuery = _context.InterviewRequests
+                .Include(r => r.Company)
+                .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company)
+                .AsQueryable();
+
+            // Filter by status if provided
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (Enum.TryParse<RequestStatus>(status, true, out var statusEnum))
+                {
+                    requestsQuery = requestsQuery.Where(r => r.Status == statusEnum);
+                }
+                else
+                {
+                    return BadRequest("Invalid status. Valid values: Pending, Accepted, Rejected");
+                }
+            }
+
+            var totalCount = await requestsQuery.CountAsync();
+
+            var requests = await requestsQuery
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.RequestId,
+                    CompanyId = r.Company.CompanyId,
+                    CompanyName = r.Company.Name,
+                    CompanyLogoUrl = r.Company.LogoUrl,
+                    CompanyIndustry = r.Company.Industry,
+                    CompanyEmail = r.Company.CompanyEmail,
+                    CompanyPhone = r.Company.CompanyPhone,
+                    CompanyWebsite = r.Company.Website,
+                    Status = r.Status.ToString(),
+                    ReasonForReject = r.ReasonForReject,
+                    ReceivedDate = r.CreatedAt,
+                    ResponseDate = r.UpdatedAt,
+                    IsActionRequired = r.Status == RequestStatus.Pending
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                StudentId = student.StudentId,
+                Type = "Received from Company",
+                TotalRequests = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                InterviewRequests = requests
+            });
+        }
+
+        [HttpGet("interview-requests/statistics")]
+        public async Task<IActionResult> GetInterviewRequestStatistics()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var statistics = new
+            {
+                StudentId = student.StudentId,
+
+                // Total Statistics
+                TotalRequests = await _context.InterviewRequests
+                    .Where(r => r.StudentId == student.StudentId)
+                    .CountAsync(),
+
+                // Sent by Student
+                SentByStudent = new
+                {
+                    Total = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student)
+                        .CountAsync(),
+                    Pending = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student && r.Status == RequestStatus.Pending)
+                        .CountAsync(),
+                    Accepted = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student && r.Status == RequestStatus.Accepted)
+                        .CountAsync(),
+                    Rejected = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student && r.Status == RequestStatus.Rejected)
+                        .CountAsync()
+                },
+
+                // Received from Company
+                ReceivedFromCompany = new
+                {
+                    Total = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company)
+                        .CountAsync(),
+                    Pending = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company && r.Status == RequestStatus.Pending)
+                        .CountAsync(),
+                    Accepted = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company && r.Status == RequestStatus.Accepted)
+                        .CountAsync(),
+                    Rejected = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company && r.Status == RequestStatus.Rejected)
+                        .CountAsync()
+                },
+
+                // Action Required
+                ActionRequired = new
+                {
+                    PendingSentRequests = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Student && r.Status == RequestStatus.Pending)
+                        .CountAsync(),
+                    PendingReceivedRequests = await _context.InterviewRequests
+                        .Where(r => r.StudentId == student.StudentId && r.RequestedBy == RequestedBy.Company && r.Status == RequestStatus.Pending)
+                        .CountAsync()
+                }
+            };
+
+            return Ok(statistics);
+        }
+
+        [HttpGet("interview-requests/{requestId}")]
+        public async Task<IActionResult> GetInterviewRequestDetails(int requestId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var interviewRequest = await _context.InterviewRequests
+                .Include(r => r.Company)
+                .Include(r => r.Student)
+                    .ThenInclude(s => s.User)
+                .FirstOrDefaultAsync(r => r.RequestId == requestId && r.StudentId == student.StudentId);
+
+            if (interviewRequest == null)
+                return NotFound("Interview request not found.");
+
+            var detail = new
+            {
+                RequestId = interviewRequest.RequestId,
+
+                // Student Info
+                Student = new
+                {
+                    StudentId = interviewRequest.Student.StudentId,
+                    Name = interviewRequest.Student.User.FullName,
+                    Email = interviewRequest.Student.User.Email,
+                    Phone = interviewRequest.Student.User.Phone,
+                    RegistrationNo = interviewRequest.Student.RegistrationNo,
+                    Department = interviewRequest.Student.Department,
+                    CGPA = interviewRequest.Student.CGPA
+                },
+
+                // Company Info
+                Company = new
+                {
+                    CompanyId = interviewRequest.Company.CompanyId,
+                    Name = interviewRequest.Company.Name,
+                    Industry = interviewRequest.Company.Industry,
+                    LogoUrl = interviewRequest.Company.LogoUrl,
+                    Website = interviewRequest.Company.Website,
+                    Email = interviewRequest.Company.CompanyEmail,
+                    Phone = interviewRequest.Company.CompanyPhone,
+                    Address = interviewRequest.Company.Address
+                },
+
+                // Request Details
+                RequestStatus = interviewRequest.Status.ToString(),
+                RequestedBy = interviewRequest.RequestedBy.ToString(),
+                RejectionReason = interviewRequest.ReasonForReject,
+
+                // Timeline
+                RequestDate = interviewRequest.CreatedAt,
+                ResponseDate = interviewRequest.UpdatedAt,
+                TimeInQueue = DateTime.UtcNow - interviewRequest.CreatedAt,
+
+                // Additional Context
+                IsPending = interviewRequest.Status == RequestStatus.Pending,
+                CanAccept = interviewRequest.Status == RequestStatus.Pending,
+                CanReject = interviewRequest.Status == RequestStatus.Pending,
+                CanWithdraw = interviewRequest.Status == RequestStatus.Pending && interviewRequest.RequestedBy == RequestedBy.Student
+            };
+
+            return Ok(detail);
+        }
     }
-}
+    
+     
+
+    }

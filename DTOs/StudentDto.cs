@@ -35,6 +35,14 @@ namespace JobFairPortal.DTOs
             [MaxLength(150)]
             public string FullName { get; set; } = null!;
         }
+    public class StudentRegistrationDto
+    {
+        [Required(ErrorMessage = "Registration number is required.")]
+        [StringLength(15, MinimumLength = 10, ErrorMessage = "Invalid registration number format.")]
+        [RegularExpression(@"^(FA|SP)\d{2}-[A-Z]{3}-\d{3}$",
+            ErrorMessage = "Invalid registration number format. Example: FA22-BCS-155")]
+        public string RegistrationNo { get; set; } = null!;
     }
+}
 
 

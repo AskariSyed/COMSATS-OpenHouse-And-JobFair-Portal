@@ -1298,9 +1298,7 @@ public async Task<IActionResult> GetPendingInterviewRequests([FromQuery] int pag
     });
 }
 
-/// <summary>
-/// Company: Get all interview requests (with all statuses) sent to this company
-/// </summary>
+
 [Authorize(Roles = "Company")]
 [HttpGet("interview-requests/all")]
 public async Task<IActionResult> GetAllInterviewRequests(
@@ -1481,8 +1479,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
                 Status = interviewRequest.Status.ToString()
             });
         }/// <summary>
-         /// Get interview requests statistics for company
-         /// </summary>
+         
 [Authorize(Roles = "Company")]
 [HttpGet("interview-requests/statistics")]
 public async Task<IActionResult> GetInterviewRequestStatistics()
@@ -1913,15 +1910,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
     return BadRequest("Unsupported format. Use 'json'.");
 }
-        // Add these new endpoints for Company Jobs, Profile Management, and Profile Details
-
-        // ========================================
-        // Job Management Endpoints
-        // ========================================
-
-        /// <summary>
-        /// Company: Get all jobs posted by this company
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpGet("jobs")]
         public async Task<IActionResult> GetCompanyJobs([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
@@ -1970,9 +1959,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-        /// <summary>
-        /// Company: Create a new job posting
-        /// </summary>
+       
         [Authorize(Roles = "Company")]
         [HttpPost("jobs")]
         public async Task<IActionResult> CreateJob([FromBody] CreateJobDto dto)
@@ -2010,10 +1997,6 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 Status = "Published"
             });
         }
-
-        /// <summary>
-        /// Company: Update a job posting
-        /// </summary>
         [Authorize(Roles = "Company")]
         [HttpPut("jobs/{jobId}")]
         public async Task<IActionResult> UpdateJob(int jobId, [FromBody] UpdateJobDto dto)
@@ -2094,13 +2077,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-        // ========================================
-        // Company Profile Management Endpoints
-        // ========================================
-
-        /// <summary>
-        /// Company: Get their own full profile
-        /// </summary>
+       
         [Authorize(Roles = "Company")]
         [HttpGet("profile")]
         public async Task<IActionResult> GetCompanyProfile()
@@ -2306,9 +2283,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-        /// <summary>
-        /// Company: Add or update contact link (social media, etc.)
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpPost("contact-links")]
         public async Task<IActionResult> AddContactLink([FromBody] AddContactLinkDto dto)
@@ -2349,9 +2324,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-        /// <summary>
-        /// Company: Update existing contact link
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpPut("contact-links/{linkId}")]
         public async Task<IActionResult> UpdateContactLink(int linkId, [FromBody] UpdateContactLinkDto dto)
@@ -2389,9 +2362,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-        /// <summary>
-        /// Company: Delete contact link
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpDelete("contact-links/{linkId}")]
         public async Task<IActionResult> DeleteContactLink(int linkId)

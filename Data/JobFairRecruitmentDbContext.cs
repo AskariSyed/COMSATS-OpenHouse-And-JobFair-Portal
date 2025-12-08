@@ -19,7 +19,6 @@ namespace JobFairPortal.Data
         public DbSet<Room> Rooms { get; set; } = null!;
         public DbSet<InterviewRequest> InterviewRequests { get; set; } = null!;
         public DbSet<Interview> Interviews { get; set; } = null!;
-        public DbSet<Notification> Notifications { get; set; } = null!;
         public DbSet<Survey> Surveys { get; set; } = null!;
         public DbSet<AuditLog> AuditLogs { get; set; } = null!;
         public DbSet<JobFair> JobFairs { get; set; }
