@@ -5,7 +5,9 @@ import 'package:student_job_fair_portal/model/certification.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/mixins/dateFormatter.dart';
 import 'package:student_job_fair_portal/mixins/launchUrl.dart';
+import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:student_job_fair_portal/widgets/build_empty_state.dart';
+import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -19,8 +21,62 @@ Widget buildCertificationsList(
 
   // 🔹 Helper: Open Edit Dialog
   void _showEditCertificationDialog(Certification cert) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Feature: Open Edit Dialog for ${cert.title}")),
+    final titleCtrl = TextEditingController(text: cert.title);
+    final issuerCtrl = TextEditingController(text: cert.issuer);
+    final dateCtrl = TextEditingController(
+      text: cert.issueDate?.toIso8601String().split('T').first ?? '',
+    );
+    final urlCtrl = TextEditingController(text: cert.credentialUrl ?? '');
+
+    showGenericDialog(
+      context: context,
+      title: "Edit Certification",
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: titleCtrl,
+            decoration: const InputDecoration(labelText: "Title"),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: issuerCtrl,
+            decoration: const InputDecoration(labelText: "Issuer"),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: dateCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, dateCtrl),
+            decoration: const InputDecoration(
+              labelText: "Issue Date",
+              hintText: "YYYY-MM-DD",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: urlCtrl,
+            decoration: const InputDecoration(
+              labelText: "Credential URL (Optional)",
+            ),
+          ),
+        ],
+      ),
+      onSave: () async {
+        final Map<String, dynamic> updateData = {
+          "title": titleCtrl.text,
+          "issuer": issuerCtrl.text,
+          "issueDate": "${dateCtrl.text}T00:00:00Z",
+        };
+        if (urlCtrl.text.isNotEmpty) {
+          updateData["credentialUrl"] = urlCtrl.text;
+        }
+        await Provider.of<StudentProvider>(
+          context,
+          listen: false,
+        ).updateCertification(cert.certificationId, updateData);
+      },
     );
   }
 

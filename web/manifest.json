@@ -1,13 +1,14 @@
 {
-    "name": "student_job_fair_portal",
-    "short_name": "student_job_fair_portal",
-    "start_url": ".",
+    "name": "CUI Wah Job Fair Student Portal",
+    "short_name": "Job Fair Portal",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#2563EB",
+    "theme_color": "#2563EB",
+    "description": "COMSATS University Islamabad Wah Campus Job Fair Student Portal",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "scope": "/",
     "icons": [
         {
             "src": "icons/Icon-192.png",

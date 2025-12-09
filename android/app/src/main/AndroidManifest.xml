@@ -17,7 +17,7 @@
 
 
     <application
-        android:label="student_job_fair_portal"
+        android:label="CUI Wah Job Fair Student Portal"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

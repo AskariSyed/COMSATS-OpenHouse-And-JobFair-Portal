@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
+import 'package:student_job_fair_portal/utils/password_validator.dart';
 
 // ============================================================================
 // SCREEN 1: REQUEST OTP (Registration Number Only)
@@ -58,7 +59,9 @@ class _ForgotPasswordRequestScreenState
     } catch (e) {
       showTopSnackBar(
         Overlay.of(context),
-        CustomSnackBar.error(message: e.toString()),
+        CustomSnackBar.error(
+          message: e.toString().replaceAll('Exception: ', ''),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -69,180 +72,165 @@ class _ForgotPasswordRequestScreenState
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isWeb = size.width > 800;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-      resizeToAvoidBottomInset: false,
-      body: SizedBox(
-        height: size.height,
-        width: size.width,
-        child: Stack(
-          children: [
-            // 1. Gradient Header
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: size.height * 0.4,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
+      appBar: AppBar(
+        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: isDark ? Colors.white : Color(0xFF1E3A8A),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isWeb ? 60 : 24,
+              vertical: 40,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isWeb ? 500 : double.infinity,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Icon
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
+                        color: Color(0xFF2563EB).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Icon(
                         Icons.lock_reset,
-                        size: 50,
-                        color: Colors.white,
+                        size: 60,
+                        color: Color(0xFF2563EB),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      "Forgot Password?",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Title
+                  Text(
+                    "Forgot Password?",
+                    style: TextStyle(
+                      fontSize: isWeb ? 32 : 28,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Color(0xFF1E3A8A),
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            // 2. Back Button
-            Positioned(
-              top: 40,
-              left: 20,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-
-            // 3. Main Card
-            Positioned(
-              top: size.height * 0.32,
-              left: isWeb ? (size.width - 450) / 2 : 20,
-              right: isWeb ? (size.width - 450) / 2 : 20,
-              child: Container(
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Enter your registration number and we'll send an OTP to your registered email address.",
+                    style: TextStyle(
+                      fontSize: 15,
                       color: isDark
-                          ? Colors.blue.withOpacity(0.2)
-                          : Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                      height: 1.5,
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Reset your password",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.blueGrey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Enter your Registration Number to receive an OTP on your registered email.",
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
+                  ),
+                  const SizedBox(height: 32),
 
-                    // 🔹 UPDATED: Registration Number Only
-                    TextField(
-                      controller: _regNoController,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-Z0-9-]'),
+                  // Registration Number Field
+                  TextField(
+                    controller: _regNoController,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[a-zA-Z0-9-]'),
+                      ),
+                      UpperCaseHyphenFormatter(maxLength: 12),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: "Registration Number",
+                      labelStyle: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : null,
+                      ),
+                      hintText: "FA22-BCS-155",
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.grey.shade600 : null,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.badge_outlined,
+                        color: Color(0xFF2563EB),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
                         ),
-                        UpperCaseHyphenFormatter(maxLength: 12),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: "Registration Number",
-                        hintText: "FA22-BCS-155",
-                        prefixIcon: const Icon(Icons.badge_outlined),
-                        border: OutlineInputBorder(
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Color(0xFF2563EB),
+                          width: 2,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade50,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _sendOtp,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        filled: true,
-                        fillColor: isDark
-                            ? const Color(0xFF2A2A2A)
-                            : Colors.grey.shade50,
                       ),
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _sendOtp,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E3C72),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                "SEND OTP",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
                               ),
-                      ),
+                            )
+                          : const Text(
+                              "Send OTP",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -290,6 +278,16 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
       return;
     }
 
+    // Validate password strength
+    final passwordError = PasswordValidator.validate(pass);
+    if (passwordError != null) {
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: passwordError),
+      );
+      return;
+    }
+
     if (pass != confirm) {
       showTopSnackBar(
         Overlay.of(context),
@@ -333,7 +331,7 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: SizedBox(
         height: size.height,
         width: size.width,
@@ -420,7 +418,7 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
                     ],
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
                         "Check your email",

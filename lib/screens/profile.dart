@@ -18,6 +18,7 @@ import 'package:student_job_fair_portal/screens/settings_screen.dart';
 
 // Widgets
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
+import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/build_profile_content.dart';
 import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
@@ -408,6 +409,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             appBar: BeautifulAppBar(
               title: "My Profile",
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.campaign_outlined),
+                  onPressed: () => showNoticeBoardPopup(context),
+                  tooltip: 'Notice Board',
+                ),
                 IconButton(
                   icon: const Icon(Icons.settings),
                   onPressed: () => Navigator.push(

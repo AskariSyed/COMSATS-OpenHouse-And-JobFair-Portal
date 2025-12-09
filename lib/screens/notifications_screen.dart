@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import '../provider/notification_provider.dart';
 import '../model/notification_model.dart';
 
@@ -24,9 +26,10 @@ class NotificationsScreen extends StatelessWidget {
                 onSelected: (value) {
                   if (value == 'mark_all_read') {
                     provider.markAllAsRead();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('All notifications marked as read'),
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      CustomSnackBar.success(
+                        message: 'All notifications marked as read',
                       ),
                     );
                   } else if (value == 'clear_all') {
@@ -46,9 +49,10 @@ class NotificationsScreen extends StatelessWidget {
                             onPressed: () {
                               provider.clearAll();
                               Navigator.pop(ctx);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('All notifications cleared'),
+                              showTopSnackBar(
+                                Overlay.of(context),
+                                CustomSnackBar.success(
+                                  message: 'All notifications cleared',
                                 ),
                               );
                             },

@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/provider/notification_provider.dart';
+import 'package:student_job_fair_portal/utils/password_validator.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
 import 'package:student_job_fair_portal/screens/notifications_screen.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
+import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -122,6 +127,8 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  const WebFooter(),
                 ],
               ),
             ),
@@ -627,6 +634,56 @@ class SettingsScreen extends StatelessWidget {
           },
         ),
 
+        const SizedBox(height: 16),
+
+        // ----------------------------------------------------------------
+        // NOTICE BOARD
+        // ----------------------------------------------------------------
+        ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          tileColor: isDark ? cardColor : Colors.white,
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade400, Colors.deepOrange.shade600],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.campaign, color: Colors.white),
+          ),
+          title: const Text('Notice Board'),
+          subtitle: const Text('View important announcements'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () => showNoticeBoardPopup(context),
+        ),
+
+        const SizedBox(height: 16),
+
+        // ----------------------------------------------------------------
+        // CHANGE PASSWORD
+        // ----------------------------------------------------------------
+        ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          tileColor: isDark ? cardColor : Colors.white,
+          leading: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color(0xFF2563EB),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.lock_reset, color: Colors.white),
+          ),
+          title: const Text('Change Password'),
+          subtitle: const Text('Update your account password'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () => _showChangePasswordDialog(context),
+        ),
+
         const SizedBox(height: 30),
 
         // ----------------------------------------------------------------
@@ -690,11 +747,9 @@ class SettingsScreen extends StatelessWidget {
 
                   // Generate CV after editing (or directly if user chose not to edit)
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Generating CV...'),
-                        duration: Duration(seconds: 1),
-                      ),
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      const CustomSnackBar.info(message: 'Generating CV...'),
                     );
 
                     try {
@@ -706,13 +761,21 @@ class SettingsScreen extends StatelessWidget {
                           updatedStudent,
                           customEmail: customEmail,
                         );
+                        if (context.mounted) {
+                          showTopSnackBar(
+                            Overlay.of(context),
+                            const CustomSnackBar.success(
+                              message: 'CV generated successfully!',
+                            ),
+                          );
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: Colors.red,
+                        showTopSnackBar(
+                          Overlay.of(context),
+                          CustomSnackBar.error(
+                            message: 'Error generating CV: $e',
                           ),
                         );
                       }
@@ -814,10 +877,10 @@ class SettingsScreen extends StatelessWidget {
 
                   // Generate and share CV
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Preparing CV for sharing...'),
-                        duration: Duration(seconds: 1),
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      const CustomSnackBar.info(
+                        message: 'Preparing CV for sharing...',
                       ),
                     );
 
@@ -832,14 +895,20 @@ class SettingsScreen extends StatelessWidget {
                           updatedStudent,
                           customEmail: customEmail,
                         );
+                        if (context.mounted) {
+                          showTopSnackBar(
+                            Overlay.of(context),
+                            const CustomSnackBar.success(
+                              message: 'CV ready to share!',
+                            ),
+                          );
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: Colors.red,
-                          ),
+                        showTopSnackBar(
+                          Overlay.of(context),
+                          CustomSnackBar.error(message: 'Error sharing CV: $e'),
                         );
                       }
                     }
@@ -945,89 +1014,375 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 30),
-
         // ----------------------------------------------------------------
-        // 3. DEVELOPER CREDITS
+        // 3. DEVELOPER CREDITS (Mobile Only)
         // ----------------------------------------------------------------
-        _buildSectionHeader(context, "Meet the Team"),
-        isMobile
-            ? Column(
-                children: _developers
-                    .map(
-                      (dev) => _buildDeveloperCard(
-                        context,
-                        dev,
-                        isDark,
-                        cardColor,
-                        primaryColor,
-                        textColor,
-                        dividerColor,
-                        isMobile,
-                      ),
-                    )
-                    .toList(),
-              )
-            : Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: _developers
-                    .map(
-                      (dev) => SizedBox(
-                        width:
-                            (MediaQuery.of(context).size.width - 80 - 32) / 2,
-                        child: _buildDeveloperCard(
-                          context,
-                          dev,
-                          isDark,
-                          cardColor,
-                          primaryColor,
-                          textColor,
-                          dividerColor,
-                          isMobile,
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-        const SizedBox(height: 50),
-        Center(
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : 24,
-              vertical: isMobile ? 8 : 12,
-            ),
-            decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: primaryColor.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: isMobile ? 14 : 16,
-                  color: primaryColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Version 1.0.0",
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: primaryColor,
-                    fontSize: isMobile ? 12 : 13,
-                    fontWeight: FontWeight.w600,
+        if (isMobile) ...[
+          const SizedBox(height: 30),
+          _buildSectionHeader(context, "Meet the Team"),
+          Column(
+            children: _developers
+                .map(
+                  (dev) => _buildDeveloperCard(
+                    context,
+                    dev,
+                    isDark,
+                    cardColor,
+                    primaryColor,
+                    textColor,
+                    dividerColor,
+                    isMobile,
                   ),
-                ),
-              ],
-            ),
+                )
+                .toList(),
           ),
-        ),
+        ],
         SizedBox(height: isMobile ? 20 : 40),
       ],
+    );
+  }
+
+  void _showChangePasswordDialog(BuildContext context) {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool showCurrentPassword = false;
+    bool showNewPassword = false;
+    bool showConfirmPassword = false;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallMobile = screenWidth < 360;
+    final isMidMobile = screenWidth >= 360 && screenWidth < 600;
+    final isLargeMobile = screenWidth >= 600 && screenWidth < 900;
+    final isWeb = screenWidth >= 900;
+
+    // Responsive sizing
+    final dialogWidth = isWeb
+        ? 500.0
+        : isLargeMobile
+        ? screenWidth * 0.85
+        : isMidMobile
+        ? screenWidth * 0.90
+        : screenWidth * 0.95;
+
+    final iconSize = isSmallMobile ? 20.0 : 24.0;
+    final iconPadding = isSmallMobile ? 6.0 : 8.0;
+    final titleFontSize = isSmallMobile ? 16.0 : (isMidMobile ? 18.0 : 20.0);
+    final labelFontSize = isSmallMobile ? 12.0 : (isMidMobile ? 13.0 : 14.0);
+    final fieldSpacing = isSmallMobile ? 12.0 : 16.0;
+    final contentPadding = isSmallMobile
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(isSmallMobile ? 16 : 20),
+            ),
+            backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
+            child: Container(
+              width: dialogWidth,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : Colors.white,
+                borderRadius: BorderRadius.circular(isSmallMobile ? 16 : 20),
+              ),
+              constraints: BoxConstraints(
+                maxWidth: isWeb ? 500 : double.infinity,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  Container(
+                    padding: EdgeInsets.all(isSmallMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF2563EB),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(isSmallMobile ? 16 : 20),
+                        topRight: Radius.circular(isSmallMobile ? 16 : 20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(iconPadding),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.lock_reset,
+                            color: Colors.white,
+                            size: iconSize,
+                          ),
+                        ),
+                        SizedBox(width: isSmallMobile ? 8 : 12),
+                        Expanded(
+                          child: Text(
+                            'Change Password',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(isSmallMobile ? 16 : 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: currentPasswordController,
+                            obscureText: !showCurrentPassword,
+                            style: TextStyle(fontSize: labelFontSize),
+                            decoration: InputDecoration(
+                              labelText: 'Current Password',
+                              labelStyle: TextStyle(fontSize: labelFontSize),
+                              prefixIcon: Icon(
+                                Icons.lock_outline,
+                                size: iconSize,
+                                color: Color(0xFF2563EB),
+                              ),
+                              suffixIcon: IconButton(
+                                iconSize: iconSize,
+                                icon: Icon(
+                                  showCurrentPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    showCurrentPassword = !showCurrentPassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: contentPadding,
+                            ),
+                          ),
+                          SizedBox(height: fieldSpacing),
+                          TextField(
+                            controller: newPasswordController,
+                            obscureText: !showNewPassword,
+                            style: TextStyle(fontSize: labelFontSize),
+                            decoration: InputDecoration(
+                              labelText: 'New Password',
+                              labelStyle: TextStyle(fontSize: labelFontSize),
+                              prefixIcon: Icon(
+                                Icons.lock,
+                                size: iconSize,
+                                color: Color(0xFF2563EB),
+                              ),
+                              suffixIcon: IconButton(
+                                iconSize: iconSize,
+                                icon: Icon(
+                                  showNewPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    showNewPassword = !showNewPassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: contentPadding,
+                            ),
+                          ),
+                          SizedBox(height: fieldSpacing),
+                          TextField(
+                            controller: confirmPasswordController,
+                            obscureText: !showConfirmPassword,
+                            style: TextStyle(fontSize: labelFontSize),
+                            decoration: InputDecoration(
+                              labelText: 'Confirm New Password',
+                              labelStyle: TextStyle(fontSize: labelFontSize),
+                              prefixIcon: Icon(
+                                Icons.lock_clock,
+                                size: iconSize,
+                                color: Color(0xFF2563EB),
+                              ),
+                              suffixIcon: IconButton(
+                                iconSize: iconSize,
+                                icon: Icon(
+                                  showConfirmPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    showConfirmPassword = !showConfirmPassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: contentPadding,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Actions
+                  Container(
+                    padding: EdgeInsets.all(isSmallMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.grey.withOpacity(0.2),
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: isDark
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallMobile ? 12 : 20,
+                              vertical: isSmallMobile ? 8 : 12,
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: labelFontSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: isSmallMobile ? 8 : 12),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final current = currentPasswordController.text
+                                .trim();
+                            final newPass = newPasswordController.text.trim();
+                            final confirm = confirmPasswordController.text
+                                .trim();
+
+                            if (current.isEmpty ||
+                                newPass.isEmpty ||
+                                confirm.isEmpty) {
+                              showTopSnackBar(
+                                Overlay.of(context),
+                                const CustomSnackBar.error(
+                                  message: 'All fields are required',
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Validate new password strength
+                            final passwordError = PasswordValidator.validate(
+                              newPass,
+                            );
+                            if (passwordError != null) {
+                              showTopSnackBar(
+                                Overlay.of(context),
+                                CustomSnackBar.error(message: passwordError),
+                              );
+                              return;
+                            }
+
+                            if (newPass != confirm) {
+                              showTopSnackBar(
+                                Overlay.of(context),
+                                const CustomSnackBar.error(
+                                  message: 'New passwords do not match',
+                                ),
+                              );
+                              return;
+                            }
+
+                            try {
+                              final studentProvider =
+                                  Provider.of<StudentProvider>(
+                                    context,
+                                    listen: false,
+                                  );
+                              await studentProvider.changePassword(
+                                current,
+                                newPass,
+                                confirm,
+                              );
+
+                              if (context.mounted) {
+                                Navigator.of(ctx).pop();
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  const CustomSnackBar.success(
+                                    message: 'Password changed successfully!',
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                String errorMessage = e.toString();
+                                // Remove 'Exception: ' prefix if present
+                                if (errorMessage.startsWith('Exception: ')) {
+                                  errorMessage = errorMessage.substring(11);
+                                }
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  CustomSnackBar.error(message: errorMessage),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallMobile ? 16 : 24,
+                              vertical: isSmallMobile ? 10 : 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            isSmallMobile ? 'Change' : 'Change Password',
+                            style: TextStyle(fontSize: labelFontSize),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

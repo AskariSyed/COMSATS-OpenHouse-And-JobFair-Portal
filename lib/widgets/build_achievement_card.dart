@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/model/achievement.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/mixins/dateFormatter.dart';
+import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:student_job_fair_portal/widgets/build_empty_state.dart';
+import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -18,10 +20,51 @@ Widget buildAchievementsList(
 
   // 🔹 Helper: Open Edit Dialog
   void _showEditAchievementDialog(Achievement achievement) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Feature: Open Edit Dialog for ${achievement.title}"),
+    final titleCtrl = TextEditingController(text: achievement.title);
+    final descCtrl = TextEditingController(text: achievement.description);
+    final dateCtrl = TextEditingController(
+      text: achievement.dateAchieved.toIso8601String().split('T').first,
+    );
+
+    showGenericDialog(
+      context: context,
+      title: "Edit Achievement",
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: titleCtrl,
+            decoration: const InputDecoration(labelText: "Achievement Title"),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: descCtrl,
+            decoration: const InputDecoration(labelText: "Description"),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: dateCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, dateCtrl),
+            decoration: const InputDecoration(
+              labelText: "Date Achieved",
+              hintText: "YYYY-MM-DD",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+        ],
       ),
+      onSave: () async {
+        await Provider.of<StudentProvider>(
+          context,
+          listen: false,
+        ).updateAchievement(achievement.achievementId, {
+          "title": titleCtrl.text,
+          "description": descCtrl.text,
+          "dateAchieved": "${dateCtrl.text}T00:00:00Z",
+        });
+      },
     );
   }
 

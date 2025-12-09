@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/model/education.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/mixins/dateFormatter.dart';
+import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:student_job_fair_portal/widgets/build_empty_state.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
@@ -54,15 +55,23 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                       const SizedBox(height: 10),
                       TextField(
                         controller: startCtrl,
+                        readOnly: true,
+                        onTap: () => selectDate(context, startCtrl),
                         decoration: const InputDecoration(
-                          labelText: "Start Date (YYYY-MM-DD)",
+                          labelText: "Start Date",
+                          hintText: "YYYY-MM-DD",
+                          suffixIcon: Icon(Icons.calendar_today),
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: endCtrl,
+                        readOnly: true,
+                        onTap: () => selectDate(context, endCtrl),
                         decoration: const InputDecoration(
-                          labelText: "End Date (YYYY-MM-DD)",
+                          labelText: "End Date",
+                          hintText: "Leave empty if current",
+                          suffixIcon: Icon(Icons.calendar_today),
                         ),
                       ),
                       const SizedBox(height: 10),

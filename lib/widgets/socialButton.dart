@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/helper/showLinkActions.dart';
 
 // 1. Convert to a Widget to handle Hover State easily
@@ -72,11 +74,9 @@ class _InteractiveButtonWrapperState extends State<_InteractiveButtonWrapper> {
     final content = _contentToCopy;
     if (content.isNotEmpty) {
       Clipboard.setData(ClipboardData(text: content));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Copied: $content"),
-          duration: const Duration(seconds: 1),
-        ),
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.success(message: "Copied: $content"),
       );
     }
   }

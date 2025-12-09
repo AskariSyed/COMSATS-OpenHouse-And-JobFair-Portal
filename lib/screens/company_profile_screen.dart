@@ -1271,10 +1271,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 30),
             child: Row(
               children: [
-                Image.asset(
-                  'lib/assets/StudentJobFairPortalLogo.png',
-                  height: 35,
-                ),
+                Image.asset('assets/StudentJobFairPortalLogo.png', height: 35),
                 const SizedBox(width: 12),
                 Text(
                   "COMSATS Job Fair",

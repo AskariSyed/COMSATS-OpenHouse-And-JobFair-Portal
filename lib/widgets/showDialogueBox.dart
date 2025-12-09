@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
@@ -90,86 +91,207 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Handle keyboard height
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        height: 600, // Fixed height for the sheet
-        padding: const EdgeInsets.all(20),
+        height: 600,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Select Location",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            // Handle bar
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 10),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Select Location",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.grey.shade600),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // 🔍 Search Bar
-            TextField(
-              controller: _searchController,
-              autofocus: true, // Open keyboard immediately
-              decoration: InputDecoration(
-                hintText: "Search city (e.g. London, Dubai)...",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: "Search city (e.g. London, Dubai)...",
+                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF2563EB),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF2563EB),
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
+                onChanged: _filterLocations,
               ),
-              onChanged: _filterLocations,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
 
             // 🏙️ List of Cities
             Expanded(
               child: ListView.separated(
-                itemCount: _filteredLocations.length + 1, // +1 for custom add
-                separatorBuilder: (ctx, i) => const Divider(height: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _filteredLocations.length + 1,
+                separatorBuilder: (ctx, i) =>
+                    Divider(height: 1, color: Colors.grey.shade200),
                 itemBuilder: (ctx, index) {
                   // Option to add custom city if not found
                   if (index == _filteredLocations.length) {
                     if (_searchController.text.isNotEmpty &&
                         !_filteredLocations.contains(_searchController.text)) {
-                      return ListTile(
-                        leading: const Icon(
-                          Icons.add_location_alt,
-                          color: Colors.blue,
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFF2563EB).withOpacity(0.3),
+                          ),
                         ),
-                        title: Text("Use '${_searchController.text}'"),
-                        subtitle: const Text("Tap to add this custom location"),
-                        onTap: () =>
-                            Navigator.pop(context, _searchController.text),
+                        child: ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.add_location_alt_rounded,
+                              color: Color(0xFF2563EB),
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            "Use '${_searchController.text}'",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          subtitle: const Text(
+                            "Tap to add this custom location",
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          onTap: () =>
+                              Navigator.pop(context, _searchController.text),
+                        ),
                       );
                     }
                     return const SizedBox.shrink();
                   }
 
                   final city = _filteredLocations[index];
+                  final isWorkMode = [
+                    "Remote",
+                    "Onsite",
+                    "Hybrid",
+                  ].contains(city);
+
                   return ListTile(
-                    leading: const Icon(
-                      Icons.location_city,
-                      color: Colors.grey,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    title: Text(city),
+                    leading: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: isWorkMode
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isWorkMode
+                            ? Icons.work_outline
+                            : Icons.location_city_rounded,
+                        color: isWorkMode ? Colors.green : Colors.grey.shade600,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      city,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey.shade400,
+                    ),
                     onTap: () => Navigator.pop(context, city),
                   );
                 },
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -211,18 +333,20 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
         listen: false,
       ).addSkills(result);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Added ${result.length} skills successfully!"),
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.success(
+            message: "Added ${result.length} skills successfully!",
           ),
         );
         Provider.of<StudentProvider>(context, listen: false).fetchProfile();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(message: "Error: $e"),
+        );
       }
     }
   }
@@ -357,8 +481,12 @@ void showAddCertificationDialog(BuildContext context) {
         const SizedBox(height: 10),
         TextField(
           controller: dateCtrl,
+          readOnly: true,
+          onTap: () => selectDate(context, dateCtrl),
           decoration: const InputDecoration(
-            labelText: "Issue Date (YYYY-MM-DD)",
+            labelText: "Issue Date",
+            hintText: "YYYY-MM-DD",
+            suffixIcon: Icon(Icons.calendar_today),
           ),
         ),
         const SizedBox(height: 10),
@@ -410,9 +538,12 @@ void showAddAchievementDialog(BuildContext context) {
         const SizedBox(height: 10),
         TextField(
           controller: dateCtrl,
+          readOnly: true,
+          onTap: () => selectDate(context, dateCtrl),
           decoration: const InputDecoration(
-            labelText: "Date Achieved (YYYY-MM-DD)",
-            hintText: "2024-01-15",
+            labelText: "Date Achieved",
+            hintText: "YYYY-MM-DD",
+            suffixIcon: Icon(Icons.calendar_today),
           ),
         ),
       ],
@@ -437,9 +568,15 @@ void showInviteMemberDialog(int projectId, BuildContext context) {
     title: "Invite Student",
     content: TextField(
       controller: regNoCtrl,
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+        UpperCaseHyphenFormatter(maxLength: 12),
+      ],
+      style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 1),
       decoration: const InputDecoration(
-        labelText: "Registration No",
-        hintText: "FA22-BCS-XXX",
+        labelText: "Registration Number",
+        hintText: "FA22-BCS-155",
+        prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF2563EB)),
         border: OutlineInputBorder(),
       ),
     ),
@@ -458,39 +595,147 @@ void showInviteMemberDialog(int projectId, BuildContext context) {
 void confirmLeaveProject(int projectId, BuildContext context) {
   showDialog(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text("Leave Project?"),
-      content: const Text(
-        "Are you sure you want to leave this project? If you are the creator, ownership might transfer.",
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text("Cancel"),
+    builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 8,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
         ),
-        TextButton(
-          onPressed: () async {
-            Navigator.pop(ctx);
-            bool success = await Provider.of<StudentProvider>(
-              context,
-              listen: false,
-            ).leaveProject(projectId);
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with warning icon
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.warning_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Leave Project?",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-            if (success) {
-              showTopSnackBar(
-                Overlay.of(context),
-                const CustomSnackBar.success(message: "Project removed."),
-              );
-            } else {
-              showTopSnackBar(
-                Overlay.of(context),
-                const CustomSnackBar.error(message: "Failed to leave project."),
-              );
-            }
-          },
-          child: const Text("Leave", style: TextStyle(color: Colors.red)),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                "Are you sure you want to leave this project? If you are the creator, ownership might transfer.",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade700,
+                  height: 1.5,
+                ),
+              ),
+            ),
+
+            // Actions
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      "Cancel",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      bool success = await Provider.of<StudentProvider>(
+                        context,
+                        listen: false,
+                      ).leaveProject(projectId);
+
+                      if (success) {
+                        showTopSnackBar(
+                          Overlay.of(context),
+                          const CustomSnackBar.success(
+                            message: "Project removed.",
+                          ),
+                        );
+                      } else {
+                        showTopSnackBar(
+                          Overlay.of(context),
+                          const CustomSnackBar.error(
+                            message: "Failed to leave project.",
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      "Leave",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     ),
   );
 }
@@ -649,10 +894,10 @@ void showProjectDialog(BuildContext context, {Project? project}) {
         "gitHubUrl": githubCtrl.text.trim(),
         "type": selectedType,
       };
-      data.removeWhere((key, value) => value == null || value == "");
+      data.removeWhere((key, value) => value == "");
       final provider = Provider.of<StudentProvider>(context, listen: false);
       if (isEditing) {
-        await provider.updateProject(project!.projectId, data);
+        await provider.updateProject(project.projectId, data);
       } else {
         await provider.createProject(data);
       }
@@ -713,27 +958,94 @@ void showContactLinkActions(
 }) {
   showModalBottomSheet(
     context: context,
-    builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.edit),
-            title: const Text("Edit"),
-            onTap: () {
-              Navigator.pop(context);
-              onEdit(link);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text("Delete"),
-            onTap: () {
-              Navigator.pop(context);
-              onDelete(link);
-            },
-          ),
-        ],
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Text(
+                "Choose an action",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+            // Edit option
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.edit_rounded,
+                  color: Color(0xFF2563EB),
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                "Edit",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onEdit(link);
+              },
+            ),
+            // Delete option
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.delete_rounded,
+                  color: Colors.red,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                "Delete",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.red,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                onDelete(link);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     ),
   );
@@ -858,4 +1170,70 @@ void showAddExperienceDialog(BuildContext context) {
       });
     },
   );
+}
+
+// UpperCaseHyphenFormatter for Registration Number
+class UpperCaseHyphenFormatter extends TextInputFormatter {
+  final int maxLength;
+  UpperCaseHyphenFormatter({required this.maxLength});
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Handle deletion - if user is deleting, preserve the operation
+    if (newValue.text.length < oldValue.text.length) {
+      // User is deleting
+      String newText = newValue.text.toUpperCase();
+      int cursorPos = newValue.selection.baseOffset;
+
+      // If cursor is right after a hyphen that was auto-added, move it back
+      if (cursorPos > 0 &&
+          cursorPos < newText.length &&
+          newText[cursorPos] == '-') {
+        cursorPos--;
+      }
+
+      return TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: cursorPos),
+      );
+    }
+
+    // Handle addition/typing
+    String text = newValue.text.toUpperCase().replaceAll('-', '');
+    if (text.length > maxLength) text = text.substring(0, maxLength);
+
+    String formatted = '';
+    if (text.length >= 2) {
+      formatted += text.substring(0, 2);
+      if (text.length >= 4) {
+        formatted += text.substring(2, 4);
+      } else if (text.length > 2) {
+        formatted += text.substring(2);
+      }
+      formatted += '-';
+    } else {
+      formatted = text;
+    }
+
+    if (text.length > 4) {
+      if (text.length >= 7) {
+        formatted += text.substring(4, 7);
+      } else {
+        formatted += text.substring(4);
+      }
+      if (text.length > 7) {
+        formatted += '-';
+        formatted += text.substring(7);
+      }
+    }
+
+    int cursorPos = formatted.length;
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: cursorPos),
+    );
+  }
 }

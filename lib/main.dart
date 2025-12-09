@@ -12,6 +12,7 @@ import 'package:student_job_fair_portal/provider/job_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
 import 'package:student_job_fair_portal/provider/notification_provider.dart';
+import 'package:student_job_fair_portal/provider/notice_provider.dart';
 import 'package:student_job_fair_portal/model/notification_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_job_fair_portal/utils/page_transitions.dart';
@@ -118,9 +119,32 @@ void main() async {
     const InitializationSettings initSettings = InitializationSettings();
     await flutterLocalNotificationsPlugin.initialize(initSettings);
 
-    FirebaseMessaging.instance.getToken().then((token) {
-      if (kDebugMode) print("🔑 Web FCM token: $token");
-    });
+    // Request permission for web notifications
+    try {
+      NotificationSettings settings = await FirebaseMessaging.instance
+          .requestPermission(alert: true, badge: true, sound: true);
+
+      if (kDebugMode) {
+        print(
+          '🔔 Web notification permission: ${settings.authorizationStatus}',
+        );
+      }
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        // Get FCM token for web (works on Chrome, Firefox, Safari, etc.)
+        String? token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          if (kDebugMode) print("🔑 Web FCM token: $token");
+        } else {
+          if (kDebugMode) print('⚠️ Could not generate FCM token');
+        }
+      } else {
+        if (kDebugMode) print('⚠️ Notification permission denied');
+      }
+    } catch (e) {
+      if (kDebugMode) print('❌ Error getting web FCM token: $e');
+    }
   }
 
   runApp(
@@ -131,6 +155,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => JobProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => NoticeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -389,7 +414,6 @@ class _MyAppState extends State<MyApp> {
       if (kDebugMode) {
         print("📱 Opened from background: ${message.notification?.title}");
         print("📦 Data: ${message.data}");
-        // Handle navigation based on data here
       }
     });
   }
@@ -589,39 +613,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
-      // Show splash screen while checking
-      return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.blue.shade600, Colors.purple.shade600],
-            ),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.school, size: 80, color: Colors.white),
-                const SizedBox(height: 24),
-                Text(
-                  'COMSATS Job Fair Student Portal',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      // Show minimal loading while checking auth
+      // Native splash screen from flutter_launcher_icons will show first
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // Show login screen

@@ -12,9 +12,7 @@ class SkillService {
   Future<List<SkillCategory>> loadSkills() async {
     try {
       // Load JSON from assets
-      final String response = await rootBundle.loadString(
-        'lib/assets/skills.json',
-      );
+      final String response = await rootBundle.loadString('assets/skills.json');
       final data = json.decode(response);
 
       List<SkillCategory> categories = [];

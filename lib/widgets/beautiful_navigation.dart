@@ -16,6 +16,7 @@ import 'package:student_job_fair_portal/screens/sigin.dart';
 
 // Widgets
 import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart'; // For FadePageRoute
+import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
 
 // ============================================================================
 // 1. BEAUTIFUL WEB NAVIGATION BAR (Top - Glassmorphism)
@@ -140,17 +141,10 @@ class BeautifulWebNavBar extends StatelessWidget {
   Widget _buildLogo(BuildContext context, Color primary, Color text) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Image.asset(
-            'lib/assets/StudentJobFairPortalLogo.png',
-            height: 28,
-            errorBuilder: (_, __, ___) => Icon(Icons.school, color: primary),
-          ),
+        Image.asset(
+          'LogoWithoutBg.png',
+          height: 40,
+          errorBuilder: (_, __, ___) => Icon(Icons.school, color: primary),
         ),
         const SizedBox(width: 12),
         Column(
@@ -167,7 +161,7 @@ class BeautifulWebNavBar extends StatelessWidget {
               ),
             ),
             Text(
-              "Job Fair Portal",
+              "Job Fair Student Portal",
               style: TextStyle(
                 color: text.withOpacity(0.7),
                 fontWeight: FontWeight.w500,
@@ -216,6 +210,13 @@ class BeautifulWebNavBar extends StatelessWidget {
               : null,
         ),
         const SizedBox(width: 8),
+
+        // 🔹 Notice Board Button (Web)
+        IconButton(
+          onPressed: () => showNoticeBoardPopup(context),
+          icon: Icon(Icons.campaign_outlined, color: text.withOpacity(0.6)),
+          tooltip: "Notice Board",
+        ),
 
         // 🔹 Settings Button (Web)
         IconButton(

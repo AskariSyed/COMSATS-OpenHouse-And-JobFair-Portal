@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class WebFooter extends StatelessWidget {
   const WebFooter({super.key});
@@ -30,8 +32,9 @@ class WebFooter extends StatelessWidget {
         throw Exception('Could not launch $url');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open link: $urlString')),
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Could not open link: $urlString'),
       );
     }
   }
@@ -119,6 +122,16 @@ class WebFooter extends StatelessWidget {
           Text(
             "© ${DateTime.now().year} Student Job Fair Portal. All rights reserved.",
             style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Version 1.0.0",
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
             textAlign: TextAlign.center,
           ),
         ],

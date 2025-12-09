@@ -1009,27 +1009,65 @@ class StudentProvider with ChangeNotifier {
 
       _setLoading(false);
 
-      final data = json.decode(response.body);
-
       if (response.statusCode == 200) {
-        // 🔹 FIX: Check if 'userId' actually exists in the response
+        final data = json.decode(response.body);
+        // Success - return userId
         if (data['userId'] != null) {
           return data['userId'];
         } else {
-          // 🔹 HANDLE SECURITY RESPONSE:
-          // The backend returned 200 OK but hid the UserID (meaning user likely doesn't exist).
-          // We throw an exception with the backend's message so the UI shows it
-          // but DOES NOT try to navigate to the next screen (which requires an ID).
           throw Exception(
             data['message'] ??
                 data['Message'] ??
                 "If the account exists, an OTP has been sent.",
           );
         }
+      } else if (response.statusCode == 400) {
+        // Parse error response for specific error codes
+        try {
+          final data = json.decode(response.body);
+          final code = data['code'] ?? data['Code'] ?? '';
+          final message = data['message'] ?? data['Message'] ?? '';
+
+          // Handle specific error codes
+          if (code == 'STUDENT_NOT_FOUND') {
+            throw Exception(
+              message.isNotEmpty
+                  ? message
+                  : "Student account not found. Please verify your registration number.",
+            );
+          } else if (code == 'ACCOUNT_NOT_FOUND') {
+            throw Exception(
+              message.isNotEmpty
+                  ? message
+                  : "Account not found. Please verify your email address.",
+            );
+          } else if (code == 'INVALID_ACCOUNT_TYPE') {
+            throw Exception(
+              message.isNotEmpty
+                  ? message
+                  : "Not a student account. Please use your registration number.",
+            );
+          } else {
+            // Generic error message
+            throw Exception(
+              message.isNotEmpty
+                  ? message
+                  : "Failed to send OTP. Please try again.",
+            );
+          }
+        } catch (e) {
+          if (e.toString().contains('Exception:')) {
+            rethrow;
+          }
+          // If JSON parsing fails, throw generic error
+          throw Exception("Invalid request. Please check your input.");
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception("Account not found. Please verify your details.");
+      } else if (response.statusCode == 500) {
+        throw Exception("Server error. Please try again later.");
       } else {
-        throw Exception(
-          data['message'] ?? data['Message'] ?? "Failed to send OTP.",
-        );
+        throw Exception("Failed to send OTP. Please try again.");
       }
     } catch (e) {
       _setLoading(false);
@@ -1059,16 +1097,90 @@ class StudentProvider with ChangeNotifier {
       );
 
       _setLoading(false);
-      final data = json.decode(response.body);
 
       if (response.statusCode == 200) {
         return null; // Success
       } else {
-        return data['Message'] ?? "Failed to reset password.";
+        // Parse error response
+        try {
+          final data = json.decode(response.body);
+          final message = data['message'] ?? data['Message'] ?? '';
+
+          if (response.statusCode == 400) {
+            if (message.contains("expired") || message.contains("not found")) {
+              return "OTP expired or not found. Please request a new one.";
+            } else if (message.contains("already been used")) {
+              return "This OTP has already been used. Please request a new one.";
+            } else if (message.contains("Invalid OTP")) {
+              return "Invalid OTP. Please check and try again.";
+            } else {
+              return message.isNotEmpty
+                  ? message
+                  : "Invalid request. Please try again.";
+            }
+          } else if (response.statusCode == 404) {
+            return "User not found. Please restart the password reset process.";
+          } else if (response.statusCode == 500) {
+            return "Server error. Please try again later.";
+          } else {
+            return message.isNotEmpty ? message : "Failed to reset password.";
+          }
+        } catch (e) {
+          return "Failed to reset password. Please try again.";
+        }
       }
     } catch (e) {
       _setLoading(false);
-      return "Network error: $e";
+      return "Network error. Please check your connection and try again.";
+    }
+  }
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+    String confirmPassword,
+  ) async {
+    _setLoading(true);
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/auth/change-password"),
+        headers: _authHeaders,
+        body: json.encode({
+          "currentPassword": currentPassword,
+          "newPassword": newPassword,
+          "confirmPassword": confirmPassword,
+        }),
+      );
+
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        return; // Success
+      } else {
+        // Parse error response
+        try {
+          final data = json.decode(response.body);
+          String errorMessage =
+              data['message'] ??
+              data['Message'] ??
+              data['error'] ??
+              data['Error'] ??
+              'Failed to change password';
+          throw Exception(errorMessage);
+        } catch (e) {
+          // If JSON parsing fails, use the raw response body
+          if (response.body.isNotEmpty) {
+            throw Exception(response.body);
+          }
+          throw Exception('Failed to change password');
+        }
+      }
+    } catch (e) {
+      _setLoading(false);
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception("Network error: $e");
     }
   }
 
