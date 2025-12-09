@@ -1916,38 +1916,6 @@ namespace JobFairPortal.Controllers
                 Requests = requests
             });
         }
-        [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateNotice([FromBody] NoticeCreateDto dto)
-        {
-            // Find active job fair
-            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
-            if (activeJobFair == null)
-                return BadRequest("No active Job Fair found. Cannot create notice.");
-
-            var notice = new Notice
-            {
-                Title = dto.Title,
-                Content = dto.Content,
-                Audience = dto.Audience,
-                JobFairId = activeJobFair.JobFairId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            _context.Notices.Add(notice);
-            await _context.SaveChangesAsync();
-
-            return Ok(new NoticeResponseDto
-            {
-                NoticeId = notice.NoticeId,
-                Title = notice.Title,
-                Content = notice.Content,
-                Audience = notice.Audience.ToString(),
-                CreatedAt = notice.CreatedAt
-            });
-        }
-
        
         [HttpGet("notices")]
         [Authorize] // Requires login (Admin, Student, or Company)

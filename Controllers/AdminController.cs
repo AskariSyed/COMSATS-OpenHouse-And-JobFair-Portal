@@ -17,6 +17,7 @@ using FirebaseAdmin.Messaging;
 using Microsoft.Extensions.Configuration;
 using Notification = FirebaseAdmin.Messaging.Notification;
 using Microsoft.Extensions.Caching.Memory;
+using FirebaseAdmin;
 
 
 
@@ -1309,696 +1310,547 @@ namespace JobFairPortal.Controllers
         [HttpPost("students/{studentId}/notify")]
         public async Task<IActionResult> NotifyStudent(int studentId, [FromBody] FcmMessageDto dto)
         {
-            // Fetch student
-            var student = await _context.Students
-                .Include(s => s.User)
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
-
-            if (student == null)
-                return NotFound("Student not found.");
-
-            if (string.IsNullOrWhiteSpace(student.FcmToken))
-                return BadRequest("Student does not have a registered FCM token.");
-
-            // Construct the message
-            var message = new Message
-            {
-                Token = student.FcmToken,
-
-                // 🔹 This field ensures popup notifications on devices
-                Notification = new Notification
-                {
-                    Title = dto.Title ?? "Notification",
-                    Body = dto.Body ?? ""
-                },
-
-                // Optional data for app logic
-                Data = dto.Data ?? new Dictionary<string, string>()
-            };
-
             try
             {
-                // Send message to FCM
-                string response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
-                return Ok(new { Message = "Notification sent successfully.", Id = response });
+                // Validate input
+                if (string.IsNullOrWhiteSpace(dto?.Title) || string.IsNullOrWhiteSpace(dto?.Body))
+                {
+                    _logger.LogWarning("NotifyStudent called with invalid payload - missing title or body");
+                    return BadRequest(new
+                    {
+                        Code = "INVALID_PAYLOAD",
+                        Message = "Title and Body are required.",
+                        Success = false
+                    });
+                }
+
+                // Fetch student
+                var student = await _context.Students
+                    .Include(s => s.User)
+                    .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+                if (student == null)
+                {
+                    _logger.LogWarning("NotifyStudent failed - Student not found: {StudentId}", studentId);
+                    return NotFound(new
+                    {
+                        Code = "STUDENT_NOT_FOUND",
+                        Message = $"Student with ID {studentId} not found.",
+                        Success = false
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(student.FcmToken))
+                {
+                    _logger.LogWarning("NotifyStudent failed - No FCM token for student: {StudentId}, Name: {Name}", 
+                        studentId, student.User?.FullName);
+                    return BadRequest(new
+                    {
+                        Code = "NO_FCM_TOKEN",
+                        Message = $"Student '{student.User?.FullName}' does not have a registered FCM token.",
+                        StudentId = studentId,
+                        StudentName = student.User?.FullName,
+                        Success = false
+                    });
+                }
+
+                // Construct the message
+                var message = new Message
+                {
+                    Token = student.FcmToken,
+                    Notification = new Notification
+                    {
+                        Title = dto.Title,
+                        Body = dto.Body
+                    },
+                    Data = dto.Data ?? new Dictionary<string, string>()
+                };
+
+                try
+                {
+                    // Send message to FCM
+                    string messageId = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+
+                    _logger.LogInformation("Notification sent successfully to student: {StudentId}, Name: {Name}, MessageId: {MessageId}",
+                        studentId, student.User?.FullName, messageId);
+
+                    return Ok(new
+                    {
+                        Code = "SUCCESS",
+                        Message = "Notification sent successfully.",
+                        StudentId = studentId,
+                        StudentName = student.User?.FullName,
+                        StudentEmail = student.User?.Email,
+                        MessageId = messageId,
+                        SentAt = DateTime.UtcNow,
+                        Success = true
+                    });
+                }
+                catch (FirebaseException firebaseEx)
+                {
+                    _logger.LogError(firebaseEx, 
+                        "Firebase error sending notification to student: {StudentId}, Name: {Name}",
+                        studentId, student.User?.FullName);
+
+                    return StatusCode(503, new
+                    {
+                        Code = "FIREBASE_ERROR",
+                        Message = "Failed to send notification due to Firebase service error.",
+                        Details = firebaseEx.Message,
+                        StudentId = studentId,
+                        StudentName = student.User?.FullName,
+                        Success = false
+                    });
+                }
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = "Failed to send notification.", Error = ex.Message });
+                _logger.LogError(ex, "Unexpected error while notifying student: {StudentId}", studentId);
+                return StatusCode(500, new
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "An unexpected error occurred while sending the notification.",
+                    Details = ex.Message,
+                    Success = false
+                });
             }
         }
 
-        // -----------------------------
+        // ========================================
         // Send FCM Notification to All Students
-        // -----------------------------
+        // ========================================
         [HttpPost("students/notify-all")]
         public async Task<IActionResult> NotifyAllStudents([FromBody] FcmMessageDto dto)
         {
-            var tokens = await _context.Students
-                .Where(s => !string.IsNullOrEmpty(s.FcmToken))
-                .Select(s => s.FcmToken)
-                .ToListAsync();
-
-            if (!tokens.Any())
-                return BadRequest("No students have registered FCM tokens.");
-
-            var message = new MulticastMessage
-            {
-                Tokens = tokens,
-                Notification = new Notification
-                {
-                    Title = dto.Title,
-                    Body = dto.Body
-                },
-                Data = dto.Data ?? new Dictionary<string, string>() // optional
-            };
-
             try
             {
-                var response = await FirebaseMessaging.DefaultInstance.SendMulticastAsync(message);
+                // 1. Validate Payload
+                if (string.IsNullOrWhiteSpace(dto?.Title) || string.IsNullOrWhiteSpace(dto?.Body))
+                {
+                    _logger.LogWarning("NotifyAllStudents - Invalid payload");
+                    return BadRequest(new { Code = "INVALID_PAYLOAD", Message = "Title and Body are required.", Success = false });
+                }
+
+                // 2. Fetch Students with Tokens
+                // We select the whole object so we can identify WHICH student failed later
+                var studentsWithTokens = await _context.Students
+                    .Include(s => s.User)
+                    .Where(s => !string.IsNullOrEmpty(s.FcmToken))
+                    .ToListAsync();
+
+                if (!studentsWithTokens.Any())
+                {
+                    return BadRequest(new { Code = "NO_FCM_TOKENS", Message = "No students have registered FCM tokens.", Success = false });
+                }
+
+                // 3. Loop and Send (Manual Multicast)
+                int successCount = 0;
+                int failureCount = 0;
+                var invalidTokensDetails = new List<object>();
+                var errors = new List<string>();
+
+                // We use a distinct list of tokens to avoid spamming, 
+                // but we map back to students for error reporting if needed.
+                var distinctStudents = studentsWithTokens
+                    .GroupBy(s => s.FcmToken)
+                    .Select(g => g.First()) // Take one student per unique token
+                    .ToList();
+
+                foreach (var student in distinctStudents)
+                {
+                    var message = new Message
+                    {
+                        Token = student.FcmToken,
+                        Notification = new Notification
+                        {
+                            Title = dto.Title,
+                            Body = dto.Body
+                        },
+                        Data = dto.Data ?? new Dictionary<string, string>()
+                    };
+
+                    try
+                    {
+                        // USE THE METHOD WE KNOW WORKS
+                        await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                        successCount++;
+                    }
+                    catch (FirebaseException firebaseEx)
+                    {
+                        failureCount++;
+                        var errorMsg = firebaseEx.Message.ToLower();
+
+                        // Check for invalid tokens (404 or Not Found)
+                        if (errorMsg.Contains("404") || errorMsg.Contains("not found") || errorMsg.Contains("registration token"))
+                        {
+                            // Mark token as null in DB
+                            student.FcmToken = null;
+                            student.UpdatedAt = DateTime.UtcNow;
+
+                            invalidTokensDetails.Add(new
+                            {
+                                StudentId = student.StudentId,
+                                Name = student.User?.FullName,
+                                Reason = "Invalid Token - Removed"
+                            });
+                        }
+                        else
+                        {
+                            errors.Add($"Student {student.StudentId}: {firebaseEx.Message}");
+                        }
+                    }
+                }
+
+                // 4. Save changes if any tokens were removed
+                if (invalidTokensDetails.Any())
+                {
+                    await _context.SaveChangesAsync();
+                }
 
                 return Ok(new
                 {
-                    SuccessCount = response.SuccessCount,
-                    FailureCount = response.FailureCount,
-                    Responses = response.Responses.Select((r, i) => new
-                    {
-                        Token = tokens[i],
-                        Success = r.IsSuccess,
-                        Error = r.Exception?.Message
-                    })
+                    Code = "SUCCESS",
+                    Message = $"Notification sent to {successCount} students.",
+                    TotalAttempted = distinctStudents.Count,
+                    SuccessCount = successCount,
+                    FailureCount = failureCount,
+                    InvalidTokensRemoved = invalidTokensDetails.Count,
+                    InvalidDetails = invalidTokensDetails,
+                    OtherErrors = errors, // Shows why others failed
+                    Success = successCount > 0
                 });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = "Failed to send notifications.", Error = ex.Message });
+                _logger.LogError(ex, "Unexpected error during bulk notification");
+                return StatusCode(500, new { Code = "INTERNAL_ERROR", Message = ex.Message, Success = false });
             }
         }
-        // -----------------------------
-        // Add Job Fair (Admin Only)
-        // -----------------------------
+        // ========================================
+        // DIAGNOSTIC: Check Firebase Configuration
+        // ========================================
 
-        // Update existing AddJobFair endpoint to return proper response
-        [HttpPost("jobfairs")]
-        public async Task<IActionResult> AddJobFair([FromBody] JobFair dto)
+        [HttpGet("firebase/config-check")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> FirebaseConfigCheck()
         {
-            if (string.IsNullOrWhiteSpace(dto.Semester))
-                return BadRequest("Semester name is required.");
-
-            if (dto.IsActive)
+            try
             {
-                var activeFairs = await _context.JobFairs.Where(j => j.IsActive).ToListAsync();
-                foreach (var fair in activeFairs)
+                _logger.LogInformation("Starting Firebase configuration check");
+
+                // Check if Firebase is initialized
+                if (FirebaseApp.DefaultInstance == null)
                 {
-                    fair.IsActive = false;
+                    return StatusCode(503, new
+                    {
+                        Code = "FIREBASE_NOT_INITIALIZED",
+                        Message = "Firebase Admin SDK is not initialized.",
+                        Status = "ERROR",
+                        Timestamp = DateTime.UtcNow
+                    });
+                }
+
+                // Test with a sample message to verify credentials
+                var testMessage = new Message
+                {
+                    Topic = "test-topic-config-check",
+                    Notification = new Notification
+                    {
+                        Title = "Firebase Config Check",
+                        Body = "Testing Firebase configuration"
+                    }
+                };
+
+                try
+                {
+                    string messageId = await FirebaseMessaging.DefaultInstance.SendAsync(testMessage);
+
+                    return Ok(new
+                    {
+                        Code = "FIREBASE_CONFIGURED",
+                        Message = "Firebase is properly configured and operational.",
+                        Status = "SUCCESS",
+                        FirebaseApp = FirebaseApp.DefaultInstance.Name,
+                        TestMessageId = messageId,
+                        Timestamp = DateTime.UtcNow,
+                        Recommendations = new List<string>()
+                    });
+                }
+                catch (FirebaseException firebaseEx)
+                {
+                    return StatusCode(503, new
+                    {
+                        Code = "FIREBASE_MISCONFIGURED",
+                        Message = "Firebase is initialized but has configuration issues.",
+                        Status = "ERROR",
+                        FirebaseErrorCode = firebaseEx.ErrorCode,
+                        FirebaseErrorMessage = firebaseEx.Message,
+                        Recommendations = new List<string>
+                        {
+                            "Verify your Firebase service account JSON file is correct",
+                            "Check that your Firebase project ID matches your credentials",
+                            "Ensure Firebase Cloud Messaging API is enabled in your Google Cloud Console",
+                            "Verify the service account has appropriate permissions"
+                        },
+                        Timestamp = DateTime.UtcNow
+                    });
                 }
             }
-
-            var jobFair = new JobFair
+            catch (Exception ex)
             {
-                Semester = dto.Semester,
-                date = dto.date,
-                IsActive = dto.IsActive
-            };
-
-            _context.JobFairs.Add(jobFair);
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                Message = "Job Fair created successfully.",
-                JobFairId = jobFair.JobFairId,
-                Semester = jobFair.Semester,
-                Date = jobFair.date,
-                IsActive = jobFair.IsActive
-            });
+                _logger.LogError(ex, "Firebase configuration check failed");
+                return StatusCode(500, new
+                {
+                    Code = "CHECK_ERROR",
+                    Message = "An error occurred while checking Firebase configuration.",
+                    Status = "ERROR",
+                    Details = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
         }
 
+        // ========================================
+        // DIAGNOSTIC: Identify Invalid FCM Tokens
+        // ========================================
+
+        [HttpGet("fcm/invalid-tokens-report")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetInvalidTokensReport()
+        {
+            try
+            {
+                _logger.LogInformation("Starting invalid FCM tokens report generation");
+
+                var studentsWithTokens = await _context.Students
+                    .Include(s => s.User)
+                    .Where(s => !string.IsNullOrEmpty(s.FcmToken))
+                    .ToListAsync();
+
+                if (!studentsWithTokens.Any())
+                {
+                    return Ok(new
+                    {
+                        Code = "NO_TOKENS",
+                        Message = "No students have FCM tokens registered.",
+                        TotalStudents = await _context.Students.CountAsync(),
+                        StudentsWithTokens = 0,
+                        InvalidTokens = new List<object>(),
+                        Timestamp = DateTime.UtcNow
+                    });
+                }
+
+                var invalidTokens = new List<object>();
+                var validTokenCount = 0;
+
+                foreach (var student in studentsWithTokens)
+                {
+                    try
+                    {
+                        // Attempt to send a dry-run message to each token
+                        var testMessage = new Message
+                        {
+                            Token = student.FcmToken,
+                            Notification = new Notification
+                            {
+                                Title = "Token Validation",
+                                Body = "Validating your FCM token"
+                            }
+                        };
+
+                        await FirebaseMessaging.DefaultInstance.SendAsync(testMessage);
+                        validTokenCount++;
+                    }
+                    catch (FirebaseException firebaseEx)
+                    {
+                        var errorMessage = firebaseEx.Message ?? "Unknown error";
+                        
+                        // 404 errors indicate invalid/expired tokens
+                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") || 
+                            errorMessage.Contains("registration token"))
+                        {
+                            invalidTokens.Add(new
+                            {
+                                StudentId = student.StudentId,
+                                StudentName = student.User?.FullName,
+                                Email = student.User?.Email,
+                                RegistrationNo = student.RegistrationNo,
+                                Token = $"{student.FcmToken[..20]}... (truncated)",
+                                ErrorType = "INVALID_TOKEN",
+                                ErrorReason = "Token is expired or from a different Firebase project",
+                                Severity = "HIGH"
+                            });
+
+                            _logger.LogWarning(
+                                "Invalid FCM token found - Student: {StudentId}, {StudentName}, Error: {Error}",
+                                student.StudentId, student.User?.FullName, errorMessage);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        invalidTokens.Add(new
+                        {
+                            StudentId = student.StudentId,
+                            StudentName = student.User?.FullName,
+                            Email = student.User?.Email,
+                            RegistrationNo = student.RegistrationNo,
+                            Token = $"{student.FcmToken[..20]}... (truncated)",
+                            ErrorType = "VALIDATION_ERROR",
+                            ErrorReason = ex.Message,
+                            Severity = "MEDIUM"
+                        });
+                    }
+                }
+
+                return Ok(new
+                {
+                    Code = "REPORT_GENERATED",
+                    Message = $"Found {invalidTokens.Count} invalid tokens out of {studentsWithTokens.Count}",
+                    TotalStudents = await _context.Students.CountAsync(),
+                    StudentsWithTokens = studentsWithTokens.Count,
+                    ValidTokens = validTokenCount,
+                    InvalidTokens = invalidTokens.Count,
+                    InvalidTokensPercentage = Math.Round((double)invalidTokens.Count / studentsWithTokens.Count * 100, 2),
+                    DetailedInvalidTokens = invalidTokens,
+                    Recommendations = new List<string>
+                    {
+                        "Run the cleanup endpoint to remove invalid tokens",
+                        "Notify users to log in again to refresh their FCM tokens",
+                        "Verify Firebase project credentials match your mobile app configuration",
+                        "Check if Firebase project ID changed recently"
+                    },
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating invalid tokens report");
+                return StatusCode(500, new
+                {
+                    Code = "REPORT_ERROR",
+                    Message = "An error occurred while generating the report.",
+                    Details = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        // ========================================
+        // ACTION: Clean All Invalid FCM Tokens
+        // ========================================
+
+        [HttpPost("fcm/cleanup-invalid-tokens")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CleanupInvalidTokens()
+        {
+            try
+            {
+                _logger.LogInformation("Starting cleanup of invalid FCM tokens");
+
+                var studentsWithTokens = await _context.Students
+                    .Include(s => s.User)
+                    .Where(s => !string.IsNullOrEmpty(s.FcmToken))
+                    .ToListAsync();
+
+                int removedCount = 0;
+                var removedDetails = new List<object>();
+
+                foreach (var student in studentsWithTokens)
+                {
+                    try
+                    {
+                        var testMessage = new Message
+                        {
+                            Token = student.FcmToken,
+                            Notification = new Notification
+                            {
+                                Title = "Test",
+                                Body = "Test"
+                            }
+                        };
+
+                        await FirebaseMessaging.DefaultInstance.SendAsync(testMessage);
+                    }
+                    catch (FirebaseException firebaseEx)
+                    {
+                        var errorMessage = firebaseEx.Message ?? "Unknown error";
+                        
+                        // Remove invalid tokens
+                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") || 
+                            errorMessage.Contains("registration token"))
+                        {
+                            student.FcmToken = null;
+                            student.UpdatedAt = DateTime.UtcNow;
+                            removedCount++;
+
+                            removedDetails.Add(new
+                            {
+                                StudentId = student.StudentId,
+                                StudentName = student.User?.FullName,
+                                Email = student.User?.Email,
+                                RemovalTime = DateTime.UtcNow,
+                                Reason = "Invalid/expired token"
+                            });
+
+                            _logger.LogInformation(
+                                "Removed invalid FCM token for student: {StudentId}, {StudentName}",
+                                student.StudentId, student.User?.FullName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error validating token for student: {StudentId}", student.StudentId);
+                    }
+                }
+
+                // Save changes if any tokens were removed
+                if (removedCount > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Cleanup complete: Removed {Count} invalid tokens", removedCount);
+                }
+
+                return Ok(new
+                {
+                    Code = "CLEANUP_COMPLETE",
+                    Message = $"Successfully removed {removedCount} invalid FCM tokens",
+                    TotalProcessed = studentsWithTokens.Count,
+                    RemovedCount = removedCount,
+                    RemovedDetails = removedDetails,
+                    NextSteps = new List<string>
+                    {
+                        "Users with removed tokens will need to log in again",
+                        "New FCM tokens will be generated during the next login",
+                        "Monitor notification sending to verify tokens are working"
+                    },
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during FCM token cleanup");
+                return StatusCode(500, new
+                {
+                    Code = "CLEANUP_ERROR",
+                    Message = "An error occurred during cleanup.",
+                    Details = ex.Message,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+        }
+
+        
+
+        // Add this helper method to AdminController to fix CS0103
         private async Task<int?> GetActiveJobFairIdAsync()
         {
-            var active = await _context.JobFairs.FirstOrDefaultAsync(jf => jf.IsActive);
-            return active?.JobFairId;
-        }
-        [HttpGet("jobfairs")]
-        public async Task<IActionResult> GetAllJobFairs([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
-        {
-            _logger.LogInformation("GetAllJobFairs called with page={Page}, pageSize={PageSize}.", page, pageSize);
+            // Example implementation: get the most recent active JobFair
+            var activeJobFair = await _context.JobFairs
+                .Where(jf => jf.IsActive)
+                .OrderByDescending(jf => jf.date)
+                .FirstOrDefaultAsync();
 
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-
-            var query = _context.JobFairs
-                .Include(jf => jf.Students)
-                .Include(jf => jf.Companies)
-                .Include(jf => jf.Interviews)
-                .Include(jf => jf.Rooms)
-                .OrderByDescending(jf => jf.date);
-
-            var totalCount = await query.CountAsync();
-            var jobFairs = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(jf => new
-                {
-                    JobFairId = jf.JobFairId,
-                    Semester = jf.Semester,
-                    Date = jf.date,
-                    IsActive = jf.IsActive,
-                    TotalStudents = jf.Students.Count,
-                    TotalCompanies = jf.Companies.Count,
-                    TotalRooms = jf.Rooms.Count,
-                    TotalInterviews = jf.Interviews.Count,
-                    StudentsHired = jf.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    StudentsShortlisted = jf.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    CreatedAt = jf.date
-                })
-                .ToListAsync();
-
-            return Ok(new
-            {
-                TotalCount = totalCount,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-                JobFairs = jobFairs
-            });
-        }
-        [HttpGet("jobfairs/{jobFairId}/analytics")]
-        public async Task<IActionResult> GetJobFairAnalytics(int jobFairId)
-        {
-            _logger.LogInformation("GetJobFairAnalytics called for jobFairId: {JobFairId}", jobFairId);
-
-            // 1. ⚡ CHECK CACHE FIRST
-            string cacheKey = $"jobfair_analytics_{jobFairId}";
-            if (_cache.TryGetValue(cacheKey, out object cachedData))
-            {
-                _logger.LogInformation("Returning Analytics from Cache 🚀");
-                return Ok(cachedData);
-            }
-
-            // 2. 🐢 FETCH FROM DB (Only if not in cache)
-            // Added AsSplitQuery() to fix the slow database call
-            var jobFair = await _context.JobFairs
-                .AsSplitQuery()
-                .Include(jf => jf.Students)
-                    .ThenInclude(s => s.User)
-                .Include(jf => jf.Companies)
-                    .ThenInclude(c => c.User)
-                .Include(jf => jf.Interviews)
-                    .ThenInclude(i => i.Student)
-                .Include(jf => jf.Rooms)
-                .Include(jf => jf.Jobs)
-                .Include(jf => jf.InterviewRequests)
-                .FirstOrDefaultAsync(jf => jf.JobFairId == jobFairId);
-
-            if (jobFair == null)
-                return NotFound(new { Message = "Job Fair not found." });
-
-            // 3. CALCULATION LOGIC (Same as before)
-            var analytics = new
-            {
-                JobFairId = jobFair.JobFairId,
-                Semester = jobFair.Semester,
-                Date = jobFair.date,
-                IsActive = jobFair.IsActive,
-
-                OverallStats = new
-                {
-                    TotalStudents = jobFair.Students?.Count ?? 0,
-                    TotalCompanies = jobFair.Companies?.Count ?? 0,
-                    TotalRooms = jobFair.Rooms?.Count ?? 0,
-                    TotalJobs = jobFair.Jobs?.Count ?? 0,
-                    TotalInterviews = jobFair.Interviews?.Count ?? 0,
-                    TotalInterviewRequests = jobFair.InterviewRequests?.Count ?? 0
-                },
-
-                InterviewStats = new
-                {
-                    Hired = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Hired) ?? 0,
-                    Shortlisted = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Shortlisted) ?? 0,
-                    Rejected = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Rejected) ?? 0,
-                    Pending = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Queued) ?? 0,
-                    HiringRate = (jobFair.Interviews?.Count ?? 0) > 0
-                        ? Math.Round((double)jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired) / jobFair.Interviews.Count * 100, 2)
-                        : 0
-                },
-
-                StudentsByDepartment = jobFair.Students?
-                    .Where(s => s.Department != null)
-                    .GroupBy(s => s.Department)
-                    .Select(g => new
-                    {
-                        Department = g.Key,
-                        Count = g.Count(),
-                        AverageCGPA = g.Any() ? Math.Round(g.Average(s => s.CGPA), 2) : 0,
-                        Hired = jobFair.Interviews.Count(i => i.Student != null && i.Student.Department == g.Key && i.Status == InterviewStatus.Hired)
-                    })
-                    .ToList() ?? new(),
-
-                CompanyParticipation = jobFair.Companies?
-                    .Select(c => new
-                    {
-                        CompanyId = c.CompanyId,
-                        CompanyName = c.Name ?? "Unknown",
-                        Industry = c.Industry,
-                        LogoUrl = c.LogoUrl,
-                        IsPresent = c.IsPresent,
-                        ArrivalStatus = c.ArrivalStatus.ToString(),
-                        TotalJobs = jobFair.Jobs.Count(j => j.CompanyId == c.CompanyId),
-                        TotalInterviews = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId),
-                        HiredCount = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Hired),
-                        ShortlistedCount = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Shortlisted),
-                        RejectedCount = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Rejected),
-                        InterviewRequestsReceived = jobFair.InterviewRequests.Count(ir => ir.CompanyId == c.CompanyId)
-                    })
-                    .OrderByDescending(c => c.HiredCount)
-                    .ToList() ?? new(),
-
-                StudentParticipation = new
-                {
-                    TotalRegistered = jobFair.Students?.Count ?? 0,
-                    StudentsApplied = jobFair.InterviewRequests?.Select(ir => ir.StudentId).Distinct().Count() ?? 0,
-                    StudentsHired = jobFair.Interviews?.Count(i => i.Status == InterviewStatus.Hired) ?? 0,
-                    ApplicationRate = (jobFair.Students?.Count ?? 0) > 0
-                        ? Math.Round((double)jobFair.InterviewRequests.Select(ir => ir.StudentId).Distinct().Count() / jobFair.Students.Count * 100, 2)
-                        : 0,
-                    HiringRate = (jobFair.InterviewRequests?.Select(ir => ir.StudentId).Distinct().Count() ?? 0) > 0
-                        ? Math.Round((double)jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired) / jobFair.InterviewRequests.Select(ir => ir.StudentId).Distinct().Count() * 100, 2)
-                        : 0
-                },
-
-                TopStudents = jobFair.Students?
-                    .OrderByDescending(s => s.CGPA)
-                    .Take(10)
-                    .Select(s => new
-                    {
-                        StudentId = s.StudentId,
-                        Name = s.User?.FullName ?? "Unknown",
-                        RegistrationNo = s.RegistrationNo,
-                        Department = s.Department,
-                        CGPA = s.CGPA,
-                        InterviewsAttended = jobFair.Interviews.Count(i => i.StudentId == s.StudentId),
-                        Hired = jobFair.Interviews.Any(i => i.StudentId == s.StudentId && i.Status == InterviewStatus.Hired)
-                    })
-                    .ToList() ?? new(),
-
-                RoomUtilization = new
-                {
-                    TotalRooms = jobFair.Rooms?.Count ?? 0,
-                    VacantRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.Vacant) ?? 0,
-                    AllottedRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.Alloted) ?? 0,
-                    TentativeRooms = jobFair.Rooms?.Count(r => r.Status == RoomStatus.TentativelyAlloted) ?? 0,
-                    AllocationRate = (jobFair.Rooms?.Count ?? 0) > 0
-                        ? Math.Round((double)jobFair.Rooms.Count(r => r.Status == RoomStatus.Alloted) / jobFair.Rooms.Count * 100, 2)
-                        : 0
-                }
-            };
-
-            // 4. 💾 SAVE TO CACHE (Expire in 10 minutes)
-            var cacheOptions = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-
-            _cache.Set(cacheKey, analytics, cacheOptions);
-
-            return Ok(analytics);
-        }
-        [HttpGet("jobfairs/{jobFairId}/companies")]
-        public async Task<IActionResult> GetJobFairCompanies(int jobFairId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
-        {
-            _logger.LogInformation("GetJobFairCompanies called for jobFairId: {JobFairId}", jobFairId);
-
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-
-            var jobFair = await _context.JobFairs.FirstOrDefaultAsync(jf => jf.JobFairId == jobFairId);
-            if (jobFair == null)
-                return NotFound(new { Message = "Job Fair not found." });
-
-            var query = _context.Companies
-                .Include(c => c.Room)
-                .Include(c => c.User)
-                .Include(c => c.Interviews)
-                .Include(c => c.Jobs)
-                .Include(c => c.InterviewRequests)
-                .Where(c => c.JobFairId == jobFairId);
-
-            var totalCount = await query.CountAsync();
-            var companies = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(c => new
-                {
-                    CompanyId = c.CompanyId,
-                    Name = c.Name,
-                    Industry = c.Industry,
-                    LogoUrl = c.LogoUrl,
-                    Website = c.Website,
-                    Email = c.CompanyEmail,
-                    Phone = c.CompanyPhone,
-                    FocalPerson = c.FocalPersonName,
-                    Address = c.Address,
-                    IsPresent = c.IsPresent,
-                    ArrivalStatus = c.ArrivalStatus.ToString(),
-                    RoomAssigned = c.Room != null ? new
-                    {
-                        RoomId = c.Room.RoomId,
-                        RoomName = c.Room.RoomName,
-                        Capacity = c.Room.Capacity
-                    } : null,
-                    RepsCount = c.RepsCount,
-                    InterviewDurationMinutes = c.InterviewDurationMinutes,
-                    TotalJobs = c.Jobs.Count,
-                    TotalInterviews = c.Interviews.Count,
-                    HiredCount = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    ShortlistedCount = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    RejectedCount = c.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                    InterviewRequestsReceived = c.InterviewRequests.Count,
-                    CreatedAt = c.CreatedAt
-                })
-                .ToListAsync();
-
-            return Ok(new
-            {
-                JobFairId = jobFairId,
-                TotalCount = totalCount,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-                Companies = companies
-            });
-        }
-
-        // 22. Get Job Fair Students Detail
-        [HttpGet("jobfairs/{jobFairId}/students")]
-        public async Task<IActionResult> GetJobFairStudents(int jobFairId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
-        {
-            _logger.LogInformation("GetJobFairStudents called for jobFairId: {JobFairId}", jobFairId);
-
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-
-            var jobFair = await _context.JobFairs.FirstOrDefaultAsync(jf => jf.JobFairId == jobFairId);
-            if (jobFair == null)
-                return NotFound(new { Message = "Job Fair not found." });
-
-            var query = _context.Students
-                .Include(s => s.User)
-                .Include(s => s.Interviews)
-                .Include(s => s.InterviewRequests)
-                .Where(s => s.JobFairId == jobFairId);
-
-            var totalCount = await query.CountAsync();
-            var students = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(s => new
-                {
-                    StudentId = s.StudentId,
-                    Name = s.User.FullName,
-                    Email = s.User.Email,
-                    Phone = s.User.Phone,
-                    RegistrationNo = s.RegistrationNo,
-                    Department = s.Department,
-                    CGPA = s.CGPA,
-                    ProfilePicUrl = s.ProfilePicUrl,
-                    Skills = s.Skills ?? new List<string>(),
-                    InterviewsAttended = s.Interviews.Count,
-                    InterviewsHired = s.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    InterviewsShortlisted = s.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    InterviewsRejected = s.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                    ApplicationsSent = s.InterviewRequests.Count,
-                    ApplicationsAccepted = s.InterviewRequests.Count(ir => ir.Status == RequestStatus.Accepted),
-                    ApplicationsPending = s.InterviewRequests.Count(ir => ir.Status == RequestStatus.Pending),
-                    ApplicationsRejected = s.InterviewRequests.Count(ir => ir.Status == RequestStatus.Rejected),
-                    CreatedAt = s.CreatedAt
-                })
-                .ToListAsync();
-
-            return Ok(new
-            {
-                JobFairId = jobFairId,
-                TotalCount = totalCount,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-                Students = students
-            });
-        }
-
-        // 23. Get Job Fair Summary Report
-        [HttpGet("jobfairs/{jobFairId}/report")]
-        public async Task<IActionResult> GetJobFairReport(int jobFairId)
-        {
-            _logger.LogInformation("GetJobFairReport called for jobFairId: {JobFairId}", jobFairId);
-
-            var jobFair = await _context.JobFairs
-                .Include(jf => jf.Students)
-                .Include(jf => jf.Companies)
-                .Include(jf => jf.Interviews)
-                .Include(jf => jf.InterviewRequests)
-                .Include(jf => jf.Rooms)
-                .Include(jf => jf.Jobs)
-                .FirstOrDefaultAsync(jf => jf.JobFairId == jobFairId);
-
-            if (jobFair == null)
-                return NotFound(new { Message = "Job Fair not found." });
-
-            var report = new
-            {
-                // --- Header Info ---
-                JobFairId = jobFair.JobFairId,
-                Semester = jobFair.Semester,
-                Date = jobFair.date,
-                IsActive = jobFair.IsActive,
-                GeneratedAt = DateTime.UtcNow,
-
-                // --- Executive Summary ---
-                ExecutiveSummary = new
-                {
-                    TotalStudents = jobFair.Students.Count,
-                    TotalCompanies = jobFair.Companies.Count,
-                    TotalPositions = jobFair.Jobs.Sum(j => j.NumberOfJobs),
-                    TotalApplications = jobFair.InterviewRequests.Count,
-                    TotalInterviewsCompleted = jobFair.Interviews.Count(i =>
-                        i.Status == InterviewStatus.Hired ||
-                        i.Status == InterviewStatus.Shortlisted ||
-                        i.Status == InterviewStatus.Rejected),
-                    TotalHired = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    TotalShortlisted = jobFair.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted)
-                },
-
-                // --- Placement Rate ---
-                PlacementMetrics = new
-                {
-                    StudentPlacementRate = jobFair.Students.Count > 0
-                        ? Math.Round((double)jobFair.Interviews.Count(i => i.Status == InterviewStatus.Hired) / jobFair.Students.Count * 100, 2)
-                        : 0,
-                    AvgApplicationsPerStudent = jobFair.Students.Count > 0
-                        ? Math.Round((double)jobFair.InterviewRequests.Count / jobFair.Students.Count, 2)
-                        : 0,
-                    AvgInterviewsPerStudent = jobFair.Students.Count > 0
-                        ? Math.Round((double)jobFair.Interviews.Count / jobFair.Students.Count, 2)
-                        : 0,
-                    ApplicationSuccessRate = jobFair.InterviewRequests.Count > 0
-                        ? Math.Round((double)jobFair.Interviews.Count / jobFair.InterviewRequests.Count * 100, 2)
-                        : 0
-                },
-
-                // --- Company Performance ---
-                TopRecruiters = jobFair.Companies
-                    .OrderByDescending(c => jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Hired))
-                    .Take(5)
-                    .Select(c => new
-                    {
-                        CompanyId = c.CompanyId,
-                        CompanyName = c.Name,
-                        Industry = c.Industry,
-                        Hired = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Hired),
-                        Shortlisted = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId && i.Status == InterviewStatus.Shortlisted),
-                        Interviewed = jobFair.Interviews.Count(i => i.CompanyId == c.CompanyId)
-                    })
-                    .ToList(),
-
-                // --- Department Wise Placement ---
-                DepartmentPlacement = jobFair.Students
-                    .GroupBy(s => s.Department)
-                    .Select(g => new
-                    {
-                        Department = g.Key,
-                        TotalStudents = g.Count(),
-                        Placed = jobFair.Interviews.Count(i => i.Student.Department == g.Key && i.Status == InterviewStatus.Hired),
-                        PlacementRate = g.Count() > 0
-                            ? Math.Round((double)jobFair.Interviews.Count(i => i.Student.Department == g.Key && i.Status == InterviewStatus.Hired) / g.Count() * 100, 2)
-                            : 0,
-                        AverageCGPA = Math.Round(g.Average(s => s.CGPA), 2)
-                    })
-                    .OrderByDescending(d => d.PlacementRate)
-                    .ToList(),
-
-                // --- Infrastructure ---
-                InfrastructureUtilization = new
-                {
-                    TotalRooms = jobFair.Rooms.Count,
-                    RoomsUtilized = jobFair.Rooms.Count(r => r.CompanyId.HasValue),
-                    UtilizationRate = jobFair.Rooms.Count > 0
-                        ? Math.Round((double)jobFair.Rooms.Count(r => r.CompanyId.HasValue) / jobFair.Rooms.Count * 100, 2)
-                        : 0
-                }
-            };
-
-            return Ok(report);
-        }
-
-        [HttpDelete("notice/{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeleteNotice(int id)
-        {
-            var notice = await _context.Notices.FindAsync(id);
-            if (notice == null)
-                return NotFound("Notice not found.");
-
-            // SOFT DELETE: Just hide it
-            notice.IsHidden = true;
-            notice.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { Message = "Notice has been hidden (Soft Deleted)." });
-        }
-    
-        [HttpPost("notices")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateNotice([FromBody] NoticeCreateDto dto)
-        {
-            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
-            if (activeJobFair == null)
-                return BadRequest("No active Job Fair found. Cannot create notice.");
-
-            var notice = new Notice
-            {
-                Title = dto.Title,
-                Content = dto.Content,
-                Audience = dto.Audience,
-                JobFairId = activeJobFair.JobFairId,
-                IsHidden = false, // Default is visible
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            _context.Notices.Add(notice);
-            await _context.SaveChangesAsync();
-
-            return Ok(new NoticeResponseDto
-            {
-                NoticeId = notice.NoticeId,
-                Title = notice.Title,
-                Content = notice.Content,
-                Audience = notice.Audience.ToString(),
-                IsHidden = notice.IsHidden,
-                CreatedAt = notice.CreatedAt
-            });
-        }
-        // -----------------------------
-        // 2. Get Notices (Dynamic based on Role)
-        // -----------------------------
-        [HttpGet("notices")]
-        [Authorize]
-        public async Task<IActionResult> GetNotices()
-        {
-            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
-            if (activeJobFair == null)
-                return Ok(new List<NoticeResponseDto>());
-
-            var isStudent = User.IsInRole("Student");
-            var isCompany = User.IsInRole("Company");
-            var isAdmin = User.IsInRole("Admin");
-
-            var query = _context.Notices
-                .Where(n => n.JobFairId == activeJobFair.JobFairId)
-                .AsQueryable();
-
-            // --- FILTERING LOGIC ---
-            if (isAdmin)
-            {
-                // Admin sees EVERYTHING (Hidden and Visible)
-                // No IsHidden filter here
-            }
-            else
-            {
-                // Everyone else only sees NOT HIDDEN items
-                query = query.Where(n => n.IsHidden == false);
-
-                if (isStudent)
-                    query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
-                else if (isCompany)
-                    query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
-                else
-                    return Forbid();
-            }
-
-            var notices = await query
-                .OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NoticeResponseDto
-                {
-                    NoticeId = n.NoticeId,
-                    Title = n.Title,
-                    Content = n.Content,
-                    Audience = n.Audience.ToString(),
-                    IsHidden = n.IsHidden,
-                    CreatedAt = n.CreatedAt
-                })
-                .ToListAsync();
-
-            return Ok(notices);
-        }
-        [HttpPut("Notice/{id}/toggle-visibility")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> ToggleVisibility(int id)
-        {
-            var notice = await _context.Notices.FindAsync(id);
-            if (notice == null)
-                return NotFound("Notice not found.");
-
-            // Flip the status
-            notice.IsHidden = !notice.IsHidden;
-            notice.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                Message = notice.IsHidden ? "Notice hidden." : "Notice is now visible.",
-                IsHidden = notice.IsHidden
-            });
-        }
-        // -----------------------------
-        // Update Notice
-        // -----------------------------
-        [HttpPut("notices/{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateNotice(int id, [FromBody] NoticeCreateDto dto)
-        {
-            var notice = await _context.Notices.FindAsync(id);
-            if (notice == null)
-                return NotFound("Notice not found.");
-
-            // Update fields
-            notice.Title = dto.Title;
-            notice.Content = dto.Content;
-            notice.Audience = dto.Audience;
-            notice.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new NoticeResponseDto
-            {
-                NoticeId = notice.NoticeId,
-                Title = notice.Title,
-                Content = notice.Content,
-                Audience = notice.Audience.ToString(),
-                IsHidden = notice.IsHidden,
-                CreatedAt = notice.CreatedAt
-            });
+            return activeJobFair?.JobFairId;
         }
     }
 }

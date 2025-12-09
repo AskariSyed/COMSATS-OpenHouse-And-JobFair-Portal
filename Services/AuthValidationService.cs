@@ -218,6 +218,38 @@ namespace JobFairPortal.Services
             return true;
         }
 
+        public bool ValidateChangePassword(ChangePasswordDto dto, out string? error)
+        {
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(dto?.CurrentPassword))
+            {
+                error = "Current password is required.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < PASSWORD_MIN_LENGTH)
+            {
+                error = $"New password must be at least {PASSWORD_MIN_LENGTH} characters long.";
+                return false;
+            }
+
+            if (dto.NewPassword != dto.ConfirmPassword)
+            {
+                error = "Passwords do not match.";
+                return false;
+            }
+
+            // Prevent using the same password
+            if (dto.CurrentPassword.Equals(dto.NewPassword, StringComparison.Ordinal))
+            {
+                error = "New password must be different from the current password.";
+                return false;
+            }
+
+            return true;
+        }
+
         public bool IsStudentProfileComplete(Student student)
         {
             return !string.IsNullOrWhiteSpace(student.Department)

@@ -521,9 +521,23 @@ namespace JobFairPortal.Controllers
 
             if (user == null)
             {
-                // Security: Don't reveal if email exists
                 _logger.LogInformation("Forgot password request for non-existent email: {Email}", dto.Email);
-                return Ok(new { Message = "If the email exists in our system, a password reset link has been sent." });
+                return BadRequest(new
+                {
+                    Code = "ACCOUNT_NOT_FOUND",
+                    Message = "No account found with this email address. Please verify your email and try again."
+                });
+            }
+
+            // Check if account is a student account
+            if (user.Role != UserRole.Student)
+            {
+                _logger.LogWarning("Forgot password request - non-student account: {Email}, Role: {Role}", dto.Email, user.Role);
+                return BadRequest(new
+                {
+                    Code = "INVALID_ACCOUNT_TYPE",
+                    Message = $"This email belongs to a {user.Role} account. Please use the OTP method or contact support."
+                });
             }
 
             try
@@ -676,25 +690,52 @@ namespace JobFairPortal.Controllers
 
             var input = dto.EmailOrRegNo.Trim();
             User? user = null;
+            bool isRegistrationNo = false;
 
+            // Check if input is Registration No or Email
             if (Regex.IsMatch(input, REGISTRATION_NO_PATTERN, RegexOptions.IgnoreCase))
             {
+                isRegistrationNo = true;
                 var student = await _context.Students
                     .Include(s => s.User)
                     .FirstOrDefaultAsync(s => s.RegistrationNo.ToUpper() == input.ToUpper());
                 user = student?.User;
+
+                if (user == null)
+                {
+                    _logger.LogWarning("Password reset OTP request - student account not found for registration number: {RegistrationNo}", input);
+                    return BadRequest(new
+                    {
+                        Code = "STUDENT_NOT_FOUND",
+                        Message = "No student account found with this registration number. Please verify your registration number and try again."
+                    });
+                }
             }
             else
             {
                 user = await _context.Users.FirstOrDefaultAsync(u =>
                     u.Email.ToLower() == input.ToLower());
-            }
 
-            if (user == null)
-            {
-                // Security: Don't reveal if user exists
-                _logger.LogInformation("Password reset OTP request for non-existent account: {Input}", input);
-                return Ok(new { Message = "If the account exists, an OTP has been sent to the registered email." });
+                if (user == null)
+                {
+                    _logger.LogWarning("Password reset OTP request - user account not found for email: {Email}", input);
+                    return BadRequest(new
+                    {
+                        Code = "ACCOUNT_NOT_FOUND",
+                        Message = "No account found with this email address. Please verify your email and try again."
+                    });
+                }
+
+                // If it's an email, check if it's a student account
+                if (user.Role != UserRole.Student)
+                {
+                    _logger.LogWarning("Password reset OTP request - non-student account attempt: {Email}, Role: {Role}", input, user.Role);
+                    return BadRequest(new
+                    {
+                        Code = "INVALID_ACCOUNT_TYPE",
+                        Message = $"This email belongs to a {user.Role} account, not a student account. Please use the correct email."
+                    });
+                }
             }
 
             try
@@ -713,19 +754,20 @@ namespace JobFairPortal.Controllers
 
                 await SendPasswordResetOtpEmail(user.Email, user.FullName, otp);
 
-                _logger.LogInformation("Password reset OTP sent for user: {UserId}", user.UserId);
+                _logger.LogInformation("Password reset OTP sent successfully for user: {UserId}, Email: {Email}", user.UserId, user.Email);
 
                 return Ok(new
                 {
-                    Message = "OTP has been sent to your registered email.",
+                    Message = "OTP has been sent to your registered email address.",
                     ExpiryMinutes = OTP_EXPIRY_MINUTES,
-                    UserId = user.UserId
+                    UserId = user.UserId,
+                    Email = user.Email
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending password reset OTP for user: {UserId}", user.UserId);
-                return StatusCode(500, new { Message = "Failed to send OTP. Please try again." });
+                return StatusCode(500, new { Message = "Failed to send OTP. Please try again later." });
             }
         }
 
@@ -787,6 +829,64 @@ namespace JobFairPortal.Controllers
             {
                 _logger.LogError(ex, "Error during OTP password reset for user: {UserId}", dto.UserId);
                 return StatusCode(500, new { Message = "An error occurred during password reset. Please try again." });
+            }
+        }
+
+        // ========================================
+        // CHANGE PASSWORD (AUTHENTICATED USER)
+        // ========================================
+
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            if (!_validationService.ValidateChangePassword(dto, out var validationError))
+                return BadRequest(validationError);
+
+            // Get the authenticated user's ID from the JWT token
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                _logger.LogWarning("Change password failed - unable to extract user ID from token");
+                return Unauthorized("Invalid authentication token.");
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId);
+            if (user == null)
+            {
+                _logger.LogWarning("Change password failed - user not found: {UserId}", userId);
+                return NotFound("User not found.");
+            }
+
+            // Verify current password
+            if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            {
+                _logger.LogWarning("Change password failed - invalid current password for user: {UserId}", userId);
+                return BadRequest("Current password is incorrect.");
+            }
+
+            try
+            {
+                // Update password
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+                user.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                // Send confirmation email
+                await SendPasswordChangedEmail(user.Email, user.FullName);
+
+                _logger.LogInformation("Password changed successfully for user: {UserId}", userId);
+
+                return Ok(new
+                {
+                    Message = "Password changed successfully.",
+                    UserId = user.UserId,
+                    Email = user.Email
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during password change for user: {UserId}", userId);
+                return StatusCode(500, new { Message = "An error occurred while changing your password. Please try again." });
             }
         }
 
