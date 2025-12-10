@@ -30,18 +30,30 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
 
   // --- NAVIGATION CONTROLLER ---
 
-  if (selectedStudentId) {
+  if (selectedProjectId) {
     return (
       <div className="max-w-6xl mx-auto animate-fade-in py-6">
-        <StudentProfile studentId={selectedStudentId} onBack={() => setSelectedStudentId(null)} />
+        <FYPDetails 
+          projectId={selectedProjectId} 
+          onBack={() => setSelectedProjectId(null)} 
+          onSelectStudent={safeSelectStudent} 
+          onError={onError} 
+        />
       </div>
     );
   }
 
-  if (activeTab === 'fyps' && selectedProjectId) {
+  if (selectedStudentId) {
     return (
       <div className="max-w-6xl mx-auto animate-fade-in py-6">
-        <FYPDetails projectId={selectedProjectId} onBack={() => setSelectedProjectId(null)} onSelectStudent={safeSelectStudent} onError={onError} />
+        <StudentProfile 
+          studentId={selectedStudentId} 
+          onBack={() => setSelectedStudentId(null)} 
+          onViewFYP={(projectId) => {
+            setSelectedStudentId(null);
+            setSelectedProjectId(projectId);
+          }}
+        />
       </div>
     );
   }

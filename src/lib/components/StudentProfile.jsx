@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, Github, Linkedin, Globe, Send, CheckCircle2, XCircle, Clock, Calendar, Phone } from 'lucide-react';
+import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, Github, Linkedin, Globe, Send, CheckCircle2, XCircle, Clock, Calendar, Phone, Play, Twitter, Facebook, Instagram, Briefcase as Portfolio } from 'lucide-react';
 import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest } from '../api';
+import { getThumbnailUrl, getYoutubeId } from '../utils/videoUtils';
 
-export default function StudentProfile({ studentId, onBack }) {
+export default function StudentProfile({ studentId, onBack, onViewFYP }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); 
-
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!studentId) return;
@@ -28,12 +26,12 @@ export default function StudentProfile({ studentId, onBack }) {
     finally { setActionLoading(false); }
   };
 
-  const handleAcceptRequest = async (e) => {
-    e.preventDefault();
+  const handleAcceptRequest = async () => {
     const reqId = profile.interviewRequest?.requestId || profile.InterviewRequest?.RequestId;
     if (!reqId) return;
+    if (!window.confirm("Accept this interview request?")) return;
     setActionLoading(true);
-    try { await acceptInterviewRequest(reqId, scheduleTime); setShowScheduleModal(false); setRefreshKey(k => k + 1); } 
+    try { await acceptInterviewRequest(reqId); setRefreshKey(k => k + 1); } 
     catch (err) { alert(err.message); } 
     finally { setActionLoading(false); }
   };
@@ -91,8 +89,8 @@ export default function StudentProfile({ studentId, onBack }) {
       if (isStudentRequest) {
          return (
             <div className="flex gap-3 items-center">
-                <button onClick={() => setShowScheduleModal(true)} disabled={actionLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold bg-green-600 hover:bg-green-700 text-white shadow-md transition-all transform hover:-translate-y-0.5">
-                  <CheckCircle2 className="w-4 h-4" /> Accept & Schedule
+                <button onClick={handleAcceptRequest} disabled={actionLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold bg-green-600 hover:bg-green-700 text-white shadow-md transition-all transform hover:-translate-y-0.5">
+                  <CheckCircle2 className="w-4 h-4" /> Accept Request
                 </button>
                 <button onClick={handleRejectRequest} disabled={actionLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold bg-white border border-gray-300 text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 shadow-sm transition-all transform hover:-translate-y-0.5">
                   <XCircle className="w-4 h-4" /> Reject
@@ -115,7 +113,7 @@ export default function StudentProfile({ studentId, onBack }) {
   if (loading) return <div className="h-96 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600 w-8 h-8" /></div>;
   if (!profile) return <div className="text-center text-red-500 p-8">Failed to load profile.</div>;
 
-  const { user, educations, experiences, projects, skills, contactLinks } = profile;
+  const { user, educations, experiences, projects, skills, contactLinks, certifications, achievements } = profile;
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-10">
@@ -172,115 +170,253 @@ export default function StudentProfile({ studentId, onBack }) {
               </div>
               
               <div className="flex gap-2">
-                 {contactLinks?.map((link, i) => (
-                   <a key={i} href={link.url} target="_blank" rel="noreferrer" className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                     <Globe className="w-4 h-4" />
-                   </a>
-                 ))}
+                 {contactLinks?.map((link, i) => {
+                   const platform = link.platform?.toLowerCase() || 'other';
+                   let Icon = Globe;
+                   let hoverColor = 'hover:text-blue-600';
+                   
+                   if (platform === 'linkedin') {
+                     Icon = Linkedin;
+                     hoverColor = 'hover:text-blue-700';
+                   } else if (platform === 'github') {
+                     Icon = Github;
+                     hoverColor = 'hover:text-gray-900';
+                   } else if (platform === 'portfolio') {
+                     Icon = Portfolio;
+                     hoverColor = 'hover:text-purple-600';
+                   } else if (platform === 'twitter') {
+                     Icon = Twitter;
+                     hoverColor = 'hover:text-sky-500';
+                   } else if (platform === 'facebook') {
+                     Icon = Facebook;
+                     hoverColor = 'hover:text-blue-600';
+                   } else if (platform === 'instagram') {
+                     Icon = Instagram;
+                     hoverColor = 'hover:text-pink-600';
+                   }
+                   
+                   return (
+                     <a 
+                       key={i} 
+                       href={link.url} 
+                       target="_blank" 
+                       rel="noreferrer" 
+                       className={`p-2 text-gray-400 ${hoverColor} hover:bg-blue-50 rounded-lg transition-all`}
+                       title={link.platform}
+                     >
+                       <Icon className="w-4 h-4" />
+                     </a>
+                   );
+                 })}
               </div>
            </div>
         </div>
       </div>
 
-      {/* --- CONTENT GRID (Unchanged Layout) --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         {/* Left Sidebar */}
+      {/* --- BALANCED 2-COLUMN LAYOUT --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         
+         {/* LEFT COLUMN */}
          <div className="space-y-6">
+            {/* Skills */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-               <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider"><Award className="w-4 h-4 text-blue-600" /> Skills</h3>
+               <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
+                  <Award className="w-4 h-4 text-blue-600" /> Skills
+               </h3>
                <div className="flex flex-wrap gap-2">
-                  {skills?.length > 0 ? skills.map(s => (
-                     <span key={s} className="bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium">
+                  {skills?.length > 0 ? skills.map((s, idx) => (
+                     <span key={idx} className="bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium">
                         {s}
                      </span>
                   )) : <span className="text-gray-400 text-sm italic">No skills listed.</span>}
                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-               <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider"><Briefcase className="w-4 h-4 text-blue-600" /> Experience</h3>
-               <div className="space-y-6">
-                  {experiences?.length > 0 ? experiences.map((exp, i) => (
-                     <div key={i} className="relative pl-4 border-l-2 border-gray-100">
-                        <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-gray-300"></div>
-                        <h4 className="font-bold text-sm text-gray-900">{exp.role}</h4>
-                        <p className="text-xs text-gray-500 font-medium">{exp.companyName}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">{new Date(exp.startDate).getFullYear()} - {exp.isCurrent ? 'Present' : new Date(exp.endDate).getFullYear()}</p>
-                     </div>
-                  )) : <span className="text-gray-400 text-sm italic">No experience listed.</span>}
-               </div>
-            </div>
-         </div>
-
-         {/* Main Content */}
-         <div className="lg:col-span-2 space-y-6">
             {/* Education */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6 text-lg">Education</h3>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6">Education</h3>
                <div className="space-y-6">
                   {educations?.length > 0 ? educations.map((edu, i) => (
-                     <div key={i} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                        <div>
-                           <h4 className="font-bold text-gray-800 text-base">{edu.institutionName}</h4>
-                           <p className="text-sm text-gray-500">{edu.degree} in {edu.fieldOfStudy}</p>
+                     <div key={i} className="space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                           <h4 className="font-bold text-gray-800">{edu.institutionName}</h4>
+                           <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-full whitespace-nowrap">
+                              {new Date(edu.startDate).getFullYear()} - {edu.isCurrent ? 'Present' : new Date(edu.endDate).getFullYear()}
+                           </span>
                         </div>
-                        <span className="text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1 rounded-full whitespace-nowrap self-start">
-                           {new Date(edu.startDate).getFullYear()} - {new Date(edu.endDate).getFullYear()}
-                        </span>
+                        <p className="text-sm text-gray-600">{edu.degree} in {edu.fieldOfStudy}</p>
+                        {edu.location && <p className="text-xs text-gray-500">{edu.location}</p>}
+                        {edu.cgpa && <p className="text-xs text-gray-500">CGPA: <span className="font-semibold text-blue-600">{edu.cgpa.toFixed(2)}</span></p>}
                      </div>
                   )) : <div className="text-gray-400 italic">No education details.</div>}
                </div>
             </div>
 
-            {/* Projects */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6 text-lg">Projects</h3>
-               <div className="grid grid-cols-1 gap-4">
-                  {projects?.length > 0 ? projects.map(p => (
-                     <div key={p.projectId} className="group bg-white border border-gray-200 p-5 rounded-xl hover:border-blue-300 transition-all hover:shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                           <h4 className="font-bold text-blue-700 group-hover:text-blue-800">{p.title}</h4>
-                           <span className="text-[10px] uppercase font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">{p.type}</span>
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{p.description}</p>
+            {/* Experience */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6">
+                  <Briefcase className="w-4 h-4 text-blue-600 inline mr-2" /> Experience
+               </h3>
+               <div className="space-y-6">
+                  {experiences?.length > 0 ? experiences.map((exp, i) => (
+                     <div key={i} className="relative pl-4 border-l-2 border-blue-100">
+                        <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                        <h4 className="font-bold text-sm text-gray-900">{exp.role}</h4>
+                        <p className="text-sm text-gray-600 font-medium">{exp.companyName}</p>
+                        {exp.location && <p className="text-xs text-gray-500">{exp.location}</p>}
+                        <p className="text-xs text-gray-400 mt-1">
+                           {new Date(exp.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} - {exp.isCurrent ? 'Present' : new Date(exp.endDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </p>
+                        {exp.description && <p className="text-xs text-gray-600 mt-2 leading-relaxed">{exp.description}</p>}
                      </div>
-                  )) : <div className="text-gray-400 italic">No projects listed.</div>}
+                  )) : <span className="text-gray-400 text-sm italic">No experience listed.</span>}
+               </div>
+            </div>
+
+            {/* Certifications */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-blue-600" /> Certifications
+               </h3>
+               <div className="space-y-4">
+                  {certifications?.length > 0 ? certifications.map((cert) => (
+                     <div key={cert.certificationId} className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-all bg-blue-50/30">
+                        <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-bold text-gray-900">{cert.title}</h4>
+                           {cert.issueDate && (
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full whitespace-nowrap">
+                                 {new Date(cert.issueDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              </span>
+                           )}
+                        </div>
+                        {cert.issuer && (
+                           <p className="text-sm text-gray-700 font-medium mb-1">{cert.issuer}</p>
+                        )}
+                        {cert.credentialId && (
+                           <p className="text-xs text-gray-600 mb-2">ID: {cert.credentialId}</p>
+                        )}
+                        {cert.credentialUrl && (
+                           <a href={cert.credentialUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium">
+                              View Certificate <Globe className="w-3 h-3" />
+                           </a>
+                        )}
+                     </div>
+                  )) : <div className="text-gray-400 italic">No certifications listed.</div>}
+               </div>
+            </div>
+         </div>
+
+         {/* RIGHT COLUMN */}
+         <div className="space-y-6">
+            {/* Projects */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6">Projects</h3>
+               <div className="space-y-4">
+                  {projects?.length > 0 ? projects.map(p => {
+                     const isFYP = p.type?.toLowerCase() === 'finalyear';
+                     const youtubeId = p.demoUrl ? getYoutubeId(p.demoUrl) : null;
+                     const thumbnail = youtubeId ? getThumbnailUrl(p.demoUrl) : null;
+                     
+                     return (
+                        <div 
+                           key={p.projectId} 
+                           className={`group bg-gradient-to-br from-blue-50 to-white border border-gray-200 p-5 rounded-xl hover:border-blue-300 transition-all hover:shadow-md ${
+                              isFYP && onViewFYP ? 'cursor-pointer' : ''
+                           }`}
+                           onClick={() => isFYP && onViewFYP && onViewFYP(p.projectId)}
+                        >
+                           <div className="flex gap-4">
+                              {/* YouTube Thumbnail - Left Side */}
+                              {thumbnail && (
+                                 <div className="relative w-32 flex-shrink-0 rounded-lg overflow-hidden group">
+                                    <img 
+                                       src={thumbnail} 
+                                       alt={p.title}
+                                       className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                       <Play className="w-8 h-8 text-white" />
+                                    </div>
+                                 </div>
+                              )}
+                              
+                              {/* Project Details - Right Side */}
+                              <div className="flex-1 min-w-0">
+                                 <div className="flex justify-between items-start mb-2">
+                                    <h4 className="font-bold text-blue-700 group-hover:text-blue-800">{p.title}</h4>
+                                    <span className="text-[10px] uppercase font-bold bg-white text-gray-700 px-2 py-1 rounded border border-gray-200 ml-2">{p.type}</span>
+                                 </div>
+                                 <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{p.description}</p>
+                           
+                                 {(p.demoUrl || p.gitHubUrl) && (
+                                    <div className="flex gap-2 mt-3">
+                                       {p.gitHubUrl && (
+                                          <a 
+                                             href={p.gitHubUrl} 
+                                             target="_blank" 
+                                             rel="noreferrer" 
+                                             className="text-xs text-gray-600 hover:text-blue-600 flex items-center gap-1"
+                                             onClick={(e) => e.stopPropagation()}
+                                          >
+                                             <Github className="w-3 h-3" /> GitHub
+                                          </a>
+                                       )}
+                                       {p.demoUrl && !youtubeId && (
+                                          <a 
+                                             href={p.demoUrl} 
+                                             target="_blank" 
+                                             rel="noreferrer" 
+                                             className="text-xs text-gray-600 hover:text-blue-600 flex items-center gap-1"
+                                             onClick={(e) => e.stopPropagation()}
+                                          >
+                                             <Globe className="w-3 h-3" /> Demo
+                                          </a>
+                                       )}
+                                    </div>
+                                 )}
+                           
+                                 {isFYP && onViewFYP && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                       <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                                          Click to view full project details <ChevronRight className="w-3 h-3" />
+                                       </span>
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
+                        </div>
+                     );
+                  }) : <div className="text-gray-400 italic">No projects listed.</div>}
+               </div>
+            </div>
+
+            {/* Achievements */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-yellow-600" /> Achievements
+               </h3>
+               <div className="space-y-4">
+                  {achievements?.length > 0 ? achievements.map((achievement) => (
+                     <div key={achievement.achievementId} className="border border-gray-200 rounded-xl p-4 hover:border-yellow-300 transition-all bg-yellow-50/30">
+                        <div className="flex justify-between items-start mb-2">
+                           <h4 className="font-bold text-gray-900">{achievement.title}</h4>
+                           {achievement.dateAchieved && (
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full whitespace-nowrap">
+                                 {new Date(achievement.dateAchieved).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              </span>
+                           )}
+                        </div>
+                        {achievement.description && (
+                           <p className="text-sm text-gray-700 leading-relaxed">{achievement.description}</p>
+                        )}
+                     </div>
+                  )) : <div className="text-gray-400 italic">No achievements listed.</div>}
                </div>
             </div>
          </div>
       </div>
 
-      {/* SCHEDULE MODAL */}
-      {showScheduleModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-fade-in-down border border-gray-100">
-                <div className="flex items-center gap-3 mb-6 text-blue-600 bg-blue-50 p-3 rounded-xl">
-                    <Calendar className="w-6 h-6" />
-                    <h3 className="text-lg font-bold text-gray-900">Schedule Interview</h3>
-                </div>
-                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                   You are accepting a request from <strong className="text-gray-900">{user?.fullName}</strong>. 
-                   Please select a time slot for the interview.
-                </p>
-                <form onSubmit={handleAcceptRequest}>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Date & Time</label>
-                    <input 
-                        type="datetime-local" 
-                        required
-                        value={scheduleTime}
-                        onChange={e => setScheduleTime(e.target.value)}
-                        className="w-full border border-gray-300 rounded-xl p-3 mb-6 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-gray-50 focus:bg-white" 
-                    />
-                    <div className="flex gap-3">
-                        <button type="button" onClick={() => setShowScheduleModal(false)} className="flex-1 py-3 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-                        <button type="submit" disabled={actionLoading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold flex justify-center items-center gap-2 shadow-lg shadow-blue-200 transition-all">
-                            {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Confirm'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-      )}
+
 
     </div>
   );

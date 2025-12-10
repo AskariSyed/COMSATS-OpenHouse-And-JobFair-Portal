@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2 } from 'lucide-react';
+import logo from '../../assets/CuiWahJobFairLogo.png';
 
 export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -52,9 +53,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
       >
         {/* Sidebar Header */}
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center font-bold text-white shadow-lg">
-            CP
-          </div>
+          <img src={logo} alt="CUI Wah Job Fair" className="w-10 h-10 rounded-xl object-contain" />
           <div>
             <h1 className="font-bold text-lg tracking-tight">Company Portal</h1>
             <p className="text-xs text-slate-500 font-medium">Recruiter Dashboard</p>
@@ -96,7 +95,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <header className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2 font-bold text-gray-900">
-             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs">JP</div>
+             <img src={logo} alt="CUI Wah Job Fair" className="w-8 h-8 rounded-lg object-contain" />
              JobFair
           </div>
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">

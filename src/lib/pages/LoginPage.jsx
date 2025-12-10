@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Building2, Loader2, Lock, Mail, ArrowRight, Sparkles, KeyRound, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { login, verifyOtp } from '../api';
 import { requestFcmToken } from '../firebase';
+import logo from '../../assets/CuiWahJobFairLogo.png';
 
 export default function LoginPage({ onLogin, onNavigate, onError }) {
   const [role] = useState('Company');
@@ -13,9 +14,21 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
   // New State to toggle OTP View
   const [showOtpInput, setShowOtpInput] = useState(false);
 
+  // --- VALIDATION ---
+  const validateEmail = (email) => {
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  };
+
   // --- LOGIN HANDLER ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate email
+    if (!validateEmail(email)) {
+      onError("Please enter a valid email address.");
+      return;
+    }
     setLoading(true);
     
     try {
@@ -45,6 +58,13 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
   // --- OTP VERIFICATION HANDLER ---
   const handleVerify = async (e) => {
     e.preventDefault();
+    
+    // Validate OTP (digits only, 6 characters)
+    if (!/^\d{6}$/.test(otp)) {
+      onError("OTP must be 6 digits.");
+      return;
+    }
+    
     setLoading(true);
     try {
       // Assuming UserEmail and RepEmail are the same for the focal person
@@ -74,9 +94,7 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
         </div>
 
         <div className="relative z-10 flex items-center gap-3 text-white">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-900/50">
-            <Building2 className="w-6 h-6" />
-          </div>
+          <img src={logo} alt="CUI Wah Job Fair" className="w-10 h-10 rounded-lg object-contain" />
           <span className="text-2xl font-bold tracking-tight">CUI Wah JobFair Company Portal</span>
         </div>
 
@@ -94,7 +112,7 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
         </div>
 
         <div className="relative z-10 text-slate-500 text-sm">
-          © 2024 CUI Wah Campus. All rights reserved.
+          © 2025 CUI Wah Campus. All rights reserved.
         </div>
       </div>
 
@@ -104,9 +122,7 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
           
           {/* HEADER TEXT */}
           <div className="text-center lg:text-left">
-             <div className="lg:hidden w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg">
-               <Building2 className="w-6 h-6" />
-             </div>
+             <img src={logo} alt="CUI Wah Job Fair" className="lg:hidden w-12 h-12 rounded-xl mx-auto mb-4 object-contain" />
              <h2 className="text-3xl font-bold text-gray-900">
                {showOtpInput ? "Verify Account" : "Welcome Back"}
              </h2>

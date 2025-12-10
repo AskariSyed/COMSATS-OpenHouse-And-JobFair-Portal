@@ -29,6 +29,29 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
 
   const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
 
+  // --- VALIDATION ---
+  const validateEmail = (email) => {
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const phoneRegex = /^\d{11}$/;
+    return phoneRegex.test(phone);
+  };
+
+  const validatePassword = (password) => {
+    // At least 8 characters, one uppercase, one lowercase, one digit, one special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return passwordRegex.test(password);
+  };
+
+  const validateWebsite = (url) => {
+    if (!url) return true; // Optional field
+    const urlRegex = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+(\/[^\s]*)?$/;
+    return urlRegex.test(url);
+  };
+
   // --- JOB LOGIC ---
   const addJob = () => setJobs([...jobs, { JobTitle: '', JobDescription: '', JobCount: 1, Type: 0, SelectedSkills: [] }]);
   const removeJob = (index) => { if (jobs.length > 1) setJobs(jobs.filter((_, i) => i !== index)); };
@@ -55,8 +78,34 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
 
   // --- NAVIGATION & SUBMISSION ---
   const nextStep = () => {
-    if (currentStep === 1 && (!formData.UserFullName || !formData.UserEmail || !formData.UserPassword || !formData.FocalPersonPhone)) return onError("Please fill all representative details.");
-    if (currentStep === 2 && (!formData.Name || !formData.Address)) return onError("Company Name and Address are required.");
+    if (currentStep === 1) {
+      if (!formData.UserFullName || !formData.UserEmail || !formData.UserPassword || !formData.FocalPersonPhone) {
+        return onError("Please fill all representative details.");
+      }
+      if (!validateEmail(formData.UserEmail)) {
+        return onError("Please enter a valid email address.");
+      }
+      if (!validatePhone(formData.FocalPersonPhone)) {
+        return onError("Phone number must be exactly 11 digits.");
+      }
+      if (!validatePassword(formData.UserPassword)) {
+        return onError("Password must be at least 8 characters with one uppercase, one lowercase, one digit, and one special character.");
+      }
+    }
+    if (currentStep === 2) {
+      if (!formData.Name || !formData.Address) {
+        return onError("Company Name and Address are required.");
+      }
+      if (formData.CompanyEmail && !validateEmail(formData.CompanyEmail)) {
+        return onError("Please enter a valid company email address.");
+      }
+      if (formData.CompanyPhone && !validatePhone(formData.CompanyPhone)) {
+        return onError("Company phone must be exactly 11 digits.");
+      }
+      if (formData.Website && !validateWebsite(formData.Website)) {
+        return onError("Please enter a valid website URL.");
+      }
+    }
     setCurrentStep(prev => prev + 1);
   };
 
@@ -88,6 +137,12 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
   };
 
   const handleVerify = async () => {
+    // Validate OTP (digits only, 6 characters)
+    if (!/^\d{6}$/.test(otp)) {
+      onError("OTP must be 6 digits.");
+      return;
+    }
+    
     setLoading(true);
     try {
       await verifyOtp(formData.UserEmail, formData.UserEmail, otp);
@@ -149,10 +204,10 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Representative Details</h2>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <InputGroup label="Full Name" icon={User} name="UserFullName" value={formData.UserFullName} onChange={handleChange} placeholder="e.g. Ali Khan" />
-                   <InputGroup label="Direct Phone" icon={Phone} name="FocalPersonPhone" value={formData.FocalPersonPhone} onChange={handleChange} placeholder="0300-1234567" />
+                   <InputGroup label="Direct Phone" icon={Phone} name="FocalPersonPhone" value={formData.FocalPersonPhone} onChange={handleChange} placeholder="03001234567" pattern="\d{11}" title="Phone number must be exactly 11 digits" />
                  </div>
                  <InputGroup label="Work Email (Login ID)" icon={Mail} type="email" name="UserEmail" value={formData.UserEmail} onChange={handleChange} placeholder="ali@company.com" />
-                 <InputGroup label="Password" icon={CheckCircle2} type="password" name="UserPassword" value={formData.UserPassword} onChange={handleChange} placeholder="Create a strong password" />
+                 <InputGroup label="Password" icon={CheckCircle2} type="password" name="UserPassword" value={formData.UserPassword} onChange={handleChange} placeholder="Create a strong password" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}" title="Password must be at least 8 characters with one uppercase, one lowercase, one digit, and one special character (@$!%*?&)" />
                </div>
              )}
 
@@ -169,11 +224,11 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                           {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
                         </select>
                       </div>
-                      <InputGroup label="Official Phone" icon={Phone} name="CompanyPhone" value={formData.CompanyPhone} onChange={handleChange} />
+                      <InputGroup label="Official Phone" icon={Phone} name="CompanyPhone" value={formData.CompanyPhone} onChange={handleChange} pattern="\d{11}" title="Phone number must be exactly 11 digits" />
                    </div>
 
                    <InputGroup label="Official Email" icon={Mail} type="email" name="CompanyEmail" value={formData.CompanyEmail} onChange={handleChange} />
-                   <InputGroup label="Website URL" icon={Globe} name="Website" value={formData.Website} onChange={handleChange} placeholder="https://" />
+                   <InputGroup label="Website URL" icon={Globe} name="Website" value={formData.Website} onChange={handleChange} placeholder="https://example.com" pattern="(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+(\/.*)? " title="Please enter a valid website URL" />
                    <InputGroup label="Headquarters Address" icon={MapPin} name="Address" value={formData.Address} onChange={handleChange} />
                    
                    <div>
@@ -253,7 +308,9 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                    type="text" 
                    maxLength={6}
                    value={otp}
-                   onChange={(e) => setOtp(e.target.value)}
+                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                   pattern="\d{6}"
+                   title="OTP must be 6 digits"
                    className="text-center text-4xl tracking-[0.5em] font-bold w-full max-w-xs mx-auto block p-4 border-b-2 border-gray-300 focus:border-blue-600 outline-none mb-8 font-mono bg-transparent transition-colors"
                    placeholder="000000"
                  />
@@ -311,7 +368,7 @@ function StepItem({ step, current, title, desc }) {
   );
 }
 
-function InputGroup({ label, name, value, onChange, type = "text", placeholder, icon: Icon }) {
+function InputGroup({ label, name, value, onChange, type = "text", placeholder, icon: Icon, pattern, title }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
@@ -319,6 +376,7 @@ function InputGroup({ label, name, value, onChange, type = "text", placeholder, 
         {Icon && <Icon className="absolute left-3.5 top-3.5 w-5 h-5 text-gray-400" />}
         <input 
           type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
+          pattern={pattern} title={title}
           className={`w-full ${Icon ? 'pl-11' : 'pl-4'} pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-400`} 
         />
       </div>

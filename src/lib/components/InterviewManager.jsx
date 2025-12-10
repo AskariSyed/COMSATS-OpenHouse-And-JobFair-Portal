@@ -1,20 +1,20 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import { getPendingInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl } from '../api';
+import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl } from '../api';
 
 export default function InterviewManager({ onError }) {
-  const [activeTab, setActiveTab] = useState('pending'); // pending | scheduled
+  const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); 
   
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [acceptedRequests, setAcceptedRequests] = useState([]);
   const [scheduledInterviews, setScheduledInterviews] = useState([]);
   const [stats, setStats] = useState(null);
 
   // Modal States
   const [actionModal, setActionModal] = useState(null); // { type: 'accept' | 'reject', request: ... }
-  const [scheduleTime, setScheduleTime] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
@@ -22,9 +22,11 @@ export default function InterviewManager({ onError }) {
     setLoading(true);
     Promise.all([
       getPendingInterviewRequests(),
+      getAllInterviewRequests('Accepted'),
       getAnalytics()
-    ]).then(([requestsData, analyticsData]) => {
+    ]).then(([requestsData, acceptedData, analyticsData]) => {
       setPendingRequests(requestsData.pendingRequests || []);
+      setAcceptedRequests(acceptedData.requests || []);
       setScheduledInterviews(analyticsData.interviews?.scheduledInterviews || []);
       setStats(analyticsData.summary);
     })
@@ -32,12 +34,10 @@ export default function InterviewManager({ onError }) {
     .finally(() => setLoading(false));
   }, [refreshKey, onError]);
 
-  const handleAccept = async (e) => {
-    e.preventDefault();
-    if (!scheduleTime) return onError("Please select a date and time");
+  const handleAccept = async () => {
     setProcessing(true);
     try {
-      await acceptInterviewRequest(actionModal.request.requestId, scheduleTime);
+      await acceptInterviewRequest(actionModal.request.requestId);
       setActionModal(null);
       setRefreshKey(k => k + 1);
     } catch (err) {
@@ -70,14 +70,15 @@ export default function InterviewManager({ onError }) {
       {/* --- KPI Stats Row --- */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatBox label="Pending Requests" value={pendingRequests.length} icon={Inbox} color="text-orange-600" bg="bg-orange-50" />
+        <StatBox label="Accepted" value={acceptedRequests.length} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
         <StatBox label="Scheduled" value={scheduledInterviews.length} icon={Calendar} color="text-blue-600" bg="bg-blue-50" />
-        <StatBox label="Total Hired" value={stats?.totalHired || 0} icon={CheckCircle2} color="text-green-600" bg="bg-green-50" />
         <StatBox label="Total Called" value={stats?.totalStudentsCalled || 0} icon={History} color="text-purple-600" bg="bg-purple-50" />
       </div>
 
       {/* --- Tabs --- */}
       <div className="border-b border-gray-200 flex gap-6">
         <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length} active={activeTab} onClick={setActiveTab} />
+        <TabBtn id="accepted" label="Accepted" count={acceptedRequests.length} active={activeTab} onClick={setActiveTab} />
         <TabBtn id="scheduled" label="Scheduled Interviews" active={activeTab} onClick={setActiveTab} />
       </div>
 
@@ -130,7 +131,7 @@ export default function InterviewManager({ onError }) {
                       {isIncoming ? (
                         <>
                             <button 
-                              onClick={() => { setScheduleTime(''); setActionModal({ type: 'accept', request: req }); }}
+                              onClick={() => { setActionModal({ type: 'accept', request: req }); }}
                               className="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm"
                             >
                               <CheckCircle2 className="w-4 h-4" /> Accept
@@ -151,6 +152,62 @@ export default function InterviewManager({ onError }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* --- ACCEPTED REQUESTS VIEW --- */}
+      {activeTab === 'accepted' && (
+        <div className="space-y-4">
+          {acceptedRequests.length === 0 ? (
+            <EmptyState message="No accepted requests." />
+          ) : (
+            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                  <tr>
+                    <th className="p-4">Candidate</th>
+                    <th className="p-4">Email</th>
+                    <th className="p-4">Department</th>
+                    <th className="p-4">CGPA</th>
+                    <th className="p-4">Request Date</th>
+                    <th className="p-4">Response Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acceptedRequests.map(req => (
+                    <tr key={req.requestId} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          {req.studentProfilePic ? (
+                            <img src={getFileUrl(req.studentProfilePic)} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">
+                              {req.studentName?.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900">{req.studentName}</div>
+                            <div className="text-xs text-gray-500">{req.studentRegistration}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-gray-600">{req.studentEmail}</td>
+                      <td className="p-4 text-gray-600">{req.studentDepartment}</td>
+                      <td className="p-4">
+                        <span className="font-semibold text-blue-600">{req.studentCGPA?.toFixed(2)}</span>
+                      </td>
+                      <td className="p-4 text-gray-600 text-xs">
+                        {new Date(req.requestDate).toLocaleDateString()}
+                      </td>
+                      <td className="p-4 text-gray-600 text-xs">
+                        {new Date(req.responseDate).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -209,7 +266,7 @@ export default function InterviewManager({ onError }) {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-6 border-b">
               <h3 className="text-lg font-bold text-gray-900">
-                {actionModal.type === 'accept' ? 'Schedule Interview' : 'Reject Request'}
+                {actionModal.type === 'accept' ? 'Accept Interview Request' : 'Reject Request'}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
                 Candidate: <span className="font-medium text-gray-900">{actionModal.request.studentName}</span>
@@ -218,24 +275,17 @@ export default function InterviewManager({ onError }) {
             
             <div className="p-6">
               {actionModal.type === 'accept' ? (
-                <form onSubmit={handleAccept} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Date & Time</label>
-                    <input 
-                      type="datetime-local" 
-                      required
-                      value={scheduleTime}
-                      onChange={(e) => setScheduleTime(e.target.value)}
-                      className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Are you sure you want to accept this interview request? The interview will be added to your queue.
+                  </p>
                   <div className="flex gap-3 pt-2">
                     <button type="button" onClick={() => setActionModal(null)} className="flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
-                    <button disabled={processing} className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex justify-center items-center gap-2">
-                       {processing ? <Loader2 className="animate-spin w-4 h-4" /> : 'Confirm Schedule'}
+                    <button onClick={handleAccept} disabled={processing} className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex justify-center items-center gap-2">
+                       {processing ? <Loader2 className="animate-spin w-4 h-4" /> : 'Accept Request'}
                     </button>
                   </div>
-                </form>
+                </div>
               ) : (
                 <form onSubmit={handleReject} className="space-y-4">
                   <div>

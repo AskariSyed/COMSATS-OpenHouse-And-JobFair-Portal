@@ -128,6 +128,12 @@ export const getPendingInterviewRequests = () => {
   return request('/Company/interview-requests/pending');
 };
 
+export const getAllInterviewRequests = (status = null, page = 1, pageSize = 20) => {
+  let endpoint = `/Company/interview-requests/all?page=${page}&pageSize=${pageSize}`;
+  if (status) endpoint += `&status=${status}`;
+  return request(endpoint);
+};
+
 export const getScheduledInterviews = () => {
   return request('/Company/interview-requests/all?status=Accepted');
 };
@@ -136,8 +142,8 @@ export const sendInterviewRequest = (studentId) => {
   return request('/Company/interview-requests/send', 'POST', { studentId });
 };
 
-export const acceptInterviewRequest = (requestId, scheduledTime) => {
-  return request(`/Company/interview-requests/${requestId}/accept`, 'POST', { scheduledTime });
+export const acceptInterviewRequest = (requestId) => {
+  return request(`/Company/interview-requests/${requestId}/accept`, 'POST', {});
 };
 
 export const rejectInterviewRequest = (requestId, reason) => {
