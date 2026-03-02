@@ -23,6 +23,8 @@ namespace JobFairPortal.Models
         public int? RequestId { get; set; }
         public InterviewStatus Status { get; set; } = InterviewStatus.Queued;
         public DateTime? ScheduledTime { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? EndedAt { get; set; }
         public int? DurationMinutes { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

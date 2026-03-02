@@ -3,6 +3,7 @@ using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace JobFairPortal.Services
 {
@@ -28,8 +29,22 @@ namespace JobFairPortal.Services
 
             message.To.Add(MailboxAddress.Parse(toEmail));
             message.Subject = subject;
-            message.Body = new TextPart("plain") { Text = body };
             message.ReplyTo.Add(new MailboxAddress("Job Fair Portal", "askari.syed04@gmail.com"));
+
+            var builder = new BodyBuilder();
+            var looksLikeHtml = !string.IsNullOrWhiteSpace(body) && body.Contains("<") && body.Contains(">") && body.Contains("</");
+
+            if (looksLikeHtml)
+            {
+                builder.HtmlBody = body;
+                builder.TextBody = Regex.Replace(body, "<.*?>", string.Empty);
+            }
+            else
+            {
+                builder.TextBody = body;
+            }
+
+            message.Body = builder.ToMessageBody();
 
 
             using var client = new SmtpClient();

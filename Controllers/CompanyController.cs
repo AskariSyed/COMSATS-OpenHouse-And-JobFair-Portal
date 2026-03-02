@@ -18,11 +18,16 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<CompanyController> _logger;
+        private readonly MailKitMailService _mailService;
+        private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
+        private static readonly TimeSpan WorkingDayStartLocal = TimeSpan.FromHours(9);
+        private static readonly TimeSpan WorkingDayEndLocal = TimeSpan.FromHours(16.5);
 
-        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger)
+        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService)
         {
             _context = context;
             _logger = logger;
+            _mailService = mailService;
         }
         [HttpGet("finalyear-projects/with-students")]
         public async Task<IActionResult> GetFinalYearProjectsWithStudents()
@@ -131,8 +136,7 @@ namespace JobFairPortal.Controllers
                 Projects = projects
             });
         }
-
-
+                    
         [HttpGet("finalyear-projects/{projectId}/with-students")]
         public async Task<IActionResult> GetFinalYearProjectWithStudents(int projectId)
         {
@@ -584,6 +588,7 @@ namespace JobFairPortal.Controllers
                 student.RegistrationNo,
                 student.Department,
                 student.ProfilePicUrl,
+                student.CvUrl,
                 student.Skills,
                 student.CGPA,
                 student.CreatedAt,
@@ -768,7 +773,9 @@ namespace JobFairPortal.Controllers
                     StudentId = i.Student.StudentId,
                     i.Student.RegistrationNo,
                     i.ScheduledTime,
-                    i.Status,
+                    i.StartedAt,
+                    i.EndedAt,
+                    Status = i.Status.ToString(),
                     TimeUntilInterview = i.ScheduledTime.HasValue ? (i.ScheduledTime.Value - DateTime.UtcNow).TotalHours : 0
                 })
                 .ToListAsync();
@@ -2495,6 +2502,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     JobFairId = activeJobFair.JobFairId,
                     JobFairSemester = activeJobFair.Semester,
                     JobFairDate = activeJobFair.date,
+                    IsPresent = participation?.IsPresent ?? false,
                     IsConfirmed = participation?.ArrivalStatus == ArrivalStatus.PreRegistered,
                     ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
                     RepresentativeCount = company.RepsCount,
@@ -2541,9 +2549,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             // Boundaries (kept simple — adjust timezone handling as needed)
             var buffer = TimeSpan.FromSeconds(90);
             var nowUtc = DateTime.UtcNow;
-            var dayStart = DateTime.SpecifyKind(scheduleDate.AddHours(9), DateTimeKind.Utc);
+            var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(scheduleDate);
             var startTime = nowUtc > dayStart ? nowUtc : dayStart;
-            var hardStop = DateTime.SpecifyKind(scheduleDate.AddHours(16.5), DateTimeKind.Utc);
 
             var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
             if (interviewDurationMinutes <= 0) return BadRequest("Interview duration is not configured for this company.");
@@ -2551,13 +2558,20 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var companyDuration = TimeSpan.FromMinutes(interviewDurationMinutes);
 
             var acceptedRequests = await _context.InterviewRequests
+                .AsNoTracking()
                 .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == activeJobFair.JobFairId && r.Status == RequestStatus.Accepted)
                 .ToListAsync();
 
-            var existingCompanyInterviewStudentIds = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+            var existingCompanyInterviewStudentIds = (await _context.Interviews
+                .AsNoTracking()
+                .Where(i => i.CompanyId == company.CompanyId
+                            && i.JobFairId == activeJobFair.JobFairId
+                            && i.ScheduledTime.HasValue
+                            && i.ScheduledTime.Value >= dayStart
+                            && i.ScheduledTime.Value < dayEndExclusive)
                 .Select(i => i.StudentId)
-                .ToListAsync();
+                .ToListAsync())
+                .ToHashSet();
 
             var requestsToSchedule = acceptedRequests
                 .Where(r => !existingCompanyInterviewStudentIds.Contains(r.StudentId))
@@ -2569,11 +2583,20 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var studentIds = requestsToSchedule.Select(r => r.StudentId).Distinct().ToList();
 
             var globalInterviews = await _context.Interviews
-                .Where(i => studentIds.Contains(i.StudentId) && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+                .AsNoTracking()
+                .Where(i => studentIds.Contains(i.StudentId)
+                            && i.ScheduledTime.HasValue
+                            && i.ScheduledTime.Value >= dayStart
+                            && i.ScheduledTime.Value < dayEndExclusive)
                 .ToListAsync();
 
             var existingCompanyInterviews = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+                .AsNoTracking()
+                .Where(i => i.CompanyId == company.CompanyId
+                            && i.JobFairId == activeJobFair.JobFairId
+                            && i.ScheduledTime.HasValue
+                            && i.ScheduledTime.Value >= dayStart
+                            && i.ScheduledTime.Value < dayEndExclusive)
                 .ToListAsync();
 
             var involvedCompanyIds = globalInterviews.Select(i => i.CompanyId)
@@ -2646,7 +2669,6 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             {
                 var duration = companyDuration;
                 var searchPointer = startTime;
-                var scheduled = false;
 
                 while (searchPointer + duration <= hardStop)
                 {
@@ -2677,8 +2699,6 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                         localCompanyBusy.Add((searchPointer, potentialEnd));
                         if (!localStudentBusy.ContainsKey(req.StudentId)) localStudentBusy[req.StudentId] = new List<(DateTime, DateTime)>();
                         localStudentBusy[req.StudentId].Add((searchPointer, potentialEnd));
-
-                        scheduled = true;
                         break;
                     }
 
@@ -2707,8 +2727,14 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 try
                 {
                     var scheduledDates = optimizedInterviews.Select(i => i.ScheduledTime!.Value.Date).Distinct().ToList();
+                    var candidateStudentIds = optimizedInterviews.Select(i => i.StudentId).Distinct().ToList();
                     var dbConflicts = await _context.Interviews
-                        .Where(i => i.JobFairId == activeJobFair.JobFairId && scheduledDates.Contains(i.ScheduledTime!.Value.Date))
+                        .AsNoTracking()
+                        .Where(i => i.JobFairId == activeJobFair.JobFairId
+                                    && i.ScheduledTime.HasValue
+                                    && i.ScheduledTime.Value >= dayStart
+                                    && i.ScheduledTime.Value < dayEndExclusive
+                                    && (i.CompanyId == company.CompanyId || candidateStudentIds.Contains(i.StudentId)))
                         .ToListAsync();
 
                     List<(DateTime start, DateTime end)> dbCompanyBusy = dbConflicts.Where(i => i.CompanyId == company.CompanyId)
@@ -2748,57 +2774,49 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     // --- FCM Notifications: fetch tokens and send
                     var scheduledStudentIds = optimizedInterviews.Select(i => i.StudentId).Distinct().ToList();
                     var students = await _context.Students
+                        .AsNoTracking()
                         .Where(s => scheduledStudentIds.Contains(s.StudentId))
-                        .Select(s => new { s.StudentId, s.FcmToken, s.User })
+                        .Select(s => new { s.StudentId, s.FcmToken })
                         .ToListAsync();
 
                     var studentTokenMap = students.ToDictionary(s => s.StudentId, s => s.FcmToken);
 
-                    var sendTasks = new List<Task>();
-                    foreach (var iv in optimizedInterviews)
+                    _ = Task.Run(async () =>
                     {
-                        if (!studentTokenMap.TryGetValue(iv.StudentId, out var token) || string.IsNullOrWhiteSpace(token))
-                            continue;
-
-                        var scheduledIso = iv.ScheduledTime?.ToString("o") ?? "";
-                        var message = new Message
+                        foreach (var iv in optimizedInterviews)
                         {
-                            Token = token,
-                            Notification = new FirebaseAdmin.Messaging.Notification
+                            if (!studentTokenMap.TryGetValue(iv.StudentId, out var token) || string.IsNullOrWhiteSpace(token))
+                                continue;
+
+                            var scheduledIso = iv.ScheduledTime?.ToString("o") ?? "";
+                            var message = new Message
                             {
-                                Title = "Interview Scheduled",
-                                Body = $"{company.Name} scheduled your interview at {scheduledIso}"
-                            },
-                            Data = new Dictionary<string, string>
-                    {
-                        { "InterviewId", iv.InterviewId.ToString() },
-                        { "CompanyId", company.CompanyId.ToString() },
-                        { "CompanyName", company.Name },
-                        { "ScheduledTime", scheduledIso },
-                        { "Type", "InterviewScheduled" }
-                    }
-                        };
+                                Token = token,
+                                Notification = new FirebaseAdmin.Messaging.Notification
+                                {
+                                    Title = "Interview Scheduled",
+                                    Body = $"{company.Name} scheduled your interview at {scheduledIso}"
+                                },
+                                Data = new Dictionary<string, string>
+                                {
+                                    { "InterviewId", iv.InterviewId.ToString() },
+                                    { "CompanyId", company.CompanyId.ToString() },
+                                    { "CompanyName", company.Name },
+                                    { "ScheduledTime", scheduledIso },
+                                    { "Type", "InterviewScheduled" }
+                                }
+                            };
 
-                        // fire-and-forget tasks collected and awaited
-                        sendTasks.Add(Task.Run(async () =>
-                        {
                             try
                             {
                                 await FirebaseMessaging.DefaultInstance.SendAsync(message);
                             }
                             catch (Exception ex)
                             {
-                                // Do not fail scheduling if notification fails; log and continue
-                                try { Console.WriteLine($"FCM send failed for student {iv.StudentId}: {ex.Message}"); } catch { }
+                                _logger.LogWarning(ex, "FCM send failed for student {StudentId}", iv.StudentId);
                             }
-                        }));
-                    }
-
-
-
-
-                  
-                    if (sendTasks.Any()) await Task.WhenAll(sendTasks);
+                        }
+                    });
 
                     var result = optimizedInterviews.Select(i => new
                     {
@@ -2846,16 +2864,23 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var buffer = TimeSpan.FromSeconds(90);
 
             // Working window
-            var dayStart = DateTime.SpecifyKind(targetDate.AddHours(9), DateTimeKind.Utc);
-            var hardStop = DateTime.SpecifyKind(targetDate.AddHours(16.5), DateTimeKind.Utc);
+            var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(targetDate);
 
             // Build busy lists for company & student for that date
             var companyInterviews = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == targetDate)
+                .Where(i => i.CompanyId == company.CompanyId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
                 .ToListAsync();
 
             var studentInterviews = await _context.Interviews
-                .Where(i => i.StudentId == studentId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == targetDate)
+                .Where(i => i.StudentId == studentId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
                 .ToListAsync();
 
             var companyBusy = companyInterviews.Select(i =>
@@ -2940,7 +2965,9 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (participation == null) return BadRequest("Company not registered for the active job fair.");
             if (!participation.IsPresent) return BadRequest("Company must be marked present to schedule.");
 
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
             if (student == null) return NotFound("Student not found.");
 
             var studentParticipation = await _context.StudentJobFairParticipations
@@ -2955,20 +2982,27 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var buffer = TimeSpan.FromSeconds(90);
 
             // Basic window check (same working window as availability)
-            var date = scheduledTime.Date;
-            var dayStart = DateTime.SpecifyKind(date.AddHours(9), DateTimeKind.Utc);
-            var hardStop = DateTime.SpecifyKind(date.AddHours(16.5), DateTimeKind.Utc);
+            var windowDate = GetDateInJobFairTimeZone(scheduledTime);
+            var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(windowDate);
             if (scheduledTime < DateTime.UtcNow) return BadRequest("Scheduled time must be in the future.");
             if (scheduledTime < dayStart || scheduledTime + duration > hardStop) return BadRequest("Scheduled time outside allowed window.");
 
             // Build busy lists for this date
             var companyConflicts = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == date)
+                .Where(i => i.CompanyId == company.CompanyId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
                 .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
                 .ToListAsync();
 
             var studentConflicts = await _context.Interviews
-                .Where(i => i.StudentId == studentId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == date)
+                .Where(i => i.StudentId == studentId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
                 .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
                 .ToListAsync();
 
@@ -2997,34 +3031,65 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             _context.Interviews.Add(interview);
             await _context.SaveChangesAsync();
 
-            // Notify student via FCM if available
-            var studentToken = await _context.Students.Where(s => s.StudentId == studentId).Select(s => s.FcmToken).FirstOrDefaultAsync();
-            if (!string.IsNullOrWhiteSpace(studentToken))
+            var companyJobs = await _context.Jobs
+                .AsNoTracking()
+                .Where(j => j.CompanyId == company.CompanyId)
+                .Select(j => new { j.JobTitle, j.JobType, j.NumberOfJobs })
+                .ToListAsync();
+
+            try
             {
-                try
+                var scheduledIso = scheduledTime.ToString("o");
+
+                if (!string.IsNullOrWhiteSpace(student.FcmToken))
                 {
                     var msg = new Message
                     {
-                        Token = studentToken,
+                        Token = student.FcmToken,
                         Notification = new FirebaseAdmin.Messaging.Notification
                         {
                             Title = "Interview Scheduled",
-                            Body = $"{company.Name} scheduled an interview for you at {scheduledTime:o}"
+                            Body = $"{company.Name} scheduled an interview for you at {scheduledIso}"
                         },
                         Data = new Dictionary<string, string>
-                {
-                    { "InterviewId", interview.InterviewId.ToString() },
-                    { "CompanyId", company.CompanyId.ToString() },
-                    { "ScheduledTime", scheduledTime.ToString("o") },
-                    { "Type", "InterviewScheduled" }
-                }
+                        {
+                            { "InterviewId", interview.InterviewId.ToString() },
+                            { "CompanyId", company.CompanyId.ToString() },
+                            { "ScheduledTime", scheduledIso },
+                            { "Type", "InterviewScheduled" }
+                        }
                     };
                     await FirebaseMessaging.DefaultInstance.SendAsync(msg);
                 }
-                catch
+
+                if (!string.IsNullOrWhiteSpace(student.User?.Email))
                 {
-                    // do not fail on notification error
+                    var jobsHtml = companyJobs.Any()
+                        ? string.Join("", companyJobs.Select(j => $"<li><strong>{j.JobTitle}</strong> ({j.JobType}) - Openings: {j.NumberOfJobs}</li>"))
+                        : "<li>No active job postings listed.</li>";
+
+                    var emailBody = $@"
+<p>Dear {student.User.FullName},</p>
+<p>Your interview has been scheduled.</p>
+<p><strong>Company:</strong> {company.Name}<br/>
+<strong>Time (UTC):</strong> {scheduledIso}</p>
+
+<h3>Company Profile</h3>
+<p><strong>Industry:</strong> {company.Industry ?? "N/A"}<br/>
+<strong>Website:</strong> {(string.IsNullOrWhiteSpace(company.Website) ? "N/A" : company.Website)}<br/>
+<strong>Description:</strong> {company.Description ?? "N/A"}</p>
+
+<h3>Job Postings</h3>
+<ul>{jobsHtml}</ul>
+
+<p>Best of luck,<br/>Job Fair Team</p>";
+
+                    await _mailService.SendMailAsync(student.User.Email, "Interview Scheduled", emailBody);
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send interview scheduled notifications for InterviewId={InterviewId}", interview.InterviewId);
             }
 
             return Ok(new
@@ -3036,6 +3101,166 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 ScheduledTime = scheduledTime
             });
         }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("interviews/{interviewId}/start")]
+        public async Task<IActionResult> StartInterview(int interviewId)
+        {
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var interview = await _context.Interviews
+                .FirstOrDefaultAsync(i => i.InterviewId == interviewId && i.CompanyId == company.CompanyId);
+
+            if (interview == null) return NotFound("Interview not found.");
+
+            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected)
+                return BadRequest("Interview is already completed.");
+
+            interview.Status = InterviewStatus.InProgress;
+            interview.StartedAt ??= DateTime.UtcNow;
+            interview.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Interview started.",
+                interview.InterviewId,
+                interview.StartedAt,
+                Status = interview.Status.ToString()
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("interviews/{interviewId}/complete")]
+        public async Task<IActionResult> CompleteInterview(int interviewId, [FromBody] InterviewCompleteDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.ResultStatus))
+                return BadRequest("ResultStatus is required.");
+
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var interview = await _context.Interviews
+                .FirstOrDefaultAsync(i => i.InterviewId == interviewId && i.CompanyId == company.CompanyId);
+
+            if (interview == null) return NotFound("Interview not found.");
+
+            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected)
+                return BadRequest("Interview already completed.");
+
+            if (!Enum.TryParse<InterviewStatus>(dto.ResultStatus, true, out var parsedStatus) ||
+                (parsedStatus != InterviewStatus.Hired && parsedStatus != InterviewStatus.Shortlisted && parsedStatus != InterviewStatus.Rejected))
+            {
+                return BadRequest("ResultStatus must be one of: Hired, Shortlisted, Rejected.");
+            }
+
+            interview.Status = parsedStatus;
+            interview.StartedAt ??= DateTime.UtcNow;
+            interview.EndedAt = DateTime.UtcNow;
+            interview.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                var student = await _context.Students
+                    .Include(s => s.User)
+                    .FirstOrDefaultAsync(s => s.StudentId == interview.StudentId);
+
+                if (student != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(student.FcmToken))
+                    {
+                        var push = new Message
+                        {
+                            Token = student.FcmToken,
+                            Notification = new FirebaseAdmin.Messaging.Notification
+                            {
+                                Title = "Interview Result Updated",
+                                Body = $"{company.Name} marked your interview result as {parsedStatus}."
+                            },
+                            Data = new Dictionary<string, string>
+                            {
+                                { "InterviewId", interview.InterviewId.ToString() },
+                                { "CompanyId", company.CompanyId.ToString() },
+                                { "ResultStatus", parsedStatus.ToString() },
+                                { "Type", "InterviewCompleted" }
+                            }
+                        };
+                        await FirebaseMessaging.DefaultInstance.SendAsync(push);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(student.User?.Email))
+                    {
+                        var body = $@"
+<p>Dear {student.User.FullName},</p>
+<p>Your interview with <strong>{company.Name}</strong> has been completed.</p>
+<p><strong>Result:</strong> {parsedStatus}</p>
+<p>Regards,<br/>Job Fair Team</p>";
+
+                        await _mailService.SendMailAsync(student.User.Email, "Interview Result", body);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send completion notifications for InterviewId={InterviewId}", interview.InterviewId);
+            }
+
+            return Ok(new
+            {
+                Message = "Interview completed and result recorded.",
+                interview.InterviewId,
+                interview.StartedAt,
+                interview.EndedAt,
+                Status = interview.Status.ToString()
+            });
+        }
+        private static (DateTime dayStartUtc, DateTime hardStopUtc, DateTime dayEndExclusiveUtc) GetWorkingWindowUtc(DateTime localDate)
+        {
+            var date = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Unspecified);
+            var dayStartLocal = date.Add(WorkingDayStartLocal);
+            var hardStopLocal = date.Add(WorkingDayEndLocal);
+            var dayEndExclusiveLocal = date.AddDays(1);
+
+            return (
+                TimeZoneInfo.ConvertTimeToUtc(dayStartLocal, JobFairTimeZone),
+                TimeZoneInfo.ConvertTimeToUtc(hardStopLocal, JobFairTimeZone),
+                TimeZoneInfo.ConvertTimeToUtc(dayEndExclusiveLocal, JobFairTimeZone)
+            );
+        }
+
+        private static DateTime GetDateInJobFairTimeZone(DateTime utcDateTime)
+        {
+            var utc = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, JobFairTimeZone).Date;
+        }
+
+        private static TimeZoneInfo ResolveJobFairTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Pakistan Standard Time");
+            }
+            catch
+            {
+                try
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi");
+                }
+                catch
+                {
+                    return TimeZoneInfo.Utc;
+                }
+            }
+        }
+
         // Helper: check interval overlap (exclusive end)
         private static bool Overlaps(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
         {

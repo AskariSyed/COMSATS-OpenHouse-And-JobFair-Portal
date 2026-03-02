@@ -276,6 +276,7 @@ namespace JobFairPortal.Controllers
                 student.RegistrationNo,
                 student.Department,
                 student.ProfilePicUrl,
+                student.CvUrl,
                 student.Skills,
                 student.CGPA,
                 student.FcmToken,
@@ -1014,6 +1015,62 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Profile picture uploaded.", ProfilePicUrl = student.ProfilePicUrl });
         }
 
+        [HttpPost("cv")]
+        public async Task<IActionResult> UploadCv([FromForm] FileUploadDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+                return Unauthorized("User ID not found in token.");
+
+            if (!int.TryParse(userIdClaim, out int userId))
+                return BadRequest("Invalid user ID format in token.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var file = dto.File;
+            if (file == null || file.Length == 0)
+                return BadRequest("No file uploaded.");
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (extension != ".pdf")
+                return BadRequest("Only PDF files are allowed for CV upload.");
+
+            if (!string.IsNullOrWhiteSpace(student.CvUrl))
+            {
+                var oldCvFile = student.CvUrl.Split('/').LastOrDefault();
+                if (!string.IsNullOrWhiteSpace(oldCvFile))
+                {
+                    var oldCvPath = Path.Combine("uploads", "student", "cvs", oldCvFile);
+                    if (System.IO.File.Exists(oldCvPath))
+                        System.IO.File.Delete(oldCvPath);
+                }
+            }
+
+            var uploadsFolder = Path.Combine("uploads", "student", "cvs");
+            Directory.CreateDirectory(uploadsFolder);
+
+            var safeRegNo = student.RegistrationNo.Replace("/", "_").Replace("\\", "_");
+            var fileName = $"{safeRegNo}_{Guid.NewGuid()}.pdf";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            student.CvUrl = $"/uploads/student/cvs/{fileName}";
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "CV uploaded successfully.", CvUrl = student.CvUrl });
+        }
+
         [HttpGet("Education")]
         public async Task<IActionResult> GetEducations()
         {
@@ -1610,7 +1667,7 @@ namespace JobFairPortal.Controllers
 
             return Ok(new { FullName = student.User.FullName });
         }
-  
+
         [HttpGet("interviews/scheduled")]
         public async Task<IActionResult> GetScheduledInterviews()
         {
@@ -1647,8 +1704,7 @@ namespace JobFairPortal.Controllers
 
             return Ok(interviews);
         } // -----------------------------
-        // Get Available Companies (Active Fair Only)
-        // -----------------------------
+
         [HttpGet("companies")]
         public async Task<IActionResult> GetAvailableCompanies()
         {
@@ -2439,5 +2495,38 @@ namespace JobFairPortal.Controllers
                 Requests = requests
             });
         }
+
+        // Add this method inside the existing StudentController class.
+
+        [HttpPut("cgpa")]
+        public async Task<IActionResult> UpdateCgpa([FromBody] UpdateCGPADto dto)
+        {
+            if (dto == null)
+                return BadRequest("Request body is required.");
+
+            // Basic validation: CGPA must be between 0.0 and 4.0
+            if (dto.CGPA < 0m || dto.CGPA > 4.0m)
+                return BadRequest("CGPA must be between 0.0 and 4.0.");
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized("Invalid or missing user id in token.");
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            student.CGPA = dto.CGPA;
+            student.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "CGPA updated successfully.",
+                StudentId = student.StudentId,
+                Cgpa = student.CGPA
+            });
+        }
     }
-    }
+}

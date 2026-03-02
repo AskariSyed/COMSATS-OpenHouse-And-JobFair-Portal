@@ -18,6 +18,7 @@ namespace JobFairPortal.Models
         public decimal CGPA { get; set; }
 
         public string? ProfilePicUrl { get; set; }
+        public string? CvUrl { get; set; }
 
         public string Department { get; set; } = null!;
 

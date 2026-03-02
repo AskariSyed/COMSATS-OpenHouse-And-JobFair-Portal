@@ -4,6 +4,7 @@ using JobFairPortal.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace JobFairPortal.Controllers
 { 
@@ -132,14 +133,14 @@ namespace JobFairPortal.Controllers
         // Body: { "sessionToken": "..." } - The company is identified by JWT token
         [HttpPost("mark")]
         [Authorize(Roles = "Company")]
-        public async Task<IActionResult> MarkAttendance([FromBody] dynamic payload)
+        public async Task<IActionResult> MarkAttendance([FromBody] MarkAttendanceRequest? payload)
         {
             try
             {
                 if (payload == null)
                     return BadRequest(new { error = "Invalid request body" });
 
-                string sessionToken = Convert.ToString(payload.sessionToken ?? "");
+                var sessionToken = payload.SessionToken;
 
                 if (string.IsNullOrWhiteSpace(sessionToken))
                     return BadRequest(new { error = "sessionToken is required" });
@@ -157,18 +158,23 @@ namespace JobFairPortal.Controllers
                 if (session.ExpiresAt < now)
                     return BadRequest(new { error = "Session has expired" });
 
-                // Get company ID from JWT claims (you'll need to extract this)
-                // For now, we expect it in the payload
-                string companyIdStr = Convert.ToString(payload.companyId ?? "");
+                // Resolve company from JWT user id
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                    return Unauthorized(new { error = "Invalid authentication token" });
 
-                if (!Guid.TryParse(companyIdStr, out var companyId))
-                    return BadRequest(new { error = "Company ID is required" });
+                var company = await _context.Companies
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
+
+                if (company == null)
+                    return NotFound(new { error = "Company not found for current user" });
 
                 // Find participation for this company in this job fair
                 var participation = await _context.CompanyJobFairParticipations
                     .Include(p => p.Company)
                     .Include(p => p.JobFair)
-                    .FirstOrDefaultAsync(p => p.CompanyId.Equals(companyId) && p.JobFairId == session.JobFairId);
+                    .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == session.JobFairId);
 
                 if (participation == null)
                     return NotFound(new { error = "Company is not registered for this Job Fair" });
@@ -182,10 +188,11 @@ namespace JobFairPortal.Controllers
                 }
 
                 if (participation.IsPresent)
-                    return Ok(new { message = "Attendance already marked", companyId = companyId });
+                    return Ok(new { message = "Attendance already marked", companyId = company.CompanyId });
 
                 // Mark attendance
                 participation.IsPresent = true;
+                participation.ArrivalStatus = ArrivalStatus.OnSpot;
                 participation.UpdatedAt = DateTime.UtcNow;
 
                 if (participation.Company != null)
@@ -203,13 +210,84 @@ namespace JobFairPortal.Controllers
                 return Ok(new
                 {
                     message = "Attendance marked successfully",
-                    companyId = companyId,
+                    companyId = company.CompanyId,
                     companyName = participation.Company?.Name
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error marking attendance");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
+        // POST /attendance/generate-daily-qr
+        // Admin endpoint to generate (or reuse) one static QR token for the current Job Fair day.
+        [HttpPost("generate-daily-qr")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GenerateDailyQr([FromBody] StartSessionRequest? payload)
+        {
+            try
+            {
+                if (payload == null)
+                    return BadRequest(new { error = "Invalid request body" });
+
+                var jobFairId = payload.JobFairId;
+                if (jobFairId <= 0)
+                    return BadRequest(new { error = "Invalid jobFairId; expected positive integer id" });
+
+                var jobFair = await _context.JobFairs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(jf => jf.JobFairId == jobFairId);
+
+                if (jobFair == null)
+                    return NotFound(new { error = "Job Fair not found" });
+
+                var todayDate = DateTime.UtcNow.Date;
+                var jobFairDate = jobFair.date.Date;
+                if (todayDate != jobFairDate)
+                    return BadRequest(new { error = "Daily QR can only be generated on the Job Fair date." });
+
+                var existingSession = await _context.AdminAttendanceSessions
+                    .FirstOrDefaultAsync(s => s.JobFairId == jobFairId && s.IsActive && s.ExpiresAt >= DateTime.UtcNow);
+
+                if (existingSession != null)
+                {
+                    return Ok(new
+                    {
+                        sessionToken = existingSession.SessionToken,
+                        jobFairId = jobFairId,
+                        expiresAt = existingSession.ExpiresAt,
+                        message = "Daily QR already generated for today"
+                    });
+                }
+
+                var sessionToken = Guid.NewGuid().ToString();
+                var expiresAt = DateTime.UtcNow.Date.AddDays(1).AddSeconds(-1);
+
+                var adminSession = new AdminAttendanceSession
+                {
+                    JobFairId = jobFairId,
+                    SessionToken = sessionToken,
+                    IsActive = true,
+                    ExpiresAt = expiresAt,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.AdminAttendanceSessions.Add(adminSession);
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    sessionToken,
+                    jobFairId,
+                    expiresAt,
+                    message = "Daily attendance QR generated"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating daily QR");
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }
@@ -434,6 +512,11 @@ namespace JobFairPortal.Controllers
     }
 
     public class EndSessionRequest
+    {
+        public string SessionToken { get; set; } = string.Empty;
+    }
+
+    public class MarkAttendanceRequest
     {
         public string SessionToken { get; set; } = string.Empty;
     }

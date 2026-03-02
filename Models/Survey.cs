@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace JobFairPortal.Models
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum SurveyType
     {
         CDC,

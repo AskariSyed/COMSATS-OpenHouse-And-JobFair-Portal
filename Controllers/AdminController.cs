@@ -760,6 +760,7 @@ namespace JobFairPortal.Controllers
             var surveys = surveysData.Select(s => new
             {
                 SurveyId = s.SurveyId,
+                CompanyId = s.CompanyId,
                 Type = s.Type.ToString(),
                 // Use the helper to get the specific SurveyResponseData fields
                 Responses = DeserializeResponses(s.Responses),
@@ -2108,6 +2109,7 @@ namespace JobFairPortal.Controllers
             _logger.LogInformation("GetAllJobFairs called with page={Page}, pageSize={PageSize}.", page, pageSize);
 
             if (page < 1) page = 1;
+
             if (pageSize < 1) pageSize = 20;
 
             var query = _context.JobFairs

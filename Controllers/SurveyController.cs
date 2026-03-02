@@ -93,6 +93,51 @@ namespace JobFairPortal.Controllers
             });
         }
 
+        [HttpGet("my-status")]
+        [Authorize(Roles = "Company")]
+        public async Task<IActionResult> GetMySurveyStatus()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized("Invalid or missing user id in token.");
+
+            var company = await _context.Companies.AsNoTracking().FirstOrDefaultAsync(c => c.UserId == userId);
+            if (company == null)
+                return NotFound("Company not found for current token.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+            {
+                return Ok(new
+                {
+                    CompanyId = company.CompanyId,
+                    HasActiveJobFair = false,
+                    Submitted = new { Cdc = false, Department = false, All = false }
+                });
+            }
+
+            var submittedTypes = await _context.Surveys
+                .Where(s => s.CompanyId == company.CompanyId && s.JobFairId == activeJobFair.JobFairId)
+                .Select(s => s.Type)
+                .ToListAsync();
+
+            var hasCdc = submittedTypes.Contains(SurveyType.CDC);
+            var hasDepartment = submittedTypes.Contains(SurveyType.Department);
+
+            return Ok(new
+            {
+                CompanyId = company.CompanyId,
+                JobFairId = activeJobFair.JobFairId,
+                HasActiveJobFair = true,
+                Submitted = new
+                {
+                    Cdc = hasCdc,
+                    Department = hasDepartment,
+                    All = hasCdc && hasDepartment
+                }
+            });
+        }
+
         // POST: api/admin/survey/submit
         // Submits a survey. This endpoint is intended for companies submitting surveys.
         // Enforces:
