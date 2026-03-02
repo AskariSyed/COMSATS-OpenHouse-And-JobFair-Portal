@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "82967259176",
+    "project_id": "hirebridge-c28e9",
+    "storage_bucket": "hirebridge-c28e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82967259176:android:4069e3bfa67e9200c6ed1d",
+        "android_client_info": {
+          "package_name": "com.example.student_job_fair_portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNulLDYH9WMc2LkHv4BvYvcm36Zf3AY44"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

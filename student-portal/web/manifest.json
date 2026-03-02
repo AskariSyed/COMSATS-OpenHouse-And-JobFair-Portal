@@ -1,0 +1,36 @@
+{
+    "name": "CUI Wah Job Fair Student Portal",
+    "short_name": "Job Fair Portal",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#2563EB",
+    "theme_color": "#2563EB",
+    "description": "COMSATS University Islamabad Wah Campus Job Fair Student Portal",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "scope": "/",
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

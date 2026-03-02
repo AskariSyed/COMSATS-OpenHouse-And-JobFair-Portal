@@ -1,0 +1,71 @@
+# Optimized pubspec.yaml for Web (Smallest Build)
+# Copy this section to replace your current dependencies
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Essential UI
+  cupertino_icons: ^1.0.8
+  
+  # Storage & Network
+  shared_preferences: ^2.5.3
+  http: ^1.5.0
+  
+  # Firebase (Essential)
+  firebase_core: ^4.1.1
+  firebase_messaging: ^16.0.2
+  flutter_local_notifications: ^19.4.2
+  
+  # State Management
+  provider: ^6.1.5+1
+  
+  # Web Utilities
+  url_launcher: ^6.3.2
+  cached_network_image: ^3.4.1
+  universal_html: ^2.3.0
+  
+  # UI Components
+  shimmer: ^3.0.0
+  font_awesome_flutter: ^10.12.0
+  top_snackbar_flutter: ^3.3.0
+  collapsible_sidebar: ^2.0.7
+  intl: ^0.20.2
+  qr_flutter: ^4.1.0
+  foundation: ^0.0.5
+
+  # COMMENTED OUT FOR WEB (Add back for mobile):
+  # syncfusion_flutter_pdfviewer: ^31.1.19  # 5-8 MB - REMOVE
+  # youtube_player_flutter: ^9.1.2  # 2-3 MB - REMOVE
+  # file_picker: ^10.3.3  # 1-2 MB - Conditional
+  # image_picker: ^1.2.0  # 1-2 MB - Conditional
+  # permission_handler: ^12.0.1  # 500 KB - Mobile only
+  # pdf: ^3.11.3  # Lazy load if needed
+  # printing: ^5.14.2  # Lazy load if needed
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Keep only essential assets
+    - lib/assets/icons/github-mark-white.png
+    - lib/assets/skills.json
+    - lib/assets/StudentJobFairPortalLogo.png
+    # Only keep necessary fonts (remove Bold if unused)
+    - lib/assets/fonts/NotoSans-Regular.ttf
+    # - lib/assets/fonts/NotoSans-Bold.ttf  # Remove if not needed
+
+# BUILD COMMANDS:
+# 
+# 1. Smallest build (HTML renderer):
+#    flutter clean && flutter pub get && flutter build web --release --web-renderer html
+#
+# 2. Check size:
+#    Get-ChildItem build/web -Recurse | Measure-Object -Property Length -Sum
+#
+# Expected result: 4-5 MB (1.2-1.5 MB gzipped)
