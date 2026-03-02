@@ -7,34 +7,34 @@ import 'package:student_job_fair_portal/screens/sigin.dart';
 List<CollapsibleItem> generateSidebarItems(
   BuildContext context,
   void Function(void Function()) setState,
-  String _currentRoute,
+  String currentRoute,
 ) {
   return [
     CollapsibleItem(
       text: 'Profile',
       icon: Icons.person_outline,
-      onPressed: () => setState(() => _currentRoute = 'Profile'),
+      onPressed: () => setState(() => currentRoute = 'Profile'),
       isSelected: true,
     ),
     CollapsibleItem(
       text: 'Queue',
       icon: Icons.list_alt_outlined,
-      onPressed: () => setState(() => _currentRoute = 'Queue'),
+      onPressed: () => setState(() => currentRoute = 'Queue'),
     ),
     CollapsibleItem(
       text: 'Companies',
       icon: Icons.business_outlined,
-      onPressed: () => setState(() => _currentRoute = 'Companies'),
+      onPressed: () => setState(() => currentRoute = 'Companies'),
     ),
     CollapsibleItem(
       text: 'Requests',
       icon: Icons.inbox_outlined,
-      onPressed: () => setState(() => _currentRoute = 'Requests'),
+      onPressed: () => setState(() => currentRoute = 'Requests'),
     ),
     CollapsibleItem(
       text: 'Jobs',
       icon: Icons.work_outline_sharp,
-      onPressed: () => setState(() => _currentRoute = 'Jobs'),
+      onPressed: () => setState(() => currentRoute = 'Jobs'),
     ),
     CollapsibleItem(
       text: 'Logout',

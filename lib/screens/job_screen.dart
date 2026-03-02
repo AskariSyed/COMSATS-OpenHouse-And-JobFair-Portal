@@ -9,6 +9,7 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 
 // Models
 import 'package:student_job_fair_portal/model/job.dart';
+import 'package:student_job_fair_portal/mixins/enums.dart';
 
 // Screens
 import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
@@ -29,6 +30,8 @@ class JobsScreen extends StatefulWidget {
 class _JobsScreenState extends State<JobsScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
   final TextEditingController _searchController = TextEditingController();
+  final Set<JobType> _selectedJobTypes = {};
+  String _selectedSortOption = 'Newest'; // Default sort
 
   @override
   void initState() {
@@ -75,6 +78,27 @@ class _JobsScreenState extends State<JobsScreen> {
 
     final bool showShimmer =
         jobProvider.isLoading && jobProvider.displayJobs.isEmpty;
+
+    // Filter jobs
+    var filteredJobs = jobProvider.displayJobs.where((job) {
+      if (_selectedJobTypes.isEmpty) return true;
+      return _selectedJobTypes.contains(job.jobType);
+    }).toList();
+
+    // Sort jobs
+    if (_selectedSortOption == 'Newest') {
+      filteredJobs.sort((a, b) => b.jobId.compareTo(a.jobId));
+    } else if (_selectedSortOption == 'Title (A-Z)') {
+      filteredJobs.sort(
+        (a, b) => a.jobTitle.toLowerCase().compareTo(b.jobTitle.toLowerCase()),
+      );
+    } else if (_selectedSortOption == 'Company (A-Z)') {
+      filteredJobs.sort(
+        (a, b) =>
+            a.companyName.toLowerCase().compareTo(b.companyName.toLowerCase()),
+      );
+    }
+
     final bool showDataWithLoading =
         jobProvider.isLoading && jobProvider.displayJobs.isNotEmpty;
 
@@ -114,10 +138,14 @@ class _JobsScreenState extends State<JobsScreen> {
                                 height: 100,
                                 child: Center(child: Text(jobProvider.error!)),
                               )
-                            : _buildJobsGrid(
-                                jobProvider.displayJobs,
-                                isMobile: true,
-                              ),
+                            : filteredJobs.isEmpty
+                            ? const SizedBox(
+                                height: 100,
+                                child: Center(
+                                  child: Text("No jobs match your filters."),
+                                ),
+                              )
+                            : _buildJobsGrid(filteredJobs, isMobile: true),
                       ],
                     ),
                   ),
@@ -131,7 +159,7 @@ class _JobsScreenState extends State<JobsScreen> {
                   ),
               ],
             ),
-            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 1),
+            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 2),
           );
         } else {
           // ==================================================================
@@ -197,7 +225,7 @@ class _JobsScreenState extends State<JobsScreen> {
                                   const SizedBox(height: 30),
                                   showShimmer
                                       ? buildShimmerGrid(isMobile: false)
-                                      : jobProvider.displayJobs.isEmpty
+                                      : filteredJobs.isEmpty
                                       ? const SizedBox(
                                           height: 200,
                                           child: Center(
@@ -205,7 +233,7 @@ class _JobsScreenState extends State<JobsScreen> {
                                           ),
                                         )
                                       : _buildJobsGrid(
-                                          jobProvider.displayJobs,
+                                          filteredJobs,
                                           isMobile: false,
                                         ),
                                 ],
@@ -241,27 +269,204 @@ class _JobsScreenState extends State<JobsScreen> {
 
   Widget _buildSearchBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return TextField(
-      controller: _searchController,
-      onChanged: _onSearchChanged,
-      decoration: InputDecoration(
-        hintText: "Search jobs, companies, skills...",
-        prefixIcon: const Icon(Icons.search),
-        filled: true,
-        fillColor: Theme.of(context).cardColor,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: isDark ? Colors.white24 : Colors.grey.shade200,
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: "Search jobs, companies, skills...",
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Theme.of(context).primaryColor,
+                ),
+                filled: true,
+                fillColor: Colors.transparent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 20,
+                ),
+              ),
+            ),
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-      ),
+        const SizedBox(width: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? Colors.white24 : Colors.grey.shade200,
+            ),
+          ),
+          child: IconButton(
+            onPressed: _showFilterDialog,
+            icon: Icon(
+              Icons.filter_list,
+              color: _selectedJobTypes.isNotEmpty
+                  ? Theme.of(context).primaryColor
+                  : Theme.of(context).iconTheme.color,
+            ),
+            tooltip: "Filter & Sort Jobs",
+          ),
+        ),
+      ],
     );
+  }
+
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Filter & Sort",
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedJobTypes.clear();
+                            _selectedSortOption = 'Newest';
+                          });
+                          setModalState(() {});
+                          Navigator.pop(context);
+                        },
+                        child: const Text("Clear All"),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "Sort By",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ['Newest', 'Title (A-Z)', 'Company (A-Z)'].map((
+                      option,
+                    ) {
+                      final isSelected = _selectedSortOption == option;
+                      return ChoiceChip(
+                        label: Text(option),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setModalState(() {
+                              _selectedSortOption = option;
+                            });
+                            setState(() {});
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Job Type",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: JobType.values.map((type) {
+                      final isSelected = _selectedJobTypes.contains(type);
+                      return FilterChip(
+                        label: Text(_getJobTypeString(type)),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setModalState(() {
+                            if (selected) {
+                              _selectedJobTypes.add(type);
+                            } else {
+                              _selectedJobTypes.remove(type);
+                            }
+                          });
+                          setState(() {}); // Update parent screen
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text("Apply"),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getJobTypeString(JobType type) {
+    switch (type) {
+      case JobType.fullTime:
+        return "Full Time";
+      case JobType.partTime:
+        return "Part Time";
+      case JobType.internship:
+        return "Internship";
+      case JobType.remote:
+        return "Remote";
+      case JobType.onsite:
+        return "Onsite";
+      default:
+        return "Other";
+    }
   }
 
   // Grouping Logic
@@ -281,9 +486,9 @@ class _JobsScreenState extends State<JobsScreen> {
       builder: (context, constraints) {
         final double availableWidth = constraints.maxWidth;
         int columns = 1;
-        if (availableWidth > 1350)
+        if (availableWidth > 1350) {
           columns = 3;
-        else if (availableWidth > 900)
+        } else if (availableWidth > 900)
           columns = 2;
 
         final double spacing = 12.0;
@@ -346,8 +551,8 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
     return Card(
       elevation: isDark ? 4 : 6,
       shadowColor: isDark
-          ? const Color.fromARGB(255, 169, 190, 207).withOpacity(0.3)
-          : const Color.fromARGB(255, 10, 149, 255).withOpacity(0.15),
+          ? const Color.fromARGB(255, 169, 190, 207).withValues(alpha: 0.3)
+          : const Color.fromARGB(255, 10, 149, 255).withValues(alpha: 0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
@@ -356,7 +561,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
             end: Alignment.bottomRight,
             colors: isDark
                 ? [Colors.grey.shade900, Colors.grey.shade800]
-                : [Colors.white, Colors.blue.shade50.withOpacity(0.3)],
+                : [Colors.white, Colors.blue.shade50.withValues(alpha: 0.3)],
           ),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -479,7 +684,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                       Icons.arrow_forward,
                       color: Theme.of(
                         context,
-                      ).iconTheme.color?.withOpacity(0.6),
+                      ).iconTheme.color?.withValues(alpha: 0.6),
                     ),
                     tooltip: "View Company Profile",
                   ),
@@ -561,7 +766,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                             ),
                             decoration: BoxDecoration(
                               color: isDark
-                                  ? Colors.blue.shade900.withOpacity(0.3)
+                                  ? Colors.blue.shade900.withValues(alpha: 0.3)
                                   : Colors.blue.shade50,
                               borderRadius: BorderRadius.circular(6),
                             ),

@@ -170,7 +170,9 @@ class CustomPageTransitionsBuilder extends PageTransitionsBuilder {
         SlideTransition(
           position: secondaryAnimation.drive(exitTween),
           child: Container(
-            color: Colors.black.withOpacity(secondaryAnimation.value * 0.3),
+            color: Colors.black.withValues(
+              alpha: secondaryAnimation.value * 0.3,
+            ),
           ),
         ),
         // Entry animation for new screen

@@ -1,9 +1,7 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 
 // Mixins & Models
@@ -15,17 +13,13 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 
 // Screens for Navigation
-import 'package:student_job_fair_portal/screens/profile.dart';
-import 'package:student_job_fair_portal/screens/companies_screen.dart';
-import 'package:student_job_fair_portal/screens/job_screen.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
-import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
 
 // Widgets
 import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
-import 'package:student_job_fair_portal/widgets/build_bottom_navbar.dart'; // 👈 Import for Bottom Nav
+// 👈 Import for Bottom Nav
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -120,15 +114,31 @@ class _RequestsScreenState extends State<RequestsScreen>
             body: Column(
               children: [
                 Container(
-                  color: Theme.of(context).scaffoldBackgroundColor,
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
                   child: TabBar(
                     controller: _tabController,
-                    labelColor: Theme.of(context).primaryColor,
+                    indicator: BoxDecoration(
+                      borderRadius: BorderRadius.circular(25),
+                      color: Theme.of(context).primaryColor,
+                    ),
+                    labelColor: Colors.white,
                     unselectedLabelColor: isDark
                         ? Colors.grey.shade400
-                        : Colors.grey,
-                    indicatorColor: Theme.of(context).primaryColor,
-                    indicatorWeight: 3,
+                        : Colors.grey.shade600,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    padding: const EdgeInsets.all(4),
                     tabs: const [
                       Tab(text: "Sent Requests"),
                       Tab(text: "Received Requests"),
@@ -157,7 +167,7 @@ class _RequestsScreenState extends State<RequestsScreen>
                 ),
               ],
             ),
-            bottomNavigationBar: BeautifulMobileNavBar(currentIndex: 4),
+            bottomNavigationBar: BeautifulMobileNavBar(currentIndex: 5),
           );
         }
 
@@ -263,7 +273,7 @@ class _RequestsScreenState extends State<RequestsScreen>
               ),
               // 🔹 ADDED: Web Header (Top Bar)
               BeautifulWebNavBar(
-                currentRoute: 'Request', // or 'Jobs', 'Companies', etc.
+                currentRoute: 'Requests', // or 'Jobs', 'Companies', etc.
                 profileImageUrl: profileImageUrl,
                 userName: student?.user.fullName ?? "User",
               ),
@@ -290,7 +300,7 @@ class _RequestsScreenState extends State<RequestsScreen>
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
                     blurRadius: 4,
                   ),
                 ]
@@ -312,7 +322,7 @@ class _RequestsScreenState extends State<RequestsScreen>
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Theme.of(context).primaryColor.withOpacity(0.1)
+                    ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                     : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -372,10 +382,10 @@ class _RequestsScreenState extends State<RequestsScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.red.withOpacity(0.3),
+                            color: Colors.red.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -472,7 +482,7 @@ class _RequestsScreenState extends State<RequestsScreen>
 
     return Card(
       elevation: isDark ? 2 : 4,
-      shadowColor: Colors.black.withOpacity(isDark ? 0.3 : 0.15),
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Theme.of(context).cardColor,
       margin: EdgeInsets.symmetric(
@@ -593,12 +603,12 @@ class _RequestsScreenState extends State<RequestsScreen>
                   padding: EdgeInsets.all(isMobile ? 10 : 12),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? Colors.red.shade900.withOpacity(0.2)
+                        ? Colors.red.shade900.withValues(alpha: 0.2)
                         : Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isDark
-                          ? Colors.red.shade700.withOpacity(0.5)
+                          ? Colors.red.shade700.withValues(alpha: 0.5)
                           : Colors.red.shade100,
                     ),
                   ),
@@ -675,10 +685,14 @@ class _RequestsScreenState extends State<RequestsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? color.withOpacity(0.15) : color.withOpacity(0.1),
+        color: isDark
+            ? color.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? color.withOpacity(0.4) : color.withOpacity(0.2),
+          color: isDark
+              ? color.withValues(alpha: 0.4)
+              : color.withValues(alpha: 0.2),
         ),
       ),
       child: Row(

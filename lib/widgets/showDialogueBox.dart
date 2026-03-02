@@ -125,7 +125,7 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
@@ -208,17 +208,23 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                       return Container(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.05),
+                          color: const Color(
+                            0xFF2563EB,
+                          ).withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: const Color(0xFF2563EB).withOpacity(0.3),
+                            color: const Color(
+                              0xFF2563EB,
+                            ).withValues(alpha: 0.3),
                           ),
                         ),
                         child: ListTile(
                           leading: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
+                              color: const Color(
+                                0xFF2563EB,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -262,7 +268,7 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: isWorkMode
-                            ? Colors.green.withOpacity(0.1)
+                            ? Colors.green.withValues(alpha: 0.1)
                             : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -622,7 +628,7 @@ void confirmLeaveProject(int projectId, BuildContext context) {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -761,7 +767,7 @@ void showAddProjectDialog(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<int>(
-              value: selectedType,
+              initialValue: selectedType,
               decoration: const InputDecoration(
                 labelText: "Project Type",
                 border: OutlineInputBorder(),
@@ -846,7 +852,7 @@ void showProjectDialog(BuildContext context, {Project? project}) {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<int>(
-              value: selectedType,
+              initialValue: selectedType,
               decoration: const InputDecoration(
                 labelText: "Project Type",
                 border: OutlineInputBorder(),
@@ -998,7 +1004,7 @@ void showContactLinkActions(
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withOpacity(0.1),
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -1021,7 +1027,7 @@ void showContactLinkActions(
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -1152,8 +1158,13 @@ void showAddExperienceDialog(BuildContext context) {
           const SizedBox(height: 10),
           TextField(
             controller: descCtrl,
-            decoration: const InputDecoration(labelText: "Description"),
+            decoration: const InputDecoration(
+              labelText: "Description",
+              counterText: "",
+              helperText: "Max 500 characters",
+            ),
             maxLines: 3,
+            maxLength: 500,
           ),
         ],
       ),

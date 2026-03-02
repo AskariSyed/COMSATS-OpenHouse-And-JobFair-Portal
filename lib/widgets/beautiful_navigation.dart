@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 
 // Screens
+import 'package:student_job_fair_portal/screens/dashboard_screen.dart'; // 🔹 Dashboard
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/screens/job_screen.dart';
 import 'package:student_job_fair_portal/screens/profile.dart';
@@ -55,17 +56,17 @@ class BeautifulWebNavBar extends StatelessWidget {
             decoration: BoxDecoration(
               // Dynamic Background Opacity
               color: isDark
-                  ? cardColor.withOpacity(0.85)
-                  : Colors.white.withOpacity(0.85),
+                  ? cardColor.withValues(alpha: 0.85)
+                  : Colors.white.withValues(alpha: 0.85),
               border: Border(
                 bottom: BorderSide(
-                  color: dividerColor.withOpacity(0.1),
+                  color: dividerColor.withValues(alpha: 0.1),
                   width: 1,
                 ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -83,6 +84,13 @@ class BeautifulWebNavBar extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    _NavBarItem(
+                      title: "Dashboard",
+                      icon: Icons.dashboard_outlined,
+                      isActive: currentRoute == 'Dashboard',
+                      onTap: () => _nav(context, const DashboardScreen()),
+                    ),
+                    const SizedBox(width: 8),
                     _NavBarItem(
                       title: "Profile",
                       icon: Icons.person_outline,
@@ -105,17 +113,17 @@ class BeautifulWebNavBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     _NavBarItem(
-                      title: "Requests",
-                      icon: Icons.inbox_outlined,
-                      isActive: currentRoute == 'Requests',
-                      onTap: () => _nav(context, const RequestsScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
                       title: "Queue",
                       icon: Icons.list_alt_outlined,
                       isActive: currentRoute == 'Queue',
                       onTap: () => _nav(context, const QueueScreen()),
+                    ),
+                    const SizedBox(width: 8),
+                    _NavBarItem(
+                      title: "Requests",
+                      icon: Icons.inbox_outlined,
+                      isActive: currentRoute == 'Requests',
+                      onTap: () => _nav(context, const RequestsScreen()),
                     ),
                   ],
                 ),
@@ -163,7 +171,7 @@ class BeautifulWebNavBar extends StatelessWidget {
             Text(
               "Job Fair Student Portal",
               style: TextStyle(
-                color: text.withOpacity(0.7),
+                color: text.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w500,
                 fontSize: 12,
               ),
@@ -191,14 +199,19 @@ class BeautifulWebNavBar extends StatelessWidget {
             ),
             Text(
               "Student",
-              style: TextStyle(color: text.withOpacity(0.6), fontSize: 11),
+              style: TextStyle(
+                color: text.withValues(alpha: 0.6),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
         const SizedBox(width: 12),
         CircleAvatar(
           radius: 20,
-          backgroundColor: Theme.of(context).dividerColor.withOpacity(0.1),
+          backgroundColor: Theme.of(
+            context,
+          ).dividerColor.withValues(alpha: 0.1),
           backgroundImage: profileImageUrl != null
               ? NetworkImage(profileImageUrl!)
               : null,
@@ -214,7 +227,10 @@ class BeautifulWebNavBar extends StatelessWidget {
         // 🔹 Notice Board Button (Web)
         IconButton(
           onPressed: () => showNoticeBoardPopup(context),
-          icon: Icon(Icons.campaign_outlined, color: text.withOpacity(0.6)),
+          icon: Icon(
+            Icons.campaign_outlined,
+            color: text.withValues(alpha: 0.6),
+          ),
           tooltip: "Notice Board",
         ),
 
@@ -227,7 +243,7 @@ class BeautifulWebNavBar extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             );
           },
-          icon: Icon(Icons.settings, color: text.withOpacity(0.6)),
+          icon: Icon(Icons.settings, color: text.withValues(alpha: 0.6)),
           tooltip: "Settings",
         ),
 
@@ -276,7 +292,7 @@ class _NavBarItemState extends State<_NavBarItem> {
     final primary = Theme.of(context).primaryColor;
     final inactiveColor =
         Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
-    final activeBg = primary.withOpacity(0.15);
+    final activeBg = primary.withValues(alpha: 0.15);
     final hoverBg = Theme.of(context).hoverColor;
 
     final fgColor = widget.isActive || _isHovered ? primary : inactiveColor;
@@ -344,7 +360,7 @@ class BeautifulMobileNavBar extends StatelessWidget {
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -365,32 +381,39 @@ class BeautifulMobileNavBar extends StatelessWidget {
           items: [
             _buildItem(
               context,
+              Icons.dashboard,
+              Icons.dashboard_outlined,
+              "Dashboard",
+              0,
+            ),
+            _buildItem(
+              context,
               Icons.person,
               Icons.person_outline,
               "Profile",
-              0,
+              1,
             ),
-            _buildItem(context, Icons.work, Icons.work_outline, "Jobs", 1),
+            _buildItem(context, Icons.work, Icons.work_outline, "Jobs", 2),
             _buildItem(
               context,
               Icons.business,
               Icons.business_outlined,
               "Companies",
-              2,
+              3,
             ),
             _buildItem(
               context,
               Icons.list_alt,
               Icons.list_alt_outlined,
               "Queue",
-              3,
+              4,
             ),
             _buildItem(
               context,
               Icons.inbox,
               Icons.inbox_outlined,
               "Requests",
-              4,
+              5,
             ),
           ],
         ),
@@ -421,18 +444,21 @@ class BeautifulMobileNavBar extends StatelessWidget {
     Widget nextScreen;
     switch (index) {
       case 0:
-        nextScreen = const ProfileScreen();
+        nextScreen = const DashboardScreen();
         break;
       case 1:
-        nextScreen = const JobsScreen();
+        nextScreen = const ProfileScreen();
         break;
       case 2:
-        nextScreen = const CompaniesScreen();
+        nextScreen = const JobsScreen();
         break;
       case 3:
-        nextScreen = const QueueScreen();
+        nextScreen = const CompaniesScreen();
         break;
       case 4:
+        nextScreen = const QueueScreen();
+        break;
+      case 5:
         nextScreen = const RequestsScreen();
         break;
       default:
@@ -457,13 +483,16 @@ class _AnimatedIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
     final iconColor =
-        Theme.of(context).iconTheme.color?.withOpacity(0.5) ?? Colors.grey;
+        Theme.of(context).iconTheme.color?.withValues(alpha: 0.5) ??
+        Colors.grey;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isSelected ? primaryColor.withOpacity(0.1) : Colors.transparent,
+        color: isSelected
+            ? primaryColor.withValues(alpha: 0.1)
+            : Colors.transparent,
         shape: BoxShape.circle,
       ),
       child: Icon(

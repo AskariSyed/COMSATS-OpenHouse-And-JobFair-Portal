@@ -12,6 +12,8 @@ import 'package:student_job_fair_portal/model/experience.dart';
 import 'package:student_job_fair_portal/model/projectInvitiation.dart';
 import 'package:student_job_fair_portal/model/projectMember.dart';
 import 'package:student_job_fair_portal/model/student.dart';
+import 'package:student_job_fair_portal/model/dashboard_data.dart';
+import 'package:student_job_fair_portal/model/interview.dart';
 
 class StudentProvider with ChangeNotifier {
   Student? _student;
@@ -22,10 +24,20 @@ class StudentProvider with ChangeNotifier {
   String? get token => _token;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _student != null && _token != null;
+
+  DashboardData? _dashboardData;
+  DashboardData? get dashboardData => _dashboardData;
+  String? _dashboardError;
+  String? get dashboardError => _dashboardError;
+
   List<ProjectInvitation> _invitations = [];
   List<ProjectInvitation> get invitations => _invitations;
   List<InterviewRequest> _interviewRequests = [];
   List<InterviewRequest> get interviewRequests => _interviewRequests;
+  List<Interview> _scheduledInterviews = [];
+  List<Interview> get scheduledInterviews => _scheduledInterviews;
+  String? _scheduledInterviewsError;
+  String? get scheduledInterviewsError => _scheduledInterviewsError;
 
   // Base URL for your API
   final String baseUrl = "http://192.168.137.1:5158/api";
@@ -285,6 +297,33 @@ class StudentProvider with ChangeNotifier {
       debugPrint("Error fetching profile: $e");
     }
   }
+
+  Future<void> fetchDashboardData() async {
+    if (_token == null) return;
+    _setLoading(true);
+    _dashboardError = null;
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/dashboard"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _dashboardData = DashboardData.fromJson(data);
+        notifyListeners();
+      } else {
+        _dashboardError = "Failed to load dashboard: ${response.statusCode}";
+        debugPrint("Failed to load dashboard: ${response.body}");
+      }
+    } catch (e) {
+      _dashboardError = "Error fetching dashboard: $e";
+      debugPrint("Error fetching dashboard: $e");
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Inside lib/provider/student_provider.dart
 
   // 🎯 New: Update Name Method
@@ -761,7 +800,7 @@ class StudentProvider with ChangeNotifier {
         _student = _student!.copyWith(
           achievements: [
             // Force existing items to be re-read into the current type definition
-            ..._student!.achievements.map((a) => a as Achievement),
+            ..._student!.achievements.map((a) => a),
             finalAchievement,
           ],
         );
@@ -884,6 +923,42 @@ class StudentProvider with ChangeNotifier {
       debugPrint("Error fetching requests: $e");
     } finally {
       _setLoading(false);
+    }
+  }
+
+  Future<void> fetchScheduledInterviews() async {
+    if (_student == null) return;
+    _setLoading(true);
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/interviews/scheduled"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          _scheduledInterviews = (data as List)
+              .map((json) => Interview.fromJson(json))
+              .toList();
+          _scheduledInterviewsError = null;
+        } else {
+          _scheduledInterviews = [];
+        }
+      } else if (response.statusCode == 404) {
+        _scheduledInterviews = [];
+        _scheduledInterviewsError = null;
+      } else {
+        _scheduledInterviews = [];
+        _scheduledInterviewsError = "Failed to load interviews";
+      }
+    } catch (e) {
+      debugPrint("Error fetching scheduled interviews: $e");
+      _scheduledInterviews = [];
+      _scheduledInterviewsError = "Error: $e";
+    } finally {
+      _setLoading(false);
+      notifyListeners();
     }
   }
 

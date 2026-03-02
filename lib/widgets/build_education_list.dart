@@ -138,8 +138,9 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                               CustomSnackBar.error(message: "Error: $e"),
                             );
                           } finally {
-                            if (context.mounted)
+                            if (context.mounted) {
                               setState(() => isSaving = false);
+                            }
                           }
                         },
                   child: isSaving
@@ -225,9 +226,9 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
 
       // Calculate Columns
       int columns = 1;
-      if (availableWidth > 1350)
+      if (availableWidth > 1350) {
         columns = 5;
-      else if (availableWidth > 1000)
+      } else if (availableWidth > 1000)
         columns = 4;
       else if (availableWidth > 700)
         columns = 3;
@@ -310,7 +311,9 @@ class _EducationCardState extends State<EducationCard> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey.shade200,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -331,7 +334,7 @@ class _EducationCardState extends State<EducationCard> {
                       padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.orange.shade900.withOpacity(0.3)
+                            ? Colors.orange.shade900.withValues(alpha: 0.3)
                             : Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -417,7 +420,7 @@ class _EducationCardState extends State<EducationCard> {
           Divider(
             height: 1,
             color: isDark
-                ? Colors.white.withOpacity(0.1)
+                ? Colors.white.withValues(alpha: 0.1)
                 : Colors.grey.shade100,
           ),
 
@@ -426,8 +429,8 @@ class _EducationCardState extends State<EducationCard> {
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             color: isDark
-                ? Colors.black.withOpacity(0.2)
-                : Colors.grey.shade50.withOpacity(0.3),
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -468,7 +471,7 @@ class _EducationCardState extends State<EducationCard> {
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Icon(icon, size: 16, color: color.withOpacity(0.8)),
+            child: Icon(icon, size: 16, color: color.withValues(alpha: 0.8)),
           ),
         ),
       ),

@@ -37,7 +37,7 @@ class InvitationsList extends StatelessWidget {
             final invite = invitations[index];
             return Card(
               elevation: 3,
-              shadowColor: Colors.deepPurple.withOpacity(0.2),
+              shadowColor: Colors.deepPurple.withValues(alpha: 0.2),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),

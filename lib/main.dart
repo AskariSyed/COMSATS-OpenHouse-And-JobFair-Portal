@@ -17,7 +17,8 @@ import 'package:student_job_fair_portal/model/notification_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_job_fair_portal/utils/page_transitions.dart';
 import 'screens/sigin.dart';
-import 'screens/profile.dart';
+import 'screens/dashboard_screen.dart';
+import 'screens/onboarding_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -134,12 +135,8 @@ void main() async {
           settings.authorizationStatus == AuthorizationStatus.provisional) {
         // Get FCM token for web (works on Chrome, Firefox, Safari, etc.)
         String? token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          if (kDebugMode) print("🔑 Web FCM token: $token");
-        } else {
-          if (kDebugMode) print('⚠️ Could not generate FCM token');
-        }
-      } else {
+        if (kDebugMode) print("🔑 Web FCM token: $token");
+            } else {
         if (kDebugMode) print('⚠️ Notification permission denied');
       }
     } catch (e) {
@@ -301,7 +298,7 @@ class _MyAppState extends State<MyApp> {
                                 : Colors.white,
                             Theme.of(context).brightness == Brightness.dark
                                 ? const Color(0xFF2A2A2A)
-                                : Colors.blue.shade50.withOpacity(0.3),
+                                : Colors.blue.shade50.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
@@ -321,7 +318,7 @@ class _MyAppState extends State<MyApp> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.blue.withOpacity(0.3),
+                                  color: Colors.blue.withValues(alpha: 0.3),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -444,7 +441,6 @@ class _MyAppState extends State<MyApp> {
               primary: Colors.blue.shade600,
               secondary: Colors.purple.shade400,
               surface: Colors.white,
-              background: Colors.white,
             ),
             textTheme: const TextTheme(
               bodyLarge: TextStyle(color: Colors.black87, fontSize: 16),
@@ -469,7 +465,7 @@ class _MyAppState extends State<MyApp> {
             cardTheme: CardThemeData(
               color: Colors.white,
               elevation: 2,
-              shadowColor: Colors.black.withOpacity(0.1),
+              shadowColor: Colors.black.withValues(alpha: 0.1),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -499,7 +495,6 @@ class _MyAppState extends State<MyApp> {
               primary: Colors.blue.shade400,
               secondary: Colors.purple.shade400,
               surface: const Color(0xFF1E1E1E),
-              background: const Color(0xFF121212),
             ),
             textTheme: const TextTheme(
               bodyLarge: TextStyle(color: Colors.white, fontSize: 16),
@@ -524,7 +519,7 @@ class _MyAppState extends State<MyApp> {
             cardTheme: CardThemeData(
               color: const Color(0xFF1E1E1E),
               elevation: 4,
-              shadowColor: Colors.black.withOpacity(0.5),
+              shadowColor: Colors.black.withValues(alpha: 0.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -554,6 +549,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _isChecking = true;
+  bool _showOnboarding = false;
 
   @override
   void initState() {
@@ -564,6 +560,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<void> _checkAuth() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Check onboarding first
+      final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+      if (!seenOnboarding && !kIsWeb) {
+        if (mounted) {
+          setState(() {
+            _showOnboarding = true;
+            _isChecking = false;
+          });
+        }
+        return;
+      }
+
       final token = prefs.getString('authToken');
 
       if (token != null && mounted) {
@@ -580,10 +589,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         await studentProvider.fetchProfile();
 
         if (mounted && studentProvider.student != null) {
-          // Profile loaded successfully, navigate to ProfileScreen
+          // Profile loaded successfully, navigate to DashboardScreen
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
           );
           return;
         } else {
@@ -591,8 +600,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
           await studentProvider.logout();
         }
       }
-
-      // No token or fetch failed, stay on login screen
       if (mounted) {
         setState(() {
           _isChecking = false;
@@ -616,6 +623,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
       // Show minimal loading while checking auth
       // Native splash screen from flutter_launcher_icons will show first
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_showOnboarding) {
+      return const OnboardingScreen();
     }
 
     // Show login screen

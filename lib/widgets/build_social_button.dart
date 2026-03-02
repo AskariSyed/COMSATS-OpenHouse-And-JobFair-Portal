@@ -15,9 +15,9 @@ Widget buildSocialButton({
       height: 45,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: isFontAwesome
           ? FaIcon(icon as IconData, color: color, size: 20)

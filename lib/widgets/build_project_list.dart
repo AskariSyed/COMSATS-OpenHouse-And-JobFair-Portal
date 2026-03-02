@@ -162,7 +162,7 @@ class _ProjectCardState extends State<ProjectCard>
                 ),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withValues(alpha: 0.6),
                     shape: BoxShape.circle,
                   ),
                   padding: const EdgeInsets.all(8),
@@ -218,13 +218,13 @@ class _ProjectCardState extends State<ProjectCard>
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
+                        color: typeColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         typeString,
                         style: TextStyle(
-                          color: typeColor.withOpacity(1.0),
+                          color: typeColor.withValues(alpha: 1.0),
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
@@ -347,7 +347,7 @@ class _ProjectCardState extends State<ProjectCard>
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            color: Colors.grey.shade50.withOpacity(0.3),
+            color: Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -469,7 +469,7 @@ class _ProjectCardState extends State<ProjectCard>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),

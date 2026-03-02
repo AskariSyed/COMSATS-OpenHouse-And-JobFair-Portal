@@ -30,7 +30,7 @@ Widget buildFypCard(BuildContext context, dynamic student) {
                   fit: BoxFit.cover,
                   errorBuilder: (c, o, s) =>
                       Container(color: Colors.grey.shade300),
-                  color: Colors.black.withOpacity(0.4),
+                  color: Colors.black.withValues(alpha: 0.4),
                   colorBlendMode: BlendMode.darken,
                 ),
               ),

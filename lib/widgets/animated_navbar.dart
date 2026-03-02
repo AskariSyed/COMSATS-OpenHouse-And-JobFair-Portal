@@ -41,16 +41,18 @@ class AnimatedNavBar extends StatelessWidget {
                 10,
               ), // Pad for Status Bar
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7), // Semi-transparent white
+                color: Colors.white.withValues(
+                  alpha: 0.7,
+                ), // Semi-transparent white
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     width: 1,
                   ),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.indigo.withOpacity(0.1),
+                    color: Colors.indigo.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -90,7 +92,7 @@ class AnimatedNavBar extends StatelessWidget {
                           : null,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 5,
                           offset: const Offset(0, 2),
                         ),

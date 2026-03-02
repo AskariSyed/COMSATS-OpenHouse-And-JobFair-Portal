@@ -19,7 +19,7 @@ Widget buildAchievementsList(
   }
 
   // 🔹 Helper: Open Edit Dialog
-  void _showEditAchievementDialog(Achievement achievement) {
+  void showEditAchievementDialog(Achievement achievement) {
     final titleCtrl = TextEditingController(text: achievement.title);
     final descCtrl = TextEditingController(text: achievement.description);
     final dateCtrl = TextEditingController(
@@ -69,7 +69,7 @@ Widget buildAchievementsList(
   }
 
   // 🔹 Helper: Confirm Delete
-  Future<bool> _confirmAndDelete(int achievementId) async {
+  Future<bool> confirmAndDelete(int achievementId) async {
     return await showDialog<bool>(
           context: context,
           builder: (BuildContext ctx) {
@@ -153,8 +153,8 @@ Widget buildAchievementsList(
 
           Widget cardWidget = AchievementCard(
             achievement: ach,
-            onEdit: () => _showEditAchievementDialog(ach),
-            onDelete: () => _confirmAndDelete(ach.achievementId),
+            onEdit: () => showEditAchievementDialog(ach),
+            onDelete: () => confirmAndDelete(ach.achievementId),
           );
 
           // Swipe-to-delete only on mobile (1 column)
@@ -173,7 +173,7 @@ Widget buildAchievementsList(
                 child: const Icon(Icons.delete, color: Colors.white, size: 28),
               ),
               confirmDismiss: (direction) =>
-                  _confirmAndDelete(ach.achievementId),
+                  confirmAndDelete(ach.achievementId),
               child: cardWidget,
             );
           }
@@ -221,7 +221,9 @@ class _AchievementCardState extends State<AchievementCard>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey.shade200,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -241,7 +243,7 @@ class _AchievementCardState extends State<AchievementCard>
                       padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.purple.shade900.withOpacity(0.3)
+                            ? Colors.purple.shade900.withValues(alpha: 0.3)
                             : Colors.purple.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -317,7 +319,7 @@ class _AchievementCardState extends State<AchievementCard>
           Divider(
             height: 1,
             color: isDark
-                ? Colors.white.withOpacity(0.1)
+                ? Colors.white.withValues(alpha: 0.1)
                 : Colors.grey.shade100,
           ),
 
@@ -326,8 +328,8 @@ class _AchievementCardState extends State<AchievementCard>
             height: 44, // Fixed height footer
             padding: const EdgeInsets.symmetric(horizontal: 8),
             color: isDark
-                ? Colors.black.withOpacity(0.2)
-                : Colors.grey.shade50.withOpacity(0.3),
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -395,7 +397,7 @@ class _AchievementCardState extends State<AchievementCard>
         borderRadius: BorderRadius.circular(6),
         child: Padding(
           padding: const EdgeInsets.all(6.0),
-          child: Icon(icon, size: 16, color: color.withOpacity(0.8)),
+          child: Icon(icon, size: 16, color: color.withValues(alpha: 0.8)),
         ),
       ),
     );

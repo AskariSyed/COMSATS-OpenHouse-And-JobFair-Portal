@@ -107,7 +107,7 @@ class _ForgotPasswordRequestScreenState
                     child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Color(0xFF2563EB).withOpacity(0.1),
+                        color: Color(0xFF2563EB).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Icon(
@@ -361,7 +361,7 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -410,8 +410,8 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
                     boxShadow: [
                       BoxShadow(
                         color: isDark
-                            ? Colors.blue.withOpacity(0.2)
-                            : Colors.black.withOpacity(0.1),
+                            ? Colors.blue.withValues(alpha: 0.2)
+                            : Colors.black.withValues(alpha: 0.1),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),

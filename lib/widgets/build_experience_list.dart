@@ -79,8 +79,13 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
             const SizedBox(height: 10),
             TextField(
               controller: descCtrl,
-              decoration: const InputDecoration(labelText: "Description"),
+              decoration: const InputDecoration(
+                labelText: "Description",
+                counterText: "",
+                helperText: "Max 500 characters",
+              ),
               maxLines: 3,
+              maxLength: 500,
             ),
           ],
         ),
@@ -158,9 +163,9 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
     builder: (context, constraints) {
       final double availableWidth = constraints.maxWidth;
       int columns = 1;
-      if (availableWidth > 1350)
+      if (availableWidth > 1350) {
         columns = 5;
-      else if (availableWidth > 1000)
+      } else if (availableWidth > 1000)
         columns = 4;
       else if (availableWidth > 700)
         columns = 3;
@@ -246,7 +251,9 @@ class _ExperienceCardState extends State<ExperienceCard>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey.shade200,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -265,7 +272,7 @@ class _ExperienceCardState extends State<ExperienceCard>
                       padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.blue.shade900.withOpacity(0.3)
+                            ? Colors.blue.shade900.withValues(alpha: 0.3)
                             : Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -371,15 +378,15 @@ class _ExperienceCardState extends State<ExperienceCard>
           Divider(
             height: 1,
             color: isDark
-                ? Colors.white.withOpacity(0.1)
+                ? Colors.white.withValues(alpha: 0.1)
                 : Colors.grey.shade100,
           ),
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             color: isDark
-                ? Colors.black.withOpacity(0.2)
-                : Colors.grey.shade50.withOpacity(0.3),
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -444,7 +451,7 @@ class _ExperienceCardState extends State<ExperienceCard>
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Icon(icon, size: 16, color: color.withOpacity(0.8)),
+            child: Icon(icon, size: 16, color: color.withValues(alpha: 0.8)),
           ),
         ),
       ),

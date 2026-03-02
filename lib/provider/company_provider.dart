@@ -106,6 +106,21 @@ class CompanyProvider with ChangeNotifier {
           notifyListeners();
           return true;
         }
+      } else if (response.statusCode == 404) {
+        _error = "Company not found.";
+        if (response.body.isNotEmpty) {
+          // If body is plain text, use it. If JSON, try to parse 'message'
+          try {
+            final data = json.decode(response.body);
+            if (data is Map && data.containsKey('message')) {
+              _error = data['message'];
+            }
+          } catch (_) {
+            _error = response.body;
+          }
+        }
+        debugPrint("❌ Company not found: $_error");
+        return false;
       }
 
       _error = "Failed to load company details. Status: ${response.statusCode}";

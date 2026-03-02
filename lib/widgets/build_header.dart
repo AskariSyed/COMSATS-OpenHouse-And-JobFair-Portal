@@ -25,7 +25,7 @@ Widget buildHeader(
   final cardColor = Theme.of(context).cardColor;
   final textColor = Theme.of(context).textTheme.bodyMedium?.color;
   final subTextColor = Theme.of(context).textTheme.bodySmall?.color;
-  final borderColor = Theme.of(context).dividerColor.withOpacity(0.1);
+  final borderColor = Theme.of(context).dividerColor.withValues(alpha: 0.1);
 
   return Container(
     width: double.infinity,
@@ -35,8 +35,8 @@ Widget buildHeader(
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(
-            isDark ? 0.3 : 0.05,
+          color: Colors.black.withValues(
+            alpha: isDark ? 0.3 : 0.05,
           ), // 🔹 Dynamic Shadow
           blurRadius: 10,
           offset: const Offset(0, 5),
@@ -165,9 +165,9 @@ Widget buildHeader(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -196,9 +196,9 @@ Widget buildHeader(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -214,7 +214,11 @@ Widget buildHeader(
                   ),
                 ),
                 const SizedBox(width: 6),
-                Icon(Icons.edit, size: 14, color: Colors.blue.withOpacity(0.7)),
+                Icon(
+                  Icons.edit,
+                  size: 14,
+                  color: Colors.blue.withValues(alpha: 0.7),
+                ),
               ],
             ),
           ),

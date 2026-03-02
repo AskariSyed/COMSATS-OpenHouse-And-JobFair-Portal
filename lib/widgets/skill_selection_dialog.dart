@@ -223,7 +223,9 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
               width: 220, // Fixed width card
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.white,
+                color: isSelected
+                    ? Colors.blue.withValues(alpha: 0.1)
+                    : Colors.white,
                 border: Border.all(
                   color: isSelected ? Colors.blue : Colors.grey.shade300,
                 ),

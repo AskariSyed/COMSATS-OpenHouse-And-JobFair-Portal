@@ -4,14 +4,14 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
-void showGenericDialog({
+Future<dynamic> showGenericDialog({
   required String title,
   required Widget content,
   required Future<void> Function() onSave,
   required BuildContext context,
   bool mounted = true,
 }) {
-  showDialog(
+  return showDialog(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {
@@ -47,7 +47,7 @@ void showGenericDialog({
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -148,8 +148,9 @@ void showGenericDialog({
                                       ),
                                     );
                                   } finally {
-                                    if (mounted)
+                                    if (mounted) {
                                       setState(() => isSaving = false);
+                                    }
                                   }
                                 },
                           style: ElevatedButton.styleFrom(

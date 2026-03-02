@@ -10,6 +10,7 @@ import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/screens/forgetpassword_screen.dart';
 import 'package:student_job_fair_portal/screens/profile.dart';
+import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:student_job_fair_portal/screens/signup.dart';
@@ -56,12 +57,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               settings.authorizationStatus == AuthorizationStatus.provisional) {
             // Get token for web browsers (Chrome, Firefox, Safari, etc.)
             fcmToken = await _firebaseMessaging.getToken();
-            if (fcmToken != null) {
-              if (kDebugMode) {
-                print("🔑 Web FCM Token: ${fcmToken.substring(0, 20)}...");
-              }
-            } else {
-              if (kDebugMode) print("⚠️ FCM token is null on web");
+            if (kDebugMode) {
+              print("🔑 Web FCM Token: ${fcmToken?.substring(0, 20)}...");
             }
           } else {
             if (kDebugMode) print("⚠️ Notification permission denied on web");
@@ -108,7 +105,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              MaterialPageRoute(builder: (_) => const DashboardScreen()),
             );
           });
         }
@@ -216,7 +213,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                           Text(
                             "Student Portal",
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 18,
                               fontWeight: FontWeight.w400,
                             ),
@@ -250,7 +247,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: Color(0xFF2563EB).withOpacity(0.1),
+                                      color: Color(
+                                        0xFF2563EB,
+                                      ).withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Image.asset(

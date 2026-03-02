@@ -6,7 +6,6 @@ import 'package:shimmer/shimmer.dart';
 
 // Providers & Models
 import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:student_job_fair_portal/provider/theme_provider.dart'; // 🔹 Theme Provider
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/model/project.dart';
 
@@ -66,6 +65,139 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _isInitLoading = false;
       });
+      _checkMissingDetails();
+    }
+  }
+
+  Future<void> _checkMissingDetails() async {
+    if (!mounted) return;
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+    var student = provider.student;
+    if (student == null) return;
+
+    // 1. Check Name
+    final fullName = student.user.fullName;
+    if (fullName == null || fullName.isEmpty || fullName == "Unknown") {
+      final nameCtrl = TextEditingController();
+      await showGenericDialog(
+        context: context,
+        title: "Complete Your Profile",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Please enter your full name to continue.",
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: "Full Name"),
+            ),
+          ],
+        ),
+        onSave: () async {
+          if (nameCtrl.text.trim().isEmpty) {
+            throw Exception("Full name cannot be empty.");
+          }
+          await provider.updateFullName(nameCtrl.text.trim());
+        },
+      );
+      student = provider.student; // Refresh local reference
+    }
+
+    // 2. Check Phone
+    if (student != null &&
+        (student.user.phone == null || student.user.phone!.isEmpty)) {
+      final phoneCtrl = TextEditingController();
+      await showGenericDialog(
+        context: context,
+        title: "Add Phone Number",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Please add your phone number so recruiters can contact you.",
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: phoneCtrl,
+              decoration: const InputDecoration(
+                labelText: "Phone Number",
+                hintText: "+92 300 1234567",
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
+        onSave: () async {
+          if (phoneCtrl.text.trim().isEmpty) {
+            throw Exception("Phone number cannot be empty.");
+          }
+          await provider.updatePhoneNumber(phoneCtrl.text.trim());
+        },
+      );
+      student = provider.student;
+    }
+
+    // 3. Check CGPA
+    if (student != null && (student.cgpa == 0.0)) {
+      final cgpaCtrl = TextEditingController();
+      await showGenericDialog(
+        context: context,
+        title: "Add CGPA",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Please enter your current CGPA.",
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: cgpaCtrl,
+              decoration: const InputDecoration(labelText: "CGPA (e.g. 3.5)"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        onSave: () async {
+          final val = double.tryParse(cgpaCtrl.text);
+          if (val == null || val < 0 || val > 4.0) {
+            throw Exception("Please enter a valid CGPA between 0.0 and 4.0");
+          }
+          await provider.updateCGPA(val);
+        },
+      );
+      student = provider.student;
+    }
+
+    // 4. Check Profile Picture
+    if (student != null &&
+        (student.profilePicUrl == null || student.profilePicUrl!.isEmpty)) {
+      await showGenericDialog(
+        context: context,
+        title: "Upload Profile Picture",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "A profile picture helps recruiters recognize you. Please upload a professional photo.",
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            const Icon(Icons.account_circle, size: 80, color: Colors.grey),
+          ],
+        ),
+        onSave: () async {
+          // Trigger the existing image picker logic
+          // We need to close this dialog first? No, onSave closes it after success.
+          // But _onEditPicturePressed shows snackbars and might take time.
+          // Let's just call it.
+          await _onEditPicturePressed();
+        },
+      );
     }
   }
 
@@ -207,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: selectedPlatform,
+                initialValue: selectedPlatform,
                 items: availablePlatforms
                     .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                     .toList(),
@@ -448,7 +580,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 0),
+            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 1),
           );
         } else {
           // ==================================================================

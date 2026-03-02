@@ -20,7 +20,7 @@ Widget buildCertificationsList(
   }
 
   // 🔹 Helper: Open Edit Dialog
-  void _showEditCertificationDialog(Certification cert) {
+  void showEditCertificationDialog(Certification cert) {
     final titleCtrl = TextEditingController(text: cert.title);
     final issuerCtrl = TextEditingController(text: cert.issuer);
     final dateCtrl = TextEditingController(
@@ -81,7 +81,7 @@ Widget buildCertificationsList(
   }
 
   // 🔹 Helper: Confirm Delete
-  Future<bool> _confirmAndDelete(int certificationId) async {
+  Future<bool> confirmAndDelete(int certificationId) async {
     return await showDialog<bool>(
           context: context,
           builder: (BuildContext ctx) {
@@ -166,8 +166,8 @@ Widget buildCertificationsList(
 
           Widget cardWidget = CertificationCard(
             certification: cert,
-            onEdit: () => _showEditCertificationDialog(cert),
-            onDelete: () => _confirmAndDelete(cert.certificationId),
+            onEdit: () => showEditCertificationDialog(cert),
+            onDelete: () => confirmAndDelete(cert.certificationId),
           );
 
           // Swipe-to-delete only on mobile (1 column)
@@ -186,7 +186,7 @@ Widget buildCertificationsList(
                 child: const Icon(Icons.delete, color: Colors.white, size: 28),
               ),
               confirmDismiss: (direction) =>
-                  _confirmAndDelete(cert.certificationId),
+                  confirmAndDelete(cert.certificationId),
               child: cardWidget,
             );
           }
@@ -233,7 +233,9 @@ class _CertificationCardState extends State<CertificationCard>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey.shade200,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -253,7 +255,7 @@ class _CertificationCardState extends State<CertificationCard>
                       padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.green.shade900.withOpacity(0.3)
+                            ? Colors.green.shade900.withValues(alpha: 0.3)
                             : Colors.green.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -324,7 +326,7 @@ class _CertificationCardState extends State<CertificationCard>
           Divider(
             height: 1,
             color: isDark
-                ? Colors.white.withOpacity(0.1)
+                ? Colors.white.withValues(alpha: 0.1)
                 : Colors.grey.shade100,
           ),
 
@@ -333,8 +335,8 @@ class _CertificationCardState extends State<CertificationCard>
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             color: isDark
-                ? Colors.black.withOpacity(0.2)
-                : Colors.grey.shade50.withOpacity(0.3),
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -395,7 +397,7 @@ class _CertificationCardState extends State<CertificationCard>
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Icon(icon, size: 16, color: color.withOpacity(0.8)),
+            child: Icon(icon, size: 16, color: color.withValues(alpha: 0.8)),
           ),
         ),
       ),

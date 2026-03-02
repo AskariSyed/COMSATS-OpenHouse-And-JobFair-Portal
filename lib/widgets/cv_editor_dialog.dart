@@ -135,7 +135,7 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
-                  value: typeIndex,
+                  initialValue: typeIndex,
                   items: ProjectType.values
                       .asMap()
                       .entries
@@ -256,8 +256,13 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: desc,
-                  decoration: const InputDecoration(labelText: 'Description'),
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    counterText: "",
+                    helperText: "Max 500 characters",
+                  ),
                   maxLines: 3,
+                  maxLength: 500,
                 ),
               ],
             ),
@@ -555,7 +560,7 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: selectedPlatform,
+                    initialValue: selectedPlatform,
                     items: platforms
                         .map(
                           (p) => DropdownMenuItem<String>(
@@ -1497,8 +1502,9 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                       ? null
                                       : () async {
                                           await _savePersonal(provider);
-                                          if (mounted)
+                                          if (mounted) {
                                             Navigator.pop(context, cvEmail);
+                                          }
                                         },
                                   child: loading
                                       ? const SizedBox(

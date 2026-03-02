@@ -30,8 +30,7 @@ Future<void> selectDate(
                   onPrimary: Colors.white,
                   surface: const Color(0xFF1E1E1E),
                   onSurface: Colors.white,
-                ),
-                dialogBackgroundColor: const Color(0xFF1E1E1E),
+                ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1E1E1E)),
               )
             : ThemeData.light().copyWith(
                 colorScheme: ColorScheme.light(
@@ -39,8 +38,7 @@ Future<void> selectDate(
                   onPrimary: Colors.white,
                   surface: Colors.white,
                   onSurface: Colors.black87,
-                ),
-                dialogBackgroundColor: Colors.white,
+                ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
               ),
         child: child!,
       );

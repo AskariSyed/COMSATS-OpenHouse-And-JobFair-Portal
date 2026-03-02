@@ -68,7 +68,8 @@ class SettingsScreen extends StatelessWidget {
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
     final dividerColor = Theme.of(context).dividerColor;
     final iconColor =
-        Theme.of(context).iconTheme.color?.withOpacity(0.7) ?? Colors.grey;
+        Theme.of(context).iconTheme.color?.withValues(alpha: 0.7) ??
+        Colors.grey;
 
     // Mobile Layout
     if (isMobile) {
@@ -182,7 +183,7 @@ class SettingsScreen extends StatelessWidget {
             gradient: isDark
                 ? LinearGradient(
                     colors: [
-                      Colors.purple.shade900.withOpacity(0.3),
+                      Colors.purple.shade900.withValues(alpha: 0.3),
                       cardColor,
                     ],
                     begin: Alignment.topLeft,
@@ -196,7 +197,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
                 spreadRadius: 0,
@@ -204,8 +205,8 @@ class SettingsScreen extends StatelessWidget {
             ],
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.grey.withValues(alpha: 0.1),
               width: 1,
             ),
           ),
@@ -255,7 +256,7 @@ class SettingsScreen extends StatelessWidget {
                   boxShadow: [
                     BoxShadow(
                       color: (isDark ? Colors.purple : Colors.orange)
-                          .withOpacity(0.3),
+                          .withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -267,7 +268,7 @@ class SettingsScreen extends StatelessWidget {
                   size: isMobile ? 20 : 24,
                 ),
               ),
-              activeColor: primaryColor,
+              activeThumbColor: primaryColor,
             ),
           ),
         ),
@@ -283,7 +284,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
                 spreadRadius: 0,
@@ -291,8 +292,8 @@ class SettingsScreen extends StatelessWidget {
             ],
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.grey.withValues(alpha: 0.1),
               width: 1,
             ),
           ),
@@ -312,7 +313,7 @@ class SettingsScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
+                        color: Colors.blue.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -347,7 +348,10 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
-                child: Divider(height: 1, color: dividerColor.withOpacity(0.2)),
+                child: Divider(
+                  height: 1,
+                  color: dividerColor.withValues(alpha: 0.2),
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.symmetric(
@@ -363,7 +367,7 @@ class SettingsScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
+                        color: Colors.green.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -401,7 +405,10 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
-                child: Divider(height: 1, color: dividerColor.withOpacity(0.2)),
+                child: Divider(
+                  height: 1,
+                  color: dividerColor.withValues(alpha: 0.2),
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.symmetric(
@@ -417,7 +424,7 @@ class SettingsScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
+                        color: Colors.orange.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -455,7 +462,10 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
-                child: Divider(height: 1, color: dividerColor.withOpacity(0.2)),
+                child: Divider(
+                  height: 1,
+                  color: dividerColor.withValues(alpha: 0.2),
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.symmetric(
@@ -471,7 +481,7 @@ class SettingsScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.purple.withOpacity(0.3),
+                        color: Colors.purple.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -509,7 +519,10 @@ class SettingsScreen extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
-                child: Divider(height: 1, color: dividerColor.withOpacity(0.2)),
+                child: Divider(
+                  height: 1,
+                  color: dividerColor.withValues(alpha: 0.2),
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.symmetric(
@@ -525,7 +538,7 @@ class SettingsScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.teal.withOpacity(0.3),
+                        color: Colors.teal.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -698,7 +711,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withOpacity(0.3),
+                color: Colors.green.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -828,7 +841,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.withOpacity(0.3),
+                color: Colors.blue.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -960,7 +973,7 @@ class SettingsScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.red.withOpacity(0.3),
+                color: Colors.red.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -1112,7 +1125,7 @@ class SettingsScreen extends StatelessWidget {
                         Container(
                           padding: EdgeInsets.all(iconPadding),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -1250,8 +1263,8 @@ class SettingsScreen extends StatelessWidget {
                       border: Border(
                         top: BorderSide(
                           color: isDark
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.grey.withOpacity(0.2),
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.grey.withValues(alpha: 0.2),
                         ),
                       ),
                     ),
@@ -1446,7 +1459,7 @@ class SettingsScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
               spreadRadius: 0,
@@ -1454,8 +1467,8 @@ class SettingsScreen extends StatelessWidget {
           ],
           border: Border.all(
             color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.grey.withOpacity(0.15),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.grey.withValues(alpha: 0.15),
             width: 1,
           ),
         ),
@@ -1465,9 +1478,12 @@ class SettingsScreen extends StatelessWidget {
               width: isMobile ? 50 : 60,
               height: isMobile ? 50 : 60,
               decoration: BoxDecoration(
-                color: devColor.withOpacity(0.15),
+                color: devColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
-                border: Border.all(color: devColor.withOpacity(0.3), width: 2),
+                border: Border.all(
+                  color: devColor.withValues(alpha: 0.3),
+                  width: 2,
+                ),
               ),
               child: Center(
                 child: Text(
@@ -1509,7 +1525,7 @@ class SettingsScreen extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: devColor.withOpacity(0.1),
+                      color: devColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(

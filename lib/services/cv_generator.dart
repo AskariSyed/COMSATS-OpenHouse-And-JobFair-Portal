@@ -244,7 +244,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -314,7 +314,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -406,7 +406,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -492,7 +492,7 @@ class CVGenerator {
                       pw.SizedBox(height: 8),
                     ],
                   );
-                }).toList(),
+                }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -551,7 +551,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
               ],
             ),
 
@@ -570,7 +570,7 @@ class CVGenerator {
                       style: pw.TextStyle(fontSize: 9, font: pw.Font.times()),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
         ],
@@ -843,7 +843,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
               ],
             ),
 
@@ -912,7 +912,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -1004,7 +1004,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -1090,7 +1090,7 @@ class CVGenerator {
                       pw.SizedBox(height: 8),
                     ],
                   );
-                }).toList(),
+                }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -1149,7 +1149,7 @@ class CVGenerator {
                         ],
                       );
                     })
-                    .toList(),
+                    ,
               ],
             ),
 
@@ -1168,7 +1168,7 @@ class CVGenerator {
                       style: pw.TextStyle(fontSize: 9, font: pw.Font.times()),
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
         ],

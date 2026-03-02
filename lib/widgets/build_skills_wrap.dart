@@ -11,7 +11,7 @@ Widget buildSkillsWrap(List<dynamic>? skills, BuildContext context) {
     );
   }
 
-  Future<void> _confirmAndDeleteSkill(String skillToDelete) async {
+  Future<void> confirmAndDeleteSkill(String skillToDelete) async {
     bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) {
@@ -74,7 +74,7 @@ Widget buildSkillsWrap(List<dynamic>? skills, BuildContext context) {
         // 🔹 Chip now relies solely on the onTap gesture for deletion
         return InkWell(
           borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-          onTap: () => _confirmAndDeleteSkill(
+          onTap: () => confirmAndDeleteSkill(
             skillString,
           ), // Tap/Click opens confirmation
           child: Container(
@@ -91,7 +91,7 @@ Widget buildSkillsWrap(List<dynamic>? skills, BuildContext context) {
               boxShadow: [
                 BoxShadow(
                   color: isDarkMode
-                      ? Colors.blue.shade900.withOpacity(0.3)
+                      ? Colors.blue.shade900.withValues(alpha: 0.3)
                       : Colors.blue.shade50,
                   blurRadius: isMobile ? 2 : 4,
                   offset: Offset(0, isMobile ? 1 : 2),

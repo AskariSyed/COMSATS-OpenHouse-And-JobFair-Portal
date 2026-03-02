@@ -239,7 +239,7 @@ class _NotificationCard extends StatelessWidget {
                                 : Colors.white,
                             Theme.of(context).brightness == Brightness.dark
                                 ? const Color(0xFF2A2A2A)
-                                : Colors.blue.shade50.withOpacity(0.3),
+                                : Colors.blue.shade50.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
@@ -262,7 +262,7 @@ class _NotificationCard extends StatelessWidget {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.blue.withOpacity(0.3),
+                                      color: Colors.blue.withValues(alpha: 0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
                                     ),
@@ -377,18 +377,18 @@ class _NotificationCard extends StatelessWidget {
                 ? (isDark ? const Color(0xFF1E1E1E) : Colors.white)
                 : (isDark
                       ? const Color(0xFF2A2A3E)
-                      : Colors.blue.shade50.withOpacity(0.5)),
+                      : Colors.blue.shade50.withValues(alpha: 0.5)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: notification.isRead
                   ? (isDark ? Colors.grey.shade800 : Colors.grey.shade200)
-                  : Colors.blue.shade200.withOpacity(0.3),
+                  : Colors.blue.shade200.withValues(alpha: 0.3),
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withOpacity(0.3)
-                    : Colors.black.withOpacity(0.05),
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : Colors.black.withValues(alpha: 0.05),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -400,7 +400,7 @@ class _NotificationCard extends StatelessWidget {
               Container(
                 padding: EdgeInsets.all(isMobile ? 8 : 10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade100.withOpacity(0.5),
+                  color: Colors.blue.shade100.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
