@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl } from '../api';
+import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile } from '../api';
 
 export default function InterviewManager({ onError }) {
   const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled
@@ -17,6 +17,20 @@ export default function InterviewManager({ onError }) {
   const [actionModal, setActionModal] = useState(null); // { type: 'accept' | 'reject', request: ... }
   const [rejectReason, setRejectReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [scheduleModal, setScheduleModal] = useState(null); // { request }
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(30);
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const [startingInterviewId, setStartingInterviewId] = useState(null);
+  const [completeModal, setCompleteModal] = useState(null); // { interview }
+  const [selectedResult, setSelectedResult] = useState('Hired');
+  const [completing, setCompleting] = useState(false);
+  const [selectedScheduledStudentId, setSelectedScheduledStudentId] = useState(null);
+  const [selectedScheduledInterview, setSelectedScheduledInterview] = useState(null);
+  const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -33,6 +47,11 @@ export default function InterviewManager({ onError }) {
     .catch(err => onError(err.message))
     .finally(() => setLoading(false));
   }, [refreshKey, onError]);
+
+  const formatDateTime = (value) => {
+    if (!value) return '--';
+    return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  };
 
   const handleAccept = async () => {
     setProcessing(true);
@@ -59,6 +78,114 @@ export default function InterviewManager({ onError }) {
       onError(err.message);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const openScheduleModal = async (request) => {
+    setScheduleModal({ request });
+    setAvailableSlots([]);
+    setSlotDurationMinutes(30);
+    setSelectedSlot('');
+    setLoadingSlots(true);
+
+    try {
+      const now = new Date();
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const availability = await getStudentAvailability(request.studentId, localDate);
+      const slots = availability?.slots || [];
+      setSlotDurationMinutes(Number(availability?.slotDurationMinutes) || 30);
+      setAvailableSlots(slots);
+      if (slots.length > 0) {
+        setSelectedSlot(slots[0]);
+      }
+    } catch (err) {
+      onError(err.message);
+      setScheduleModal(null);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleScheduleStudent = async () => {
+    if (!scheduleModal?.request?.studentId || !selectedSlot) {
+      onError('Please select an available slot');
+      return;
+    }
+
+    setScheduling(true);
+    try {
+      await scheduleStudentInterview(
+        scheduleModal.request.studentId,
+        selectedSlot,
+        scheduleModal.request.requestId
+      );
+
+      setScheduleModal(null);
+      setAvailableSlots([]);
+      setSelectedSlot('');
+      setRefreshKey(k => k + 1);
+      onError('Interview scheduled successfully');
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const isAlreadyScheduled = (request) => {
+    return scheduledInterviews.some(
+      (interview) => String(interview.studentId) === String(request.studentId)
+    );
+  };
+
+  const handleStartInterview = async (interview) => {
+    setStartingInterviewId(interview.interviewId);
+    try {
+      await startInterview(interview.interviewId);
+      setRefreshKey(k => k + 1);
+      onError('Interview marked as started');
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setStartingInterviewId(null);
+    }
+  };
+
+  const openCompleteModal = (interview) => {
+    setCompleteModal({ interview });
+    setSelectedResult('Hired');
+  };
+
+  const handleCompleteInterview = async () => {
+    if (!completeModal?.interview?.interviewId) return;
+
+    setCompleting(true);
+    try {
+      await completeInterview(completeModal.interview.interviewId, selectedResult);
+      setCompleteModal(null);
+      setRefreshKey(k => k + 1);
+      onError(`Interview ended with result: ${selectedResult}`);
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleViewStudentProfile = async (interview) => {
+    setSelectedScheduledStudentId(interview.studentId);
+    setSelectedScheduledInterview(interview);
+    setProfileLoading(true);
+    try {
+      const data = await getStudentProfile(interview.studentId);
+      const profile = data?.student || null;
+      setSelectedStudentProfile(profile);
+    } catch (err) {
+      onError(err.message);
+      setSelectedStudentProfile(null);
+      setSelectedScheduledInterview(null);
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -173,6 +300,7 @@ export default function InterviewManager({ onError }) {
                     <th className="p-4">CGPA</th>
                     <th className="p-4">Request Date</th>
                     <th className="p-4">Response Date</th>
+                    <th className="p-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -204,6 +332,20 @@ export default function InterviewManager({ onError }) {
                       <td className="p-4 text-gray-600 text-xs">
                         {new Date(req.responseDate).toLocaleDateString()}
                       </td>
+                      <td className="p-4 text-right">
+                        {isAlreadyScheduled(req) ? (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Scheduled
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => openScheduleModal(req)}
+                            className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
+                          >
+                            <Calendar className="w-3.5 h-3.5" /> Schedule
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -215,7 +357,8 @@ export default function InterviewManager({ onError }) {
 
       {/* --- SCHEDULED INTERVIEWS VIEW --- */}
       {activeTab === 'scheduled' && (
-        <div>
+        <div className={`${selectedScheduledStudentId ? 'grid grid-cols-1 xl:grid-cols-2 gap-6 items-start' : ''}`}>
+          <div>
           {scheduledInterviews.length === 0 ? (
              <EmptyState message="No upcoming interviews scheduled." />
           ) : (
@@ -239,22 +382,185 @@ export default function InterviewManager({ onError }) {
                       <td className="p-4">
                         <div className="flex items-center gap-2 text-blue-600 font-medium bg-blue-50 w-fit px-3 py-1 rounded-full">
                            <Clock className="w-3.5 h-3.5" />
-                           {new Date(int.scheduledTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                           {formatDateTime(int.scheduledTime)}
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs">
+                          <div className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded w-fit">Start: {formatDateTime(int.startedAt)}</div>
+                          <div className="text-rose-700 bg-rose-50 border border-rose-100 px-2 py-1 rounded w-fit">End: {formatDateTime(int.endedAt)}</div>
                         </div>
                       </td>
                       <td className="p-4">
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit">
-                            <CheckCircle2 className="w-3 h-3" /> Scheduled
+                            <CheckCircle2 className="w-3 h-3" /> {int.status || 'Scheduled'}
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                         {/* Placeholder for future actions like "Mark Hired" */}
-                         <button className="text-gray-400 hover:text-blue-600 text-xs font-medium">View Profile</button>
+                         <div className="flex justify-end gap-2 flex-wrap">
+                           <button
+                             onClick={() => handleViewStudentProfile(int)}
+                             className="text-gray-600 hover:text-blue-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded"
+                           >
+                             View Profile
+                           </button>
+
+                           {(String(int.status).toLowerCase() === 'queued') && (
+                             <button
+                               onClick={() => handleStartInterview(int)}
+                               disabled={startingInterviewId === int.interviewId}
+                               className="text-xs font-medium bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded disabled:opacity-50"
+                             >
+                               {startingInterviewId === int.interviewId ? 'Starting...' : 'Start Interview'}
+                             </button>
+                           )}
+
+                           {(String(int.status).toLowerCase() === 'inprogress') && (
+                             <button
+                               onClick={() => openCompleteModal(int)}
+                               className="text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded"
+                             >
+                               End Interview
+                             </button>
+                           )}
+                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          </div>
+
+          {selectedScheduledStudentId && (
+            <div className="bg-white rounded-xl border shadow-sm p-5 sticky top-4 max-h-[80vh] overflow-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-gray-900">Student Profile</h4>
+                <button
+                  onClick={() => {
+                    setSelectedScheduledStudentId(null);
+                    setSelectedScheduledInterview(null);
+                    setSelectedStudentProfile(null);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+
+              {profileLoading ? (
+                <div className="py-8 flex items-center justify-center text-gray-500 gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading profile...
+                </div>
+              ) : selectedStudentProfile ? (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-gray-500">Interview Time</p>
+                      <p className="font-medium text-gray-800">{formatDateTime(selectedScheduledInterview?.scheduledTime)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Status</p>
+                      <p className="font-medium text-gray-800">{selectedScheduledInterview?.status || 'Scheduled'}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500">Name</p>
+                    <p className="font-semibold text-gray-900">{selectedStudentProfile.user?.fullName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Registration</p>
+                    <p className="font-medium text-gray-800">{selectedStudentProfile.registrationNo || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Department</p>
+                    <p className="font-medium text-gray-800">{selectedStudentProfile.department || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">CGPA</p>
+                    <p className="font-medium text-blue-700">{selectedStudentProfile.cgpa?.toFixed ? selectedStudentProfile.cgpa.toFixed(2) : selectedStudentProfile.cgpa || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="font-medium text-gray-800 break-all">{selectedStudentProfile.user?.email || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500">Uploaded CV</p>
+                    {selectedStudentProfile.cvUrl ? (
+                      <div className="space-y-2 mt-1">
+                        <div className="flex gap-2">
+                          <a
+                            href={getFileUrl(selectedStudentProfile.cvUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-medium border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-2.5 py-1 rounded"
+                          >
+                            Download CV
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">No CV uploaded yet.</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500">Skills</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(selectedStudentProfile.skills || []).length > 0
+                        ? selectedStudentProfile.skills.map((skill, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">{skill}</span>
+                          ))
+                        : <span className="text-gray-400 text-xs">No skills listed.</span>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Education</p>
+                    {(selectedStudentProfile.educations || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedStudentProfile.educations.map((edu, idx) => (
+                          <div key={idx} className="p-2 rounded border border-gray-100 bg-gray-50">
+                            <p className="font-medium text-gray-800">{edu.degree || 'Degree'} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ''}</p>
+                            <p className="text-xs text-gray-600">{edu.institutionName || 'Institution'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <span className="text-gray-400 text-xs">No education records.</span>}
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Experience</p>
+                    {(selectedStudentProfile.experiences || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedStudentProfile.experiences.map((exp, idx) => (
+                          <div key={idx} className="p-2 rounded border border-gray-100 bg-gray-50">
+                            <p className="font-medium text-gray-800">{exp.role || 'Role'}</p>
+                            <p className="text-xs text-gray-600">{exp.companyName || 'Company'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <span className="text-gray-400 text-xs">No experience records.</span>}
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Projects</p>
+                    {(selectedStudentProfile.projects || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedStudentProfile.projects.map((project, idx) => (
+                          <div key={idx} className="p-2 rounded border border-gray-100 bg-gray-50">
+                            <p className="font-medium text-gray-800">{project.title || 'Project'}</p>
+                            {project.description && <p className="text-xs text-gray-600 mt-0.5">{project.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : <span className="text-gray-400 text-xs">No projects listed.</span>}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Profile not available.</p>
+              )}
             </div>
           )}
         </div>
@@ -307,6 +613,119 @@ export default function InterviewManager({ onError }) {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Schedule Interview</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Candidate: <span className="font-medium text-gray-900">{scheduleModal.request.studentName}</span>
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {loadingSlots ? (
+                <div className="py-8 flex items-center justify-center text-gray-500 gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading available slots...
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="py-6 text-center text-sm text-gray-500 bg-gray-50 rounded-lg border border-gray-100">
+                  No available slots found for this student.
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Available Slot</label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={selectedSlot}
+                    onChange={(e) => setSelectedSlot(e.target.value)}
+                  >
+                    {availableSlots.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {formatDateTime(slot)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSlot && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Interview window: {formatDateTime(selectedSlot)} - {formatDateTime(new Date(new Date(selectedSlot).getTime() + slotDurationMinutes * 60000))}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setScheduleModal(null)}
+                  className="flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={loadingSlots || scheduling || availableSlots.length === 0 || !selectedSlot}
+                  onClick={handleScheduleStudent}
+                  className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                >
+                  {scheduling ? <Loader2 className="animate-spin w-4 h-4" /> : 'Schedule Interview'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Complete Interview</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Candidate: <span className="font-medium text-gray-900">{completeModal.interview.studentName}</span>
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 space-y-1">
+                <div><span className="font-medium">Scheduled:</span> {formatDateTime(completeModal.interview.scheduledTime)}</div>
+                <div><span className="font-medium">Start:</span> {formatDateTime(completeModal.interview.startedAt)}</div>
+                <div><span className="font-medium">End:</span> {formatDateTime(new Date())}</div>
+              </div>
+
+              <label className="block text-sm font-medium text-gray-700">Select Result</label>
+              <select
+                value={selectedResult}
+                onChange={(e) => setSelectedResult(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="Hired">Hired</option>
+                <option value="Shortlisted">Shortlisted</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCompleteModal(null)}
+                  className="flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={completing}
+                  onClick={handleCompleteInterview}
+                  className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                >
+                  {completing ? <Loader2 className="animate-spin w-4 h-4" /> : 'Save Result'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

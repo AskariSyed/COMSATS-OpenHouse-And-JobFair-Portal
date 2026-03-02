@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2, Package, ClipboardList } from 'lucide-react';
 import logo from '../../assets/CuiWahJobFairLogo.png';
 
 export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children }) {
@@ -7,10 +7,12 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'profile', label: 'Company Profile', icon: Building2 }, // <--- ADDED THIS
+    { id: 'profile', label: 'Company Profile', icon: Building2 },
     { id: 'students', label: 'Student Directory', icon: Users },
     { id: 'fyps', label: 'FYP Gallery', icon: BookOpen },
     { id: 'interviews', label: 'Interviews', icon: Calendar },
+    { id: 'requests', label: 'Supply Requests', icon: Package },
+    { id: 'surveys', label: 'Surveys', icon: ClipboardList },
     { id: 'notices', label: 'Notices', icon: Bell },
   ];
 

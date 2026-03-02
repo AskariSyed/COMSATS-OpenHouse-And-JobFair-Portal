@@ -167,6 +167,16 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
                  {user?.email && <span className="flex items-center gap-2 hover:text-blue-600 transition-colors"><Mail className="w-4 h-4 text-gray-400" /> {user.email}</span>}
                  {user?.phone && <span className="flex items-center gap-2 hover:text-blue-600 transition-colors"><Phone className="w-4 h-4 text-gray-400" /> {user.phone}</span>}
                  <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-400" /> Wah Campus</span>
+                         {profile?.cvUrl && (
+                            <a
+                               href={getFileUrl(profile.cvUrl)}
+                               target="_blank"
+                               rel="noreferrer"
+                               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                            >
+                               <Calendar className="w-4 h-4 text-gray-400" /> Download CV
+                            </a>
+                         )}
               </div>
               
               <div className="flex gap-2">

@@ -2,11 +2,13 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
-import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl } from '../api';
+import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus } from '../api';
 
 export default function CompanyProfile({ onError }) {
   const [profile, setProfile] = useState(null);
+  const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Modals
@@ -16,8 +18,14 @@ export default function CompanyProfile({ onError }) {
 
   useEffect(() => {
     setLoading(true);
-    getCompanyProfile()
-      .then(data => setProfile(data))
+    Promise.all([
+      getCompanyProfile(),
+      getConfirmationStatus().catch(err => { console.warn("Attendance status fetch failed", err); return null; })
+    ])
+      .then(([profileData, attendanceData]) => {
+        setProfile(profileData);
+        setAttendance(attendanceData);
+      })
       .catch(err => onError(err.message))
       .finally(() => setLoading(false));
   }, [refreshKey, onError]);
@@ -26,6 +34,21 @@ export default function CompanyProfile({ onError }) {
   if (!profile) return <div className="text-center p-12 text-red-500">Profile not found.</div>;
 
   // --- HANDLERS ---
+  const handleConfirmAttendance = async () => {
+    if (!confirm("Are you sure you want to confirm your attendance? This will notify the administration.")) return;
+    
+    setConfirming(true);
+    try {
+      await confirmAttendance();
+      setRefreshKey(k => k + 1);
+      alert("Attendance confirmed successfully!");
+    } catch (err) {
+      onError(err.message || "Failed to confirm attendance");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
   const handleLinkDelete = async (id) => {
     if(confirm('Remove this link?')) {
       try { await deleteContactLink(id); setRefreshKey(k => k+1); } catch(e) { onError(e.message); }
@@ -95,6 +118,53 @@ export default function CompanyProfile({ onError }) {
         
         {/* --- LEFT COLUMN: DETAILS --- */}
         <div className="space-y-6">
+            {/* Attendance Card */}
+            {attendance && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  Job Fair Attendance
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Status</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      attendance.isConfirmed 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {attendance.arrivalStatus}
+                    </span>
+                  </div>
+
+                  {attendance.roomAssigned && (
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <div className="text-sm text-blue-800 font-medium">Assigned Room</div>
+                      <div className="text-lg font-bold text-blue-900">{attendance.roomDetails?.roomName}</div>
+                      <div className="text-xs text-blue-600">Capacity: {attendance.roomDetails?.capacity}</div>
+                    </div>
+                  )}
+
+                  {!attendance.isConfirmed && (
+                    <button
+                      onClick={handleConfirmAttendance}
+                      disabled={confirming}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Attendance'}
+                    </button>
+                  )}
+                  
+                  {attendance.isConfirmed && (
+                     <div className="text-center text-sm text-gray-500">
+                        Confirmed on {new Date(attendance.confirmedAt).toLocaleDateString()}
+                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Contact Info */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">

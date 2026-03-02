@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus } from 'lucide-react';
+import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye } from 'lucide-react';
 import { getStudents, getFileUrl } from '../api';
 
 export default function StudentDirectory({ onSelect, onError }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ type: '', value: '' });
+  const [sortBy, setSortBy] = useState('name'); // Default sort by name
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -26,6 +27,30 @@ export default function StudentDirectory({ onSelect, onError }) {
     fetchStudents();
   };
 
+  // Sorting Logic
+  const getSortedStudents = () => {
+    return [...students].sort((a, b) => {
+      if (sortBy === 'cgpa') {
+        const cgpaA = Number(a.CGPA ?? a.cgpa ?? -1);
+        const cgpaB = Number(b.CGPA ?? b.cgpa ?? -1);
+        return cgpaB - cgpaA;
+      }
+
+      const getVal = (obj, key) => {
+        // Handle case sensitivity and potential nulls
+        const val = obj[key] || obj[key.toLowerCase()] || '';
+        return val.toString().toLowerCase();
+      };
+
+      const valA = getVal(a, sortBy === 'registration' ? 'RegistrationNo' : sortBy === 'department' ? 'Department' : 'Name');
+      const valB = getVal(b, sortBy === 'registration' ? 'RegistrationNo' : sortBy === 'department' ? 'Department' : 'Name');
+      
+      return valA.localeCompare(valB);
+    });
+  };
+
+  const sortedStudents = getSortedStudents();
+
   const getStudentId = (s) => s.StudentId || s.studentId || s.id;
 
   // --- LOGIC: Render Status Chip ---
@@ -41,14 +66,14 @@ export default function StudentDirectory({ onSelect, onError }) {
 
     if (status === 'accepted') {
         return (
-            <span className="absolute top-4 right-4 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-green-200 z-10">
+        <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-green-200 whitespace-nowrap">
                 <CheckCircle2 className="w-3 h-3" /> Scheduled
             </span>
         );
     }
     if (status === 'rejected') {
         return (
-            <span className="absolute top-4 right-4 bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-red-100 z-10">
+        <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-red-100 whitespace-nowrap">
                 <XCircle className="w-3 h-3" /> Rejected
             </span>
         );
@@ -56,14 +81,14 @@ export default function StudentDirectory({ onSelect, onError }) {
     if (status === 'pending') {
         if (isStudentRequest) {
             return (
-                <span className="absolute top-4 right-4 bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-purple-200 z-10 animate-pulse">
-                    <UserPlus className="w-3 h-3" /> Incoming Request
+          <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-purple-200 whitespace-nowrap animate-pulse">
+            <UserPlus className="w-3 h-3" /> Incoming
                 </span>
             );
         } else {
             return (
-                <span className="absolute top-4 right-4 bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-yellow-200 z-10">
-                    <Clock className="w-3 h-3" /> Request Sent
+          <span className="bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-yellow-200 whitespace-nowrap">
+            <Clock className="w-3 h-3" /> Sent
                 </span>
             );
         }
@@ -75,7 +100,7 @@ export default function StudentDirectory({ onSelect, onError }) {
     <div>
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Filter By</label>
             <select className="w-full border rounded-lg p-2" onChange={(e) => setFilters({...filters, type: e.target.value})}>
@@ -94,6 +119,19 @@ export default function StudentDirectory({ onSelect, onError }) {
               onChange={(e) => setFilters({...filters, value: e.target.value})}
             />
           </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Sort By</label>
+            <select 
+              className="w-full border rounded-lg p-2" 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="name">Name (A-Z)</option>
+              <option value="cgpa">CGPA (High to Low)</option>
+              <option value="department">Department</option>
+              <option value="registration">Registration No</option>
+            </select>
+          </div>
           <div className="flex items-end">
             <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
               <Search className="w-4 h-4" /> Search
@@ -102,78 +140,179 @@ export default function StudentDirectory({ onSelect, onError }) {
         </form>
       </div>
 
-      {/* Grid */}
+      {/* Students Table */}
       {loading ? (
         <div className="text-center py-12"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>
-      ) : students.length === 0 ? (
+      ) : sortedStudents.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
            <AlertCircle className="w-10 h-10 text-gray-300 mx-auto mb-3" />
            <p className="text-gray-500">No students found.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {students.map((student, index) => {
-            const safeId = getStudentId(student);
-            const key = safeId || index; 
-            
-            return (
-            <div key={key} className="bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all p-6 flex flex-col relative group">
-              
-              {/* STATUS CHIP */}
-              {renderStatusChip(student)}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="md:hidden p-2 space-y-2">
+            {sortedStudents.map((student, index) => {
+              const safeId = getStudentId(student);
+              const key = safeId || index;
+              const cgpa = student.CGPA ?? student.cgpa;
+              const fypTitle = student.FypTitle || student.fypTitle;
+              const skills = student.Skills || student.skills || [];
+              const allSkills = skills.length > 0 ? skills.join(', ') : 'No skills listed';
 
-              <div className="flex justify-between items-start mb-4 mt-2">
-                <div className="flex gap-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-lg overflow-hidden border border-gray-100 flex-shrink-0">
-                    {student.ProfilePicUrl || student.profilePicUrl ? (
-                      <img 
-                        src={getFileUrl(student.ProfilePicUrl || student.profilePicUrl)} 
-                        alt={student.Name || student.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'block';
-                        }}
-                      />
-                    ) : null}
-                    <span style={{ display: (student.ProfilePicUrl || student.profilePicUrl) ? 'none' : 'block' }}>
-                      {(student.Name || student.name)?.charAt(0)}
-                    </span>
+              return (
+                <div key={key} className="border border-gray-200 rounded-lg p-2.5 bg-white">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xs overflow-hidden border border-gray-100 flex-shrink-0">
+                      {student.ProfilePicUrl || student.profilePicUrl ? (
+                        <img
+                          src={getFileUrl(student.ProfilePicUrl || student.profilePicUrl)}
+                          alt={student.Name || student.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <span style={{ display: (student.ProfilePicUrl || student.profilePicUrl) ? 'none' : 'block' }}>
+                        {(student.Name || student.name)?.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 truncate text-sm text-center" title={student.Name || student.name}>{student.Name || student.name}</p>
+                      <p className="text-[11px] text-gray-500 text-center truncate">{student.RegistrationNo || student.registrationNo}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0 pr-10">
-                    <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition-colors" title={student.Name || student.name}>
-                        {student.Name || student.name}
-                    </h3>
-                    <p className="text-xs text-gray-500">{student.RegistrationNo || student.registrationNo}</p>
+
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="text-gray-700 truncate" title={student.Department || student.department}>{student.Department || student.department || 'N/A'}</div>
+                    <div className="font-medium text-gray-800">{cgpa !== undefined && cgpa !== null ? Number(cgpa).toFixed(2) : 'N/A'}</div>
+                    <div className="col-span-2 text-purple-700 font-medium truncate" title={fypTitle || 'No FYP title'}>{fypTitle || 'N/A'}</div>
+                    <div className="col-span-2" title={allSkills}>
+                      {skills.length > 0 ? (
+                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full inline-block">
+                          {skills.length} skill{skills.length > 1 ? 's' : ''}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">N/A</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                      {renderStatusChip(student) || <span className="text-[11px] text-gray-400">No Request</span>}
+                    </div>
                   </div>
+
+                  <button
+                    onClick={() => {
+                      if (!safeId) return onError("Missing Student ID");
+                      onSelect({ ...student, studentId: safeId });
+                    }}
+                    className="mt-2 w-full px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center"
+                    title="View Profile"
+                    aria-label="View Profile"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
-              
-              <p className="text-sm text-gray-600 mb-4 flex items-center gap-2">
-                <GraduationCap className="w-4 h-4 text-blue-500" /> {student.Department || student.department}
-              </p>
-              
-              <div className="flex flex-wrap gap-2 mb-4 flex-1 content-start">
-                {(student.Skills || student.skills)?.slice(0, 3).map((s, i) => (
-                  <span key={i} className="text-[10px] bg-gray-50 text-gray-600 border border-gray-100 px-2 py-1 rounded">{s}</span>
-                ))}
-                {(student.Skills || student.skills)?.length > 3 && (
-                   <span className="text-[10px] text-gray-400 self-center">+{ (student.Skills || student.skills).length - 3}</span>
-                )}
-              </div>
-              
-              <button 
-                onClick={() => {
-                    if (!safeId) return onError("Missing Student ID");
-                    onSelect({ ...student, studentId: safeId });
-                }} 
-                className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors mt-auto"
-              >
-                View Profile
-              </button>
-            </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block">
+            <table className="w-full min-w-full text-sm table-fixed">
+              <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[23%]">Student</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[13%]">Department</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[8%]">CGPA</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[19%]">FYP Title</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[10%]">Skills</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[17%]">Status</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[10%]">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStudents.map((student, index) => {
+                  const safeId = getStudentId(student);
+                  const key = safeId || index;
+                  const cgpa = student.CGPA ?? student.cgpa;
+                  const fypTitle = student.FypTitle || student.fypTitle;
+                  const skills = student.Skills || student.skills || [];
+                  const allSkills = skills.length > 0 ? skills.join(', ') : 'No skills listed';
+
+                  return (
+                    <tr key={key} className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50/30 transition-colors">
+                      <td className="px-2 py-2.5 text-left align-middle">
+                        <div className="flex items-center justify-start gap-2.5 min-w-0">
+                          <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xs overflow-hidden border border-gray-100 flex-shrink-0">
+                            {student.ProfilePicUrl || student.profilePicUrl ? (
+                              <img 
+                                src={getFileUrl(student.ProfilePicUrl || student.profilePicUrl)} 
+                                alt={student.Name || student.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                            ) : null}
+                            <span style={{ display: (student.ProfilePicUrl || student.profilePicUrl) ? 'none' : 'block' }}>
+                              {(student.Name || student.name)?.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="min-w-0 text-left">
+                            <p className="font-medium text-gray-900 truncate text-left" title={student.Name || student.name}>{student.Name || student.name}</p>
+                            <p className="text-[11px] text-gray-500 truncate text-left">{student.RegistrationNo || student.registrationNo}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-xs text-gray-700 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1">
+                          <GraduationCap className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                          <span className="truncate" title={student.Department || student.department}>{student.Department || student.department || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-xs font-medium text-gray-800 whitespace-nowrap text-center align-middle">
+                        {cgpa !== undefined && cgpa !== null ? Number(cgpa).toFixed(2) : 'N/A'}
+                      </td>
+                      <td className="px-2 py-2.5 text-xs text-purple-700 font-medium text-center align-middle">
+                        <span className="block truncate" title={fypTitle || 'No FYP title'}>{fypTitle || 'N/A'}</span>
+                      </td>
+                      <td className="px-2 py-2.5 text-center align-middle w-[140px] min-w-[140px] max-w-[140px]">
+                        <div className="w-full flex justify-center" title={allSkills}>
+                          {skills.length > 0 ? (
+                            <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full truncate max-w-[120px]">
+                              {skills.length} skill{skills.length > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-gray-400">N/A</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-center align-middle">
+                        <div className="flex justify-center">
+                          {renderStatusChip(student) || <span className="text-[11px] text-gray-400">No Request</span>}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2.5 text-center align-middle">
+                        <button 
+                          onClick={() => {
+                            if (!safeId) return onError("Missing Student ID");
+                            onSelect({ ...student, studentId: safeId });
+                          }} 
+                          className="w-8 h-8 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors inline-flex items-center justify-center"
+                          title="View Profile"
+                          aria-label="View Profile"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

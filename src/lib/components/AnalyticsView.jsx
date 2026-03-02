@@ -1,18 +1,41 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle } from 'lucide-react';
-import { getAnalytics } from '../api';
+import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar } from 'lucide-react';
+import { getAnalytics, scheduleAllInterviews } from '../api';
 
 export default function AnalyticsView({ onError }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [scheduling, setScheduling] = useState(false);
+  const [isJobFairDay, setIsJobFairDay] = useState(false);
 
   useEffect(() => {
     getAnalytics()
-      .then(setData)
+      .then((analyticsData) => {
+        setData(analyticsData);
+        // Check if today is job fair day and store date in localStorage
+        if (analyticsData.jobFairDate) {
+          localStorage.setItem('jobFairDate', analyticsData.jobFairDate);
+          const jobFairDate = new Date(analyticsData.jobFairDate).toDateString();
+          const today = new Date().toDateString();
+          setIsJobFairDay(jobFairDate === today);
+        }
+      })
       .catch(err => onError(err.message))
       .finally(() => setLoading(false));
   }, [onError]);
+
+  const handleScheduleInterviews = async () => {
+    setScheduling(true);
+    try {
+      const result = await scheduleAllInterviews();
+      onError(`✓ ${result.count || 0} interviews scheduled successfully!`);
+    } catch (err) {
+      onError(`Failed to schedule interviews: ${err.message}`);
+    } finally {
+      setScheduling(false);
+    }
+  };
 
   if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto w-10 h-10 text-blue-600" /></div>;
   if (!data) return <div className="text-center text-gray-500 p-12">No analytics data available.</div>;
@@ -27,6 +50,25 @@ export default function AnalyticsView({ onError }) {
            <h2 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h2>
            <p className="text-gray-500">Overview for {data.companyName}</p>
         </div>
+        {isJobFairDay && (
+          <button
+            onClick={handleScheduleInterviews}
+            disabled={scheduling}
+            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {scheduling ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Scheduling...
+              </>
+            ) : (
+              <>
+                <Calendar className="w-5 h-5" />
+                Schedule All Interviews
+              </>
+            )}
+          </button>
+        )}
       </div>
       
       {/* KPI Cards */}

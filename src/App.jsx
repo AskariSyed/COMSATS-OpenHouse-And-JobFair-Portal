@@ -5,6 +5,8 @@ import RegisterPage from './lib/pages/RegisterPage';
 import ForgotPasswordPage from './lib/pages/ForgotPasswordPage';
 import CompanyDashboard from './lib/pages/CompanyDashboard';
 import DashboardLayout from './lib/layouts/DashboardLayout';
+import { requestFcmToken } from './lib/firebase';
+import { registerFcmToken } from './lib/api';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -17,6 +19,25 @@ export default function App() {
     if (savedUser) {
       setUser(JSON.parse(savedUser));
       setCurrentView('dashboard');
+      
+      // Register FCM token when user is already logged in
+      const registerToken = async () => {
+        try {
+          const token = await requestFcmToken();
+          if (token) {
+            await registerFcmToken(token);
+            console.log('FCM token registered successfully');
+          } else {
+            // Soft warning if token not available
+            showNotification('Push notifications unavailable: permission denied or token not available.', 'error');
+          }
+        } catch (error) {
+          console.warn('FCM token registration failed:', error);
+          showNotification('Push notifications blocked by network/firewall. Use localhost and allow notifications, then retry.', 'error');
+        }
+      };
+      
+      registerToken();
     }
   }, []);
 

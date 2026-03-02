@@ -16,7 +16,7 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
   const [otp, setOtp] = useState('');
   
   const [formData, setFormData] = useState({
-    Name: '', Description: '', RepsCount: 2, 
+    Name: '', Description: '', RepsCount: 1, 
     FocalPersonPhone: '', CompanyEmail: '', CompanyPhone: '', Address: '', Website: '',
     InterviewDurationMinutes: 15, Industry: 'Information Technology',
     UserEmail: '', UserFullName: '', UserPassword: ''
@@ -33,7 +33,7 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
   const validateEmail = (email) => {
     const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     return emailRegex.test(email);
-  };
+  };  
 
   const validatePhone = (phone) => {
     const phoneRegex = /^\d{11}$/;
@@ -95,6 +95,12 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
     if (currentStep === 2) {
       if (!formData.Name || !formData.Address) {
         return onError("Company Name and Address are required.");
+      }
+      if (formData.RepsCount < 1) {
+        return onError("Number of representatives must be at least 1.");
+      }
+      if (formData.InterviewDurationMinutes < 1 || formData.InterviewDurationMinutes > 60) {
+        return onError("Interview duration must be between 1 and 60 minutes.");
       }
       if (formData.CompanyEmail && !validateEmail(formData.CompanyEmail)) {
         return onError("Please enter a valid company email address.");
@@ -217,6 +223,11 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Company Profile</h2>
                    <InputGroup label="Company Name" icon={Building2} name="Name" value={formData.Name} onChange={handleChange} placeholder="Tech Solutions Inc." />
                    
+                   <div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Description</label>
+                     <textarea name="Description" value={formData.Description} onChange={handleChange} rows={3} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Tell us about your company..." />
+                   </div>
+                   
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Industry</label>
@@ -225,6 +236,11 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                         </select>
                       </div>
                       <InputGroup label="Official Phone" icon={Phone} name="CompanyPhone" value={formData.CompanyPhone} onChange={handleChange} pattern="\d{11}" title="Phone number must be exactly 11 digits" />
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <InputGroup label="Number of Representatives" icon={User} type="number" name="RepsCount" value={formData.RepsCount} onChange={handleChange} min="1" />
+                      <InputGroup label="Interview Duration (Minutes)" icon={Briefcase} type="number" name="InterviewDurationMinutes" value={formData.InterviewDurationMinutes} onChange={handleChange} min="1" max="60" />
                    </div>
 
                    <InputGroup label="Official Email" icon={Mail} type="email" name="CompanyEmail" value={formData.CompanyEmail} onChange={handleChange} />
@@ -368,7 +384,7 @@ function StepItem({ step, current, title, desc }) {
   );
 }
 
-function InputGroup({ label, name, value, onChange, type = "text", placeholder, icon: Icon, pattern, title }) {
+function InputGroup({ label, name, value, onChange, type = "text", placeholder, icon: Icon, pattern, title, ...props }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
@@ -376,7 +392,7 @@ function InputGroup({ label, name, value, onChange, type = "text", placeholder, 
         {Icon && <Icon className="absolute left-3.5 top-3.5 w-5 h-5 text-gray-400" />}
         <input 
           type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
-          pattern={pattern} title={title}
+          pattern={pattern} title={title} {...props}
           className={`w-full ${Icon ? 'pl-11' : 'pl-4'} pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-400`} 
         />
       </div>

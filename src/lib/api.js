@@ -1,6 +1,7 @@
 // --- CONFIGURATION ---
-export const SERVER_URL = "http://192.168.137.1:5158"; // Update if your IP changes
-const API_BASE_URL = `${SERVER_URL}/api`;
+const CONFIGURED_SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
+export const SERVER_URL = CONFIGURED_SERVER_URL;
+const API_BASE_URL = SERVER_URL ? `${SERVER_URL}/api` : '/api';
 
 /**
  * Helper to get full file URL
@@ -11,6 +12,7 @@ export const getFileUrl = (path) => {
   if (path.startsWith('http') || path.startsWith('https')) return path;
   // Remove leading slash if present to avoid double slashes if SERVER_URL ends with one
   const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+  if (!SERVER_URL) return `/${cleanPath}`;
   return `${SERVER_URL}/${cleanPath}`;
 };
 
@@ -71,6 +73,10 @@ export const login = (role, email, password, fcmToken = null) => {
     password: password,
     fcmToken: fcmToken 
   });
+};
+
+export const registerFcmToken = (fcmToken) => {
+  return request('/Company/register-fcm-token', 'POST', { fcmToken });
 };
 // Missing function restored:
 export const registerCompany = (formData) => {
@@ -150,6 +156,77 @@ export const rejectInterviewRequest = (requestId, reason) => {
   return request(`/Company/interview-requests/${requestId}/reject`, 'POST', { reason });
 };
 
+export const scheduleAllInterviews = (date = null) => {
+  let endpoint = '/Company/interviews/schedule';
+  if (date) endpoint += `?date=${encodeURIComponent(date)}`;
+  return request(endpoint, 'POST', {});
+};
+
+export const getStudentAvailability = (studentId, date = null, stepMinutes = 5) => {
+  let endpoint = `/Company/students/${studentId}/availability?stepMinutes=${stepMinutes}`;
+  if (date) endpoint += `&date=${encodeURIComponent(date)}`;
+  return request(endpoint);
+};
+
+export const scheduleStudentInterview = (studentId, scheduledTime, requestId = null) => {
+  return request(`/Company/students/${studentId}/schedule`, 'POST', {
+    scheduledTime,
+    requestId
+  });
+};
+
+export const startInterview = (interviewId) => {
+  return request(`/Company/interviews/${interviewId}/start`, 'POST', {});
+};
+
+export const completeInterview = (interviewId, resultStatus) => {
+  return request(`/Company/interviews/${interviewId}/complete`, 'POST', { resultStatus });
+};
+
+// --- COMPANY: REQUESTS ---
+const REQUEST_TYPE_MAP = {
+  'Supplies': 0,
+  'Cleaning': 1,
+  'Info': 2,
+  'Equipment': 3,
+  'Other': 4
+};
+
+export const createCompanyRequest = (requestData) => {
+  const payload = {
+    type: REQUEST_TYPE_MAP[requestData.type],
+    Description: requestData.description,
+    Quantity: requestData.quantity,
+    AdditionalInfo: requestData.additionalInfo || ''
+  };
+  return request('/Company/requests', 'POST', payload);
+};
+
+export const getMyRequests = () => {
+  return request('/Company/requests');
+};
+
+export const cancelCompanyRequest = (requestId) => {
+  return request(`/Company/requests/${requestId}/cancel`, 'PUT');
+};
+
+// --- COMPANY: SURVEYS ---
+export const getSurveyTemplate = (surveyType) => {
+  return request(`/Survey/template/${surveyType}`);
+};
+
+export const getMySurveyStatus = () => {
+  return request('/Survey/my-status');
+};
+
+export const submitSurvey = (surveyData) => {
+  return request('/Survey/submit', 'POST', surveyData);
+};
+
+export const submitBothSurveys = (surveyData) => {
+  return request('/Survey/submit-both', 'POST', surveyData);
+};
+
 // --- COMPANY: NOTICES ---
 export const getNotices = () => {return request('/Company/notices');};
 export const getCompanyProfile = () => request('/Company/profile');
@@ -165,3 +242,9 @@ export const deleteJob = (jobId) => request(`/Company/jobs/${jobId}`, 'DELETE');
 export const addContactLink = (data) => request('/Company/contact-links', 'POST', data);
 export const updateContactLink = (linkId, data) => request(`/Company/contact-links/${linkId}`, 'PUT', data);
 export const deleteContactLink = (linkId) => request(`/Company/contact-links/${linkId}`, 'DELETE');
+
+// Attendance
+export const confirmAttendance = () => request('/Company/confirm-attendance', 'POST');
+export const getConfirmationStatus = () => request('/Company/confirmation-status');
+export const markAttendanceByQr = (sessionToken) =>
+  request('/Attendance/mark', 'POST', { sessionToken });

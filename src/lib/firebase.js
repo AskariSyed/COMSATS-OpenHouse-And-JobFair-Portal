@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken } from "firebase/messaging";
+import { getMessaging, getToken, isSupported } from "firebase/messaging";
 
 // 1. Replace with your actual Firebase Config from Console
 const firebaseConfig = {
@@ -13,27 +13,42 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const messaging = getMessaging(app);
+let messagingInstance = null;
 
 // 2. Replace with your Key Pair from Project Settings > Cloud Messaging > Web configuration
 const VAPID_KEY = "BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s"; 
 export const requestFcmToken = async () => {
-  // 1. Safety Checks
-  if (!messaging) {
-    console.warn("FCM is disabled (Insecure context or not supported).");
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
     return null;
   }
-  
-  if (!('serviceWorker' in navigator)) {
-    console.warn("Service Workers are not supported in this browser.");
+
+  if (!window.isSecureContext) {
+    console.warn("FCM requires a secure context (HTTPS or localhost).");
+    return null;
+  }
+
+  if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+    console.warn("Required browser APIs for FCM are not supported.");
     return null;
   }
 
   try {
-    
+    const supported = await isSupported();
+    if (!supported) {
+      console.warn("Firebase Messaging is not supported in this browser.");
+      return null;
+    }
+
+    if (!messagingInstance) {
+      messagingInstance = getMessaging(app);
+    }
+
+    // Ensure our messaging service worker is registered and used
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+      const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
       console.log("FCM Token:", token);
       return token;
     } else {
