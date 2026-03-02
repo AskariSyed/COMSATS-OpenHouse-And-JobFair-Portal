@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 import 'dart:async';
 
 // Providers & Widgets
@@ -8,7 +7,6 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 
 // Screens for Navigation (Needed for Sidebar/Logic consistency)
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
@@ -22,25 +20,12 @@ class QueueScreen extends StatefulWidget {
 }
 
 class _QueueScreenState extends State<QueueScreen> {
-  late List<CollapsibleItem> _sidebarItems;
-  final String _currentRoute = 'Queue';
   final String _serverBaseUrl = "http://192.168.137.1:5158";
   Timer? _timer;
-
-  // Kept for consistency with other screens' logic
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-    'Queue',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _sidebarItems = generateSidebarItems(context, setState, _currentRoute);
     // Fetch scheduled interviews when screen loads
     Future.microtask(() {
       final studentProvider = Provider.of<StudentProvider>(
@@ -87,24 +72,16 @@ class _QueueScreenState extends State<QueueScreen> {
           // MOBILE LAYOUT
           // ==================================================================
           return Scaffold(
-            backgroundColor: scaffoldBg, // 🔹 Theme
-            extendBody: true, // 🔹 Important for floating nav bar
+            backgroundColor: scaffoldBg,
+            extendBody: true,
             appBar: const BeautifulAppBar(title: "Interview Queue"),
             body: _buildMessageContent(context, isMobile: true, isDark: isDark),
-            bottomNavigationBar: const BeautifulMobileNavBar(
-              currentIndex: 4,
-            ), // Index 3 for Queue
+            bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 4),
           );
         } else {
           // ==================================================================
           // WEB LAYOUT
           // ==================================================================
-          _sidebarItems = generateSidebarItems(
-            context,
-            setState,
-            _currentRoute,
-          );
-
           return Scaffold(
             backgroundColor: scaffoldBg, // 🔹 Theme
             body: Stack(
@@ -114,14 +91,12 @@ class _QueueScreenState extends State<QueueScreen> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.7,
-                          child: _buildMessageContent(
-                            context,
-                            isMobile: false,
-                            isDark: isDark,
-                          ),
+                        _buildMessageContent(
+                          context,
+                          isMobile: false,
+                          isDark: isDark,
                         ),
+                        const SizedBox(height: 24),
                         const WebFooter(),
                       ],
                     ),
@@ -149,6 +124,22 @@ class _QueueScreenState extends State<QueueScreen> {
   }) {
     final studentProvider = Provider.of<StudentProvider>(context);
     final interviews = studentProvider.scheduledInterviews;
+    final queueInterviews =
+        interviews
+            .where(
+              (i) =>
+                  i.status.toLowerCase() == 'queued' ||
+                  i.status.toLowerCase() == 'inprogress',
+            )
+            .toList()
+          ..sort((a, b) {
+            final aTime = a.scheduledTime;
+            final bTime = b.scheduledTime;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return aTime.compareTo(bTime);
+          });
     final isLoading = studentProvider.isLoading;
     final error = studentProvider.scheduledInterviewsError;
 
@@ -160,7 +151,7 @@ class _QueueScreenState extends State<QueueScreen> {
         : Colors.orange.shade50;
 
     // Show loading indicator
-    if (isLoading && interviews.isEmpty) {
+    if (isLoading && queueInterviews.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -177,7 +168,7 @@ class _QueueScreenState extends State<QueueScreen> {
     }
 
     // Show error if any
-    if (error != null && interviews.isEmpty) {
+    if (error != null && queueInterviews.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -216,7 +207,7 @@ class _QueueScreenState extends State<QueueScreen> {
     }
 
     // Show interviews list if available
-    if (interviews.isNotEmpty) {
+    if (queueInterviews.isNotEmpty) {
       return Padding(
         padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
         child: Column(
@@ -232,174 +223,20 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              "You have ${interviews.length} scheduled interview${interviews.length != 1 ? 's' : ''}",
+              "You have ${queueInterviews.length} interview${queueInterviews.length != 1 ? 's' : ''} in queue",
               style: TextStyle(fontSize: 16, color: subTextColor),
             ),
             const SizedBox(height: 24),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: interviews.length,
+              itemCount: queueInterviews.length,
               itemBuilder: (context, index) {
-                final interview = interviews[index];
-                final statusColor = _getStatusColor(interview.status);
-                final isUpcoming =
-                    interview.scheduledTime?.isAfter(DateTime.now()) ?? false;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Company header with logo and name
-                        Row(
-                          children: [
-                            if (interview.companyLogo != null &&
-                                interview.companyLogo!.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  interview.companyLogo!.startsWith('http')
-                                      ? interview.companyLogo!
-                                      : '$_serverBaseUrl${interview.companyLogo}',
-                                  width: isMobile ? 60 : 80,
-                                  height: isMobile ? 60 : 80,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: isMobile ? 60 : 80,
-                                      height: isMobile ? 60 : 80,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).primaryColor.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.business,
-                                        color: Theme.of(context).primaryColor,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    interview.companyName,
-                                    style: TextStyle(
-                                      fontSize: isMobile ? 18 : 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      interview.status,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: statusColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        // Interview details grid
-                        GridView.count(
-                          crossAxisCount: isMobile ? 2 : 4,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          childAspectRatio: isMobile ? 1.5 : 2.5,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          children: [
-                            _buildDetailCard(
-                              icon: Icons.schedule,
-                              label: "Scheduled Time",
-                              value: interview.scheduledTime != null
-                                  ? _formatDateTime(interview.scheduledTime!)
-                                  : "TBD",
-                              isDark: isDark,
-                            ),
-                            _buildDetailCard(
-                              icon: Icons.access_time,
-                              label: "Duration",
-                              value: interview.durationMinutes != null
-                                  ? "${interview.durationMinutes} mins"
-                                  : "TBD",
-                              isDark: isDark,
-                            ),
-                            _buildDetailCard(
-                              icon: Icons.location_on,
-                              label: "Room",
-                              value: interview.room,
-                              isDark: isDark,
-                            ),
-                            _buildDetailCard(
-                              icon: Icons.timer,
-                              label: "Time Until Interview",
-                              value: _getCountdownString(
-                                interview.scheduledTime,
-                              ),
-                              isDark: isDark,
-                            ),
-                          ],
-                        ),
-                        if (isUpcoming) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  "Interview scheduled for the future",
-                                  style: TextStyle(
-                                    color: Colors.green.shade800,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                final interview = queueInterviews[index];
+                return _buildInterviewQueueCard(
+                  interview: interview,
+                  isMobile: isMobile,
+                  isDark: isDark,
                 );
               },
             ),
@@ -475,47 +312,289 @@ class _QueueScreenState extends State<QueueScreen> {
     );
   }
 
-  Widget _buildDetailCard({
+  Widget _buildInterviewQueueCard({
+    required dynamic interview,
+    required bool isMobile,
+    required bool isDark,
+  }) {
+    final statusColor = _getStatusColor(interview.status);
+    final cardBg = isDark ? Colors.grey.shade900 : Colors.white;
+    final cardBorder = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
+    final logoSize = isMobile ? 56.0 : 68.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: isMobile ? 12 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCompanyLogo(interview, logoSize),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        interview.companyName,
+                        style: TextStyle(
+                          fontSize: isMobile ? 16 : 18,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        interview.status,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (isMobile)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildMobileDetailRow(
+                          icon: Icons.play_circle_outline,
+                          label: 'Start Time',
+                          value: interview.scheduledTime != null
+                              ? _formatActualDateTime(interview.scheduledTime!)
+                              : 'TBD',
+                        ),
+                        const SizedBox(height: 8),
+                        _buildMobileDetailRow(
+                          icon: Icons.access_time,
+                          label: 'Duration',
+                          value: interview.durationMinutes != null
+                              ? '${interview.durationMinutes} mins'
+                              : 'TBD',
+                        ),
+                        const SizedBox(height: 8),
+                        _buildMobileDetailRow(
+                          icon: Icons.meeting_room_outlined,
+                          label: 'Room',
+                          value: interview.room,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildMobileDetailRow(
+                          icon: Icons.timer_outlined,
+                          label: 'Time Left',
+                          value: _getRemainingTimeString(
+                            interview.scheduledTime,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildQueueInfoPill(
+                        icon: Icons.play_circle_outline,
+                        label: 'Start',
+                        value: interview.scheduledTime != null
+                            ? _formatActualDateTime(interview.scheduledTime!)
+                            : 'TBD',
+                        isDark: isDark,
+                      ),
+                      _buildQueueInfoPill(
+                        icon: Icons.access_time,
+                        label: 'Duration',
+                        value: interview.durationMinutes != null
+                            ? '${interview.durationMinutes} mins'
+                            : 'TBD',
+                        isDark: isDark,
+                      ),
+                      _buildQueueInfoPill(
+                        icon: Icons.meeting_room_outlined,
+                        label: 'Room',
+                        value: interview.room,
+                        isDark: isDark,
+                      ),
+                      _buildQueueInfoPill(
+                        icon: Icons.timer_outlined,
+                        label: 'Time Left',
+                        value: _getRemainingTimeString(interview.scheduledTime),
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompanyLogo(dynamic interview, double logoSize) {
+    if (interview.companyLogo != null && interview.companyLogo!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          interview.companyLogo!.startsWith('http')
+              ? interview.companyLogo!
+              : '$_serverBaseUrl${interview.companyLogo}',
+          width: logoSize,
+          height: logoSize,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              _buildLogoFallback(logoSize),
+        ),
+      );
+    }
+
+    return _buildLogoFallback(logoSize);
+  }
+
+  Widget _buildLogoFallback(double logoSize) {
+    return Container(
+      width: logoSize,
+      height: logoSize,
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.business, color: Theme.of(context).primaryColor),
+    );
+  }
+
+  Widget _buildQueueInfoPill({
     required IconData icon,
     required String label,
     required String value,
     required bool isDark,
   }) {
-    final bgColor = isDark ? Colors.grey.shade800 : Colors.grey.shade100;
-    final textColor = Theme.of(context).textTheme.bodySmall?.color;
+    final bg = isDark ? Colors.grey.shade800 : Colors.grey.shade100;
+    final labelColor = Theme.of(context).textTheme.bodySmall?.color;
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(minWidth: 148, maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              color: textColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).textTheme.bodyMedium?.color,
+          Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: labelColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMobileDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).textTheme.bodySmall?.color,
+            ),
+          ),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
@@ -536,19 +615,9 @@ class _QueueScreenState extends State<QueueScreen> {
     }
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = dateTime.difference(now);
-
-    if (difference.inDays > 0) {
-      return "${dateTime.day} ${_getMonthName(dateTime.month)} - ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-    } else if (difference.inHours > 0) {
-      return "Today at ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-    } else if (difference.inMinutes > 0) {
-      return "In ${difference.inMinutes} minutes";
-    } else {
-      return "Just now";
-    }
+  String _formatActualDateTime(DateTime dateTime) {
+    final local = dateTime.toLocal();
+    return "${local.day.toString().padLeft(2, '0')} ${_getMonthName(local.month)} ${local.year}, ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}";
   }
 
   String _getMonthName(int month) {
@@ -569,14 +638,14 @@ class _QueueScreenState extends State<QueueScreen> {
     return months[month - 1];
   }
 
-  String _getCountdownString(DateTime? scheduledTime) {
+  String _getRemainingTimeString(DateTime? scheduledTime) {
     if (scheduledTime == null) return "TBD";
 
     final now = DateTime.now();
-    final difference = scheduledTime.difference(now);
+    final difference = scheduledTime.toLocal().difference(now);
 
     if (difference.isNegative) {
-      return "Started";
+      return "Interview started";
     } else if (difference.inDays > 0) {
       return "${difference.inDays}d ${difference.inHours % 24}h";
     } else if (difference.inHours > 0) {
@@ -586,13 +655,5 @@ class _QueueScreenState extends State<QueueScreen> {
     } else {
       return "Starting soon";
     }
-  }
-
-  Widget _buildWebHeader(
-    BuildContext context,
-    dynamic student,
-    String? profileImageUrl,
-  ) {
-    return Container();
   }
 }

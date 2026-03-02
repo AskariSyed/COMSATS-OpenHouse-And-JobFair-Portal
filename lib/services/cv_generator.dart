@@ -3,7 +3,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:student_job_fair_portal/model/student.dart';
 import 'package:intl/intl.dart';
-import 'dart:typed_data';
 import 'package:universal_html/html.dart' as html;
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -243,8 +242,7 @@ class CVGenerator {
                           pw.SizedBox(height: 8),
                         ],
                       );
-                    })
-                    ,
+                    }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -313,8 +311,7 @@ class CVGenerator {
                           pw.SizedBox(height: 8),
                         ],
                       );
-                    })
-                    ,
+                    }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -405,8 +402,7 @@ class CVGenerator {
                           pw.SizedBox(height: 6),
                         ],
                       );
-                    })
-                    ,
+                    }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -550,8 +546,7 @@ class CVGenerator {
                           pw.SizedBox(height: 8),
                         ],
                       );
-                    })
-                    ,
+                    }),
               ],
             ),
 
@@ -615,6 +610,28 @@ class CVGenerator {
 
     // Use Printing.sharePdf to show system share sheet
     await Printing.sharePdf(bytes: pdfBytes, filename: fileName);
+  }
+
+  static Future<Uint8List> generatePdfBytes(
+    Student student, {
+    String? customEmail,
+  }) async {
+    return _generatePdfBytes(student, customEmail: customEmail);
+  }
+
+  static Future<void> previewPdfOnWeb(
+    Uint8List pdfBytes, {
+    String? fileName,
+  }) async {
+    if (!kIsWeb) return;
+
+    final blob = html.Blob([pdfBytes], 'application/pdf');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    html.window.open(url, '_blank');
+
+    Future.delayed(const Duration(seconds: 30), () {
+      html.Url.revokeObjectUrl(url);
+    });
   }
 
   /// Internal method to generate PDF bytes
@@ -842,8 +859,7 @@ class CVGenerator {
                           pw.SizedBox(height: 12),
                         ],
                       );
-                    })
-                    ,
+                    }),
               ],
             ),
 
@@ -911,8 +927,7 @@ class CVGenerator {
                           pw.SizedBox(height: 8),
                         ],
                       );
-                    })
-                    ,
+                    }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -1003,8 +1018,7 @@ class CVGenerator {
                           pw.SizedBox(height: 6),
                         ],
                       );
-                    })
-                    ,
+                    }),
                 pw.SizedBox(height: 4),
               ],
             ),
@@ -1148,8 +1162,7 @@ class CVGenerator {
                           pw.SizedBox(height: 8),
                         ],
                       );
-                    })
-                    ,
+                    }),
               ],
             ),
 

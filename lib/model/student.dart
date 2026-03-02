@@ -15,6 +15,7 @@ class Student {
   final int studentId;
   final String registrationNo;
   final String? profilePicUrl;
+  final String? cvUrl;
   final String? department;
   final double cgpa;
   final String? fcmToken;
@@ -41,6 +42,7 @@ class Student {
     required this.studentId,
     required this.registrationNo,
     this.profilePicUrl,
+    this.cvUrl,
     this.department,
     required this.cgpa,
     this.fcmToken,
@@ -121,6 +123,7 @@ class Student {
       studentId: json['studentId'] ?? 0,
       registrationNo: json['registrationNo'] ?? '',
       profilePicUrl: json['profilePicUrl'],
+      cvUrl: json['cvUrl'],
       department: json['department'],
       cgpa: (json['cgpa'] as num?)?.toDouble() ?? 0.0,
       fcmToken: json['fcmToken'],
@@ -153,6 +156,7 @@ class Student {
     int? studentId,
     String? registrationNo,
     String? profilePicUrl,
+    String? cvUrl,
     String? department,
     double? cgpa,
     String? fcmToken,
@@ -175,6 +179,7 @@ class Student {
       studentId: studentId ?? this.studentId,
       registrationNo: registrationNo ?? this.registrationNo,
       profilePicUrl: profilePicUrl ?? this.profilePicUrl,
+      cvUrl: cvUrl ?? this.cvUrl,
       department: department ?? this.department,
       cgpa: cgpa ?? this.cgpa,
       fcmToken: fcmToken ?? this.fcmToken,

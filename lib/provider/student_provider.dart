@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart'; // Import XFile
@@ -131,6 +132,41 @@ class StudentProvider with ChangeNotifier {
       return true;
     }
     debugPrint("❌ Profile Pic upload failed: $resBody");
+    return false;
+  }
+
+  Future<bool> uploadGeneratedCv(Uint8List pdfBytes, {String? fileName}) async {
+    if (_student == null || pdfBytes.isEmpty) return false;
+    _setLoading(true);
+
+    final request = http.MultipartRequest(
+      "POST",
+      Uri.parse("$baseUrl/Student/cv"),
+    )..headers.addAll({"Authorization": "Bearer $_token"});
+
+    final cvFileName =
+        fileName ??
+        "${_student!.registrationNo}_${DateTime.now().millisecondsSinceEpoch}.pdf";
+
+    request.files.add(
+      http.MultipartFile.fromBytes('file', pdfBytes, filename: cvFileName),
+    );
+
+    final response = await request.send();
+    final resBody = await response.stream.bytesToString();
+    _setLoading(false);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(resBody);
+      _student = _student!.copyWith(
+        cvUrl: data["cvUrl"],
+        updatedAt: DateTime.now(),
+      );
+      notifyListeners();
+      return true;
+    }
+
+    debugPrint("❌ CV upload failed: $resBody");
     return false;
   }
 

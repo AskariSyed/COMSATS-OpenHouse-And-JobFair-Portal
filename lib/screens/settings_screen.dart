@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
@@ -945,6 +947,287 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       "Share Profile",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 16 : 18,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ----------------------------------------------------------------
+        // PREVIEW GENERATED CV
+        // ----------------------------------------------------------------
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade600, Colors.orange.shade800],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                final studentProvider = Provider.of<StudentProvider>(
+                  context,
+                  listen: false,
+                );
+                final student = studentProvider.student;
+
+                if (student == null) return;
+
+                final shouldEdit = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Preview CV'),
+                    content: const Text(
+                      'Would you like to review and edit your CV before previewing?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Preview Now'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Edit First'),
+                      ),
+                    ],
+                  ),
+                );
+
+                String? customEmail;
+                if (shouldEdit == true && context.mounted) {
+                  customEmail = await showDialog<String>(
+                    context: context,
+                    builder: (ctx) => const CVEditorDialog(),
+                  );
+                }
+
+                if (!context.mounted) return;
+
+                try {
+                  showTopSnackBar(
+                    Overlay.of(context),
+                    const CustomSnackBar.info(
+                      message: 'Generating CV preview...',
+                    ),
+                  );
+
+                  await studentProvider.fetchProfile();
+                  final updatedStudent = studentProvider.student;
+                  if (updatedStudent == null || !context.mounted) return;
+
+                  final Uint8List pdfBytes = await CVGenerator.generatePdfBytes(
+                    updatedStudent,
+                    customEmail: customEmail,
+                  );
+
+                  if (!context.mounted) return;
+
+                  if (kIsWeb) {
+                    await CVGenerator.previewPdfOnWeb(pdfBytes);
+                    if (context.mounted) {
+                      showTopSnackBar(
+                        Overlay.of(context),
+                        const CustomSnackBar.success(
+                          message: 'CV preview opened in a new browser tab.',
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  await showDialog(
+                    context: context,
+                    builder: (ctx) => Dialog(
+                      child: SizedBox(
+                        width: isMobile ? double.infinity : 900,
+                        height: isMobile ? 600 : 700,
+                        child: SfPdfViewer.memory(pdfBytes),
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      CustomSnackBar.error(message: 'Error previewing CV: $e'),
+                    );
+                  }
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 16 : 24,
+                  vertical: isMobile ? 14 : 16,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.preview_rounded,
+                      color: Colors.white,
+                      size: isMobile ? 18 : 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      "Preview Generated CV",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 16 : 18,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // ----------------------------------------------------------------
+        // UPLOAD GENERATED CV FOR COMPANIES
+        // ----------------------------------------------------------------
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.teal.shade600, Colors.teal.shade800],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                final studentProvider = Provider.of<StudentProvider>(
+                  context,
+                  listen: false,
+                );
+                final student = studentProvider.student;
+                if (student == null) return;
+
+                final shouldEdit = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Upload CV'),
+                    content: const Text(
+                      'Would you like to review and edit your CV before uploading for companies?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Upload Now'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Edit First'),
+                      ),
+                    ],
+                  ),
+                );
+
+                String? customEmail;
+                if (shouldEdit == true && context.mounted) {
+                  customEmail = await showDialog<String>(
+                    context: context,
+                    builder: (ctx) => const CVEditorDialog(),
+                  );
+                }
+
+                if (!context.mounted) return;
+
+                try {
+                  showTopSnackBar(
+                    Overlay.of(context),
+                    const CustomSnackBar.info(
+                      message: 'Preparing CV upload...',
+                    ),
+                  );
+
+                  await studentProvider.fetchProfile();
+                  final updatedStudent = studentProvider.student;
+                  if (updatedStudent == null) return;
+
+                  final Uint8List pdfBytes = await CVGenerator.generatePdfBytes(
+                    updatedStudent,
+                    customEmail: customEmail,
+                  );
+
+                  final uploaded = await studentProvider.uploadGeneratedCv(
+                    pdfBytes,
+                    fileName:
+                        '${updatedStudent.user.fullName?.replaceAll(' ', '_')}_CV.pdf',
+                  );
+
+                  if (context.mounted) {
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      uploaded
+                          ? const CustomSnackBar.success(
+                              message:
+                                  'CV uploaded successfully. Companies can now view it.',
+                            )
+                          : const CustomSnackBar.error(
+                              message: 'Failed to upload CV.',
+                            ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    showTopSnackBar(
+                      Overlay.of(context),
+                      CustomSnackBar.error(message: 'Error uploading CV: $e'),
+                    );
+                  }
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 16 : 24,
+                  vertical: isMobile ? 14 : 16,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cloud_upload_rounded,
+                      color: Colors.white,
+                      size: isMobile ? 18 : 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      "Upload Generated CV",
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
