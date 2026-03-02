@@ -1,25 +1,28 @@
-﻿using JobFairPortal.Data;
+﻿using FirebaseAdmin.Messaging;
+using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
+using JobFairPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using FirebaseAdmin.Messaging;
 using System.Security.Claims;
 
 namespace JobFairPortal.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    
+     
     public class CompanyController : ControllerBase
     {
         private readonly JobFairRecruitmentDbContext _context;
-        private readonly ILogger<AdminController> _logger;
+        private readonly ILogger<CompanyController> _logger;
 
-        public CompanyController(JobFairRecruitmentDbContext context)
+        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger)
         {
             _context = context;
+            _logger = logger;
         }
         [HttpGet("finalyear-projects/with-students")]
         public async Task<IActionResult> GetFinalYearProjectsWithStudents()
@@ -322,6 +325,10 @@ namespace JobFairPortal.Controllers
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
                     ProfilePicUrl = s.ProfilePicUrl,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
                     
                     // --- Interview Request Status (if company is logged in) ---
                     InterviewRequest = currentCompany != null 
@@ -382,6 +389,10 @@ namespace JobFairPortal.Controllers
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
                     ProfilePicUrl = s.ProfilePicUrl,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
                     
                     // --- Interview Request Status ---
                     InterviewRequest = currentCompany != null
@@ -434,6 +445,10 @@ namespace JobFairPortal.Controllers
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
                     ProfilePicUrl = s.ProfilePicUrl,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
                     
                     // --- Interview Request Status ---
                     InterviewRequest = currentCompany != null
@@ -486,6 +501,10 @@ namespace JobFairPortal.Controllers
                     CGPA = (float)s.CGPA,
                     Skills = s.Skills,
                     ProfilePicUrl = s.ProfilePicUrl,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
                     
                     // --- Interview Request Status ---
                     InterviewRequest = currentCompany != null
@@ -686,10 +705,11 @@ namespace JobFairPortal.Controllers
         [HttpGet("analytics")]
         public async Task<IActionResult> GetCompanyAnalytics()
         {
-            // Get company from token/user context
+            // Load company including navigations we will access to avoid null reference
             var company = await _context.Companies
                 .Include(c => c.Interviews)
                 .Include(c => c.InterviewRequests)
+                .Include(c => c.CurrentJobFair) // ensure CurrentJobFair is loaded
                 .FirstOrDefaultAsync(c => c.UserId == GetUserIdFromToken());
 
             if (company == null)
@@ -767,12 +787,13 @@ namespace JobFairPortal.Controllers
 
             var hiringRate = totalStudentsCalled > 0 ? ((double)totalHired / totalStudentsCalled) * 100 : 0;
 
-            // Build response
+            // Build response - use null-safe access to CurrentJobFair
             var analytics = new
             {
                 CompanyId = company.CompanyId,
                 CompanyName = company.Name,
-        
+                JobFairDate = company.CurrentJobFair?.date, // safe: CurrentJobFair may be null
+
                 // FYP Projects
                 FYPProjects = new
                 {
@@ -812,8 +833,10 @@ namespace JobFairPortal.Controllers
 
             return Ok(analytics);
         }
-        
-      
+
+
+
+
         [HttpGet("notices")]
         [Authorize] 
         public async Task<IActionResult> GetNotices()
@@ -1076,63 +1099,64 @@ namespace JobFairPortal.Controllers
 /// </summary>
 [Authorize(Roles = "Company")]
 [HttpPost("interview-requests/{requestId}/accept")]
-public async Task<IActionResult> AcceptInterviewRequest(int requestId, [FromBody] AcceptInterviewRequestDto dto)
-{
-    var companyIdClaim = GetUserIdFromToken();
-    if (companyIdClaim <= 0)
-        return Unauthorized();
-
-    var company = await _context.Companies
-        .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
-
-    if (company == null)
-        return NotFound("Company not found.");
-
-    var request = await _context.InterviewRequests
-        .Include(r => r.Student)
-            .ThenInclude(s => s.User)
-        .Include(r => r.Company)
-        .FirstOrDefaultAsync(r => r.RequestId == requestId && r.CompanyId == company.CompanyId);
-
-    if (request == null)
-        return NotFound("Interview request not found.");
-
-    if (request.Status != RequestStatus.Pending)
-        return BadRequest($"Cannot accept a request with status: {request.Status}");
-
-    // Update request status
-    request.Status = RequestStatus.Accepted;
-    request.UpdatedAt = DateTime.UtcNow;
-
-    // Create Interview record
-    var interview = new Interview
-    {
-        CompanyId = company.CompanyId,
-        StudentId = request.StudentId,
-        RequestId = request.RequestId,
-        Status = InterviewStatus.Queued,
-        ScheduledTime = dto.ScheduledTime,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow
-    };
-
-    _context.Interviews.Add(interview);
-    await _context.SaveChangesAsync();
-
-    // Send FCM notification to student
-    if (!string.IsNullOrWhiteSpace(request.Student.FcmToken))
-    {
-        try
+        public async Task<IActionResult> AcceptInterviewRequest(int requestId, [FromBody] AcceptInterviewRequestDto dto)
         {
-            var message = new Message
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var request = await _context.InterviewRequests
+                .Include(r => r.Student)
+                    .ThenInclude(s => s.User)
+                .Include(r => r.Company)
+                .FirstOrDefaultAsync(r => r.RequestId == requestId && r.CompanyId == company.CompanyId);
+
+            if (request == null)
+                return NotFound("Interview request not found.");
+
+            if (request.Status != RequestStatus.Pending)
+                return BadRequest($"Cannot accept a request with status: {request.Status}");
+
+            // Update request status
+            request.Status = RequestStatus.Accepted;
+            request.UpdatedAt = DateTime.UtcNow;
+
+            // Create Interview record with JobFairId
+            var interview = new Interview
             {
-                Token = request.Student.FcmToken,
-                Notification = new FirebaseAdmin.Messaging.Notification
+                CompanyId = company.CompanyId,
+                StudentId = request.StudentId,
+                RequestId = request.RequestId,
+                Status = InterviewStatus.Queued,
+                ScheduledTime = dto.ScheduledTime,
+                JobFairId = request.JobFairId,  // ✅ FIX: Add the JobFairId from the request
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Interviews.Add(interview);
+            await _context.SaveChangesAsync();
+
+            // Send FCM notification to student
+            if (!string.IsNullOrWhiteSpace(request.Student.FcmToken))
+            {
+                try
                 {
-                    Title = "Interview Request Accepted",
-                    Body = $"{company.Name} has accepted your interview request"
-                },
-                Data = new Dictionary<string, string>
+                    var message = new Message
+                    {
+                        Token = request.Student.FcmToken,
+                        Notification = new FirebaseAdmin.Messaging.Notification
+                        {
+                            Title = "Interview Request Accepted",
+                            Body = $"{company.Name} has accepted your interview request"
+                        },
+                        Data = new Dictionary<string, string>
                 {
                     { "InterviewId", interview.InterviewId.ToString() },
                     { "CompanyId", company.CompanyId.ToString() },
@@ -1140,31 +1164,31 @@ public async Task<IActionResult> AcceptInterviewRequest(int requestId, [FromBody
                     { "ScheduledTime", dto.ScheduledTime?.ToString("o") ?? "To be scheduled" },
                     { "Type", "InterviewAccepted" }
                 }
-            };
+                    };
 
-            await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                    await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
+                }
+            }
+
+            return Ok(new
+            {
+                Message = "Interview request accepted successfully.",
+                RequestId = request.RequestId,
+                InterviewId = interview.InterviewId,
+                StudentName = request.Student.User.FullName,
+                ScheduledTime = interview.ScheduledTime,
+                Status = request.Status.ToString()
+            });
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
-        }
-    }
 
-    return Ok(new
-    {
-        Message = "Interview request accepted successfully.",
-        RequestId = request.RequestId,
-        InterviewId = interview.InterviewId,
-        StudentName = request.Student.User.FullName,
-        ScheduledTime = interview.ScheduledTime,
-        Status = request.Status.ToString()
-    });
-}
-
-/// <summary>
-/// Company: Reject an interview request from a student
-/// </summary>
-[Authorize(Roles = "Company")]
+        /// <summary>
+        /// Company: Reject an interview request from a student
+        /// </summary>
+        [Authorize(Roles = "Company")]
 [HttpPost("interview-requests/{requestId}/reject")]
 public async Task<IActionResult> RejectInterviewRequest(int requestId, [FromBody] RejectInterviewRequestDto dto)
 {
@@ -1959,7 +1983,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             });
         }
 
-       
+
         [Authorize(Roles = "Company")]
         [HttpPost("jobs")]
         public async Task<IActionResult> CreateJob([FromBody] CreateJobDto dto)
@@ -1974,9 +1998,15 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (company == null)
                 return NotFound("Company not found.");
 
+            // ✅ FIX: Get active job fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found. Cannot post jobs.");
+
             var job = new Job
             {
                 CompanyId = company.CompanyId,
+                JobFairId = activeJobFair.JobFairId, // ✅ FIX: Assign JobFairId
                 JobTitle = dto.JobTitle,
                 JobDescription = dto.JobDescription,
                 RequiredSkills = dto.RequiredSkills?.ToArray() ?? Array.Empty<string>(),
@@ -2093,10 +2123,15 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 .Include(c => c.CompanyContactLinks)
                 .Include(c => c.Interviews)
                 .Include(c => c.InterviewRequests)
+                .Include(c => c.JobFairParticipations)
                 .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
 
             if (company == null)
                 return NotFound("Company not found.");
+
+            // Get participation for current/active job fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
 
             var profile = new
             {
@@ -2181,7 +2216,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 {
                     RepsCount = company.RepsCount,
                     InterviewDurationMinutes = company.InterviewDurationMinutes,
-                    ArrivalStatus = company.ArrivalStatus.ToString(),
+                    ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
                     IsPresent = company.IsPresent
                 },
 
@@ -2193,9 +2228,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             return Ok(profile);
         }
 
-        /// <summary>
-        /// Company: Edit profile (logo, website, contact links)
-        /// </summary>
+        
         [Authorize(Roles = "Company")]
         [HttpPut("profile")]
         public async Task<IActionResult> EditCompanyProfile([FromForm] EditCompanyProfileDto dto)
@@ -2391,6 +2424,798 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 Message = "Contact link deleted successfully.",
                 LinkId = linkId
             });
+        }
+        [Authorize(Roles = "Company")]
+        [HttpPost("confirm-attendance")]
+        public async Task<IActionResult> ConfirmAttendance()
+        {
+            try
+            {
+                var companyIdClaim = GetUserIdFromToken();
+                if (companyIdClaim <= 0)
+                    return Unauthorized();
+
+                var company = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+                if (company == null)
+                    return NotFound(new { Message = "Company not found." });
+
+                // Get the service from DI
+                var confirmationService = HttpContext.RequestServices.GetRequiredService<ICompanyConfirmationService>();
+                var result = await confirmationService.ConfirmCompanyAttendanceAsync(company.CompanyId);
+
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Validation error in confirm attendance");
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirming attendance");
+                return StatusCode(500, new { Code = "ERROR", Message = "An error occurred while confirming your attendance." });
+            }
+        }
+        [Authorize(Roles = "Company")]
+        [HttpGet("confirmation-status")]
+        public async Task<IActionResult> GetConfirmationStatus()
+        {
+            try
+            {
+                var companyIdClaim = GetUserIdFromToken();
+                if (companyIdClaim <= 0)
+                    return Unauthorized();
+
+                var company = await _context.Companies
+                    .Include(c => c.User)
+                    .Include(c => c.Room)
+                    .Include(c => c.JobFairParticipations)
+                    .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+                if (company == null)
+                    return NotFound(new { Message = "Company not found." });
+
+                // Get active job fair
+                var activeJobFair = await _context.JobFairs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(j => j.IsActive);
+
+                if (activeJobFair == null)
+                    return BadRequest(new { Message = "No active job fair found." });
+
+                // Get participation for current/active job fair
+                var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
+
+                var status = new
+                {
+                    CompanyId = company.CompanyId,
+                    CompanyName = company.Name,
+                    JobFairId = activeJobFair.JobFairId,
+                    JobFairSemester = activeJobFair.Semester,
+                    JobFairDate = activeJobFair.date,
+                    IsConfirmed = participation?.ArrivalStatus == ArrivalStatus.PreRegistered,
+                    ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
+                    RepresentativeCount = company.RepsCount,
+                    RoomAssigned = company.Room != null,
+                    RoomDetails = company.Room != null ? new
+                    {
+                        RoomId = company.Room.RoomId,
+                        RoomName = company.Room.RoomName,
+                        Capacity = company.Room.Capacity,
+                        Status = company.Room.Status.ToString()
+                    } : null,
+                    ConfirmedAt = company.UpdatedAt
+                };
+
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting confirmation status");
+                return StatusCode(500, new { Message = "An error occurred while retrieving status." });
+            }
+        }
+        [Authorize(Roles = "Company")]
+        [HttpPost("interviews/schedule")]
+        public async Task<IActionResult> OptimizeJobFairSchedule([FromQuery] DateTime? date = null)
+        {
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair. Scheduling available only during an active fair.");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null) return BadRequest("Company is not registered for the active job fair.");
+            if (!participation.IsPresent) return BadRequest("Company is not marked present for the active job fair.");
+
+            var scheduleDate = (date ?? activeJobFair.date).Date;
+
+            // Boundaries (kept simple — adjust timezone handling as needed)
+            var buffer = TimeSpan.FromSeconds(90);
+            var nowUtc = DateTime.UtcNow;
+            var dayStart = DateTime.SpecifyKind(scheduleDate.AddHours(9), DateTimeKind.Utc);
+            var startTime = nowUtc > dayStart ? nowUtc : dayStart;
+            var hardStop = DateTime.SpecifyKind(scheduleDate.AddHours(16.5), DateTimeKind.Utc);
+
+            var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
+            if (interviewDurationMinutes <= 0) return BadRequest("Interview duration is not configured for this company.");
+
+            var companyDuration = TimeSpan.FromMinutes(interviewDurationMinutes);
+
+            var acceptedRequests = await _context.InterviewRequests
+                .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == activeJobFair.JobFairId && r.Status == RequestStatus.Accepted)
+                .ToListAsync();
+
+            var existingCompanyInterviewStudentIds = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+                .Select(i => i.StudentId)
+                .ToListAsync();
+
+            var requestsToSchedule = acceptedRequests
+                .Where(r => !existingCompanyInterviewStudentIds.Contains(r.StudentId))
+                .ToList();
+
+            if (!requestsToSchedule.Any())
+                return Ok(new { Message = "No accepted requests to schedule." });
+
+            var studentIds = requestsToSchedule.Select(r => r.StudentId).Distinct().ToList();
+
+            var globalInterviews = await _context.Interviews
+                .Where(i => studentIds.Contains(i.StudentId) && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+                .ToListAsync();
+
+            var existingCompanyInterviews = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == scheduleDate)
+                .ToListAsync();
+
+            var involvedCompanyIds = globalInterviews.Select(i => i.CompanyId)
+                .Union(existingCompanyInterviews.Select(i => i.CompanyId))
+                .Where(id => id != 0)
+                .Distinct()
+                .ToList();
+
+            var durationsDict = new Dictionary<int, int>();
+            if (involvedCompanyIds.Any())
+            {
+                var participations = await _context.CompanyJobFairParticipations
+                    .Where(p => involvedCompanyIds.Contains(p.CompanyId) && p.JobFairId == activeJobFair.JobFairId)
+                    .ToListAsync();
+
+                foreach (var p in participations)
+                    durationsDict[p.CompanyId] = p.InterviewDurationMinutes;
+
+                var missingCompanyIds = involvedCompanyIds.Except(durationsDict.Keys).ToList();
+                if (missingCompanyIds.Any())
+                {
+                    var comps = await _context.Companies.Where(c => missingCompanyIds.Contains(c.CompanyId)).ToListAsync();
+                    foreach (var c in comps)
+                        durationsDict[c.CompanyId] = c.InterviewDurationMinutes;
+                }
+            }
+
+            DateTime ComputeInterviewEnd(Interview i)
+            {
+                var start = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                var dur = TimeSpan.FromMinutes(durationsDict.ContainsKey(i.CompanyId) && durationsDict[i.CompanyId] > 0
+                    ? durationsDict[i.CompanyId]
+                    : company.InterviewDurationMinutes);
+                return start + dur;
+            }
+
+            var companyBusy = new List<(DateTime start, DateTime end)>();
+            foreach (var i in existingCompanyInterviews)
+            {
+                var s = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                var e = ComputeInterviewEnd(i);
+                companyBusy.Add((s, e));
+            }
+
+            var studentBusy = new Dictionary<int, List<(DateTime start, DateTime end)>>();
+            foreach (var sid in studentIds) studentBusy[sid] = new List<(DateTime start, DateTime end)>();
+
+            foreach (var i in globalInterviews)
+            {
+                var s = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                var e = ComputeInterviewEnd(i);
+                if (!studentBusy.ContainsKey(i.StudentId)) studentBusy[i.StudentId] = new List<(DateTime, DateTime)>();
+                studentBusy[i.StudentId].Add((s, e));
+            }
+
+            var globalCounts = globalInterviews.GroupBy(i => i.StudentId).ToDictionary(g => g.Key, g => g.Count());
+
+            requestsToSchedule.Sort((a, b) =>
+            {
+                var ca = globalCounts.ContainsKey(a.StudentId) ? globalCounts[a.StudentId] : 0;
+                var cb = globalCounts.ContainsKey(b.StudentId) ? globalCounts[b.StudentId] : 0;
+                return cb.CompareTo(ca);
+            });
+
+            var optimizedInterviews = new List<Interview>();
+            var localCompanyBusy = new List<(DateTime start, DateTime end)>(companyBusy);
+            var localStudentBusy = studentBusy.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
+
+            foreach (var req in requestsToSchedule)
+            {
+                var duration = companyDuration;
+                var searchPointer = startTime;
+                var scheduled = false;
+
+                while (searchPointer + duration <= hardStop)
+                {
+                    var potentialEnd = searchPointer + duration;
+                    var candidateStartWithBuffer = searchPointer - buffer;
+                    var candidateEndWithBuffer = potentialEnd + buffer;
+
+                    var companyConflicts = localCompanyBusy.Any(b => Overlaps(b.start, b.end, candidateStartWithBuffer, candidateEndWithBuffer));
+                    var studentConflicts = localStudentBusy.TryGetValue(req.StudentId, out var sbList) &&
+                                           sbList.Any(b => Overlaps(b.start, b.end, candidateStartWithBuffer, candidateEndWithBuffer));
+
+                    if (!companyConflicts && !studentConflicts)
+                    {
+                        var interview = new Interview
+                        {
+                            CompanyId = company.CompanyId,
+                            StudentId = req.StudentId,
+                            RequestId = req.RequestId,
+                            JobFairId = activeJobFair.JobFairId,
+                            ScheduledTime = searchPointer,
+                            Status = InterviewStatus.Queued,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        optimizedInterviews.Add(interview);
+
+                        localCompanyBusy.Add((searchPointer, potentialEnd));
+                        if (!localStudentBusy.ContainsKey(req.StudentId)) localStudentBusy[req.StudentId] = new List<(DateTime, DateTime)>();
+                        localStudentBusy[req.StudentId].Add((searchPointer, potentialEnd));
+
+                        scheduled = true;
+                        break;
+                    }
+
+                    var overlappingEnds = new List<DateTime>();
+                    overlappingEnds.AddRange(localCompanyBusy.Where(b => Overlaps(b.start, b.end, candidateStartWithBuffer, candidateEndWithBuffer)).Select(b => b.end));
+                    if (localStudentBusy.TryGetValue(req.StudentId, out var listForStudent))
+                        overlappingEnds.AddRange(listForStudent.Where(b => Overlaps(b.start, b.end, candidateStartWithBuffer, candidateEndWithBuffer)).Select(b => b.end));
+
+                    if (overlappingEnds.Any())
+                    {
+                        var maxEnd = overlappingEnds.Max();
+                        searchPointer = maxEnd.Add(buffer);
+                        searchPointer = DateTime.SpecifyKind(new DateTime(searchPointer.Year, searchPointer.Month, searchPointer.Day, searchPointer.Hour, searchPointer.Minute, 0), DateTimeKind.Utc);
+                        continue;
+                    }
+
+                    searchPointer = searchPointer.AddMinutes(1);
+                }
+            }
+
+            if (!optimizedInterviews.Any())
+                return Ok(new { Message = "No available slots found to schedule interviews." });
+
+            using (var tx = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    var scheduledDates = optimizedInterviews.Select(i => i.ScheduledTime!.Value.Date).Distinct().ToList();
+                    var dbConflicts = await _context.Interviews
+                        .Where(i => i.JobFairId == activeJobFair.JobFairId && scheduledDates.Contains(i.ScheduledTime!.Value.Date))
+                        .ToListAsync();
+
+                    List<(DateTime start, DateTime end)> dbCompanyBusy = dbConflicts.Where(i => i.CompanyId == company.CompanyId)
+                        .Select(i =>
+                        {
+                            var s = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                            var e = s.AddMinutes(durationsDict.ContainsKey(i.CompanyId) && durationsDict[i.CompanyId] > 0 ? durationsDict[i.CompanyId] : company.InterviewDurationMinutes);
+                            return (start: s, end: e);
+                        })
+                        .ToList();
+
+                    var dbStudentBusy = new Dictionary<int, List<(DateTime start, DateTime end)>>();
+                    foreach (var i in dbConflicts)
+                    {
+                        var dStart = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                        var dEnd = dStart.AddMinutes(durationsDict.ContainsKey(i.CompanyId) && durationsDict[i.CompanyId] > 0 ? durationsDict[i.CompanyId] : company.InterviewDurationMinutes);
+                        if (!dbStudentBusy.ContainsKey(i.StudentId)) dbStudentBusy[i.StudentId] = new List<(DateTime, DateTime)>();
+                        dbStudentBusy[i.StudentId].Add((dStart, dEnd));
+                    }
+
+                    foreach (var opt in optimizedInterviews)
+                    {
+                        var s = opt.ScheduledTime!.Value;
+                        var e = s + companyDuration;
+                        if (dbCompanyBusy.Any(b => Overlaps(b.start, b.end, s - buffer, e + buffer)))
+                            throw new InvalidOperationException("Scheduling conflict detected for company during save. Try again.");
+
+                        if (dbStudentBusy.TryGetValue(opt.StudentId, out var studentBusyList) && studentBusyList.Any(b => Overlaps(b.start, b.end, s - buffer, e + buffer)))
+                            throw new InvalidOperationException("Scheduling conflict detected for a student during save. Try again.");
+                    }
+
+                    _context.Interviews.AddRange(optimizedInterviews);
+                    await _context.SaveChangesAsync();
+
+                    await tx.CommitAsync();
+
+                    // --- FCM Notifications: fetch tokens and send
+                    var scheduledStudentIds = optimizedInterviews.Select(i => i.StudentId).Distinct().ToList();
+                    var students = await _context.Students
+                        .Where(s => scheduledStudentIds.Contains(s.StudentId))
+                        .Select(s => new { s.StudentId, s.FcmToken, s.User })
+                        .ToListAsync();
+
+                    var studentTokenMap = students.ToDictionary(s => s.StudentId, s => s.FcmToken);
+
+                    var sendTasks = new List<Task>();
+                    foreach (var iv in optimizedInterviews)
+                    {
+                        if (!studentTokenMap.TryGetValue(iv.StudentId, out var token) || string.IsNullOrWhiteSpace(token))
+                            continue;
+
+                        var scheduledIso = iv.ScheduledTime?.ToString("o") ?? "";
+                        var message = new Message
+                        {
+                            Token = token,
+                            Notification = new FirebaseAdmin.Messaging.Notification
+                            {
+                                Title = "Interview Scheduled",
+                                Body = $"{company.Name} scheduled your interview at {scheduledIso}"
+                            },
+                            Data = new Dictionary<string, string>
+                    {
+                        { "InterviewId", iv.InterviewId.ToString() },
+                        { "CompanyId", company.CompanyId.ToString() },
+                        { "CompanyName", company.Name },
+                        { "ScheduledTime", scheduledIso },
+                        { "Type", "InterviewScheduled" }
+                    }
+                        };
+
+                        // fire-and-forget tasks collected and awaited
+                        sendTasks.Add(Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Do not fail scheduling if notification fails; log and continue
+                                try { Console.WriteLine($"FCM send failed for student {iv.StudentId}: {ex.Message}"); } catch { }
+                            }
+                        }));
+                    }
+
+
+
+
+                  
+                    if (sendTasks.Any()) await Task.WhenAll(sendTasks);
+
+                    var result = optimizedInterviews.Select(i => new
+                    {
+                        i.InterviewId,
+                        i.StudentId,
+                        i.CompanyId,
+                        ScheduledTime = i.ScheduledTime
+                    }).ToList();
+
+                    return Ok(new { Message = "Interviews scheduled successfully.", Count = result.Count, Scheduled = result });
+                }
+                catch (Exception ex)
+                {
+                    await tx.RollbackAsync();
+                    return StatusCode(409, new { Message = "Failed to schedule due to conflicts or an error.", Error = ex.Message });
+                }
+            }
+        }
+
+        [HttpGet("students/{studentId}/availability")]
+        public async Task<IActionResult> GetStudentAvailability(int studentId, [FromQuery] DateTime? date = null, [FromQuery] int stepMinutes = 5)
+        {
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null) return BadRequest("Company is not registered for the active job fair.");
+            if (!participation.IsPresent) return BadRequest("Company must be marked present to schedule interviews.");
+
+            var targetDate = (date ?? activeJobFair.date).Date;
+
+            // interview duration used for candidate slot length
+            var durationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
+            if (durationMinutes <= 0) return BadRequest("Interview duration not configured for this company.");
+
+            var duration = TimeSpan.FromMinutes(durationMinutes);
+            var buffer = TimeSpan.FromSeconds(90);
+
+            // Working window
+            var dayStart = DateTime.SpecifyKind(targetDate.AddHours(9), DateTimeKind.Utc);
+            var hardStop = DateTime.SpecifyKind(targetDate.AddHours(16.5), DateTimeKind.Utc);
+
+            // Build busy lists for company & student for that date
+            var companyInterviews = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == targetDate)
+                .ToListAsync();
+
+            var studentInterviews = await _context.Interviews
+                .Where(i => i.StudentId == studentId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == targetDate)
+                .ToListAsync();
+
+            var companyBusy = companyInterviews.Select(i =>
+            {
+                var s = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                var e = s.AddMinutes(durationMinutes);
+                return (start: s, end: e);
+            }).ToList();
+
+            var studentBusy = studentInterviews.Select(i =>
+            {
+                var s = DateTime.SpecifyKind(i.ScheduledTime!.Value, DateTimeKind.Utc);
+                var e = s.AddMinutes(durationMinutes); // assume same duration for conflict checking
+                return (start: s, end: e);
+            }).ToList();
+
+            // If student doesn't exist or not registered for fair, return 404 or validation
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null) return NotFound("Student not found.");
+
+            var studentParticipationExists = await _context.StudentJobFairParticipations
+                .AnyAsync(sp => sp.StudentId == studentId && sp.JobFairId == activeJobFair.JobFairId);
+
+            if (!studentParticipationExists)
+                return BadRequest("Student is not registered for the active job fair.");
+
+            // iterate slots
+            var availableSlots = new List<DateTime>();
+            var pointer = DateTime.UtcNow > dayStart ? DateTime.UtcNow : dayStart;
+            // normalize pointer to minute boundary
+            pointer = DateTime.SpecifyKind(new DateTime(pointer.Year, pointer.Month, pointer.Day, pointer.Hour, pointer.Minute, 0), DateTimeKind.Utc);
+
+            for (var t = pointer; t + duration <= hardStop; t = t.AddMinutes(stepMinutes))
+            {
+                var candStart = t;
+                var candEnd = t + duration;
+                var candStartWithBuffer = candStart - buffer;
+                var candEndWithBuffer = candEnd + buffer;
+
+                var companyConflict = companyBusy.Any(b => Overlaps(b.start, b.end, candStartWithBuffer, candEndWithBuffer));
+                var studentConflict = studentBusy.Any(b => Overlaps(b.start, b.end, candStartWithBuffer, candEndWithBuffer));
+
+                if (!companyConflict && !studentConflict)
+                    availableSlots.Add(candStart);
+                // optional: limit to reasonable number of slots
+                if (availableSlots.Count >= 50) break;
+            }
+
+            var result = availableSlots
+                .Select(dt => dt.ToString("o"))
+                .ToList();
+
+            return Ok(new
+            {
+                StudentId = studentId,
+                CompanyId = company.CompanyId,
+                Date = targetDate,
+                SlotDurationMinutes = durationMinutes,
+                Slots = result
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("students/{studentId}/schedule")]
+        public async Task<IActionResult> ScheduleInterview(int studentId, [FromBody] ScheduleInterviewDto dto)
+        {
+            if (dto == null) return BadRequest("Request body required.");
+            var scheduledTime = DateTime.SpecifyKind(dto.ScheduledTime, DateTimeKind.Utc);
+
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null) return BadRequest("Company not registered for the active job fair.");
+            if (!participation.IsPresent) return BadRequest("Company must be marked present to schedule.");
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null) return NotFound("Student not found.");
+
+            var studentParticipation = await _context.StudentJobFairParticipations
+                .AnyAsync(sp => sp.StudentId == studentId && sp.JobFairId == activeJobFair.JobFairId);
+
+            if (!studentParticipation) return BadRequest("Student not registered for the active job fair.");
+
+            // duration and buffers
+            var durationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
+            if (durationMinutes <= 0) return BadRequest("Interview duration not configured.");
+            var duration = TimeSpan.FromMinutes(durationMinutes);
+            var buffer = TimeSpan.FromSeconds(90);
+
+            // Basic window check (same working window as availability)
+            var date = scheduledTime.Date;
+            var dayStart = DateTime.SpecifyKind(date.AddHours(9), DateTimeKind.Utc);
+            var hardStop = DateTime.SpecifyKind(date.AddHours(16.5), DateTimeKind.Utc);
+            if (scheduledTime < DateTime.UtcNow) return BadRequest("Scheduled time must be in the future.");
+            if (scheduledTime < dayStart || scheduledTime + duration > hardStop) return BadRequest("Scheduled time outside allowed window.");
+
+            // Build busy lists for this date
+            var companyConflicts = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == date)
+                .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
+                .ToListAsync();
+
+            var studentConflicts = await _context.Interviews
+                .Where(i => i.StudentId == studentId && i.JobFairId == activeJobFair.JobFairId && i.ScheduledTime.HasValue && i.ScheduledTime.Value.Date == date)
+                .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
+                .ToListAsync();
+
+            var candStartWithBuffer = scheduledTime - buffer;
+            var candEndWithBuffer = scheduledTime + duration + buffer;
+
+            bool companyBusy = companyConflicts.Any(b => Overlaps(DateTime.SpecifyKind(b.Start, DateTimeKind.Utc), DateTime.SpecifyKind(b.End, DateTimeKind.Utc), candStartWithBuffer, candEndWithBuffer));
+            bool studentBusy = studentConflicts.Any(b => Overlaps(DateTime.SpecifyKind(b.Start, DateTimeKind.Utc), DateTime.SpecifyKind(b.End, DateTimeKind.Utc), candStartWithBuffer, candEndWithBuffer));
+
+            if (companyBusy) return Conflict(new { Message = "Company has a conflicting interview at that time." });
+            if (studentBusy) return Conflict(new { Message = "Student has a conflicting interview at that time." });
+
+            // Create interview (optionally link to request if provided)
+            var interview = new Interview
+            {
+                CompanyId = company.CompanyId,
+                StudentId = studentId,
+                RequestId = dto.RequestId ?? 0,
+                JobFairId = activeJobFair.JobFairId,
+                ScheduledTime = scheduledTime,
+                Status = InterviewStatus.Queued,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Interviews.Add(interview);
+            await _context.SaveChangesAsync();
+
+            // Notify student via FCM if available
+            var studentToken = await _context.Students.Where(s => s.StudentId == studentId).Select(s => s.FcmToken).FirstOrDefaultAsync();
+            if (!string.IsNullOrWhiteSpace(studentToken))
+            {
+                try
+                {
+                    var msg = new Message
+                    {
+                        Token = studentToken,
+                        Notification = new FirebaseAdmin.Messaging.Notification
+                        {
+                            Title = "Interview Scheduled",
+                            Body = $"{company.Name} scheduled an interview for you at {scheduledTime:o}"
+                        },
+                        Data = new Dictionary<string, string>
+                {
+                    { "InterviewId", interview.InterviewId.ToString() },
+                    { "CompanyId", company.CompanyId.ToString() },
+                    { "ScheduledTime", scheduledTime.ToString("o") },
+                    { "Type", "InterviewScheduled" }
+                }
+                    };
+                    await FirebaseMessaging.DefaultInstance.SendAsync(msg);
+                }
+                catch
+                {
+                    // do not fail on notification error
+                }
+            }
+
+            return Ok(new
+            {
+                Message = "Interview scheduled.",
+                InterviewId = interview.InterviewId,
+                CompanyId = company.CompanyId,
+                StudentId = studentId,
+                ScheduledTime = scheduledTime
+            });
+        }
+        // Helper: check interval overlap (exclusive end)
+        private static bool Overlaps(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
+        {
+            return aStart < bEnd && bStart < aEnd;
+        }
+        
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("requests")]
+        public async Task<IActionResult> CreateCompanyRequest([FromBody] CompanyRequestDto dto)
+        {
+            if (dto == null) return BadRequest("Request body is required.");
+
+            var userId = GetUserIdFromToken();
+            if (userId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (company == null) return NotFound("Company not found.");
+
+            // Use active job fair if JobFairId omitted or validate provided JobFairId
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair to attach this request to.");
+
+            if (dto.JobFairId.HasValue && dto.JobFairId.Value != activeJobFair.JobFairId)
+                return BadRequest("Requests can only be submitted for the currently active job fair.");
+
+            var req = new Models.CompanyRequest
+            {
+                CompanyId = company.CompanyId,
+                JobFairId = activeJobFair.JobFairId,
+                Type = dto.Type,
+                Description = dto.Description,
+                Quantity = dto.Quantity,
+                AdditionalInfo = dto.AdditionalInfo,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Status = Models.CompanyRequestStatus.Pending
+            };
+
+            _context.Add(req);
+            await _context.SaveChangesAsync();
+
+            // Reload company data for SignalR broadcast
+            req = await _context.CompanyRequests.Include(r => r.Company).FirstOrDefaultAsync(r => r.CompanyRequestId == req.CompanyRequestId);
+
+            // Notify admins in real-time
+            try
+            {
+                var hub = HttpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.SignalR.IHubContext<JobFairPortal.Hubs.CompanyRequestsHub>)) as Microsoft.AspNetCore.SignalR.IHubContext<JobFairPortal.Hubs.CompanyRequestsHub>;
+                if (hub != null)
+                {
+                    var payload = new
+                    {
+                        req.CompanyRequestId,
+                        req.CompanyId,
+                        CompanyName = req.Company?.Name ?? "Unknown",
+                        req.JobFairId,
+                        Type = req.Type.ToString(),
+                        req.Description,
+                        req.Quantity,
+                        req.AdditionalInfo,
+                        Status = req.Status.ToString(),
+                        req.AdminNote,
+                        req.CreatedAt,
+                        req.UpdatedAt,
+                        req.FulfilledAt
+                    };
+                    await hub.Clients.All.SendAsync("CompanyRequestCreated", payload);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return Ok(new { Message = "Request submitted.", RequestId = req.CompanyRequestId });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpGet("requests")]
+        public async Task<IActionResult> GetMyRequests()
+        {
+            var userId = GetUserIdFromToken();
+            if (userId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (company == null) return NotFound("Company not found.");
+
+            var requests = await _context.CompanyRequests
+                .Where(r => r.CompanyId == company.CompanyId)
+                .OrderByDescending(r => r.CreatedAt)
+                .Select(r => new
+                {
+                    r.CompanyRequestId,
+                    r.Type,
+                    r.Description,
+                    r.Quantity,
+                    r.AdditionalInfo,
+                    r.Status,
+                    r.AdminNote,
+                    r.CreatedAt,
+                    r.UpdatedAt,
+                    r.FulfilledAt,
+                    r.JobFairId
+                })
+                .ToListAsync();
+
+            return Ok(requests);
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPut("requests/{id}/cancel")]
+        public async Task<IActionResult> CancelRequest(int id)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (company == null) return NotFound("Company not found.");
+
+            var req = await _context.CompanyRequests.FirstOrDefaultAsync(r => r.CompanyRequestId == id && r.CompanyId == company.CompanyId);
+            if (req == null) return NotFound("Request not found or access denied.");
+
+            // Only allow cancellation if not already fulfilled or rejected
+            if (req.Status == CompanyRequestStatus.Fulfilled || req.Status == CompanyRequestStatus.Rejected)
+                return BadRequest("Cannot cancel a request that is already fulfilled or rejected.");
+
+            req.Status = CompanyRequestStatus.Cancelled;
+            req.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Notify admins via SignalR
+            try
+            {
+                var hub = HttpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.SignalR.IHubContext<JobFairPortal.Hubs.CompanyRequestsHub>)) as Microsoft.AspNetCore.SignalR.IHubContext<JobFairPortal.Hubs.CompanyRequestsHub>;
+                if (hub != null)
+                {
+                    var payload = new
+                    {
+                        req.CompanyRequestId,
+                        req.CompanyId,
+                        CompanyName = company?.Name ?? "Unknown",
+                        req.JobFairId,
+                        Type = req.Type.ToString(),
+                        req.Description,
+                        req.Quantity,
+                        req.AdditionalInfo,
+                        Status = req.Status.ToString(),
+                        req.AdminNote,
+                        req.CreatedAt,
+                        req.UpdatedAt,
+                        req.FulfilledAt
+                    };
+                    await hub.Clients.All.SendAsync("CompanyRequestUpdated", payload);
+                }
+            }
+            catch { }
+
+            return Ok(new { Message = "Request cancelled successfully." });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("register-fcm-token")]
+        public async Task<IActionResult> RegisterFcmToken([FromBody] FcmTokenValidationDto dto)
+        {
+            var userId = GetUserIdFromToken();
+            if (userId <= 0) return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(dto.Token))
+                return BadRequest("FCM token is required.");
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (company == null)
+                return NotFound("Company not found.");
+
+            company.FcmToken = dto.Token;
+            _context.Companies.Update(company);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "FCM token registered successfully." });
         }
     }
 }

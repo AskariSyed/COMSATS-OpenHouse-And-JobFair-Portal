@@ -20,6 +20,8 @@ namespace JobFairPortal.DTOs
         public int Capacity { get; set; }
         public RoomStatus Status { get; set; }
         public string? CompanyName { get; set; }
+        public int? CompanyId { get; set; }
+        public int? CompanyRepsCount { get; set; }
     }
 
 }

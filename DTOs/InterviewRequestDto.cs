@@ -15,7 +15,6 @@ namespace JobFairPortal.DTOs
 
     public class AcceptInterviewRequestDto
     {
-        [Required]
         public DateTime? ScheduledTime { get; set; }
     }
     public class SendCompanyInterviewRequestDto

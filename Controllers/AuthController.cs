@@ -17,7 +17,7 @@ namespace JobFairPortal.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    public class AuthController : ControllerBase 
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly IConfiguration _configuration;
@@ -55,7 +55,7 @@ namespace JobFairPortal.Controllers
 
         // ========================================
         // LOGIN ENDPOINTS
-        // ========================================
+        // ======================================== 
 
         [HttpPost("admin/login")]
         public async Task<IActionResult> AdminLogin([FromBody] LoginDto loginDto)
@@ -358,13 +358,25 @@ namespace JobFairPortal.Controllers
                     InterviewDurationMinutes = dto.InterviewDurationMinutes,
                     Industry = dto.Industry,
                     LogoUrl = logoUrl,
-                    ArrivalStatus = ArrivalStatus.PreRegistered,
                     IsPresent = false,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.Companies.Add(company);
                 await _context.SaveChangesAsync();
+
+                // ✅ NEW: Create Company Job Fair Participation Record
+                var participation = new CompanyJobFairParticipation
+                {
+                    CompanyId = company.CompanyId,
+                    JobFairId = activeJobFair.JobFairId,
+                    ArrivalStatus = ArrivalStatus.Pending,
+                    RepsCount = dto.RepsCount,
+                    InterviewDurationMinutes = dto.InterviewDurationMinutes,
+                    RegisteredAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.CompanyJobFairParticipations.Add(participation);
 
                 // Add Job Offerings
                 if (dto.JobOfferings != null && dto.JobOfferings.Count > 0)
@@ -374,6 +386,7 @@ namespace JobFairPortal.Controllers
                         var job = new Job
                         {
                             CompanyId = company.CompanyId,
+                            JobFairId = activeJobFair.JobFairId, // ✅ FIX: Assign JobFairId
                             JobTitle = jobDto.JobTitle,
                             JobDescription = jobDto.JobDescription,
                             RequiredSkills = jobDto.RequiredSkills?.Split(',', StringSplitOptions.TrimEntries),
@@ -529,14 +542,15 @@ namespace JobFairPortal.Controllers
                 });
             }
 
-            // Check if account is a student account
-            if (user.Role != UserRole.Student)
+            // Allow password reset for both Student and Company accounts
+            // Only restrict Admin accounts if needed
+            if (user.Role == UserRole.Admin)
             {
-                _logger.LogWarning("Forgot password request - non-student account: {Email}, Role: {Role}", dto.Email, user.Role);
+                _logger.LogWarning("Forgot password request - admin account: {Email}", dto.Email);
                 return BadRequest(new
                 {
                     Code = "INVALID_ACCOUNT_TYPE",
-                    Message = $"This email belongs to a {user.Role} account. Please use the OTP method or contact support."
+                    Message = "Admin accounts cannot use this password reset method. Please contact the system administrator."
                 });
             }
 
@@ -726,14 +740,15 @@ namespace JobFairPortal.Controllers
                     });
                 }
 
-                // If it's an email, check if it's a student account
-                if (user.Role != UserRole.Student)
+                // Allow both Student and Company accounts
+                // Only restrict Admin accounts if needed
+                if (user.Role == UserRole.Admin)
                 {
-                    _logger.LogWarning("Password reset OTP request - non-student account attempt: {Email}, Role: {Role}", input, user.Role);
+                    _logger.LogWarning("Password reset OTP request - admin account attempt: {Email}", input);
                     return BadRequest(new
                     {
                         Code = "INVALID_ACCOUNT_TYPE",
-                        Message = $"This email belongs to a {user.Role} account, not a student account. Please use the correct email."
+                        Message = "Admin accounts cannot use this password reset method. Please contact the system administrator."
                     });
                 }
             }
@@ -889,7 +904,7 @@ namespace JobFairPortal.Controllers
                 return StatusCode(500, new { Message = "An error occurred while changing your password. Please try again." });
             }
         }
-
+        
         // ========================================
         // PRIVATE HELPER METHODS
         // ========================================

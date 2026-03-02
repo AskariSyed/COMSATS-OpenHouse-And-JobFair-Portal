@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,8 @@ namespace JobFairPortal.Models
         [Required]
         public int CompanyId { get; set; }
 
+        [Required]
+        public int JobFairId { get; set; } // ✅ ADDED
 
         [Required]
         [MaxLength(200)]
@@ -31,6 +34,7 @@ namespace JobFairPortal.Models
 
         [MaxLength(2000)]
         public string? JobDescription { get; set; }
+
         [Required]
         public int NumberOfJobs { get; set; }
 
@@ -41,7 +45,12 @@ namespace JobFairPortal.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+        // Navigation properties
+        [ForeignKey("CompanyId")]
         public Company Company { get; set; } = null!;
+
+        [ForeignKey("JobFairId")] // ✅ ADDED
+        public JobFair JobFair { get; set; } = null!; // ✅ ADDED
     }
 
     // In DbContext, map RequiredSkills as JSON

@@ -44,6 +44,12 @@ namespace JobFairPortal.Models
 
         public int JobFairId { get; set; }
         public JobFair JobFair { get; set; } = null!;
+
+        public ICollection<StudentJobFairParticipation> JobFairParticipations { get; set; } = 
+            new List<StudentJobFairParticipation>();
+
+        public int? CurrentJobFairId { get; set; }  // Optional: tracks their primary job fair
+        public JobFair? CurrentJobFair { get; set; }
     }
 }
 

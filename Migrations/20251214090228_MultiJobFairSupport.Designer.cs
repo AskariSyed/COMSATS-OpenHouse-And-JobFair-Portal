@@ -3,6 +3,7 @@ using System;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251214090228_MultiJobFairSupport")]
+    partial class MultiJobFairSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -73,44 +76,6 @@ namespace JobFairPortal.Migrations
                     b.HasIndex("StudentId");
 
                     b.ToTable("Achievements");
-                });
-
-            modelBuilder.Entity("JobFairPortal.Models.AdminAttendanceSession", b =>
-                {
-                    b.Property<int>("AdminAttendanceSessionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AdminAttendanceSessionId"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedByAdmin")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("JobFairId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SessionToken")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("AdminAttendanceSessionId");
-
-                    b.HasIndex("SessionToken")
-                        .IsUnique();
-
-                    b.HasIndex("JobFairId", "IsActive");
-
-                    b.ToTable("AdminAttendanceSessions");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.AuditLog", b =>
@@ -195,6 +160,9 @@ namespace JobFairPortal.Migrations
 
                     b.Property<string>("Address")
                         .HasColumnType("text");
+
+                    b.Property<int>("ArrivalStatus")
+                        .HasColumnType("integer");
 
                     b.Property<string>("CompanyEmail")
                         .HasColumnType("text");
@@ -321,13 +289,6 @@ namespace JobFairPortal.Migrations
                     b.Property<int>("ArrivalStatus")
                         .HasColumnType("integer");
 
-                    b.Property<string>("AttendanceToken")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("AttendanceTokenExpiry")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<int>("CompanyId")
                         .HasColumnType("integer");
 
@@ -362,58 +323,6 @@ namespace JobFairPortal.Migrations
                         .IsUnique();
 
                     b.ToTable("CompanyJobFairParticipations");
-                });
-
-            modelBuilder.Entity("JobFairPortal.Models.CompanyRequest", b =>
-                {
-                    b.Property<int>("CompanyRequestId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CompanyRequestId"));
-
-                    b.Property<string>("AdditionalInfo")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AdminNote")
-                        .HasColumnType("text");
-
-                    b.Property<int>("CompanyId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime?>("FulfilledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("JobFairId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("CompanyRequestId");
-
-                    b.HasIndex("CompanyId");
-
-                    b.HasIndex("JobFairId", "Status");
-
-                    b.ToTable("CompanyRequests");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.ContactLink", b =>
@@ -1052,17 +961,6 @@ namespace JobFairPortal.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("JobFairPortal.Models.AdminAttendanceSession", b =>
-                {
-                    b.HasOne("JobFair", "JobFair")
-                        .WithMany()
-                        .HasForeignKey("JobFairId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("JobFair");
-                });
-
             modelBuilder.Entity("JobFairPortal.Models.AuditLog", b =>
                 {
                     b.HasOne("JobFairPortal.Models.User", "Actor")
@@ -1148,25 +1046,6 @@ namespace JobFairPortal.Migrations
                     b.Navigation("JobFair");
 
                     b.Navigation("Room");
-                });
-
-            modelBuilder.Entity("JobFairPortal.Models.CompanyRequest", b =>
-                {
-                    b.HasOne("JobFairPortal.Models.Company", "Company")
-                        .WithMany("CompanyRequests")
-                        .HasForeignKey("CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("JobFair", "JobFair")
-                        .WithMany()
-                        .HasForeignKey("JobFairId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Company");
-
-                    b.Navigation("JobFair");
                 });
 
             modelBuilder.Entity("JobFairPortal.Models.ContactLink", b =>
@@ -1439,8 +1318,6 @@ namespace JobFairPortal.Migrations
             modelBuilder.Entity("JobFairPortal.Models.Company", b =>
                 {
                     b.Navigation("CompanyContactLinks");
-
-                    b.Navigation("CompanyRequests");
 
                     b.Navigation("InterviewRequests");
 

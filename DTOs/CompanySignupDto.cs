@@ -57,7 +57,6 @@ namespace JobFairPortal.DTOs
         [Range(1, 60, ErrorMessage = "Interview duration must be between 1 and 60 minutes.")]
         public int InterviewDurationMinutes { get; set; } = 15;
 
-        // --- Job Offerings ---
         public List<JobOfferingDto> JobOfferings { get; set; } = new List<JobOfferingDto>();
 
         // --- Company Contact Links ---

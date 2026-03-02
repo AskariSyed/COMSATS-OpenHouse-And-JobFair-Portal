@@ -5,6 +5,7 @@ namespace JobFairPortal.Models
 {
     public enum ArrivalStatus
     {
+        Pending,
         PreRegistered,
         OnSpot
     }
@@ -50,7 +51,7 @@ namespace JobFairPortal.Models
         [Range(1, 60, ErrorMessage = "Interview duration must be between 1 and 480 minutes.")]
         public int InterviewDurationMinutes { get; set; }
 
-        public ArrivalStatus ArrivalStatus { get; set; } = ArrivalStatus.OnSpot;
+        // Removed: ArrivalStatus - now tracked in CompanyJobFairParticipation table only
         public bool IsPresent { get; set; } = false;
         public string? SecretKey { get; set; }
         public bool KeyUsed { get; set; } = false;
@@ -67,7 +68,16 @@ namespace JobFairPortal.Models
         public ICollection<Survey> Surveys { get; set; } = new List<Survey>();
         public ICollection<CompanyContactLink> CompanyContactLinks { get; set; } = new List<CompanyContactLink>();
 
+        // New: collection for admin-manageable company requests (pen/paper/cleaning/etc.)
+        public ICollection<CompanyRequest> CompanyRequests { get; set; } = new List<CompanyRequest>();
+
         public int JobFairId { get; set; }
         public JobFair JobFair { get; set; } = null!;
+
+        public ICollection<CompanyJobFairParticipation> JobFairParticipations { get; set; } = 
+            new List<CompanyJobFairParticipation>();
+
+        public int? CurrentJobFairId { get; set; }  // Optional: tracks their primary job fair
+        public JobFair? CurrentJobFair { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using JobFairPortal.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobFairPortal.Migrations
 {
     [DbContext(typeof(JobFairRecruitmentDbContext))]
-    partial class JobFairRecruitmentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260119101229_AddedAttendeneceSystem")]
+    partial class AddedAttendeneceSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -195,6 +198,9 @@ namespace JobFairPortal.Migrations
 
                     b.Property<string>("Address")
                         .HasColumnType("text");
+
+                    b.Property<int>("ArrivalStatus")
+                        .HasColumnType("integer");
 
                     b.Property<string>("CompanyEmail")
                         .HasColumnType("text");

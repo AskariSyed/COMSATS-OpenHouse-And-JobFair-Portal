@@ -7,14 +7,14 @@ using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OfficeOpenXml;
-using System.Globalization;
+using OfficeOpenXml; 
+using System.Globalization; 
 using System.Text;
 using System.Text.Json;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FirebaseAdmin.Messaging;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration; 
 using Notification = FirebaseAdmin.Messaging.Notification;
 using Microsoft.Extensions.Caching.Memory;
 using FirebaseAdmin;
@@ -80,6 +80,90 @@ namespace JobFairPortal.Controllers
                 Message = "Admin profile created successfully.",
                 AdminId = adminUser.UserId,
                 Email = adminUser.Email
+            });
+        }
+        // -----------------------------
+        // 24. Get All Students (Global List with Participation Status)
+        // -----------------------------
+        [HttpGet("students/all")]
+        public async Task<IActionResult> GetAllStudentsGlobal(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? search = null,
+            [FromQuery] string? department = null)
+        {
+            _logger.LogInformation("GetAllStudentsGlobal called.");
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+
+            var query = _context.Students
+                .Include(s => s.User)
+                .AsQueryable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(s =>
+                    s.User.FullName.ToLower().Contains(searchLower) ||
+                    s.RegistrationNo.ToLower().Contains(searchLower) ||
+                    s.User.Email.ToLower().Contains(searchLower));
+            }
+
+            // Department filter
+            if (!string.IsNullOrWhiteSpace(department))
+            {
+                query = query.Where(s => s.Department == department);
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var students = await query
+                .OrderBy(s => s.StudentId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(s => new
+                {
+                    StudentId = s.StudentId,
+                    Name = s.User.FullName,
+                    Email = s.User.Email,
+                    RegistrationNo = s.RegistrationNo,
+                    Department = s.Department,
+                    CGPA = s.CGPA,
+                    // Check if they have a participation record for the active job fair
+                    Participation = activeJobFairId.HasValue
+                        ? s.JobFairParticipations
+                            .Where(p => p.JobFairId == activeJobFairId.Value)
+                            .Select(p => new { p.ParticipationId, p.RegisteredAt })
+                            .FirstOrDefault()
+                        : null
+                })
+                .ToListAsync();
+
+            // Map to final response structure
+            var response = students.Select(s => new
+            {
+                s.StudentId,
+                s.Name,
+                s.Email,
+                s.RegistrationNo,
+                s.Department,
+                s.CGPA,
+                IsRegistered = s.Participation != null,
+                ParticipationId = s.Participation?.ParticipationId,
+                RegisteredAt = s.Participation?.RegisteredAt
+            });
+
+            return Ok(new
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                Students = response
             });
         }
 
@@ -226,26 +310,36 @@ namespace JobFairPortal.Controllers
             var fileName = $"Rooms_{DateTime.Now:yyyyMMdd}.xlsx";
             return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }  // -----------------------------
-        // 3. Get All Rooms
-        // -----------------------------
+           // 3. Get All Rooms
+           // -----------------------------
+           // 3. Get All Rooms
+           // -----------------------------
         [HttpGet("rooms")]
-        public async Task<IActionResult> GetRooms()
+        public async Task<IActionResult> GetRooms([FromQuery] int? jobFairId = null)
         {
+            // Default to active job fair if not specified
+            jobFairId ??= await GetActiveJobFairIdAsync();
+
+            if (jobFairId == null)
+                return BadRequest("No active job fair found.");
+
             var rooms = await _context.Rooms
                 .Include(r => r.Company)
+                .Where(r => r.JobFairId == jobFairId.Value) // ✅ Filter by JobFairId
                 .Select(r => new RoomResponseDto
                 {
                     RoomId = r.RoomId,
                     RoomName = r.RoomName,
                     Capacity = r.Capacity,
                     Status = r.Status,
-                    CompanyName = r.Company != null ? r.Company.Name : null
+                    CompanyName = r.Company != null ? r.Company.Name : null,
+                    CompanyId = r.CompanyId,
+                    CompanyRepsCount = r.Company != null ? r.Company.RepsCount : null
                 })
                 .ToListAsync();
 
             return Ok(rooms);
         }
-
         // -----------------------------
         // 4. Get All Companies
         // -----------------------------
@@ -259,37 +353,50 @@ namespace JobFairPortal.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
-            var query = _context.Companies
-                .Include(c => c.User)
-                .Include(c => c.Room)
-                .Include(c => c.Interviews)
-                .Include(c => c.Jobs)
-                .Where(c => c.JobFairId == jobFairId.Value);
+            // ✅ FIX: Query Participation to get status specific to this Job Fair
+            var query = _context.CompanyJobFairParticipations
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.User)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Room)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Interviews)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Jobs)
+                .Where(p => p.JobFairId == jobFairId.Value);
 
             var totalCount = await query.CountAsync();
-            var companies = await query
+            var participations = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(c => new
-                {
-                    CompanyId = c.CompanyId,
-                    Name = c.Name,
-                    Industry = c.Industry,
-                    LogoUrl = c.LogoUrl,
-                    Website = c.Website,
-                    UserEmail = c.User != null ? c.User.Email : null,
-                    RoomName = c.Room != null ? c.Room.RoomName : null,
-                    ArrivalStatus = c.ArrivalStatus.ToString(),
-                    IsPresent = c.IsPresent,
-                    TotalJobs = c.Jobs.Count,
-                    TotalInterviews = c.Interviews.Count,
-                    HiredCount = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    ShortlistedCount = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
-                    RejectedCount = c.Interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
-                })
                 .ToListAsync();
+
+            var companies = participations.Select(p => new
+            {
+                CompanyId = p.CompanyId,
+                Name = p.Company.Name,
+                Industry = p.Company.Industry,
+                LogoUrl = p.Company.LogoUrl,
+                Website = p.Company.Website,
+                UserEmail = p.Company.User != null ? p.Company.User.Email : null,
+                UserPhone = p.Company.User != null ? p.Company.User.Phone : null,
+                CompanyEmail = p.Company.CompanyEmail,
+                CompanyPhone = p.Company.CompanyPhone,
+                FocalPersonName = p.Company.FocalPersonName,
+                FocalPersonEmail = p.Company.FocalPersonEmail,
+                FocalPersonPhone = p.Company.FocalPersonPhone,
+                RoomName = p.Company.Room != null ? p.Company.Room.RoomName : null,
+                ArrivalStatus = p.ArrivalStatus.ToString(), // ✅ Correct status for this fair
+                IsPresent = p.IsPresent,                    // ✅ Correct presence for this fair
+                RepsCount = p.Company.RepsCount,
+                TotalJobs = p.Company.Jobs.Count(j => j.JobFairId == jobFairId.Value),
+                TotalInterviews = p.Company.Interviews.Count(i => i.JobFairId == jobFairId.Value),
+                HiredCount = p.Company.Interviews.Count(i => i.JobFairId == jobFairId.Value && i.Status == InterviewStatus.Hired),
+                ShortlistedCount = p.Company.Interviews.Count(i => i.JobFairId == jobFairId.Value && i.Status == InterviewStatus.Shortlisted),
+                RejectedCount = p.Company.Interviews.Count(i => i.JobFairId == jobFairId.Value && i.Status == InterviewStatus.Rejected),
+                CreatedAt = p.RegisteredAt,
+                UpdatedAt = p.UpdatedAt
+            });
 
             return Ok(new
             {
@@ -316,10 +423,15 @@ namespace JobFairPortal.Controllers
                         .ThenInclude(s => s.User)
                 .Include(c => c.Jobs)
                 .Include(c => c.CompanyContactLinks)
+                .Include(c => c.JobFairParticipations)
                 .FirstOrDefaultAsync(c => c.CompanyId == companyId);
 
             if (company == null)
                 return NotFound(new { Message = "Company not found." });
+
+            // Get participation for current/active job fair
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
 
             var detail = new
             {
@@ -357,7 +469,7 @@ namespace JobFairPortal.Controllers
                 } : null,
 
                 // --- Company Status ---
-                ArrivalStatus = company.ArrivalStatus.ToString(),
+                ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
                 IsPresent = company.IsPresent,
                 RepsCount = company.RepsCount,
                 InterviewDurationMinutes = company.InterviewDurationMinutes,
@@ -406,7 +518,7 @@ namespace JobFairPortal.Controllers
                         StudentPhone = i.Student.User.Phone,
                         InterviewDate = i.ScheduledTime,
                         Status = i.Status.ToString(),
-                       
+
                     }).ToList(),
 
                 // --- Hired Students ---
@@ -490,62 +602,74 @@ namespace JobFairPortal.Controllers
 
             return Ok(detail);
         }
+        // ... (GetCompanyDetail remains mostly same, but could be enhanced similarly if needed) ...
+
         [HttpGet("companies/filter")]
         public async Task<IActionResult> FilterCompanies(
-    [FromQuery] string? industry,
-    [FromQuery] string? arrivalStatus,
-    [FromQuery] bool? isPresent,
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 20)
+            [FromQuery] string? industry,
+            [FromQuery] string? arrivalStatus,
+            [FromQuery] bool? isPresent,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
         {
             _logger.LogInformation("FilterCompanies called with industry: {Industry}, arrivalStatus: {ArrivalStatus}, isPresent: {IsPresent}",
                 industry, arrivalStatus, isPresent);
 
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null) return BadRequest("No active job fair.");
+
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
-            var query = _context.Companies
-                .Include(c => c.User)
-                .Include(c => c.Room)
-                .Include(c => c.Interviews)
-                .Include(c => c.Jobs)
+            // ✅ FIX: Filter on Participation
+            var query = _context.CompanyJobFairParticipations
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.User)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Room)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Interviews)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Jobs)
+                .Where(p => p.JobFairId == activeJobFairId.Value)
                 .AsQueryable();
 
-            // Filter by industry
+            // Filter by industry (on Company)
             if (!string.IsNullOrWhiteSpace(industry))
-                query = query.Where(c => c.Industry.ToLower().Contains(industry.ToLower()));
+                query = query.Where(p => p.Company.Industry.ToLower().Contains(industry.ToLower()));
 
-            // Filter by arrival status
+            // Filter by arrival status (on Participation)
             if (!string.IsNullOrWhiteSpace(arrivalStatus))
             {
                 if (Enum.TryParse<ArrivalStatus>(arrivalStatus, true, out var status))
-                    query = query.Where(c => c.ArrivalStatus == status);
+                    query = query.Where(p => p.ArrivalStatus == status);
             }
 
-            // Filter by presence
+            // Filter by presence (on Participation)
             if (isPresent.HasValue)
-                query = query.Where(c => c.IsPresent == isPresent.Value);
+                query = query.Where(p => p.IsPresent == isPresent.Value);
 
             var totalCount = await query.CountAsync();
-            var companies = await query
+            var participations = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(c => new
-                {
-                    CompanyId = c.CompanyId,
-                    Name = c.Name,
-                    Industry = c.Industry,
-                    LogoUrl = c.LogoUrl,
-                    Website = c.Website,
-                    UserEmail = c.User != null ? c.User.Email : null,
-                    RoomName = c.Room != null ? c.Room.RoomName : null,
-                    ArrivalStatus = c.ArrivalStatus.ToString(),
-                    IsPresent = c.IsPresent,
-                    TotalJobs = c.Jobs.Count,
-                    HiredCount = c.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    ShortlistedCount = c.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted)
-                })
                 .ToListAsync();
+
+            var companies = participations.Select(p => new
+            {
+                CompanyId = p.CompanyId,
+                Name = p.Company.Name,
+                Industry = p.Company.Industry,
+                LogoUrl = p.Company.LogoUrl,
+                Website = p.Company.Website,
+                UserEmail = p.Company.User != null ? p.Company.User.Email : null,
+                RoomName = p.Company.Room != null ? p.Company.Room.RoomName : null,
+                ArrivalStatus = p.ArrivalStatus.ToString(),
+                IsPresent = p.IsPresent,
+                TotalJobs = p.Company.Jobs.Count(j => j.JobFairId == activeJobFairId.Value),
+                HiredCount = p.Company.Interviews.Count(i => i.JobFairId == activeJobFairId.Value && i.Status == InterviewStatus.Hired),
+                ShortlistedCount = p.Company.Interviews.Count(i => i.JobFairId == activeJobFairId.Value && i.Status == InterviewStatus.Shortlisted)
+            });
 
             return Ok(new
             {
@@ -562,17 +686,34 @@ namespace JobFairPortal.Controllers
         [HttpPost("companies/onspot")]
         public async Task<IActionResult> AddOnSpotCompany([FromBody] CompanyCreateDto dto)
         {
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null) return BadRequest("No active job fair.");
+
             var company = new Company
             {
                 Name = dto.Name,
                 Industry = dto.Industry,
-                ArrivalStatus = ArrivalStatus.OnSpot,
+                
                 IsPresent = true,
+                JobFairId = activeJobFairId.Value, // Set initial fair
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             _context.Companies.Add(company);
+            await _context.SaveChangesAsync();
+
+            // ✅ FIX: Create Participation Record
+            var participation = new CompanyJobFairParticipation
+            {
+                CompanyId = company.CompanyId,
+                JobFairId = activeJobFairId.Value,
+                ArrivalStatus = ArrivalStatus.OnSpot,
+                IsPresent = true,
+                RegisteredAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.CompanyJobFairParticipations.Add(participation);
             await _context.SaveChangesAsync();
 
             return Ok(new CompanyResponseDto
@@ -702,6 +843,8 @@ namespace JobFairPortal.Controllers
             });
         }
 
+        // ...
+
         // -----------------------------
         // 10. Dashboard Overview
         // -----------------------------
@@ -717,15 +860,20 @@ namespace JobFairPortal.Controllers
                 // ⚠️ CACHE MISS: Data not found, fetch from Database
                 _logger.LogInformation("Fetching dashboard stats from DB...");
 
+                var activeJobFairId = await GetActiveJobFairIdAsync();
+                if (activeJobFairId == null) return Ok(new DashboardOverviewDto());
+
+                // ✅ FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
                 {
-                    TotalStudents = await _context.Students.CountAsync(),
-                    TotalCompanies = await _context.Companies.CountAsync(),
-                    TotalRooms = await _context.Rooms.CountAsync(),
-                    StudentsHired = await _context.Interviews.CountAsync(i => i.Status == InterviewStatus.Hired),
-                    StudentsShortlisted = await _context.Interviews.CountAsync(i => i.Status == InterviewStatus.Shortlisted),
-                    CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.Type == SurveyType.CDC),
-                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.Type == SurveyType.Department)
+                    // FIX: Count from Participation table to get accurate attendee count
+                    TotalStudents = await _context.StudentJobFairParticipations.CountAsync(s => s.JobFairId == activeJobFairId),
+                    TotalCompanies = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == activeJobFairId),
+                    TotalRooms = await _context.Rooms.CountAsync(r => r.JobFairId == activeJobFairId),
+                    StudentsHired = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Hired),
+                    StudentsShortlisted = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Shortlisted),
+                    CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.CDC),
+                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.Department)
                 };
 
                 // 3. Save to Cache options (e.g., expire after 5 minutes)
@@ -742,7 +890,222 @@ namespace JobFairPortal.Controllers
 
             return Ok(dashboard);
         }
+        // ========================================
+        // Send FCM Notification to a Specific Company
+        // ========================================
+        [HttpPost("companies/{companyId}/notify")]
+        public async Task<IActionResult> NotifyCompany(int companyId, [FromBody] FcmMessageDto dto)
+        {
+            try
+            {
+                // Validate input
+                if (string.IsNullOrWhiteSpace(dto?.Title) || string.IsNullOrWhiteSpace(dto?.Body))
+                {
+                    _logger.LogWarning("NotifyCompany called with invalid payload - missing title or body");
+                    return BadRequest(new
+                    {
+                        Code = "INVALID_PAYLOAD",
+                        Message = "Title and Body are required.",
+                        Success = false
+                    });
+                }
 
+                // Fetch company
+                var company = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.CompanyId == companyId);
+
+                if (company == null)
+                {
+                    _logger.LogWarning("NotifyCompany failed - Company not found: {CompanyId}", companyId);
+                    return NotFound(new
+                    {
+                        Code = "COMPANY_NOT_FOUND",
+                        Message = $"Company with ID {companyId} not found.",
+                        Success = false
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(company.FcmToken))
+                {
+                    _logger.LogWarning("NotifyCompany failed - No FCM token for company: {CompanyId}, Name: {Name}",
+                        companyId, company.Name);
+                    return BadRequest(new
+                    {
+                        Code = "NO_FCM_TOKEN",
+                        Message = $"Company '{company.Name}' does not have a registered FCM token.",
+                        CompanyId = companyId,
+                        CompanyName = company.Name,
+                        Success = false
+                    });
+                }
+
+                // Construct the message
+                var message = new Message
+                {
+                    Token = company.FcmToken,
+                    Notification = new Notification
+                    {
+                        Title = dto.Title,
+                        Body = dto.Body
+                    },
+                    Data = dto.Data ?? new Dictionary<string, string>()
+                };
+
+                try
+                {
+                    // Send message to FCM
+                    string messageId = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+
+                    _logger.LogInformation("Notification sent successfully to company: {CompanyId}, Name: {Name}, MessageId: {MessageId}",
+                        companyId, company.Name, messageId);
+
+                    return Ok(new
+                    {
+                        Code = "SUCCESS",
+                        Message = "Notification sent successfully.",
+                        CompanyId = companyId,
+                        CompanyName = company.Name,
+                        MessageId = messageId,
+                        SentAt = DateTime.UtcNow,
+                        Success = true
+                    });
+                }
+                catch (FirebaseException firebaseEx)
+                {
+                    _logger.LogError(firebaseEx,
+                        "Firebase error sending notification to company: {CompanyId}, Name: {Name}",
+                        companyId, company.Name);
+
+                    return StatusCode(503, new
+                    {
+                        Code = "FIREBASE_ERROR",
+                        Message = "Failed to send notification due to Firebase service error.",
+                        Details = firebaseEx.Message,
+                        CompanyId = companyId,
+                        CompanyName = company.Name,
+                        Success = false
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error while notifying company: {CompanyId}", companyId);
+                return StatusCode(500, new
+                {
+                    Code = "INTERNAL_ERROR",
+                    Message = "An unexpected error occurred while sending the notification.",
+                    Details = ex.Message,
+                    Success = false
+                });
+            }
+        }
+
+        // ========================================
+        // Send FCM Notification to All Companies
+        // ========================================
+        [HttpPost("companies/notify-all")]
+        public async Task<IActionResult> NotifyAllCompanies([FromBody] FcmMessageDto dto)
+        {
+            try
+            {
+                // 1. Validate Payload
+                if (string.IsNullOrWhiteSpace(dto?.Title) || string.IsNullOrWhiteSpace(dto?.Body))
+                {
+                    _logger.LogWarning("NotifyAllCompanies - Invalid payload");
+                    return BadRequest(new { Code = "INVALID_PAYLOAD", Message = "Title and Body are required.", Success = false });
+                }
+
+                // 2. Fetch Companies with Tokens
+                var companiesWithTokens = await _context.Companies
+                    .Where(c => !string.IsNullOrEmpty(c.FcmToken))
+                    .ToListAsync();
+
+                if (!companiesWithTokens.Any())
+                {
+                    return BadRequest(new { Code = "NO_FCM_TOKENS", Message = "No companies have registered FCM tokens.", Success = false });
+                }
+
+                // 3. Loop and Send (Manual Multicast)
+                int successCount = 0;
+                int failureCount = 0;
+                var invalidTokensDetails = new List<object>();
+                var errors = new List<string>();
+
+                // We use a distinct list of tokens to avoid spamming
+                var distinctCompanies = companiesWithTokens
+                    .GroupBy(c => c.FcmToken)
+                    .Select(g => g.First())
+                    .ToList();
+
+                foreach (var company in distinctCompanies)
+                {
+                    var message = new Message
+                    {
+                        Token = company.FcmToken,
+                        Notification = new Notification
+                        {
+                            Title = dto.Title,
+                            Body = dto.Body
+                        },
+                        Data = dto.Data ?? new Dictionary<string, string>()
+                    };
+
+                    try
+                    {
+                        await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                        successCount++;
+                    }
+                    catch (FirebaseException firebaseEx)
+                    {
+                        failureCount++;
+                        var errorMsg = firebaseEx.Message.ToLower();
+
+                        // Check for invalid tokens (404 or Not Found)
+                        if (errorMsg.Contains("404") || errorMsg.Contains("not found") || errorMsg.Contains("registration token"))
+                        {
+                            // Mark token as null in DB
+                            company.FcmToken = null;
+                            company.UpdatedAt = DateTime.UtcNow;
+
+                            invalidTokensDetails.Add(new
+                            {
+                                CompanyId = company.CompanyId,
+                                Name = company.Name,
+                                Reason = "Invalid Token - Removed"
+                            });
+                        }
+                        else
+                        {
+                            errors.Add($"Company {company.CompanyId}: {firebaseEx.Message}");
+                        }
+                    }
+                }
+
+                // 4. Save changes if any tokens were removed
+                if (invalidTokensDetails.Any())
+                {
+                    await _context.SaveChangesAsync();
+                }
+
+                return Ok(new
+                {
+                    Code = "SUCCESS",
+                    Message = $"Notification sent to {successCount} companies.",
+                    TotalAttempted = distinctCompanies.Count,
+                    SuccessCount = successCount,
+                    FailureCount = failureCount,
+                    InvalidTokensRemoved = invalidTokensDetails.Count,
+                    InvalidDetails = invalidTokensDetails,
+                    OtherErrors = errors,
+                    Success = successCount > 0
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during bulk company notification");
+                return StatusCode(500, new { Code = "INTERNAL_ERROR", Message = ex.Message, Success = false });
+            }
+        }
         // -----------------------------
         // 11. Interviews Summary
         // -----------------------------
@@ -775,10 +1138,24 @@ namespace JobFairPortal.Controllers
         // -----------------------------
         // 12. Filter Rooms
         // -----------------------------
+        // -----------------------------
+        // 12. Filter Rooms
+        // -----------------------------
         [HttpGet("rooms/filter")]
-        public async Task<IActionResult> FilterRooms([FromQuery] RoomStatus? status, [FromQuery] int? minCapacity, [FromQuery] int? maxCapacity)
+        public async Task<IActionResult> FilterRooms(
+            [FromQuery] RoomStatus? status,
+            [FromQuery] int? minCapacity,
+            [FromQuery] int? maxCapacity,
+            [FromQuery] int? jobFairId = null)
         {
-            var query = _context.Rooms.Include(r => r.Company).AsQueryable();
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null)
+                return BadRequest("No active job fair found.");
+
+            var query = _context.Rooms
+                .Include(r => r.Company)
+                .Where(r => r.JobFairId == jobFairId.Value) // ✅ Filter by JobFairId
+                .AsQueryable();
 
             if (status.HasValue)
                 query = query.Where(r => r.Status == status.Value);
@@ -796,7 +1173,9 @@ namespace JobFairPortal.Controllers
                     RoomName = r.RoomName,
                     Capacity = r.Capacity,
                     Status = r.Status,
-                    CompanyName = r.Company != null ? r.Company.Name : null
+                    CompanyName = r.Company != null ? r.Company.Name : null,
+                    CompanyId = r.CompanyId,
+                    CompanyRepsCount = r.Company != null ? r.Company.RepsCount : null
                 })
                 .ToListAsync();
 
@@ -804,25 +1183,34 @@ namespace JobFairPortal.Controllers
         }
 
         // -----------------------------
-        // 13. Assign Company to Room
+        // 13. Assign Company to Room (Updated)
         // -----------------------------
         [HttpPut("rooms/assign-company")]
         public async Task<IActionResult> AssignCompanyToRoom([FromQuery] int companyId, [FromQuery] int roomId)
         {
             var company = await _context.Companies.FindAsync(companyId);
-            if (company == null)
-                return NotFound("Company not found.");
+            if (company == null) return NotFound("Company not found.");
 
             var requestedRoom = await _context.Rooms.FindAsync(roomId);
-            if (requestedRoom == null)
-                return NotFound("Requested room not found.");
+            if (requestedRoom == null) return NotFound("Requested room not found.");
 
             if (requestedRoom.Status == RoomStatus.Alloted)
                 return BadRequest("Requested room is already occupied.");
 
+            // 1. Update Room
             requestedRoom.CompanyId = companyId;
             requestedRoom.Status = RoomStatus.Alloted;
             requestedRoom.UpdatedAt = DateTime.UtcNow;
+
+            // 2. Update Participation Record
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.JobFairId == requestedRoom.JobFairId);
+
+            if (participation != null)
+            {
+                participation.RoomId = roomId;
+                participation.UpdatedAt = DateTime.UtcNow;
+            }
 
             await _context.SaveChangesAsync();
 
@@ -837,44 +1225,33 @@ namespace JobFairPortal.Controllers
         }
 
         // -----------------------------
-        // 14. Update Room Details
-        // -----------------------------
-        [HttpPut("rooms/{roomId}")]
-        public async Task<IActionResult> UpdateRoomDetails(int roomId, [FromBody] RoomUpdateDto dto)
-        {
-            var room = await _context.Rooms.FindAsync(roomId);
-            if (room == null)
-                return NotFound("Room not found.");
-
-            room.RoomName = dto.RoomName;
-            room.Capacity = dto.Capacity;
-            room.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new RoomResponseDto
-            {
-                RoomId = room.RoomId,
-                RoomName = room.RoomName,
-                Capacity = room.Capacity,
-                Status = room.Status,
-                CompanyName = room.Company?.Name
-            });
-        }
-
-        // -----------------------------
-        // 15. Remove Company from Room
+        // 15. Remove Company from Room (Updated)
         // -----------------------------
         [HttpPut("rooms/{roomId}/remove-company")]
         public async Task<IActionResult> RemoveCompanyFromRoom(int roomId)
         {
             var room = await _context.Rooms.Include(r => r.Company).FirstOrDefaultAsync(r => r.RoomId == roomId);
-            if (room == null)
-                return NotFound("Room not found.");
+            if (room == null) return NotFound("Room not found.");
 
+            var companyId = room.CompanyId;
+
+            // 1. Update Room
             room.CompanyId = null;
             room.Status = RoomStatus.Vacant;
             room.UpdatedAt = DateTime.UtcNow;
+
+            // 2. Update Participation Record
+            if (companyId.HasValue)
+            {
+                var participation = await _context.CompanyJobFairParticipations
+                    .FirstOrDefaultAsync(p => p.CompanyId == companyId.Value && p.JobFairId == room.JobFairId);
+
+                if (participation != null)
+                {
+                    participation.RoomId = null;
+                    participation.UpdatedAt = DateTime.UtcNow;
+                }
+            }
 
             await _context.SaveChangesAsync();
 
@@ -900,42 +1277,64 @@ namespace JobFairPortal.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
-            var query = _context.Students
-                .Include(s => s.User)
-                .Include(s => s.StudentProjects)
-                    .ThenInclude(sp => sp.Project)
-                .Include(s => s.Achievements)
-                .Include(s => s.Certifications)
-                .Include(s => s.Educations)
-                .OrderBy(s => s.StudentId);
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null)
+            {
+                return Ok(new
+                {
+                    TotalCount = 0,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalPages = 0,
+                    Students = new List<object>()
+                });
+            }
+
+            // ✅ FIX: Query StudentJobFairParticipations to get students for THIS fair only
+            var query = _context.StudentJobFairParticipations
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.User)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.StudentProjects)
+                        .ThenInclude(sp => sp.Project)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.Achievements)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.Certifications)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.Educations)
+                .Where(p => p.JobFairId == activeJobFairId.Value)
+                .OrderBy(p => p.StudentId);
 
             var totalCount = await query.CountAsync();
-            var students = await query
+            var participations = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(s => new
-                {
-                    StudentId = s.StudentId,
-                    Name = s.User.FullName,
-                    Email = s.User.Email,
-                    Phone = s.User.Phone,
-                    RegistrationNo = s.RegistrationNo,
-                    Department = s.Department,
-                    CGPA = s.CGPA,
-                    ProfilePicUrl = s.ProfilePicUrl,
-                    Skills = s.Skills ?? new List<string>(),
-                    FypTitle = s.StudentProjects
-                        .Where(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)
-                        .Select(sp => sp.Project.Title)
-                        .FirstOrDefault(),
-                    TotalProjects = s.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Accepted),
-                    TotalAchievements = s.Achievements.Count,
-                    TotalCertifications = s.Certifications.Count,
-                    TotalEducations = s.Educations.Count,
-                    CreatedAt = s.CreatedAt,
-                    UpdatedAt = s.UpdatedAt
-                })
                 .ToListAsync();
+
+            var students = participations.Select(p => new
+            {
+                StudentId = p.Student.StudentId,
+                Name = p.Student.User.FullName,
+                Email = p.Student.User.Email,
+                Phone = p.Student.User.Phone,
+                RegistrationNo = p.Student.RegistrationNo,
+                Department = p.Student.Department,
+                CGPA = p.Student.CGPA,
+                ProfilePicUrl = p.Student.ProfilePicUrl,
+                Skills = p.Student.Skills ?? new List<string>(),
+                FypTitle = p.Student.StudentProjects
+                    .Where(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)
+                    .Select(sp => sp.Project.Title)
+                    .FirstOrDefault(),
+                TotalProjects = p.Student.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Accepted),
+                TotalAchievements = p.Student.Achievements.Count,
+                TotalCertifications = p.Student.Certifications.Count,
+                TotalEducations = p.Student.Educations.Count,
+                CreatedAt = p.Student.CreatedAt,
+                UpdatedAt = p.Student.UpdatedAt,
+                RegisteredAt = p.RegisteredAt // Include when they registered for this fair
+            }).ToList();
 
             return Ok(new
             {
@@ -946,65 +1345,125 @@ namespace JobFairPortal.Controllers
                 Students = students
             });
         }
+
+        // Admin endpoint to update student email and password
+        [HttpPut("students/{studentId}/edit-credentials")]
+        public async Task<IActionResult> UpdateStudentCredentials(int studentId, [FromBody] AdminUpdateStudentDto dto)
+        {
+            if (dto == null)
+                return BadRequest(new { Message = "Request body is required." });
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+                return NotFound(new { Message = "Student not found." });
+
+            // Update email if provided
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var emailExists = await _context.Users
+                    .AnyAsync(u => u.Email == dto.Email && u.UserId != student.User.UserId);
+
+                if (emailExists)
+                    return BadRequest(new { Message = "Email already in use by another user." });
+
+                student.User.Email = dto.Email.Trim();
+            }
+
+            // Update password if provided
+            if (!string.IsNullOrWhiteSpace(dto.Password))
+            {
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+                student.User.PasswordHash = hashedPassword;
+            }
+
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Student credentials updated successfully.",
+                StudentId = student.StudentId,
+                Email = student.User.Email,
+                UpdatedAt = student.UpdatedAt
+            });
+        }
+        
         // -----------------------------
         // 17. Filter Students by Department, Min CGPA, or Registration Number
         // -----------------------------
         [HttpGet("students/advanced-filter")]
         public async Task<IActionResult> AdvancedFilterStudents(
-            [FromQuery] string? department,
-            [FromQuery] decimal? minCgpa,
-            [FromQuery] string? fypTitleContains)
+           [FromQuery] string? department,
+           [FromQuery] decimal? minCgpa,
+           [FromQuery] string? fypTitleContains)
         {
             _logger.LogInformation("AdvancedFilterStudents called with department: {Department}, minCgpa: {MinCgpa}, fypTitleContains: {FypTitle}",
                 department, minCgpa, fypTitleContains);
 
-            var query = _context.Students
-                .Include(s => s.User)
-                .Include(s => s.StudentProjects)
-                    .ThenInclude(sp => sp.Project)
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null)
+            {
+                return Ok(new
+                {
+                    TotalCount = 0,
+                    Students = new List<object>()
+                });
+            }
+
+            // ✅ FIX: Query StudentJobFairParticipations
+            var query = _context.StudentJobFairParticipations
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.User)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.StudentProjects)
+                        .ThenInclude(sp => sp.Project)
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.ContactLinks)
+                .Where(p => p.JobFairId == activeJobFairId.Value)
                 .AsQueryable();
 
-            // Apply department filter
+            // Apply filters on the Student navigation property
             if (!string.IsNullOrWhiteSpace(department))
-                query = query.Where(s => s.Department == department);
+                query = query.Where(p => p.Student.Department == department);
 
-            // Apply CGPA filter
             if (minCgpa.HasValue)
-                query = query.Where(s => s.CGPA >= minCgpa.Value);
+                query = query.Where(p => p.Student.CGPA >= minCgpa.Value);
 
-            // Apply FYP title filter
             if (!string.IsNullOrWhiteSpace(fypTitleContains))
             {
-                query = query.Where(s =>
-                    s.StudentProjects.Any(sp =>
+                query = query.Where(p =>
+                    p.Student.StudentProjects.Any(sp =>
                         sp.Project.Type == ProjectType.FinalYear &&
                         sp.Project.Title.Contains(fypTitleContains)));
             }
 
-            var students = await query
-                .Select(s => new
-                {
-                    StudentId = s.StudentId,
-                    Name = s.User.FullName,
-                    RegistrationNo = s.RegistrationNo,
-                    Department = s.Department,
-                    CGPA = s.CGPA,
-                    FYPs = s.StudentProjects
-                        .Where(sp => sp.Project.Type == ProjectType.FinalYear)
-                        .Select(sp => new
-                        {
-                            Title = sp.Project.Title,
-                            Description = sp.Project.Description,
-                            Status = sp.Status
-                        }).ToList(),
-                    Skills = s.Skills ?? new List<string>(),
-                    Links = s.ContactLinks != null
-    ? s.ContactLinks.ToDictionary(
-        cl => cl.Platform.ToString(),
-        cl => cl.Url)
-    : new Dictionary<string, string>()
-                })
-                .ToListAsync();
+            var participations = await query.ToListAsync();
+
+            var students = participations.Select(p => new
+            {
+                StudentId = p.Student.StudentId,
+                Name = p.Student.User.FullName,
+                RegistrationNo = p.Student.RegistrationNo,
+                Department = p.Student.Department,
+                CGPA = p.Student.CGPA,
+                FYPs = p.Student.StudentProjects
+                    .Where(sp => sp.Project.Type == ProjectType.FinalYear)
+                    .Select(sp => new
+                    {
+                        Title = sp.Project.Title,
+                        Description = sp.Project.Description,
+                        Status = sp.Status
+                    }).ToList(),
+                Skills = p.Student.Skills ?? new List<string>(),
+                Links = p.Student.ContactLinks != null
+                    ? p.Student.ContactLinks.ToDictionary(
+                        cl => cl.Platform.ToString(),
+                        cl => cl.Url)
+                    : new Dictionary<string, string>()
+            }).ToList();
 
             return Ok(new
             {
@@ -1012,10 +1471,6 @@ namespace JobFairPortal.Controllers
                 Students = students
             });
         }
-
-
-
-
 
         // -----------------------------
         // 18. Get Student Detail by Id
@@ -1342,7 +1797,7 @@ namespace JobFairPortal.Controllers
 
                 if (string.IsNullOrWhiteSpace(student.FcmToken))
                 {
-                    _logger.LogWarning("NotifyStudent failed - No FCM token for student: {StudentId}, Name: {Name}", 
+                    _logger.LogWarning("NotifyStudent failed - No FCM token for student: {StudentId}, Name: {Name}",
                         studentId, student.User?.FullName);
                     return BadRequest(new
                     {
@@ -1388,7 +1843,7 @@ namespace JobFairPortal.Controllers
                 }
                 catch (FirebaseException firebaseEx)
                 {
-                    _logger.LogError(firebaseEx, 
+                    _logger.LogError(firebaseEx,
                         "Firebase error sending notification to student: {StudentId}, Name: {Name}",
                         studentId, student.User?.FullName);
 
@@ -1525,6 +1980,221 @@ namespace JobFairPortal.Controllers
                 _logger.LogError(ex, "Unexpected error during bulk notification");
                 return StatusCode(500, new { Code = "INTERNAL_ERROR", Message = ex.Message, Success = false });
             }
+        }
+        [HttpGet("jobfairs/{jobFairId}/analytics")]
+        public async Task<IActionResult> GetJobFairAnalytics(int jobFairId)
+        {
+            _logger.LogInformation("GetJobFairAnalytics called for jobFairId: {JobFairId}", jobFairId);
+
+            string cacheKey = $"jobfair_analytics_{jobFairId}";
+            if (_cache.TryGetValue(cacheKey, out object cachedData))
+            {
+                return Ok(cachedData);
+            }
+
+            var jobFair = await _context.JobFairs.FindAsync(jobFairId);
+            if (jobFair == null) return NotFound(new { Message = "Job Fair not found." });
+
+            // 1. Fetch Participations (The source of truth for attendance)
+            var companyParticipations = await _context.CompanyJobFairParticipations
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Jobs) // Load jobs to filter by fair
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.User)
+                .Where(p => p.JobFairId == jobFairId)
+                .ToListAsync();
+
+            var studentParticipations = await _context.StudentJobFairParticipations
+                .Include(p => p.Student)
+                    .ThenInclude(s => s.User)
+                .Where(p => p.JobFairId == jobFairId)
+                .ToListAsync();
+
+            // 2. Fetch Interviews & Requests for this fair
+            var interviews = await _context.Interviews
+                .Where(i => i.JobFairId == jobFairId)
+                .ToListAsync();
+
+            var requests = await _context.InterviewRequests
+                .Where(ir => ir.JobFairId == jobFairId)
+                .ToListAsync();
+
+            var rooms = await _context.Rooms
+                .Where(r => r.JobFairId == jobFairId)
+                .ToListAsync();
+
+            // 3. Calculate Stats
+            var analytics = new
+            {
+                JobFairId = jobFair.JobFairId,
+                Semester = jobFair.Semester,
+                Date = jobFair.date,
+                IsActive = jobFair.IsActive,
+
+                OverallStats = new
+                {
+                    TotalStudents = studentParticipations.Count,
+                    TotalCompanies = companyParticipations.Count,
+                    TotalRooms = rooms.Count,
+                    // Count jobs specifically linked to this fair
+                    TotalJobs = companyParticipations.Sum(p => p.Company.Jobs.Count(j => j.JobFairId == jobFairId)),
+                    TotalInterviews = interviews.Count,
+                    TotalInterviewRequests = requests.Count
+                },
+
+                InterviewStats = new
+                {
+                    Hired = interviews.Count(i => i.Status == InterviewStatus.Hired),
+                    Shortlisted = interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
+                    Rejected = interviews.Count(i => i.Status == InterviewStatus.Rejected),
+                    Pending = interviews.Count(i => i.Status == InterviewStatus.Queued),
+                    HiringRate = interviews.Count > 0
+                        ? Math.Round((double)interviews.Count(i => i.Status == InterviewStatus.Hired) / interviews.Count * 100, 2)
+                        : 0
+                },
+
+                // Group students from participation list
+                StudentsByDepartment = studentParticipations
+                    .GroupBy(p => p.Student.Department)
+                    .Select(g => new
+                    {
+                        Department = g.Key,
+                        Count = g.Count(),
+                        AverageCGPA = g.Any() ? Math.Round(g.Average(p => p.Student.CGPA), 2) : 0,
+                        Hired = interviews.Count(i => i.StudentId != null &&
+                                                    studentParticipations.Any(sp => sp.StudentId == i.StudentId && sp.Student.Department == g.Key) &&
+                                                    i.Status == InterviewStatus.Hired)
+                    })
+                    .ToList(),
+
+                CompanyParticipation = companyParticipations
+                    .Select(p => new
+                    {
+                        CompanyId = p.CompanyId,
+                        CompanyName = p.Company.Name,
+                        Industry = p.Company.Industry,
+                        LogoUrl = p.Company.LogoUrl,
+                        IsPresent = p.IsPresent,
+                        ArrivalStatus = p.ArrivalStatus.ToString(),
+                        TotalJobs = p.Company.Jobs.Count(j => j.JobFairId == jobFairId),
+                        TotalInterviews = interviews.Count(i => i.CompanyId == p.CompanyId),
+                        HiredCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Hired),
+                        ShortlistedCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Shortlisted),
+                        InterviewRequestsReceived = requests.Count(ir => ir.CompanyId == p.CompanyId)
+                    })
+                    .OrderByDescending(c => c.HiredCount)
+                    .ToList(),
+
+                RoomUtilization = new
+                {
+                    TotalRooms = rooms.Count,
+                    VacantRooms = rooms.Count(r => r.Status == RoomStatus.Vacant),
+                    AllottedRooms = rooms.Count(r => r.Status == RoomStatus.Alloted),
+                    TentativeRooms = rooms.Count(r => r.Status == RoomStatus.TentativelyAlloted),
+                    AllocationRate = rooms.Count > 0
+                        ? Math.Round((double)rooms.Count(r => r.Status == RoomStatus.Alloted) / rooms.Count * 100, 2)
+                        : 0
+                }
+            };
+
+            var cacheOptions = new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+            _cache.Set(cacheKey, analytics, cacheOptions);
+
+            return Ok(analytics);
+        }
+        [HttpGet("jobfairs")]
+        public async Task<IActionResult> GetAllJobFairs([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            _logger.LogInformation("GetAllJobFairs called with page={Page}, pageSize={PageSize}.", page, pageSize);
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+
+            var query = _context.JobFairs
+                .Include(jf => jf.Students)
+                .Include(jf => jf.Companies)
+                .Include(jf => jf.Interviews)
+                .Include(jf => jf.Rooms)
+                .OrderByDescending(jf => jf.date);
+
+            var totalCount = await query.CountAsync();
+            var jobFairs = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(jf => new
+                {
+                    JobFairId = jf.JobFairId,
+                    Semester = jf.Semester,
+                    Date = jf.date,
+                    IsActive = jf.IsActive,
+                    TotalStudents = jf.Students.Count,
+                    TotalCompanies = jf.Companies.Count,
+                    TotalRooms = jf.Rooms.Count,
+                    TotalInterviews = jf.Interviews.Count,
+                    StudentsHired = jf.Interviews.Count(i => i.Status == InterviewStatus.Hired),
+                    StudentsShortlisted = jf.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
+                    CreatedAt = jf.date
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                JobFairs = jobFairs
+            });
+        }
+        [HttpGet("notices")]
+        [Authorize]
+        public async Task<IActionResult> GetNotices()
+        {
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return Ok(new List<NoticeResponseDto>());
+
+            var isStudent = User.IsInRole("Student");
+            var isCompany = User.IsInRole("Company");
+            var isAdmin = User.IsInRole("Admin");
+
+            var query = _context.Notices
+                .Where(n => n.JobFairId == activeJobFair.JobFairId)
+                .AsQueryable();
+
+            // --- FILTERING LOGIC ---
+            if (isAdmin)
+            {
+                // Admin sees EVERYTHING (Hidden and Visible)
+                // No IsHidden filter here
+            }
+            else
+            {
+                // Everyone else only sees NOT HIDDEN items
+                query = query.Where(n => n.IsHidden == false);
+
+                if (isStudent)
+                    query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
+                else if (isCompany)
+                    query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+                else
+                    return Forbid();
+            }
+
+            var notices = await query
+                .OrderByDescending(n => n.CreatedAt)
+                .Select(n => new NoticeResponseDto
+                {
+                    NoticeId = n.NoticeId,
+                    Title = n.Title,
+                    Content = n.Content,
+                    Audience = n.Audience.ToString(),
+                    IsHidden = n.IsHidden,
+                    CreatedAt = n.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(notices);
         }
         // ========================================
         // DIAGNOSTIC: Check Firebase Configuration
@@ -1664,21 +2334,16 @@ namespace JobFairPortal.Controllers
                     catch (FirebaseException firebaseEx)
                     {
                         var errorMessage = firebaseEx.Message ?? "Unknown error";
-                        
+
                         // 404 errors indicate invalid/expired tokens
-                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") || 
+                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") ||
                             errorMessage.Contains("registration token"))
                         {
                             invalidTokens.Add(new
                             {
                                 StudentId = student.StudentId,
-                                StudentName = student.User?.FullName,
-                                Email = student.User?.Email,
-                                RegistrationNo = student.RegistrationNo,
-                                Token = $"{student.FcmToken[..20]}... (truncated)",
-                                ErrorType = "INVALID_TOKEN",
-                                ErrorReason = "Token is expired or from a different Firebase project",
-                                Severity = "HIGH"
+                                Name = student.User?.FullName,
+                                Reason = "Invalid Token - Removed"
                             });
 
                             _logger.LogWarning(
@@ -1691,13 +2356,8 @@ namespace JobFairPortal.Controllers
                         invalidTokens.Add(new
                         {
                             StudentId = student.StudentId,
-                            StudentName = student.User?.FullName,
-                            Email = student.User?.Email,
-                            RegistrationNo = student.RegistrationNo,
-                            Token = $"{student.FcmToken[..20]}... (truncated)",
-                            ErrorType = "VALIDATION_ERROR",
-                            ErrorReason = ex.Message,
-                            Severity = "MEDIUM"
+                            Name = student.User?.FullName,
+                            Reason = ex.Message
                         });
                     }
                 }
@@ -1774,9 +2434,9 @@ namespace JobFairPortal.Controllers
                     catch (FirebaseException firebaseEx)
                     {
                         var errorMessage = firebaseEx.Message ?? "Unknown error";
-                        
+
                         // Remove invalid tokens
-                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") || 
+                        if (errorMessage.Contains("404") || errorMessage.Contains("not found") ||
                             errorMessage.Contains("registration token"))
                         {
                             student.FcmToken = null;
@@ -1839,7 +2499,7 @@ namespace JobFairPortal.Controllers
             }
         }
 
-        
+
 
         // Add this helper method to AdminController to fix CS0103
         private async Task<int?> GetActiveJobFairIdAsync()
@@ -1851,6 +2511,392 @@ namespace JobFairPortal.Controllers
                 .FirstOrDefaultAsync();
 
             return activeJobFair?.JobFairId;
+        }
+
+        // ======================================
+        // ATTENDANCE MANAGEMENT ENDPOINTS
+        // ======================================
+
+
+        /// <summary>
+        /// GET /api/admin/jobfairs/{jobFairId}/companies
+        /// Get all companies registered for a specific job fair
+        /// </summary>
+        [HttpGet("jobfairs/{jobFairId}/companies")]
+        public async Task<IActionResult> GetCompaniesForJobFair(int jobFairId)
+        {
+            try
+            {
+                var companies = await _context.CompanyJobFairParticipations
+                    .Where(p => p.JobFairId == jobFairId)
+                    .Include(p => p.Company)
+                    .AsNoTracking()
+                    .OrderBy(p => p.Company.Name)
+                    .Select(p => new
+                    {
+                        id = p.Company.CompanyId,
+                        companyName = p.Company.Name,
+                        contactEmail = p.Company.FocalPersonEmail,
+                        contactNumber = p.Company.FocalPersonPhone,
+                        isPresent = p.IsPresent
+                    })
+                    .ToListAsync();
+
+                return Ok(companies);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting companies for job fair");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
+        /// <summary>
+        /// GET /api/admin/attendance/stats/{jobFairId}
+        /// Get attendance statistics for a job fair
+        /// </summary>
+        [HttpGet("attendance/stats/{jobFairId}")]
+        public async Task<IActionResult> GetAttendanceStats(int jobFairId)
+        {
+            try
+            {
+                var participations = await _context.CompanyJobFairParticipations
+                    .Where(p => p.JobFairId == jobFairId)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                var totalCompanies = participations.Count;
+                var presentCompanies = participations.Count(p => p.IsPresent);
+                var absentCompanies = totalCompanies - presentCompanies;
+                var presentPercentage = totalCompanies > 0 ? (presentCompanies * 100.0) / totalCompanies : 0;
+
+                return Ok(new
+                {
+                    totalCompanies,
+                    presentCompanies,
+                    absentCompanies,
+                    presentPercentage = Math.Round(presentPercentage, 2)
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting attendance stats");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
+        // ======================================
+        // END ATTENDANCE MANAGEMENT ENDPOINTS
+        // ======================================
+
+
+        // -----------------------------
+        // 19. Manual Participation Registration
+        // -----------------------------
+
+        [HttpPost("companies/{companyId}/register-for-fair")]
+        public async Task<IActionResult> RegisterCompanyForFair(int companyId, [FromQuery] int? jobFairId = null)
+        {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null) return BadRequest("No active job fair found.");
+
+            var exists = await _context.CompanyJobFairParticipations
+                .AnyAsync(p => p.CompanyId == companyId && p.JobFairId == jobFairId.Value);
+
+            if (exists) return BadRequest("Company is already registered for this job fair.");
+
+            var participation = new CompanyJobFairParticipation
+            {
+                CompanyId = companyId,
+                JobFairId = jobFairId.Value,
+                ArrivalStatus = ArrivalStatus.Pending,
+                RegisteredAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.CompanyJobFairParticipations.Add(participation);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Company registered for job fair successfully.", ParticipationId = participation.ParticipationId });
+        }
+
+        [HttpPost("students/{studentId}/register-for-fair")]
+        public async Task<IActionResult> RegisterStudentForFair(int studentId, [FromQuery] int? jobFairId = null)
+        {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null) return BadRequest("No active job fair found.");
+
+            var exists = await _context.StudentJobFairParticipations
+                .AnyAsync(p => p.StudentId == studentId && p.JobFairId == jobFairId.Value);
+
+            if (exists) return BadRequest("Student is already registered for this job fair.");
+
+            var participation = new StudentJobFairParticipation
+            {
+                StudentId = studentId,
+                JobFairId = jobFairId.Value,
+                RegisteredAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.StudentJobFairParticipations.Add(participation);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Student registered for job fair successfully.", ParticipationId = participation.ParticipationId });
+        }
+        [HttpPut("rooms/tentatively-assign")]
+        public async Task<IActionResult> TentativelyAssignRoom([FromQuery] int companyId, [FromQuery] int roomId)
+        {
+            var company = await _context.Companies.FindAsync(companyId);
+            if (company == null) return NotFound("Company not found.");
+
+            var requestedRoom = await _context.Rooms.FindAsync(roomId);
+            if (requestedRoom == null) return NotFound("Requested room not found.");
+
+            if (requestedRoom.Status == RoomStatus.Alloted)
+                return BadRequest("Requested room is already permanently occupied.");
+
+            if (requestedRoom.CompanyId.HasValue && requestedRoom.CompanyId != companyId)
+                return BadRequest("Requested room is already tentatively assigned to another company.");
+
+            // 1. Update Room
+            requestedRoom.CompanyId = companyId;
+            requestedRoom.Status = RoomStatus.TentativelyAlloted;
+            requestedRoom.UpdatedAt = DateTime.UtcNow;
+
+            // 2. Update Participation Record
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.JobFairId == requestedRoom.JobFairId);
+
+            if (participation != null)
+            {
+                participation.RoomId = roomId;
+                participation.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new RoomResponseDto
+            {
+                RoomId = requestedRoom.RoomId,
+                RoomName = requestedRoom.RoomName,
+                Capacity = requestedRoom.Capacity,
+                Status = requestedRoom.Status,
+                CompanyName = company.Name
+            });
+        }
+
+        // -----------------------------
+        // 21. Confirm Room Allotment
+        // -----------------------------
+        [HttpPut("rooms/{roomId}/confirm-allotment")]
+        public async Task<IActionResult> ConfirmRoomAllotment(int roomId)
+        {
+            var room = await _context.Rooms.Include(r => r.Company).FirstOrDefaultAsync(r => r.RoomId == roomId);
+            if (room == null) return NotFound("Room not found.");
+
+            if (room.Status == RoomStatus.Alloted)
+                return BadRequest("Room is already permanently alloted.");
+
+            if (room.Status == RoomStatus.Vacant)
+                return BadRequest("Room is vacant. Please assign a company first.");
+
+            // Change status to Alloted
+            room.Status = RoomStatus.Alloted;
+            room.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new RoomResponseDto
+            {
+                RoomId = room.RoomId,
+                RoomName = room.RoomName,
+                Capacity = room.Capacity,
+                Status = room.Status,
+                CompanyName = room.Company?.Name,
+                CompanyId = room.CompanyId,
+                CompanyRepsCount = room.Company != null ? room.Company.RepsCount : null
+            });
+        }
+        // Replace the existing AddJobFair method with this safer DTO-based implementation.
+        [HttpPost("jobfairs")]
+        public async Task<IActionResult> AddJobFair([FromBody] JobFairCreateDto dto)
+        {
+            if (dto == null) return BadRequest("Request body is required.");
+            if (string.IsNullOrWhiteSpace(dto.Semester))
+                return BadRequest("Semester name is required.");
+
+            // Optional: prevent duplicate semester/date combos
+            var exists = await _context.JobFairs
+                .AnyAsync(j => j.Semester == dto.Semester && j.date.Date == dto.date.Date);
+            if (exists)
+                return BadRequest("A job fair with the same semester and date already exists.");
+
+            if (dto.IsActive)
+            {
+                var activeFairs = await _context.JobFairs.Where(j => j.IsActive).ToListAsync();
+                foreach (var fair in activeFairs)
+                {
+                    fair.IsActive = false;
+                    
+                }
+            }
+
+            var jobFair = new JobFair
+            {
+                Semester = dto.Semester.Trim(),
+                date = dto.date,
+                IsActive = dto.IsActive,
+                
+            };
+
+            _context.JobFairs.Add(jobFair);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job Fair created successfully.",
+                JobFairId = jobFair.JobFairId,
+                Semester = jobFair.Semester,
+                Date = jobFair.date,
+                IsActive = jobFair.IsActive
+            });
+        }
+
+        // Activate a specific job fair and deactivate all others
+        [HttpPost("jobfairs/{jobFairId}/activate")]
+        public async Task<IActionResult> ActivateJobFair(int jobFairId)
+        {
+            var jobFair = await _context.JobFairs.FindAsync(jobFairId);
+            if (jobFair == null)
+                return NotFound(new { Message = "Job Fair not found." });
+
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var activeFairs = await _context.JobFairs.Where(j => j.IsActive && j.JobFairId != jobFairId).ToListAsync();
+                foreach (var fair in activeFairs)
+                {
+                    fair.IsActive = false;
+                }
+
+                jobFair.IsActive = true;
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return Ok(new
+                {
+                    Message = "Job Fair activated successfully.",
+                    JobFairId = jobFair.JobFairId,
+                    Semester = jobFair.Semester,
+                    Date = jobFair.date,
+                    IsActive = jobFair.IsActive
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(ex, "Failed to activate job fair {JobFairId}", jobFairId);
+                return StatusCode(500, new { Message = "Failed to activate job fair.", Error = ex.Message });
+            }
+        }
+       
+
+        [HttpPut("jobfairs/{jobFairId}")]
+        public async Task<IActionResult> UpdateJobFair(int jobFairId, [FromBody] JobFairUpdateDto dto)
+        {
+            if (dto == null) 
+                return BadRequest(new { Message = "Request body is required." });
+
+            var jobFair = await _context.JobFairs.FindAsync(jobFairId);
+            if (jobFair == null)
+                return NotFound(new { Message = "Job Fair not found." });
+
+            // Prevent editing job fairs that have started or occurred
+            var nowUtcDate = DateTime.UtcNow.Date;
+            if (jobFair.date.Date <= nowUtcDate)
+                return BadRequest(new { Message = "Cannot edit a job fair that has started or already occurred." });
+
+            // Update semester if provided
+            if (!string.IsNullOrWhiteSpace(dto.Semester))
+            {
+                jobFair.Semester = dto.Semester.Trim();
+            }
+
+            // Update date if provided
+            if (dto.date.HasValue)
+            {
+                // Ensure the new date is in the future
+                if (dto.date.Value.Date <= nowUtcDate)
+                    return BadRequest(new { Message = "New date must be in the future." });
+
+                jobFair.date = dto.date.Value;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job Fair updated successfully.",
+                JobFairId = jobFair.JobFairId,
+                Semester = jobFair.Semester,
+                Date = jobFair.date,
+                IsActive = jobFair.IsActive
+            });
+        }
+
+        [HttpDelete("jobfairs/{jobFairId}")]
+        public async Task<IActionResult> DeleteFutureJobFair(int jobFairId)
+        {
+            // Only admins can call this controller (controller-level [Authorize(Roles = "Admin")] is present)
+            var jobFair = await _context.JobFairs.FindAsync(jobFairId);
+            if (jobFair == null)
+                return NotFound(new { Message = "Job Fair not found." });
+
+            // Prevent deletion of job fairs that have started or occurred
+            var nowUtcDate = DateTime.UtcNow.Date;
+            if (jobFair.date.Date <= nowUtcDate)
+                return BadRequest(new { Message = "Cannot delete a job fair that has started or already occurred." });
+
+            // Gather counts for admin visibility (optional)
+            var companyParticipations = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == jobFairId);
+            var studentParticipations = await _context.StudentJobFairParticipations.CountAsync(p => p.JobFairId == jobFairId);
+            var roomsCount = await _context.Rooms.CountAsync(r => r.JobFairId == jobFairId);
+            var interviewsCount = await _context.Interviews.CountAsync(i => i.JobFairId == jobFairId);
+            var requestsCount = await _context.InterviewRequests.CountAsync(ir => ir.JobFairId == jobFairId);
+            var surveysCount = await _context.Surveys.CountAsync(s => s.JobFairId == jobFairId);
+
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Remove JobFair (EF will cascade based on your OnModelCreating configuration)
+                _context.JobFairs.Remove(jobFair);
+                await _context.SaveChangesAsync();
+
+                await tx.CommitAsync();
+
+                return Ok(new
+                {
+                    Message = "Job Fair deleted successfully.",
+                    JobFairId = jobFairId,
+                    Removed = new
+                    {
+                        CompanyParticipations = companyParticipations,
+                        StudentParticipations = studentParticipations,
+                        Rooms = roomsCount,
+                        Interviews = interviewsCount,
+                        InterviewRequests = requestsCount,
+                        Surveys = surveysCount
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(ex, "Failed to delete job fair {JobFairId}", jobFairId);
+                return StatusCode(500, new { Message = "Failed to delete job fair.", Error = ex.Message });
+            }
         }
     }
 }
