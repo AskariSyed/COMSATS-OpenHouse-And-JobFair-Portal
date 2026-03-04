@@ -19,6 +19,26 @@ const REQUEST_STATUSES = {
   Cancelled: { color: 'bg-gray-50 text-gray-700 border-gray-200', icon: XCircle }
 };
 
+const STATUS_VALUE_MAP = {
+  0: 'Pending',
+  1: 'InProgress',
+  2: 'Fulfilled',
+  3: 'Rejected',
+  4: 'Cancelled'
+};
+
+const normalizeStatus = (status) => {
+  if (typeof status === 'number') return STATUS_VALUE_MAP[status] || 'Pending';
+  if (typeof status !== 'string') return 'Pending';
+  const cleaned = status.replace(/\s+/g, '').toLowerCase();
+  if (cleaned === 'pending') return 'Pending';
+  if (cleaned === 'inprogress') return 'InProgress';
+  if (cleaned === 'fulfilled') return 'Fulfilled';
+  if (cleaned === 'rejected') return 'Rejected';
+  if (cleaned === 'cancelled') return 'Cancelled';
+  return 'Pending';
+};
+
 export default function CompanyRequests({ onError }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -196,8 +216,10 @@ export default function CompanyRequests({ onError }) {
       ) : requests && requests.length > 0 ? (
         <div className="space-y-3">
           {requests.map((req) => {
-            const statusConfig = REQUEST_STATUSES[req.status] || REQUEST_STATUSES.Pending;
+            const normalizedStatus = normalizeStatus(req.status);
+            const statusConfig = REQUEST_STATUSES[normalizedStatus] || REQUEST_STATUSES.Pending;
             const StatusIcon = statusConfig.icon;
+            const fulfilledAt = req.fulfilledAt || req.FulfilledAt;
             
             return (
               <div key={req.companyRequestId} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
@@ -207,11 +229,15 @@ export default function CompanyRequests({ onError }) {
                       <h3 className="font-bold text-gray-900">{req.description}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 whitespace-nowrap ${statusConfig.color}`}>
                         <StatusIcon className="w-3 h-3" />
-                        {req.status}
+                        {normalizedStatus}
                       </span>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+                      <div>
+                        <p className="text-gray-500 text-xs font-semibold uppercase">Current Status</p>
+                        <p className="text-gray-900 font-medium">{normalizedStatus}</p>
+                      </div>
                       <div>
                         <p className="text-gray-500 text-xs font-semibold uppercase">Type</p>
                         <p className="text-gray-900 font-medium">{REQUEST_TYPE_MAP[req.type] || req.type}</p>
@@ -222,12 +248,12 @@ export default function CompanyRequests({ onError }) {
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs font-semibold uppercase">Submitted</p>
-                        <p className="text-gray-900 font-medium">{new Date(req.createdAt).toLocaleDateString()}</p>
+                        <p className="text-gray-900 font-medium">{new Date(req.createdAt).toLocaleString()}</p>
                       </div>
-                      {req.fulfilledAt && (
+                      {normalizedStatus === 'Fulfilled' && fulfilledAt && (
                         <div>
                           <p className="text-gray-500 text-xs font-semibold uppercase">Fulfilled</p>
-                          <p className="text-gray-900 font-medium">{new Date(req.fulfilledAt).toLocaleDateString()}</p>
+                          <p className="text-gray-900 font-medium">{new Date(fulfilledAt).toLocaleString()}</p>
                         </div>
                       )}
                     </div>
@@ -244,7 +270,7 @@ export default function CompanyRequests({ onError }) {
                   </div>
 
                   {/* Cancel Button - Only show if request is Pending or InProgress */}
-                  {(req.status === 'Pending' || req.status === 'InProgress') && (
+                  {(normalizedStatus === 'Pending' || normalizedStatus === 'InProgress') && (
                     <button
                       onClick={() => handleCancelRequest(req.companyRequestId)}
                       className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition flex items-center gap-2"

@@ -1,6 +1,7 @@
 using JobFairPortal.Data;
 using JobFairPortal.Models;
 using JobFairPortal.DTOs;
+using JobFairPortal.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -14,11 +15,13 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<AttendanceController> _logger;
+        private readonly MailKitMailService _mailService;
 
-        public AttendanceController(JobFairRecruitmentDbContext context, ILogger<AttendanceController> logger)
+        public AttendanceController(JobFairRecruitmentDbContext context, ILogger<AttendanceController> logger, MailKitMailService mailService)
         {
             _context = context;
             _logger = logger;
+            _mailService = mailService;
         }
 
         // GET /attendance/scan?token=...
@@ -158,6 +161,16 @@ namespace JobFairPortal.Controllers
                 if (session.ExpiresAt < now)
                     return BadRequest(new { error = "Session has expired" });
 
+                var activeJobFair = await _context.JobFairs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(j => j.IsActive);
+
+                if (activeJobFair == null)
+                    return BadRequest(new { error = "No active Job Fair found" });
+
+                if (session.JobFairId != activeJobFair.JobFairId)
+                    return BadRequest(new { error = "This QR session is not for the active Job Fair" });
+
                 // Resolve company from JWT user id
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrWhiteSpace(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
@@ -174,6 +187,8 @@ namespace JobFairPortal.Controllers
                 var participation = await _context.CompanyJobFairParticipations
                     .Include(p => p.Company)
                         .ThenInclude(c => c.Room)
+                    .Include(p => p.Company)
+                        .ThenInclude(c => c.User)
                     .Include(p => p.JobFair)
                     .Include(p => p.Room)
                     .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == session.JobFairId);
@@ -190,22 +205,80 @@ namespace JobFairPortal.Controllers
                 }
 
                 if (participation.IsPresent)
+                {
+                    var alreadyRoom = participation.Room ?? participation.Company?.Room;
+                    var alreadyHasCurrentFairRoom = alreadyRoom != null && alreadyRoom.JobFairId == session.JobFairId;
                     return Ok(new
                     {
-                        message = "Attendance already marked",
+                        message = alreadyHasCurrentFairRoom
+                            ? "Attendance already marked"
+                            : "Attendance already marked, but no room is allotted for this job fair. Please ask administration for manual room allotment.",
                         companyId = company.CompanyId,
                         companyName = participation.Company?.Name,
-                        roomName = participation.Room?.RoomName ?? participation.Company?.Room?.RoomName
+                        roomName = alreadyHasCurrentFairRoom ? alreadyRoom?.RoomName : null,
+                        roomCapacity = alreadyHasCurrentFairRoom ? alreadyRoom?.Capacity : null,
+                        needsManualRoomAllotment = !alreadyHasCurrentFairRoom
                     });
+                }
 
                 // Mark attendance
                 participation.IsPresent = true;
                 participation.ArrivalStatus = ArrivalStatus.OnSpot;
                 participation.UpdatedAt = DateTime.UtcNow;
 
+                Room? effectiveRoom = participation.Room ?? participation.Company?.Room;
+                var hasRoomForCurrentFair = effectiveRoom != null && effectiveRoom.JobFairId == session.JobFairId;
+
+                // If no room assigned for this job fair, allocate greedily (smallest suitable capacity)
+                if (!hasRoomForCurrentFair)
+                {
+                    effectiveRoom = null;
+
+                    // Release any old room linked to this company (from previous fair or stale assignment)
+                    var oldRoom = participation.Company?.Room;
+                    if (oldRoom != null && oldRoom.JobFairId != session.JobFairId)
+                    {
+                        oldRoom.CompanyId = null;
+                        oldRoom.Status = RoomStatus.Vacant;
+                        oldRoom.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    var requiredCapacity = participation.RepsCount > 0
+                        ? participation.RepsCount
+                        : (participation.Company?.RepsCount ?? 1);
+
+                    var allocatedRoom = await _context.Rooms
+                        .Where(r => r.JobFairId == session.JobFairId && r.Status == RoomStatus.Vacant && r.Capacity >= requiredCapacity)
+                        .OrderBy(r => r.Capacity)
+                        .FirstOrDefaultAsync();
+
+                    if (allocatedRoom != null)
+                    {
+                        allocatedRoom.CompanyId = company.CompanyId;
+                        allocatedRoom.Status = RoomStatus.Alloted;
+                        allocatedRoom.UpdatedAt = DateTime.UtcNow;
+
+                        participation.RoomId = allocatedRoom.RoomId;
+                        participation.UpdatedAt = DateTime.UtcNow;
+                        effectiveRoom = allocatedRoom;
+
+                        if (!string.IsNullOrWhiteSpace(participation.Company?.User?.Email))
+                        {
+                            await SendRoomAllocatedOnArrivalEmailAsync(
+                                participation.Company.User.Email,
+                                participation.Company.Name,
+                                allocatedRoom.RoomName,
+                                allocatedRoom.Capacity,
+                                participation.JobFair?.Semester,
+                                participation.JobFair?.date);
+                        }
+                    }
+                }
+
                 if (participation.Company != null)
                 {
                     participation.Company.IsPresent = true;
+                    participation.Company.CurrentJobFairId = session.JobFairId;
                     participation.Company.UpdatedAt = DateTime.UtcNow;
                 }
 
@@ -215,18 +288,54 @@ namespace JobFairPortal.Controllers
 
                 await _context.SaveChangesAsync();
 
+                var needsManualRoomAllotment = effectiveRoom == null || effectiveRoom.JobFairId != session.JobFairId;
+
                 return Ok(new
                 {
-                    message = "Attendance marked successfully",
+                    message = needsManualRoomAllotment
+                        ? "Attendance marked successfully. No suitable room is currently available; please ask administration for manual room allotment."
+                        : "Attendance marked successfully. Room allotted.",
                     companyId = company.CompanyId,
                     companyName = participation.Company?.Name,
-                    roomName = participation.Room?.RoomName ?? participation.Company?.Room?.RoomName
+                    roomName = effectiveRoom?.RoomName,
+                    roomCapacity = effectiveRoom?.Capacity,
+                    needsManualRoomAllotment
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error marking attendance");
                 return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
+        private async Task SendRoomAllocatedOnArrivalEmailAsync(string email, string companyName, string roomName, int capacity, string? semester, DateTime? jobFairDate)
+        {
+            try
+            {
+                var subject = $"Room Allotted - {semester ?? "Job Fair"}";
+                var body = $"""
+                Dear {companyName},
+
+                Your attendance has been marked and room has been allotted.
+
+                Room Details:
+                - Room Name: {roomName}
+                - Capacity: {capacity}
+                - Job Fair: {semester ?? "Current"}
+                - Date: {(jobFairDate.HasValue ? jobFairDate.Value.ToString("MMMM dd, yyyy") : "N/A")}
+
+                Please proceed to your allotted room.
+
+                Regards,
+                Job Fair Management Team
+                """;
+
+                await _mailService.SendMailAsync(email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send room-allotted email to {Email}", email);
             }
         }
 

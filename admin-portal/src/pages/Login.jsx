@@ -75,13 +75,11 @@ const Login = () => {
 
         <div className="relative z-10 p-12 max-w-xl">
           <div className="mb-8">
-            <div className="inline-block bg-white rounded-2xl p-4 shadow-lg">
-              <img 
-                src={LogoWithoutBg} 
-                alt="CUI Wah Job Fair Logo" 
-                className="h-32 w-auto"
-              />
-            </div>
+            <img 
+              src={LogoWithoutBg} 
+              alt="CUI Wah Job Fair Logo" 
+              className="h-32 w-auto"
+            />
           </div>
           <h1 className="text-5xl font-bold mb-6 leading-tight">
             Admin <br/>
@@ -105,13 +103,11 @@ const Login = () => {
         >
           <div className="text-center mb-10">
             <div className="flex justify-center mb-6">
-              <div className="inline-block bg-white rounded-xl p-3 shadow-md">
-                <img 
-                  src={LogoWithoutBg} 
-                  alt="CUI Wah Job Fair Logo" 
-                  className="h-20 w-auto"
-                />
-              </div>
+              <img 
+                src={LogoWithoutBg} 
+                alt="CUI Wah Job Fair Logo" 
+                className="h-20 w-auto"
+              />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Administrator Login</h2>
             <p className="text-gray-500 mt-2 text-sm">Please enter your credentials to continue</p>

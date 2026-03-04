@@ -940,7 +940,7 @@ namespace JobFairPortal.Controllers
             var activeJobFair = await _context.JobFairs
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
-            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
             if (targetJobFairId == null)
                 return Ok(new
                 {
@@ -1773,7 +1773,7 @@ public async Task<IActionResult> GetPendingInterviewRequests([FromQuery] int pag
     var activeJobFair = await _context.JobFairs
         .AsNoTracking()
         .FirstOrDefaultAsync(j => j.IsActive);
-    var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+    var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
     if (targetJobFairId == null)
     {
         return Ok(new
@@ -1852,7 +1852,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
     var activeJobFair = await _context.JobFairs
         .AsNoTracking()
         .FirstOrDefaultAsync(j => j.IsActive);
-    var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+    var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
 
     if (targetJobFairId == null)
     {
@@ -2499,7 +2499,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var activeJobFair = await _context.JobFairs
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
-            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
 
             if (targetJobFairId == null)
             {
@@ -2696,8 +2696,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             // Get participation for current/active job fair
             var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
-            var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
-            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
+            var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == targetJobFairId);
             var scopedJobs = targetJobFairId.HasValue ? company.Jobs.Where(j => j.JobFairId == targetJobFairId.Value).ToList() : new List<Job>();
             var scopedRequests = targetJobFairId.HasValue ? company.InterviewRequests.Where(ir => ir.JobFairId == targetJobFairId.Value).ToList() : new List<InterviewRequest>();
             var scopedInterviews = targetJobFairId.HasValue ? company.Interviews.Where(i => i.JobFairId == targetJobFairId.Value).ToList() : new List<Interview>();
@@ -2882,7 +2882,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     .AsNoTracking()
                     .FirstOrDefaultAsync(j => j.IsActive);
 
-                var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+                var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
                 if (targetJobFairId.HasValue)
                 {
                     var participation = await _context.CompanyJobFairParticipations
@@ -2904,7 +2904,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     .AsNoTracking()
                     .FirstOrDefaultAsync(j => j.IsActive);
 
-                var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+                var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
                 if (targetJobFairId.HasValue)
                 {
                     var participation = await _context.CompanyJobFairParticipations
@@ -3122,7 +3122,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     return BadRequest(new { Message = "No active job fair found." });
 
                 // Get participation for current/active job fair
-                var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
+                var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
+                var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == targetJobFairId);
                 var today = DateTime.UtcNow.Date;
                 var jobFairDate = activeJobFair.date.Date;
                 var daysUntilJobFair = (jobFairDate - today).Days;
@@ -3994,7 +3995,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
 
-            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
 
             if (targetJobFairId == null)
                 return Ok(new List<object>());
@@ -4035,7 +4036,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
 
-            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
             if (targetJobFairId == null)
                 return BadRequest("No active or current job fair found.");
 

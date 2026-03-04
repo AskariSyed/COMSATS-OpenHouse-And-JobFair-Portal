@@ -29,6 +29,21 @@ const getLogoUrl = (path) => {
   return `${BACKEND_URL}${path}`; 
 };
 
+const getApiErrorMessage = (error, fallback) => {
+  const payload = error?.response?.data;
+  if (typeof payload === 'string' && payload.trim()) return payload;
+  if (payload?.message) return payload.message;
+  if (payload?.Message) return payload.Message;
+  if (error?.message) return error.message;
+  return fallback;
+};
+
+const isCapacityWarning = (error) => {
+  const payload = error?.response?.data;
+  const message = getApiErrorMessage(error, '');
+  return payload?.code === 'CAPACITY_WARNING' || message.toLowerCase().includes('capacity warning');
+};
+
 // ----------------------------------------------------------------------
 // Modal: Add On-Spot Company
 // ----------------------------------------------------------------------
@@ -199,7 +214,28 @@ const AssignRoomModal = ({ company, onClose, onSuccess }) => {
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error("Failed to assign room");
+      const errorMessage = getApiErrorMessage(error, "Failed to assign room");
+      if (isCapacityWarning(error)) {
+        const confirmHardAllot = window.confirm(`${errorMessage}\n\nDo you want to hard allot this room anyway?`);
+        if (confirmHardAllot) {
+          try {
+            if (isTentative) {
+              await api.put(`/admin/rooms/tentatively-assign?companyId=${company.companyId}&roomId=${selectedRoomId}&force=true`);
+              toast.success(`Room tentatively assigned to ${company.name} (hard override)`);
+            } else {
+              await api.put(`/admin/rooms/assign-company?companyId=${company.companyId}&roomId=${selectedRoomId}&force=true`);
+              toast.success(`Room assigned to ${company.name} (hard override)`);
+            }
+            onSuccess();
+            onClose();
+            return;
+          } catch (forceError) {
+            toast.error(getApiErrorMessage(forceError, "Failed to hard allot room"));
+            return;
+          }
+        }
+      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

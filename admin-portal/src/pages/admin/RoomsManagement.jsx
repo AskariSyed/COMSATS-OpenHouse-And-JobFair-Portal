@@ -3,13 +3,28 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Users, Upload, Download, Plus, Trash2, 
   Search, ArrowUpDown, RotateCcw, FileText,
-  CheckCircle, AlertCircle, LayoutGrid
+  CheckCircle, AlertCircle, LayoutGrid, Pencil
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate } from 'react-router-dom';
+
+const getApiErrorMessage = (error, fallback) => {
+  const payload = error?.response?.data;
+  if (typeof payload === 'string' && payload.trim()) return payload;
+  if (payload?.message) return payload.message;
+  if (payload?.Message) return payload.Message;
+  if (error?.message) return error.message;
+  return fallback;
+};
+
+const isCapacityWarning = (error) => {
+  const payload = error?.response?.data;
+  const message = getApiErrorMessage(error, '');
+  return payload?.code === 'CAPACITY_WARNING' || message.toLowerCase().includes('capacity warning');
+};
 
 
 // ----------------------------------------------------------------------
@@ -259,7 +274,28 @@ const RoomsManagement = () => {
       fetchData();
       setAllocatingRoomId(null);
     } catch (error) {
-      toast.error(error.response?.data || "Allocation failed");
+      const errorMessage = getApiErrorMessage(error, "Allocation failed");
+      if (isCapacityWarning(error))
+      {
+        const confirmHardAllot = window.confirm(`${errorMessage}\n\nDo you want to hard allot this room anyway?`);
+        if (confirmHardAllot)
+        {
+          try
+          {
+            await api.put(`/admin/rooms/assign-company?companyId=${companyId}&roomId=${roomId}&force=true`);
+            toast.success("Room allocated (hard override)!");
+            fetchData();
+            setAllocatingRoomId(null);
+            return;
+          }
+          catch (forceError)
+          {
+            toast.error(getApiErrorMessage(forceError, "Hard allocation failed"));
+            return;
+          }
+        }
+      }
+      toast.error(errorMessage);
     }
   };
 
@@ -291,7 +327,61 @@ const RoomsManagement = () => {
       toast.success("Room allotment confirmed.");
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data || "Failed to confirm allotment");
+      const errorMessage = getApiErrorMessage(error, "Failed to confirm allotment");
+      if (isCapacityWarning(error))
+      {
+        const confirmHardAllot = window.confirm(`${errorMessage}\n\nDo you want to hard confirm this allotment anyway?`);
+        if (confirmHardAllot)
+        {
+          try
+          {
+            await api.put(`/admin/rooms/${roomId}/confirm-allotment?force=true`);
+            toast.success("Room allotment confirmed (hard override).");
+            fetchData();
+            return;
+          }
+          catch (forceError)
+          {
+            toast.error(getApiErrorMessage(forceError, "Hard confirm failed"));
+            return;
+          }
+        }
+      }
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleEditCapacity = async (room) => {
+    const input = window.prompt(`Enter new capacity for ${room.roomName}:`, String(room.capacity));
+    if (input === null) return;
+
+    const nextCapacity = Number(input);
+    if (!Number.isInteger(nextCapacity) || nextCapacity < 1) {
+      toast.error('Capacity must be a whole number greater than 0');
+      return;
+    }
+
+    try {
+      await api.put(`/admin/rooms/${room.roomId}/capacity?capacity=${nextCapacity}`);
+      toast.success('Room capacity updated.');
+      fetchData();
+    } catch (error) {
+      const errorMessage = getApiErrorMessage(error, 'Failed to update room capacity');
+      if (isCapacityWarning(error)) {
+        const confirmForceUpdate = window.confirm(`${errorMessage}\n\nDo you want to save this capacity anyway?`);
+        if (confirmForceUpdate) {
+          try {
+            await api.put(`/admin/rooms/${room.roomId}/capacity?capacity=${nextCapacity}&force=true`);
+            toast.success('Room capacity updated (hard override).');
+            fetchData();
+            return;
+          } catch (forceError) {
+            toast.error(getApiErrorMessage(forceError, 'Hard capacity update failed'));
+            return;
+          }
+        }
+      }
+      toast.error(errorMessage);
     }
   };
 
@@ -518,6 +608,13 @@ const RoomsManagement = () => {
                             </div>
                           ) : (
                             <>
+                              <button
+                                onClick={() => handleEditCapacity(room)}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Edit Capacity"
+                              >
+                                <Pencil size={16} />
+                              </button>
                               <button 
                                 onClick={() => setAllocatingRoomId(room.roomId)} 
                                 className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
@@ -535,6 +632,13 @@ const RoomsManagement = () => {
                           )
                         ) : (
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditCapacity(room)}
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="Edit Capacity"
+                            >
+                              <Pencil size={16} />
+                            </button>
                             {room.status === 1 && (
                               <button 
                                 onClick={() => confirmRoomAllotment(room.roomId)} 

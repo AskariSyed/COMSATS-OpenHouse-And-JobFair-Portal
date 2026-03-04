@@ -99,9 +99,14 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
         onMarked={(result) => {
           const roomName = result?.roomName || result?.RoomName;
           const companyName = result?.companyName || result?.CompanyName || user?.name || 'Company';
-          const welcomeMessage = roomName
-            ? `Welcome ${companyName}! Your room number is ${roomName}.`
-            : `Welcome ${companyName}! Attendance marked successfully.`;
+          const needsManualRoomAllotment = Boolean(result?.needsManualRoomAllotment ?? result?.NeedsManualRoomAllotment);
+          const apiMessage = result?.message || result?.Message;
+
+          const welcomeMessage = needsManualRoomAllotment
+            ? `Welcome ${companyName}! Attendance marked successfully. No suitable room is currently available, please ask administration for manual room allotment.`
+            : roomName
+              ? `Welcome ${companyName}! Your room number is ${roomName}.`
+              : (apiMessage || `Welcome ${companyName}! Attendance marked successfully.`);
           window.alert(welcomeMessage);
           refreshAttendanceStatus();
           setShowAttendanceScanner(false);

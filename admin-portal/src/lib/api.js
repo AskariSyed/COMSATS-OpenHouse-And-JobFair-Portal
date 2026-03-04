@@ -38,12 +38,20 @@ export const registerStudentForFair = (studentId, jobFairId) => {
   return api.post(`/admin/students/${studentId}/register-for-fair${query}`);
 };
 
-export const tentativelyAssignRoom = (companyId, roomId) => {
-  return api.put(`/admin/rooms/tentatively-assign?companyId=${companyId}&roomId=${roomId}`);
+export const tentativelyAssignRoom = (companyId, roomId, force = false) => {
+  return api.put(`/admin/rooms/tentatively-assign?companyId=${companyId}&roomId=${roomId}&force=${force}`);
 };
 
-export const confirmRoomAllotment = (roomId) => {
-  return api.put(`/admin/rooms/${roomId}/confirm-allotment`);
+export const assignCompanyToRoom = (companyId, roomId, force = false) => {
+  return api.put(`/admin/rooms/assign-company?companyId=${companyId}&roomId=${roomId}&force=${force}`);
+};
+
+export const confirmRoomAllotment = (roomId, force = false) => {
+  return api.put(`/admin/rooms/${roomId}/confirm-allotment?force=${force}`);
+};
+
+export const updateRoomCapacity = (roomId, capacity, force = false) => {
+  return api.put(`/admin/rooms/${roomId}/capacity?capacity=${capacity}&force=${force}`);
 };
 
 // --- Notifications ---

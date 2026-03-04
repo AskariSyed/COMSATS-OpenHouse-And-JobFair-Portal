@@ -944,6 +944,51 @@ Job Fair Team
             });
         }
 
+        [HttpPut("rooms/{roomId}/capacity")]
+        public async Task<IActionResult> UpdateRoomCapacity(int roomId, [FromQuery] int capacity, [FromQuery] bool force = false)
+        {
+            if (capacity < 1)
+                return BadRequest("Capacity must be at least 1.");
+
+            var room = await _context.Rooms
+                .Include(r => r.Company)
+                    .ThenInclude(c => c.User)
+                .FirstOrDefaultAsync(r => r.RoomId == roomId);
+
+            if (room == null)
+                return NotFound("Room not found.");
+
+            if (room.CompanyId.HasValue)
+            {
+                var fallbackReps = room.Company?.RepsCount ?? 1;
+                var requiredReps = await GetRequiredRepsForFairAsync(room.CompanyId.Value, room.JobFairId, fallbackReps);
+
+                if (capacity < requiredReps && !force)
+                {
+                    return BadRequest(new
+                    {
+                        code = "CAPACITY_WARNING",
+                        message = $"Capacity warning: New room capacity ({capacity}) is less than assigned company reps ({requiredReps})."
+                    });
+                }
+            }
+
+            room.Capacity = capacity;
+            room.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new RoomResponseDto
+            {
+                RoomId = room.RoomId,
+                RoomName = room.RoomName,
+                Capacity = room.Capacity,
+                Status = room.Status,
+                CompanyName = room.Company?.Name,
+                CompanyId = room.CompanyId,
+                CompanyRepsCount = room.Company?.RepsCount
+            });
+        }
+
         // ...
 
         // -----------------------------
@@ -1334,9 +1379,11 @@ Job Fair Team
         // 13. Assign Company to Room (Updated)
         // -----------------------------
         [HttpPut("rooms/assign-company")]
-        public async Task<IActionResult> AssignCompanyToRoom([FromQuery] int companyId, [FromQuery] int roomId)
+        public async Task<IActionResult> AssignCompanyToRoom([FromQuery] int companyId, [FromQuery] int roomId, [FromQuery] bool force = false)
         {
-            var company = await _context.Companies.FindAsync(companyId);
+            var company = await _context.Companies
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.CompanyId == companyId);
             if (company == null) return NotFound("Company not found.");
 
             var requestedRoom = await _context.Rooms.FindAsync(roomId);
@@ -1344,6 +1391,22 @@ Job Fair Team
 
             if (requestedRoom.Status == RoomStatus.Alloted)
                 return BadRequest("Requested room is already occupied.");
+
+            if (requestedRoom.CompanyId.HasValue && requestedRoom.CompanyId != companyId)
+                return BadRequest("Requested room is already assigned to another company.");
+
+            var requiredReps = await GetRequiredRepsForFairAsync(companyId, requestedRoom.JobFairId, company.RepsCount);
+            if (requestedRoom.Capacity < requiredReps)
+            {
+                if (!force)
+                {
+                    return BadRequest(new
+                    {
+                        code = "CAPACITY_WARNING",
+                        message = $"Capacity warning: Room capacity ({requestedRoom.Capacity}) is less than company reps ({requiredReps})."
+                    });
+                }
+            }
 
             // 1. Update Room
             requestedRoom.CompanyId = companyId;
@@ -1361,6 +1424,7 @@ Job Fair Team
             }
 
             await _context.SaveChangesAsync();
+            QueueManualRoomAllotmentNotifications(company, requestedRoom, requiredReps, isConfirmed: true);
 
             return Ok(new RoomResponseDto
             {
@@ -2819,9 +2883,11 @@ Job Fair Team
             return Ok(new { Message = "Student registered for job fair successfully.", ParticipationId = participation.ParticipationId });
         }
         [HttpPut("rooms/tentatively-assign")]
-        public async Task<IActionResult> TentativelyAssignRoom([FromQuery] int companyId, [FromQuery] int roomId)
+        public async Task<IActionResult> TentativelyAssignRoom([FromQuery] int companyId, [FromQuery] int roomId, [FromQuery] bool force = false)
         {
-            var company = await _context.Companies.FindAsync(companyId);
+            var company = await _context.Companies
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.CompanyId == companyId);
             if (company == null) return NotFound("Company not found.");
 
             var requestedRoom = await _context.Rooms.FindAsync(roomId);
@@ -2832,6 +2898,19 @@ Job Fair Team
 
             if (requestedRoom.CompanyId.HasValue && requestedRoom.CompanyId != companyId)
                 return BadRequest("Requested room is already tentatively assigned to another company.");
+
+            var requiredReps = await GetRequiredRepsForFairAsync(companyId, requestedRoom.JobFairId, company.RepsCount);
+            if (requestedRoom.Capacity < requiredReps)
+            {
+                if (!force)
+                {
+                    return BadRequest(new
+                    {
+                        code = "CAPACITY_WARNING",
+                        message = $"Capacity warning: Room capacity ({requestedRoom.Capacity}) is less than company reps ({requiredReps})."
+                    });
+                }
+            }
 
             // 1. Update Room
             requestedRoom.CompanyId = companyId;
@@ -2849,6 +2928,7 @@ Job Fair Team
             }
 
             await _context.SaveChangesAsync();
+            QueueManualRoomAllotmentNotifications(company, requestedRoom, requiredReps, isConfirmed: false);
 
             return Ok(new RoomResponseDto
             {
@@ -2864,9 +2944,12 @@ Job Fair Team
         // 21. Confirm Room Allotment
         // -----------------------------
         [HttpPut("rooms/{roomId}/confirm-allotment")]
-        public async Task<IActionResult> ConfirmRoomAllotment(int roomId)
+        public async Task<IActionResult> ConfirmRoomAllotment(int roomId, [FromQuery] bool force = false)
         {
-            var room = await _context.Rooms.Include(r => r.Company).FirstOrDefaultAsync(r => r.RoomId == roomId);
+            var room = await _context.Rooms
+                .Include(r => r.Company)
+                    .ThenInclude(c => c.User)
+                .FirstOrDefaultAsync(r => r.RoomId == roomId);
             if (room == null) return NotFound("Room not found.");
 
             if (room.Status == RoomStatus.Alloted)
@@ -2875,11 +2958,28 @@ Job Fair Team
             if (room.Status == RoomStatus.Vacant)
                 return BadRequest("Room is vacant. Please assign a company first.");
 
+            var requiredReps = await GetRequiredRepsForFairAsync(room.CompanyId ?? 0, room.JobFairId, room.Company?.RepsCount ?? 1);
+            if (room.Capacity < requiredReps)
+            {
+                if (!force)
+                {
+                    return BadRequest(new
+                    {
+                        code = "CAPACITY_WARNING",
+                        message = $"Capacity warning: Room capacity ({room.Capacity}) is less than company reps ({requiredReps})."
+                    });
+                }
+            }
+
             // Change status to Alloted
             room.Status = RoomStatus.Alloted;
             room.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            if (room.Company != null)
+            {
+                QueueManualRoomAllotmentNotifications(room.Company, room, requiredReps, isConfirmed: true);
+            }
 
             return Ok(new RoomResponseDto
             {
@@ -3071,6 +3171,96 @@ Job Fair Team
                 _logger.LogError(ex, "Failed to delete job fair {JobFairId}", jobFairId);
                 return StatusCode(500, new { Message = "Failed to delete job fair.", Error = ex.Message });
             }
+        }
+
+        private async Task<int> GetRequiredRepsForFairAsync(int companyId, int jobFairId, int fallbackReps)
+        {
+            if (companyId <= 0)
+            {
+                return fallbackReps > 0 ? fallbackReps : 1;
+            }
+
+            var fairReps = await _context.CompanyJobFairParticipations
+                .Where(p => p.CompanyId == companyId && p.JobFairId == jobFairId)
+                .Select(p => (int?)p.RepsCount)
+                .FirstOrDefaultAsync();
+
+            if (fairReps.HasValue && fairReps.Value > 0)
+            {
+                return fairReps.Value;
+            }
+
+            return fallbackReps > 0 ? fallbackReps : 1;
+        }
+
+        private void QueueManualRoomAllotmentNotifications(Company company, Room room, int repsCount, bool isConfirmed)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var title = isConfirmed ? "Room Allotment Confirmed" : "Room Tentatively Assigned";
+                    var body = isConfirmed
+                        ? $"Your room {room.RoomName} has been confirmed for {repsCount} representative(s)."
+                        : $"Your room {room.RoomName} has been tentatively assigned for {repsCount} representative(s).";
+
+                    var notificationTasks = new List<Task>(2);
+
+                    if (!string.IsNullOrWhiteSpace(company.FcmToken))
+                    {
+                        var message = new Message
+                        {
+                            Token = company.FcmToken,
+                            Notification = new Notification
+                            {
+                                Title = title,
+                                Body = body
+                            },
+                            Data = new Dictionary<string, string>
+                            {
+                                ["type"] = "ROOM_ALLOTMENT",
+                                ["roomId"] = room.RoomId.ToString(),
+                                ["roomName"] = room.RoomName ?? string.Empty,
+                                ["status"] = isConfirmed ? "CONFIRMED" : "TENTATIVE",
+                                ["repsCount"] = repsCount.ToString()
+                            }
+                        };
+
+                        notificationTasks.Add(FirebaseMessaging.DefaultInstance.SendAsync(message));
+                    }
+
+                    var recipientEmail = company.User?.Email;
+                    if (!string.IsNullOrWhiteSpace(recipientEmail))
+                    {
+                        var emailSubject = isConfirmed
+                            ? "Room Allotment Confirmed - Job Fair"
+                            : "Room Tentatively Assigned - Job Fair";
+                        var emailBody = $"""
+Hello {company.Name},
+
+Your room assignment has been updated.
+
+Room: {room.RoomName}
+Status: {(isConfirmed ? "Confirmed" : "Tentative")}
+Representatives: {repsCount}
+
+Regards,
+Job Fair Team
+""";
+
+                        notificationTasks.Add(_mailService.SendMailAsync(recipientEmail, emailSubject, emailBody));
+                    }
+
+                    if (notificationTasks.Count > 0)
+                    {
+                        await Task.WhenAll(notificationTasks);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send manual room allotment notifications for company {CompanyId}", company.CompanyId);
+                }
+            });
         }
     }
 }
