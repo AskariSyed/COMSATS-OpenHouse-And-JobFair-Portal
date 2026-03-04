@@ -32,8 +32,24 @@ namespace JobFairPortal.Controllers
         [HttpGet("finalyear-projects/with-students")]
         public async Task<IActionResult> GetFinalYearProjectsWithStudents()
         {
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+            {
+                return Ok(new
+                {
+                    TotalProjects = 0,
+                    Projects = new List<object>()
+                });
+            }
+
             var projects = await _context.Projects
                 .Where(p => p.Type == ProjectType.FinalYear)
+                .Where(p => p.StudentProjects.Any(sp =>
+                    sp.Status == ProjectInviteStatus.Accepted &&
+                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered)))
                 .Include(p => p.StudentProjects)
                     .ThenInclude(sp => sp.Student)
                         .ThenInclude(s => s.User)
@@ -66,7 +82,9 @@ namespace JobFairPortal.Controllers
 
                     // --- All Students in Project ---
                     Students = p.StudentProjects
-                        .Where(sp => sp.Status == ProjectInviteStatus.Accepted)
+                        .Where(sp =>
+                            sp.Status == ProjectInviteStatus.Accepted &&
+                            sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered))
                         .Select(sp => new
                         {
                             // --- Basic Info ---
@@ -140,8 +158,18 @@ namespace JobFairPortal.Controllers
         [HttpGet("finalyear-projects/{projectId}/with-students")]
         public async Task<IActionResult> GetFinalYearProjectWithStudents(int projectId)
         {
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+                return BadRequest(new { Message = "No active job fair found." });
+
             var project = await _context.Projects
                 .Where(p => p.ProjectId == projectId && p.Type == ProjectType.FinalYear)
+                .Where(p => p.StudentProjects.Any(sp =>
+                    sp.Status == ProjectInviteStatus.Accepted &&
+                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered)))
                 .Include(p => p.StudentProjects)
                     .ThenInclude(sp => sp.Student)
                         .ThenInclude(s => s.User)
@@ -177,7 +205,9 @@ namespace JobFairPortal.Controllers
 
                     // --- All Students in Project ---
                     Students = p.StudentProjects
-                        .Where(sp => sp.Status == ProjectInviteStatus.Accepted)
+                        .Where(sp =>
+                            sp.Status == ProjectInviteStatus.Accepted &&
+                            sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered))
                         .Select(sp => new
                         {
                             // --- Basic Info ---
@@ -263,8 +293,24 @@ namespace JobFairPortal.Controllers
         [HttpGet("finalyear-projects")]
         public async Task<IActionResult> GetFinalYearProjects()
         {
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+            {
+                return Ok(new
+                {
+                    TotalProjects = 0,
+                    Projects = new List<object>()
+                });
+            }
+
             var projects = await _context.Projects
                 .Where(p => p.Type == ProjectType.FinalYear)
+                .Where(p => p.StudentProjects.Any(sp =>
+                    sp.Status == ProjectInviteStatus.Accepted &&
+                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered)))
                 .Include(p => p.StudentProjects)
                     .ThenInclude(sp => sp.Student)
                         .ThenInclude(s => s.User)
@@ -285,7 +331,9 @@ namespace JobFairPortal.Controllers
 
                     // Basic student list (without detailed info)
                     Students = p.StudentProjects
-                        .Where(sp => sp.Status == ProjectInviteStatus.Accepted)
+                        .Where(sp =>
+                            sp.Status == ProjectInviteStatus.Accepted &&
+                            sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered))
                         .Select(sp => new
                         {
                             StudentId = sp.Student.StudentId,
@@ -697,6 +745,13 @@ namespace JobFairPortal.Controllers
                 .FirstOrDefaultAsync(j => j.IsActive);
 
             var targetJobFairId = currentCompany?.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var canInterviewInCurrentFair = false;
+
+            if (currentCompany != null && targetJobFairId.HasValue)
+            {
+                canInterviewInCurrentFair = await _context.CompanyJobFairParticipations
+                    .AnyAsync(p => p.CompanyId == currentCompany.CompanyId && p.JobFairId == targetJobFairId.Value);
+            }
 
             var student = await _context.Students
                 .Include(s => s.User)
@@ -713,7 +768,7 @@ namespace JobFairPortal.Controllers
             if (student == null)
                 return NotFound("Student not found.");
 
-            var currentInterview = currentCompany != null
+            var currentInterview = currentCompany != null && canInterviewInCurrentFair
                 ? await _context.Interviews
                     .Where(i => i.StudentId == studentId &&
                                 i.CompanyId == currentCompany.CompanyId &&
@@ -754,8 +809,10 @@ namespace JobFairPortal.Controllers
                     student.User.Phone,
                 },
 
+                CanInterviewInCurrentFair = canInterviewInCurrentFair,
+
                 // --- Interview Request Status from Current Company ---
-                InterviewRequest = currentCompany != null
+                InterviewRequest = currentCompany != null && canInterviewInCurrentFair
                     ? new
                     {
                         HasRequest = student.InterviewRequests.Any(ir =>
@@ -872,15 +929,32 @@ namespace JobFairPortal.Controllers
         [HttpGet("analytics")]
         public async Task<IActionResult> GetCompanyAnalytics()
         {
-            // Load company including navigations we will access to avoid null reference
             var company = await _context.Companies
                 .Include(c => c.Interviews)
                 .Include(c => c.InterviewRequests)
-                .Include(c => c.CurrentJobFair) // ensure CurrentJobFair is loaded
                 .FirstOrDefaultAsync(c => c.UserId == GetUserIdFromToken());
 
             if (company == null)
                 return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            if (targetJobFairId == null)
+                return Ok(new
+                {
+                    CompanyId = company.CompanyId,
+                    CompanyName = company.Name,
+                    JobFairDate = (DateTime?)null,
+                    FYPProjects = new { TotalProjects = 0, Projects = new List<object>(), TotalStudentsInProjects = 0, UniqueStudents = 0 },
+                    Interviews = new { ShortlistedCount = 0, ShortlistedStudents = new List<object>(), ScheduledCount = 0, ScheduledInterviews = new List<object>(), TotalStudentsCalled = 0, HiredCount = 0, HiringRate = "0%", RejectedCount = 0 },
+                    Summary = new { TotalFYPProjects = 0, TotalShortlisted = 0, TotalScheduledInterviews = 0, TotalStudentsCalled = 0, TotalHired = 0, HiringRate = 0, ConversionRate = 0 }
+                });
+
+            var targetJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.JobFairId == targetJobFairId.Value);
 
             // Get FYP projects with student details
             var fypProjects = await _context.Projects
@@ -909,7 +983,7 @@ namespace JobFairPortal.Controllers
 
             // Get shortlisted interviews for this company
             var shortlistedInterviews = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.Status == InterviewStatus.Shortlisted)
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Shortlisted)
                 .Include(i => i.Student)
                     .ThenInclude(s => s.User)
                 .Select(i => new
@@ -926,6 +1000,7 @@ namespace JobFairPortal.Controllers
             // Get scheduled interviews for this company
             var scheduledInterviews = await _context.Interviews
                 .Where(i => i.CompanyId == company.CompanyId &&
+                            i.JobFairId == targetJobFairId.Value &&
                             i.ScheduledTime.HasValue &&
                             (i.Status == InterviewStatus.Queued || i.Status == InterviewStatus.InProgress))
                 .Include(i => i.Student)
@@ -946,24 +1021,23 @@ namespace JobFairPortal.Controllers
 
             // Get total students called (invited for interviews)
             var totalStudentsCalled = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId)
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value)
                 .Select(i => i.StudentId)
                 .Distinct()
                 .CountAsync();
 
             // Calculate hiring rate
             var totalHired = await _context.Interviews
-                .Where(i => i.CompanyId == company.CompanyId && i.Status == InterviewStatus.Hired)
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Hired)
                 .CountAsync();
 
             var hiringRate = totalStudentsCalled > 0 ? ((double)totalHired / totalStudentsCalled) * 100 : 0;
 
-            // Build response - use null-safe access to CurrentJobFair
             var analytics = new
             {
                 CompanyId = company.CompanyId,
                 CompanyName = company.Name,
-                JobFairDate = company.CurrentJobFair?.date, // safe: CurrentJobFair may be null
+                JobFairDate = targetJobFair?.date,
 
                 // FYP Projects
                 FYPProjects = new
@@ -985,7 +1059,7 @@ namespace JobFairPortal.Controllers
                     HiredCount = totalHired,
                     HiringRate = Math.Round(hiringRate, 2) + "%",
                     RejectedCount = await _context.Interviews
-                        .Where(i => i.CompanyId == company.CompanyId && i.Status == InterviewStatus.Rejected)
+                        .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Rejected)
                         .CountAsync()
                 },
 
@@ -1003,6 +1077,249 @@ namespace JobFairPortal.Controllers
             };
 
             return Ok(analytics);
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpGet("participation-prompt")]
+        public async Task<IActionResult> GetParticipationPrompt()
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .Include(c => c.JobFairParticipations)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .OrderByDescending(j => j.date)
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+            {
+                return Ok(new
+                {
+                    ShouldPrompt = false,
+                    ActiveJobFair = (object?)null,
+                    AlreadyParticipating = false,
+                    HasPreviousParticipation = false
+                });
+            }
+
+            var alreadyInActive = company.JobFairParticipations.Any(p => p.JobFairId == activeJobFair.JobFairId);
+            var hasPreviousParticipation = company.JobFairParticipations.Any(p => p.JobFairId != activeJobFair.JobFairId);
+
+            return Ok(new
+            {
+                ShouldPrompt = !alreadyInActive,
+                ActiveJobFair = new
+                {
+                    activeJobFair.JobFairId,
+                    activeJobFair.Semester,
+                    Date = activeJobFair.date
+                },
+                AlreadyParticipating = alreadyInActive,
+                HasPreviousParticipation = hasPreviousParticipation
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("participate-active-jobfair")]
+        public async Task<IActionResult> ParticipateInActiveJobFair([FromBody] ParticipateActiveJobFairDto? dto)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .Include(c => c.JobFairParticipations)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .OrderByDescending(j => j.date)
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+                return BadRequest("No active job fair found.");
+
+            var existingParticipation = company.JobFairParticipations
+                .FirstOrDefault(p => p.JobFairId == activeJobFair.JobFairId);
+
+            var requestedRepsCount = dto?.RepsCount.HasValue == true && dto.RepsCount.Value > 0
+                ? dto.RepsCount.Value
+                : company.RepsCount;
+
+            company.RepsCount = requestedRepsCount;
+
+            if (existingParticipation == null)
+            {
+                var participation = new CompanyJobFairParticipation
+                {
+                    CompanyId = company.CompanyId,
+                    JobFairId = activeJobFair.JobFairId,
+                    ArrivalStatus = ArrivalStatus.Pending,
+                    IsPresent = false,
+                    RepsCount = requestedRepsCount,
+                    InterviewDurationMinutes = company.InterviewDurationMinutes,
+                    RegisteredAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.CompanyJobFairParticipations.Add(participation);
+            }
+            else
+            {
+                existingParticipation.RepsCount = requestedRepsCount;
+                existingParticipation.UpdatedAt = DateTime.UtcNow;
+            }
+
+            company.CurrentJobFairId = activeJobFair.JobFairId;
+            company.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Participation added for active job fair.",
+                activeJobFair.JobFairId,
+                activeJobFair.Semester,
+                Date = activeJobFair.date,
+                RepsCount = requestedRepsCount
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpGet("analytics/history")]
+        public async Task<IActionResult> GetCompanyHistoricalAnalytics([FromQuery] int? jobFairId = null)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .Include(c => c.JobFairParticipations)
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .OrderByDescending(j => j.date)
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            var participatedIds = company.JobFairParticipations
+                .Select(p => p.JobFairId)
+                .Distinct()
+                .ToList();
+
+            var availableJobFairs = await _context.JobFairs
+                .AsNoTracking()
+                .Where(j => participatedIds.Contains(j.JobFairId) && (activeJobFair == null || j.JobFairId != activeJobFair.JobFairId))
+                .OrderByDescending(j => j.date)
+                .Select(j => new
+                {
+                    j.JobFairId,
+                    j.Semester,
+                    Date = j.date,
+                    j.IsActive
+                })
+                .ToListAsync();
+
+            if (!availableJobFairs.Any())
+            {
+                return Ok(new
+                {
+                    AvailableJobFairs = availableJobFairs,
+                    SelectedJobFairId = (int?)null,
+                    Summary = new
+                    {
+                        TotalJobsPosted = 0,
+                        TotalInterviews = 0,
+                        TotalStudentsConsidered = 0,
+                        HiredCount = 0,
+                        ShortlistedCount = 0,
+                        RejectedCount = 0,
+                        HiringRate = 0
+                    },
+                    Jobs = new List<object>(),
+                    Outcomes = new { Hired = new List<object>(), Shortlisted = new List<object>(), Rejected = new List<object>() }
+                });
+            }
+
+            var selectedJobFairId = jobFairId.HasValue && availableJobFairs.Any(j => j.JobFairId == jobFairId.Value)
+                ? jobFairId.Value
+                : availableJobFairs.First().JobFairId;
+
+            var jobs = await _context.Jobs
+                .Where(j => j.CompanyId == company.CompanyId && j.JobFairId == selectedJobFairId)
+                .OrderByDescending(j => j.CreatedAt)
+                .Select(j => new
+                {
+                    j.JobId,
+                    j.JobTitle,
+                    j.JobDescription,
+                    j.RequiredSkills,
+                    j.JobType,
+                    j.NumberOfJobs,
+                    j.CreatedAt
+                })
+                .ToListAsync();
+
+            var interviews = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == selectedJobFairId)
+                .Include(i => i.Student)
+                    .ThenInclude(s => s.User)
+                .Select(i => new
+                {
+                    i.InterviewId,
+                    i.StudentId,
+                    StudentName = i.Student.User.FullName,
+                    i.Student.RegistrationNo,
+                    i.Student.Department,
+                    i.Student.CGPA,
+                    Status = i.Status,
+                    i.ScheduledTime
+                })
+                .ToListAsync();
+
+            var hired = interviews.Where(i => i.Status == InterviewStatus.Hired).ToList();
+            var shortlisted = interviews.Where(i => i.Status == InterviewStatus.Shortlisted).ToList();
+            var rejected = interviews.Where(i => i.Status == InterviewStatus.Rejected).ToList();
+            var totalStudentsConsidered = interviews.Select(i => i.StudentId).Distinct().Count();
+            var hiringRate = totalStudentsConsidered > 0
+                ? Math.Round((double)hired.Select(i => i.StudentId).Distinct().Count() / totalStudentsConsidered * 100, 2)
+                : 0;
+
+            return Ok(new
+            {
+                AvailableJobFairs = availableJobFairs,
+                SelectedJobFairId = selectedJobFairId,
+                Summary = new
+                {
+                    TotalJobsPosted = jobs.Count,
+                    TotalInterviews = interviews.Count,
+                    TotalStudentsConsidered = totalStudentsConsidered,
+                    HiredCount = hired.Count,
+                    ShortlistedCount = shortlisted.Count,
+                    RejectedCount = rejected.Count,
+                    HiringRate = hiringRate
+                },
+                Jobs = jobs,
+                Outcomes = new
+                {
+                    Hired = hired,
+                    Shortlisted = shortlisted,
+                    Rejected = rejected
+                }
+            });
         }
 
 
@@ -1453,10 +1770,28 @@ public async Task<IActionResult> GetPendingInterviewRequests([FromQuery] int pag
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 20;
 
+    var activeJobFair = await _context.JobFairs
+        .AsNoTracking()
+        .FirstOrDefaultAsync(j => j.IsActive);
+    var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+    if (targetJobFairId == null)
+    {
+        return Ok(new
+        {
+            CompanyId = company.CompanyId,
+            CompanyName = company.Name,
+            TotalCount = 0,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = 0,
+            PendingRequests = new List<object>()
+        });
+    }
+
     var query = _context.InterviewRequests
         .Include(r => r.Student)
             .ThenInclude(s => s.User)
-        .Where(r => r.CompanyId == company.CompanyId && r.Status == RequestStatus.Pending);
+        .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value && r.Status == RequestStatus.Pending);
 
     var totalCount = await query.CountAsync();
     var requests = await query
@@ -1514,10 +1849,30 @@ public async Task<IActionResult> GetAllInterviewRequests(
     if (page < 1) page = 1;
     if (pageSize < 1) pageSize = 20;
 
+    var activeJobFair = await _context.JobFairs
+        .AsNoTracking()
+        .FirstOrDefaultAsync(j => j.IsActive);
+    var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+
+    if (targetJobFairId == null)
+    {
+        return Ok(new
+        {
+            CompanyId = company.CompanyId,
+            CompanyName = company.Name,
+            Summary = new { TotalRequests = 0, PendingCount = 0, AcceptedCount = 0, RejectedCount = 0 },
+            TotalCount = 0,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = 0,
+            Requests = new List<object>()
+        });
+    }
+
     var query = _context.InterviewRequests
         .Include(r => r.Student)
             .ThenInclude(s => s.User)
-        .Where(r => r.CompanyId == company.CompanyId);
+        .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value);
 
     // Filter by status if provided
     if (!string.IsNullOrWhiteSpace(status))
@@ -1555,7 +1910,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
             RequestDate = r.CreatedAt,
             ResponseDate = r.UpdatedAt,
             Interview = _context.Interviews
-                .Where(i => i.RequestId == r.RequestId)
+                .Where(i => i.RequestId == r.RequestId && i.JobFairId == targetJobFairId.Value)
                 .OrderByDescending(i => i.UpdatedAt)
                 .Select(i => new
                 {
@@ -1573,13 +1928,13 @@ public async Task<IActionResult> GetAllInterviewRequests(
     {
         TotalRequests = totalCount,
         PendingCount = await _context.InterviewRequests
-            .Where(r => r.CompanyId == company.CompanyId && r.Status == RequestStatus.Pending)
+            .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value && r.Status == RequestStatus.Pending)
             .CountAsync(),
         AcceptedCount = await _context.InterviewRequests
-            .Where(r => r.CompanyId == company.CompanyId && r.Status == RequestStatus.Accepted)
+            .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value && r.Status == RequestStatus.Accepted)
             .CountAsync(),
         RejectedCount = await _context.InterviewRequests
-            .Where(r => r.CompanyId == company.CompanyId && r.Status == RequestStatus.Rejected)
+            .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value && r.Status == RequestStatus.Rejected)
             .CountAsync()
     };
 
@@ -1617,6 +1972,13 @@ public async Task<IActionResult> GetAllInterviewRequests(
             if (company == null)
                 return NotFound("Company not found.");
 
+            var participation = await _context.CompanyJobFairParticipations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null)
+                return BadRequest("You must participate in the active job fair before sending interview requests.");
+
             var student = await _context.Students
                 .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.StudentId == dto.StudentId);
@@ -1628,6 +1990,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
             var existingRequest = await _context.InterviewRequests
                 .FirstOrDefaultAsync(r => r.CompanyId == company.CompanyId &&
                                            r.StudentId == student.StudentId &&
+                                           r.JobFairId == activeJobFair.JobFairId &&
                                            r.Status == RequestStatus.Pending);
 
             if (existingRequest != null)
@@ -2133,11 +2496,29 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (company == null)
                 return NotFound("Company not found.");
 
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+
+            if (targetJobFairId == null)
+            {
+                return Ok(new
+                {
+                    CompanyId = company.CompanyId,
+                    TotalCount = 0,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalPages = 0,
+                    Jobs = new List<object>()
+                });
+            }
+
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
             var query = _context.Jobs
-                .Where(j => j.CompanyId == company.CompanyId);
+                .Where(j => j.CompanyId == company.CompanyId && j.JobFairId == targetJobFairId.Value);
 
             var totalCount = await query.CountAsync();
             var jobs = await query
@@ -2316,6 +2697,10 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             // Get participation for current/active job fair
             var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
             var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == (company.CurrentJobFairId ?? activeJobFair?.JobFairId));
+            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var scopedJobs = targetJobFairId.HasValue ? company.Jobs.Where(j => j.JobFairId == targetJobFairId.Value).ToList() : new List<Job>();
+            var scopedRequests = targetJobFairId.HasValue ? company.InterviewRequests.Where(ir => ir.JobFairId == targetJobFairId.Value).ToList() : new List<InterviewRequest>();
+            var scopedInterviews = targetJobFairId.HasValue ? company.Interviews.Where(i => i.JobFairId == targetJobFairId.Value).ToList() : new List<Interview>();
 
             var profile = new
             {
@@ -2371,8 +2756,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 // --- Job Information ---
                 Jobs = new
                 {
-                    TotalJobs = company.Jobs.Count,
-                    Jobs = company.Jobs.Select(j => new
+                    TotalJobs = scopedJobs.Count,
+                    Jobs = scopedJobs.Select(j => new
                     {
                         j.JobId,
                         j.JobTitle,
@@ -2386,13 +2771,13 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 // --- Interview Statistics ---
                 InterviewStats = new
                 {
-                    TotalRequests = company.InterviewRequests.Count,
-                    PendingRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Pending),
-                    AcceptedRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Accepted),
-                    RejectedRequests = company.InterviewRequests.Count(ir => ir.Status == RequestStatus.Rejected),
-                    TotalInterviews = company.Interviews.Count,
-                    HiredCandidates = company.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    ShortlistedCandidates = company.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted)
+                    TotalRequests = scopedRequests.Count,
+                    PendingRequests = scopedRequests.Count(ir => ir.Status == RequestStatus.Pending),
+                    AcceptedRequests = scopedRequests.Count(ir => ir.Status == RequestStatus.Accepted),
+                    RejectedRequests = scopedRequests.Count(ir => ir.Status == RequestStatus.Rejected),
+                    TotalInterviews = scopedInterviews.Count,
+                    HiredCandidates = scopedInterviews.Count(i => i.Status == InterviewStatus.Hired),
+                    ShortlistedCandidates = scopedInterviews.Count(i => i.Status == InterviewStatus.Shortlisted)
                 },
 
                 // --- Company Settings ---
@@ -2511,6 +2896,28 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 }
             }
 
+            if (dto.RepsCount.HasValue)
+            {
+                company.RepsCount = dto.RepsCount.Value;
+
+                var activeJobFair = await _context.JobFairs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(j => j.IsActive);
+
+                var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+                if (targetJobFairId.HasValue)
+                {
+                    var participation = await _context.CompanyJobFairParticipations
+                        .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == targetJobFairId.Value);
+
+                    if (participation != null)
+                    {
+                        participation.RepsCount = dto.RepsCount.Value;
+                        participation.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+
             company.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
@@ -2520,7 +2927,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 CompanyId = company.CompanyId,
                 LogoUrl = company.LogoUrl,
                 Website = company.Website,
-                InterviewDurationMinutes = company.InterviewDurationMinutes
+                InterviewDurationMinutes = company.InterviewDurationMinutes,
+                RepsCount = company.RepsCount
             });
         }
 
@@ -2660,12 +3068,12 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 var jobFairDate = activeJobFair.date.Date;
                 var daysUntilJobFair = (jobFairDate - today).Days;
 
-                if (daysUntilJobFair != 1)
+                if (daysUntilJobFair < 1)
                 {
                     return BadRequest(new
                     {
                         Code = "VALIDATION_ERROR",
-                        Message = "Attendance confirmation is only allowed one day before the job fair date."
+                        Message = "Attendance confirmation is only allowed one or more days before the job fair date."
                     });
                 }
 
@@ -2730,8 +3138,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     IsPresent = participation?.IsPresent ?? false,
                     IsConfirmed = isConfirmed,
                     DaysUntilJobFair = daysUntilJobFair,
-                    IsConfirmationWindowOpen = daysUntilJobFair == 1,
-                    CanConfirmAttendance = daysUntilJobFair == 1 && !isConfirmed,
+                    IsConfirmationWindowOpen = daysUntilJobFair >= 1,
+                    CanConfirmAttendance = daysUntilJobFair >= 1 && !isConfirmed,
                     ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
                     RepresentativeCount = company.RepsCount,
                     RoomAssigned = company.Room != null,
@@ -2752,6 +3160,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 _logger.LogError(ex, "Error getting confirmation status");
                 return StatusCode(500, new { Message = "An error occurred while retrieving status." });
             }
+        }
+
+        public class ParticipateActiveJobFairDto
+        {
+            public int? RepsCount { get; set; }
         }
         [Authorize(Roles = "Company")]
         [HttpPost("interviews/schedule")]
@@ -3577,8 +3990,17 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
             if (company == null) return NotFound("Company not found.");
 
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+
+            if (targetJobFairId == null)
+                return Ok(new List<object>());
+
             var requests = await _context.CompanyRequests
-                .Where(r => r.CompanyId == company.CompanyId)
+                .Where(r => r.CompanyId == company.CompanyId && r.JobFairId == targetJobFairId.Value)
                 .OrderByDescending(r => r.CreatedAt)
                 .Select(r => new
                 {
@@ -3609,7 +4031,18 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == userId);
             if (company == null) return NotFound("Company not found.");
 
-            var req = await _context.CompanyRequests.FirstOrDefaultAsync(r => r.CompanyRequestId == id && r.CompanyId == company.CompanyId);
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            var targetJobFairId = company.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            if (targetJobFairId == null)
+                return BadRequest("No active or current job fair found.");
+
+            var req = await _context.CompanyRequests.FirstOrDefaultAsync(r =>
+                r.CompanyRequestId == id &&
+                r.CompanyId == company.CompanyId &&
+                r.JobFairId == targetJobFairId.Value);
             if (req == null) return NotFound("Request not found or access denied.");
 
             // Only allow cancellation if not already fulfilled or rejected

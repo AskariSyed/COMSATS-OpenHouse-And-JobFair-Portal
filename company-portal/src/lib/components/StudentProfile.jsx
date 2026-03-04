@@ -3,7 +3,7 @@ import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, G
 import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest, startInterview, completeInterview } from '../api';
 import { getThumbnailUrl, getYoutubeId } from '../utils/videoUtils';
 
-export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews }) {
+export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews, readOnly = false }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -92,6 +92,23 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
   // --- HEADER ACTION RENDERER ---
   const renderHeaderAction = () => {
     if (!profile) return null;
+
+      if (readOnly) {
+         return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-gray-50 text-gray-600 border border-gray-200 cursor-default">
+               Historical View (Read Only)
+            </div>
+         );
+      }
+
+      const canInterviewInCurrentFair = profile.canInterviewInCurrentFair ?? profile.CanInterviewInCurrentFair ?? true;
+      if (!canInterviewInCurrentFair) {
+         return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-amber-50 text-amber-700 border border-amber-200 cursor-default">
+               Join Current Fair to Invite
+            </div>
+         );
+      }
 
     const req = profile.InterviewRequest || profile.interviewRequest || {};
     const hasRequest = req.HasRequest === true || req.hasRequest === true;

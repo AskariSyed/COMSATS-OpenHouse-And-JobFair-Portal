@@ -28,6 +28,15 @@ namespace JobFairPortal.Controllers.Admin
         [HttpGet("")]
         public async Task<IActionResult> List([FromQuery] string? status = null, [FromQuery] int? jobFairId = null, [FromQuery] int? companyId = null)
         {
+            if (!jobFairId.HasValue)
+            {
+                jobFairId = await _context.JobFairs
+                    .Where(jf => jf.IsActive)
+                    .OrderByDescending(jf => jf.date)
+                    .Select(jf => (int?)jf.JobFairId)
+                    .FirstOrDefaultAsync();
+            }
+
             var q = _context.CompanyRequests.Include(r => r.Company).AsQueryable();
 
             // Parse status from string if provided

@@ -39,7 +39,7 @@ export default function CompanyProfile({ onError }) {
   const handleConfirmAttendance = async () => {
     const canConfirm = attendance?.canConfirmAttendance ?? attendance?.CanConfirmAttendance;
     if (!canConfirm) {
-      onError('Attendance confirmation is only allowed one day before the job fair date.');
+      onError('Attendance confirmation is only allowed one or more days before the job fair date.');
       return;
     }
 
@@ -71,6 +71,7 @@ export default function CompanyProfile({ onError }) {
 
   const { contactInfo, focalPerson, interviewStats, jobs } = profile;
   const interviewDurationMinutes = profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30;
+  const repsCount = profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1;
   const attendanceModel = attendance
     ? {
         isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
@@ -202,7 +203,7 @@ export default function CompanyProfile({ onError }) {
 
                   {!attendanceModel.isConfirmed && !attendanceModel.canConfirmAttendance && (
                     <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                      Attendance confirmation is available only one day before the job fair.
+                      Attendance confirmation is available one or more days before the job fair.
                     </div>
                   )}
                   
@@ -282,6 +283,8 @@ export default function CompanyProfile({ onError }) {
                 <div className="text-sm">
                   <p className="text-xs uppercase tracking-wide text-gray-500 font-bold">Expected Interview Duration</p>
                   <p className="text-xl font-bold text-gray-900 mt-1">{interviewDurationMinutes} minutes</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 font-bold mt-4">Number of Representatives</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">{repsCount}</p>
                 </div>
             </div>
 
@@ -427,6 +430,7 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
     ...profile,
     description: profile?.description || '',
     interviewDurationMinutes: profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30,
+    repsCount: profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1,
     Logo: null
   });
   const [loading, setLoading] = useState(false);
@@ -454,6 +458,11 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       onError('Interview duration must be between 5 and 240 minutes.');
       return;
     }
+    const reps = Number(formData.repsCount || 1);
+    if (reps < 1 || reps > 100) {
+      onError('Representatives must be between 1 and 100.');
+      return;
+    }
     setLoading(true);
     try {
       const data = new FormData();
@@ -463,6 +472,7 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       data.append('Address', formData.address);
       data.append('Description', formData.description || '');
       data.append('InterviewDurationMinutes', String(formData.interviewDurationMinutes || 30));
+      data.append('RepsCount', String(formData.repsCount || 1));
       if(formData.Logo) data.append('Logo', formData.Logo);
       
       await updateCompanyProfile(data);
@@ -508,14 +518,24 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
            )}
 
            {showInterview && (
-             <Input
-               label="Expected Interview Time (minutes)"
-               type="number"
-               min="5"
-               max="240"
-               value={formData.interviewDurationMinutes}
-               onChange={e => setFormData({...formData, interviewDurationMinutes: Number(e.target.value)})}
-             />
+             <>
+               <Input
+                 label="Expected Interview Time (minutes)"
+                 type="number"
+                 min="5"
+                 max="240"
+                 value={formData.interviewDurationMinutes}
+                 onChange={e => setFormData({...formData, interviewDurationMinutes: Number(e.target.value)})}
+               />
+               <Input
+                 label="Number of Representatives"
+                 type="number"
+                 min="1"
+                 max="100"
+                 value={formData.repsCount}
+                 onChange={e => setFormData({...formData, repsCount: Number(e.target.value)})}
+               />
+             </>
            )}
            
            {showBranding && <div className="pt-2">

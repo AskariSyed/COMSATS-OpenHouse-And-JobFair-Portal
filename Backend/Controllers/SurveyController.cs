@@ -121,6 +121,8 @@ namespace JobFairPortal.Controllers
                 .Select(s => s.Type)
                 .ToListAsync();
 
+            var isJobFairDay = activeJobFair.date.Date == DateTime.UtcNow.Date;
+
             var hasCdc = submittedTypes.Contains(SurveyType.CDC);
             var hasDepartment = submittedTypes.Contains(SurveyType.Department);
 
@@ -128,7 +130,9 @@ namespace JobFairPortal.Controllers
             {
                 CompanyId = company.CompanyId,
                 JobFairId = activeJobFair.JobFairId,
+                JobFairDate = activeJobFair.date,
                 HasActiveJobFair = true,
+                IsJobFairDay = isJobFairDay,
                 Submitted = new
                 {
                     Cdc = hasCdc,
@@ -171,6 +175,9 @@ namespace JobFairPortal.Controllers
 
             if (activeJobFair == null)
                 return BadRequest("No active job fair. Surveys can only be submitted during an active job fair.");
+
+            if (activeJobFair.date.Date != DateTime.UtcNow.Date)
+                return BadRequest("Survey is available only on the job fair day.");
 
             // If client provided a JobFairId, ensure it matches the active fair
             if (dto.JobFairId > 0 && dto.JobFairId != activeJobFair.JobFairId)
@@ -388,6 +395,9 @@ namespace JobFairPortal.Controllers
             var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null)
                 return BadRequest("No active job fair. Surveys can only be submitted during an active job fair.");
+
+            if (activeJobFair.date.Date != DateTime.UtcNow.Date)
+                return BadRequest("Survey is available only on the job fair day.");
 
             if (dto.JobFairId.HasValue && dto.JobFairId.Value != activeJobFair.JobFairId)
                 return BadRequest("Survey must be submitted for the currently active job fair.");

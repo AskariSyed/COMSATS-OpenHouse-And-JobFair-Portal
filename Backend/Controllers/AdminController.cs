@@ -843,11 +843,16 @@ Job Fair Team
         // 7. Get Survey Responses
         // -----------------------------
         [HttpGet("surveys")]
-        public async Task<IActionResult> GetSurveys()
+        public async Task<IActionResult> GetSurveys([FromQuery] int? jobFairId = null)
         {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            if (jobFairId == null)
+                return Ok(new List<object>());
+
             // 1. Fetch data from DB first (Materialize)
             var surveysData = await _context.Surveys
                 .Include(s => s.Company)
+                .Where(s => s.JobFairId == jobFairId.Value)
                 .OrderByDescending(s => s.SubmittedAt)
                 .ToListAsync();
 
@@ -947,8 +952,11 @@ Job Fair Team
         [HttpGet("dashboard/overview")]
         public async Task<IActionResult> GetDashboardOverview()
         {
-            // 1. Define a unique cache key
-            string cacheKey = "dashboard_stats";
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null) return Ok(new DashboardOverviewDto());
+
+            // 1. Define a unique cache key per active fair
+            string cacheKey = $"dashboard_stats_{activeJobFairId.Value}";
 
             // 2. Check if data is already in cache
             if (!_cache.TryGetValue(cacheKey, out DashboardOverviewDto dashboard))
@@ -956,16 +964,24 @@ Job Fair Team
                 // ⚠️ CACHE MISS: Data not found, fetch from Database
                 _logger.LogInformation("Fetching dashboard stats from DB...");
 
-                var activeJobFairId = await GetActiveJobFairIdAsync();
-                if (activeJobFairId == null) return Ok(new DashboardOverviewDto());
-
                 var topRequestedCandidate = await _context.InterviewRequests
-                    .Where(r => r.JobFairId == activeJobFairId.Value && r.RequestedBy == RequestedBy.Company)
+                    .Where(r => r.JobFairId == activeJobFairId.Value)
                     .GroupBy(r => r.StudentId)
                     .Select(g => new { StudentId = g.Key, Count = g.Count() })
                     .OrderByDescending(x => x.Count)
                     .ThenBy(x => x.StudentId)
                     .FirstOrDefaultAsync();
+
+                if (topRequestedCandidate == null)
+                {
+                    topRequestedCandidate = await _context.Interviews
+                        .Where(i => i.JobFairId == activeJobFairId.Value)
+                        .GroupBy(i => i.StudentId)
+                        .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .ThenBy(x => x.StudentId)
+                        .FirstOrDefaultAsync();
+                }
 
                 var topRequestedStudentName = topRequestedCandidate == null
                     ? null
@@ -1417,7 +1433,7 @@ Job Fair Team
         // 16. Get All Students (Paginated)
         // -----------------------------
         [HttpGet("students")]
-        public async Task<IActionResult> GetAllStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<IActionResult> GetAllStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null, [FromQuery] int? jobFairId = null)
         {
             _logger.LogInformation("GetAllStudents called by admin with page={Page}, pageSize={PageSize}.", page, pageSize);
 
@@ -1425,7 +1441,8 @@ Job Fair Team
             if (pageSize < 1) pageSize = 20;
 
             var activeJobFairId = await GetActiveJobFairIdAsync();
-            if (activeJobFairId == null)
+            var selectedJobFairId = jobFairId ?? activeJobFairId;
+            if (selectedJobFairId == null)
             {
                 return Ok(new
                 {
@@ -1450,11 +1467,20 @@ Job Fair Team
                     .ThenInclude(s => s.Certifications)
                 .Include(p => p.Student)
                     .ThenInclude(s => s.Educations)
-                .Where(p => p.JobFairId == activeJobFairId.Value)
-                .OrderBy(p => p.StudentId);
+                .Where(p => p.JobFairId == selectedJobFairId.Value);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(p =>
+                    p.Student.User.FullName.ToLower().Contains(searchLower) ||
+                    p.Student.RegistrationNo.ToLower().Contains(searchLower) ||
+                    p.Student.User.Email.ToLower().Contains(searchLower));
+            }
 
             var totalCount = await query.CountAsync();
             var participations = await query
+                .OrderBy(p => p.StudentId)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();

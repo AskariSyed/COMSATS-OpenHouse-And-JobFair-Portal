@@ -111,6 +111,20 @@ export const getAnalytics = () => {
   return request('/Company/analytics');
 };
 
+export const getCompanyParticipationPrompt = () => {
+  return request('/Company/participation-prompt');
+};
+
+export const participateInActiveJobFair = (repsCount = null) => {
+  const payload = repsCount && Number(repsCount) > 0 ? { repsCount: Number(repsCount) } : {};
+  return request('/Company/participate-active-jobfair', 'POST', payload);
+};
+
+export const getCompanyHistoricalAnalytics = (jobFairId = null) => {
+  const query = jobFairId ? `?jobFairId=${encodeURIComponent(jobFairId)}` : '';
+  return request(`/Company/analytics/history${query}`);
+};
+
 // --- COMPANY: STUDENTS ---
 export const getStudents = (filterType, filterValue) => {
   let endpoint = '/Company/students';

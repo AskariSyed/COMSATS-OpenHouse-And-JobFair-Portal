@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, RefreshCw, Play, X, Eye, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';

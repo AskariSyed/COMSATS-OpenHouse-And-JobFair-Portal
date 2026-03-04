@@ -251,9 +251,25 @@ export default function InterviewManager({ onError, onSelectStudent }) {
     return 'COMPLETED';
   };
 
+  const getStatusBadgeClass = (status) => {
+    const val = String(status || '').trim().toLowerCase();
+    if (val === 'hired') return 'bg-green-100 text-green-800 border border-green-200';
+    if (val === 'shortlisted') return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    if (val === 'rejected') return 'bg-red-100 text-red-800 border border-red-200';
+    return 'bg-gray-100 text-gray-700 border border-gray-200';
+  };
+
+  const getWatermarkColor = (label) => {
+    if (label === 'HIRED') return rgb(0.1, 0.6, 0.2);
+    if (label === 'SHORTLISTED') return rgb(0.78, 0.58, 0.0);
+    if (label === 'REJECTED') return rgb(0.85, 0.1, 0.1);
+    return rgb(0.35, 0.35, 0.35);
+  };
+
   const applyWatermark = async (pdfDoc, label) => {
     const pages = pdfDoc.getPages();
     const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const watermarkColor = getWatermarkColor(label);
 
     pages.forEach((page) => {
       const { width, height } = page.getSize();
@@ -263,7 +279,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
         y: height * 0.45,
         size: textSize,
         font,
-        color: rgb(0.85, 0.1, 0.1),
+        color: watermarkColor,
         rotate: degrees(35),
         opacity: 0.18,
       });
@@ -777,7 +793,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
                       <td className="p-4 text-gray-700">{formatDateTime(item.scheduledTime)}</td>
                       <td className="p-4 text-gray-700">{formatDateTime(item.endedAt)}</td>
                       <td className="p-4">
-                        <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(item.status)}`}>
                           {item.status}
                         </span>
                       </td>

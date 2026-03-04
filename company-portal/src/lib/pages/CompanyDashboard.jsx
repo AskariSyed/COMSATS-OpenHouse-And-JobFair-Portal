@@ -12,13 +12,16 @@ import CompanyProfile from '../components/CompanyProfile';
 import CompanyRequests from '../components/CompanyRequests';
 import SurveyForm from '../components/SurveyForm';
 import AttendanceScanner from '../components/AttendanceScanner';
+import PreviousJobFairAnalytics from '../components/PreviousJobFairAnalytics';
 import { getConfirmationStatus } from '../api';
+import { getMySurveyStatus } from '../api';
 
-export default function CompanyDashboard({ user, onError, activeTab, onTabChange }) {
+export default function CompanyDashboard({ user, onError, activeTab, onTabChange, profileContext, onProfileContextChange }) {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAttendanceScanner, setShowAttendanceScanner] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [surveyAvailability, setSurveyAvailability] = useState({ hasActiveJobFair: true, isJobFairDay: true });
 
   const normalizedAttendance = attendanceStatus
     ? {
@@ -36,6 +39,15 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
     getConfirmationStatus()
       .then((status) => setAttendanceStatus(status))
       .catch(() => setAttendanceStatus(null));
+
+    getMySurveyStatus()
+      .then((status) => {
+        setSurveyAvailability({
+          hasActiveJobFair: Boolean(status?.hasActiveJobFair ?? status?.HasActiveJobFair ?? true),
+          isJobFairDay: Boolean(status?.isJobFairDay ?? status?.IsJobFairDay ?? false),
+        });
+      })
+      .catch(() => setSurveyAvailability({ hasActiveJobFair: true, isJobFairDay: false }));
   }, []);
 
   const refreshAttendanceStatus = () => {
@@ -51,6 +63,10 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
   const safeSelectStudent = (student) => {
     const id = student.studentId || student.StudentId || student.id || student.Id;
     if (id) {
+      const fromPastAnalytics = Boolean(student.fromPastAnalytics || student.FromPastAnalytics);
+      if (onProfileContextChange) {
+        onProfileContextChange(fromPastAnalytics ? 'history' : 'current');
+      }
       setSelectedProjectId(null);
       setSelectedStudentId(id);
     }
@@ -100,6 +116,7 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
         <StudentProfile 
           studentId={selectedStudentId} 
           onBack={() => setSelectedStudentId(null)} 
+          readOnly={profileContext === 'history'}
           onNavigateToInterviews={() => {
             setSelectedStudentId(null);
             if (onTabChange) onTabChange('interviews');
@@ -130,12 +147,13 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
         </div>
       )}
       {activeTab === 'overview' && <AnalyticsView onError={onError} />}
+      {activeTab === 'history-analytics' && <PreviousJobFairAnalytics onError={onError} onSelectStudent={safeSelectStudent} />}
       {activeTab === 'profile' && <CompanyProfile onError={onError} />}
       {activeTab === 'students' && <StudentDirectory onSelect={safeSelectStudent} onError={onError} />}
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
       {activeTab === 'interviews' && <InterviewManager onError={onError} onSelectStudent={safeSelectStudent} />}
       {activeTab === 'requests' && <CompanyRequests onError={onError} />}
-      {activeTab === 'surveys' && <SurveyForm onError={onError} />}
+      {activeTab === 'surveys' && <SurveyForm onError={onError} forceDisabled={!(surveyAvailability.hasActiveJobFair && surveyAvailability.isJobFairDay)} />}
       {activeTab === 'notices' && <NoticesBoard onError={onError} />}
     </div>
   );

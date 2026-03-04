@@ -6,6 +6,7 @@ import {
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
 import api, { BACKEND_URL, updateStudentCredentials } from '../../lib/api';
+import { getAllJobFairs } from '../../lib/api';
 
 // 🔧 CONFIGURATION
 
@@ -22,6 +23,8 @@ const StudentsList = () => {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalCount: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [jobFairs, setJobFairs] = useState([]);
+  const [selectedJobFairId, setSelectedJobFairId] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editFormData, setEditFormData] = useState({ email: '', password: '' });
   const [editLoading, setEditLoading] = useState(false);
@@ -30,12 +33,13 @@ const StudentsList = () => {
   const [notifyModal, setNotifyModal] = useState({ open: false, student: null });
 
   // Fetch Students (Accepts page AND search query)
-  const fetchStudents = async (page = 1, search = '') => {
+  const fetchStudents = async (page = 1, search = '', jobFairId = selectedJobFairId) => {
     setLoading(true);
     try {
       // Append search param if it exists
-      const query = search ? `&search=${encodeURIComponent(search)}` : '';
-      const res = await api.get(`/admin/students?page=${page}&pageSize=15${query}`);
+      const searchQuery = search ? `&search=${encodeURIComponent(search)}` : '';
+      const jobFairQuery = jobFairId ? `&jobFairId=${encodeURIComponent(jobFairId)}` : '';
+      const res = await api.get(`/admin/students?page=${page}&pageSize=15${searchQuery}${jobFairQuery}`);
       
       setStudents(res.data.students);
       setMeta({
@@ -51,21 +55,39 @@ const StudentsList = () => {
     }
   };
 
+  const fetchJobFairs = async () => {
+    try {
+      const response = await getAllJobFairs();
+      const jobFairsList = response.data?.jobFairs || response.data?.JobFairs || response.data || [];
+      const normalizedJobFairs = Array.isArray(jobFairsList) ? jobFairsList : [];
+      setJobFairs(normalizedJobFairs);
+
+      const active = normalizedJobFairs.find(jf => (jf.isActive ?? jf.IsActive) === true);
+      const activeId = active ? (active.jobFairId ?? active.JobFairId) : '';
+      setSelectedJobFairId(activeId ? String(activeId) : '');
+      await fetchStudents(1, '', activeId ? String(activeId) : '');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to fetch job fairs');
+      await fetchStudents(1, '', '');
+    }
+  };
+
   // Initial Load
   useEffect(() => {
-    fetchStudents(1, searchTerm);
+    fetchJobFairs();
   }, []);
 
   // Handler: When user types
   const handleSearch = (e) => {
     e.preventDefault(); 
-    fetchStudents(1, searchTerm);
+    fetchStudents(1, searchTerm, selectedJobFairId);
   };
 
   // Handler: Clear search
   const clearSearch = () => {
     setSearchTerm('');
-    fetchStudents(1, '');
+    fetchStudents(1, '', selectedJobFairId);
   };
 
   const handleEditClick = (student) => {
@@ -92,7 +114,7 @@ const StudentsList = () => {
       toast.success('Student credentials updated');
       setEditingId(null);
       setEditFormData({ email: '', password: '' });
-      fetchStudents(meta.page, searchTerm);
+      fetchStudents(meta.page, searchTerm, selectedJobFairId);
     } catch (error) {
       console.error(error);
       const errorMsg = error.response?.data?.Message || 'Failed to update credentials';
@@ -123,6 +145,29 @@ const StudentsList = () => {
           </button>
 
           {/* Search Form */}
+          <select
+            value={selectedJobFairId}
+            onChange={(e) => {
+              const nextJobFairId = e.target.value;
+              setSelectedJobFairId(nextJobFairId);
+              fetchStudents(1, searchTerm, nextJobFairId);
+            }}
+            className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+          >
+            <option value="">Active Job Fair</option>
+            {jobFairs.map((jf) => {
+              const id = jf.jobFairId ?? jf.JobFairId;
+              const semester = jf.semester ?? jf.Semester;
+              const isActive = jf.isActive ?? jf.IsActive;
+              return (
+                <option key={id} value={String(id)}>
+                  {semester}{isActive ? ' (Active)' : ''}
+                </option>
+              );
+            })}
+          </select>
+
+          {/* Search Form */}
           <form onSubmit={handleSearch} className="relative flex-1 sm:w-64">
             <input 
               type="text" 
@@ -145,7 +190,7 @@ const StudentsList = () => {
           </form>
 
           <button 
-            onClick={() => fetchStudents(1, searchTerm)}
+            onClick={() => fetchStudents(1, searchTerm, selectedJobFairId)}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm transition"
           >
             Search
@@ -292,14 +337,14 @@ const StudentsList = () => {
             </span>
             <div className="flex gap-2">
                 <button 
-                  onClick={() => fetchStudents(meta.page - 1, searchTerm)} 
+                  onClick={() => fetchStudents(meta.page - 1, searchTerm, selectedJobFairId)} 
                   disabled={meta.page <= 1} 
                   className="px-4 py-2 border rounded-lg bg-white text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button 
-                  onClick={() => fetchStudents(meta.page + 1, searchTerm)} 
+                  onClick={() => fetchStudents(meta.page + 1, searchTerm, selectedJobFairId)} 
                   disabled={meta.page >= meta.totalPages} 
                   className="px-4 py-2 border rounded-lg bg-white text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
                 >

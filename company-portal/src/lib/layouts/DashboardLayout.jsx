@@ -7,6 +7,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'history-analytics', label: 'Past Analytics', icon: LayoutDashboard },
     { id: 'profile', label: 'Company Profile', icon: Building2 },
     { id: 'students', label: 'Student Directory', icon: Users },
     { id: 'fyps', label: 'FYP Gallery', icon: BookOpen },

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+/* eslint-disable no-empty */
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import signalrSvc from '../../services/signalr';
 
@@ -15,11 +16,12 @@ const CompanyRequests = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const activeJobFairIdRef = useRef(null);
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5158';
 
   useEffect(() => {
-    fetchList();
+    fetchActiveJobFairAndList();
 
     const conn = signalrSvc.createCompanyRequestsConnection();
 
@@ -40,6 +42,9 @@ const CompanyRequests = () => {
     start();
 
     conn.on('CompanyRequestCreated', (payload) => {
+      const payloadJobFairId = payload.jobFairId || payload.JobFairId;
+      if (activeJobFairIdRef.current && payloadJobFairId !== activeJobFairIdRef.current) return;
+
       // Normalize camelCase to PascalCase for consistency with API response
       const normalized = {
         CompanyRequestId: payload.companyRequestId || payload.CompanyRequestId,
@@ -60,6 +65,9 @@ const CompanyRequests = () => {
     });
 
     conn.on('CompanyRequestUpdated', (payload) => {
+      const payloadJobFairId = payload.jobFairId || payload.JobFairId;
+      if (activeJobFairIdRef.current && payloadJobFairId !== activeJobFairIdRef.current) return;
+
       // Normalize camelCase to PascalCase for consistency with API response
       const normalized = {
         CompanyRequestId: payload.companyRequestId || payload.CompanyRequestId,
@@ -86,13 +94,32 @@ const CompanyRequests = () => {
     };
   }, []);
 
-  async function fetchList() {
+  async function fetchActiveJobFairAndList() {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(apiBase + '/api/admin/jobfairs?page=1&pageSize=1000', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const fairs = res.data?.jobFairs || res.data?.JobFairs || res.data || [];
+      const active = Array.isArray(fairs)
+        ? fairs.find(jf => (jf.isActive ?? jf.IsActive) === true)
+        : null;
+      const activeId = active ? (active.jobFairId ?? active.JobFairId) : null;
+      activeJobFairIdRef.current = activeId;
+      await fetchList(activeId);
+    } catch {
+      await fetchList(null);
+    }
+  }
+
+  async function fetchList(jobFairId = activeJobFairIdRef.current) {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
       let url = apiBase + '/api/admin/companyrequests';
       const params = [];
       if (filterStatus) params.push(`status=${filterStatus}`);
+      if (jobFairId) params.push(`jobFairId=${jobFairId}`);
       if (params.length > 0) url += '?' + params.join('&');
       
       console.log('Fetching from:', url);
@@ -128,7 +155,7 @@ const CompanyRequests = () => {
 
   // Refetch when filter changes
   useEffect(() => {
-    fetchList();
+    fetchList(activeJobFairIdRef.current);
   }, [filterStatus]);
 
   async function updateStatus(id, status, adminNote) {

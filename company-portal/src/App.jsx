@@ -6,13 +6,17 @@ import ForgotPasswordPage from './lib/pages/ForgotPasswordPage';
 import CompanyDashboard from './lib/pages/CompanyDashboard';
 import DashboardLayout from './lib/layouts/DashboardLayout';
 import { requestFcmToken } from './lib/firebase';
-import { getCompanyProfile, registerFcmToken } from './lib/api';
+import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair } from './lib/api';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
   const [activeTab, setActiveTab] = useState('overview');
   const [notification, setNotification] = useState(null);
+  const [participationPrompt, setParticipationPrompt] = useState(null);
+  const [participationLoading, setParticipationLoading] = useState(false);
+  const [participationRepsCount, setParticipationRepsCount] = useState(1);
+  const [studentProfileContext, setStudentProfileContext] = useState('current');
   const unauthorizedTimerRef = useRef(null);
 
   const registerTokenForSession = async () => {
@@ -79,6 +83,24 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (currentView !== 'dashboard' || !user) return;
+
+    const checkParticipationPrompt = async () => {
+      try {
+        const prompt = await getCompanyParticipationPrompt();
+        if (prompt?.shouldPrompt) {
+          setParticipationPrompt(prompt);
+          setParticipationRepsCount(1);
+        }
+      } catch (err) {
+        console.warn('Participation prompt check failed:', err);
+      }
+    };
+
+    checkParticipationPrompt();
+  }, [currentView, user]);
+
   const showNotification = (msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3000);
@@ -96,8 +118,27 @@ export default function App() {
   const handleLogout = () => {
     localStorage.clear();
     setUser(null);
+    setParticipationPrompt(null);
     setCurrentView('login');
     setActiveTab('overview');
+  };
+
+  const handleParticipateYes = async () => {
+    setParticipationLoading(true);
+    try {
+      await participateInActiveJobFair(participationRepsCount);
+      setParticipationPrompt(null);
+      showNotification('You are now participating in the active job fair.', 'success');
+      setActiveTab('profile');
+    } catch (err) {
+      showNotification(err.message || 'Failed to join active job fair.', 'error');
+    } finally {
+      setParticipationLoading(false);
+    }
+  };
+
+  const handleParticipateNo = () => {
+    setParticipationPrompt(null);
   };
 
   return (
@@ -105,6 +146,48 @@ export default function App() {
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded shadow-lg text-white animate-fade-in-down ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
           {notification.msg}
+        </div>
+      )}
+
+      {participationPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Join New Job Fair?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              You are not participating in the active job fair. Do you want to participate in
+              <span className="font-semibold"> {participationPrompt.activeJobFair?.semester}</span>?
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              If you join, your jobs and analytics will switch to this active fair.
+            </p>
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Number of Representatives</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={participationRepsCount}
+                onChange={(e) => setParticipationRepsCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={handleParticipateNo}
+                disabled={participationLoading}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                No
+              </button>
+              <button
+                onClick={handleParticipateYes}
+                disabled={participationLoading}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {participationLoading ? 'Joining...' : 'Yes, Participate'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -126,7 +209,14 @@ export default function App() {
       
       {currentView === 'dashboard' && user && (
         <DashboardLayout user={user} onLogout={handleLogout} activeTab={activeTab} onTabChange={setActiveTab}>
-          <CompanyDashboard user={user} activeTab={activeTab} onTabChange={setActiveTab} onError={(m) => showNotification(m, 'error')} />
+          <CompanyDashboard
+            user={user}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            profileContext={studentProfileContext}
+            onProfileContextChange={setStudentProfileContext}
+            onError={(m) => showNotification(m, 'error')}
+          />
         </DashboardLayout>
       )}
     </div>

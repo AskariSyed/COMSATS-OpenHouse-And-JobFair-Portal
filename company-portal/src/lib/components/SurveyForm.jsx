@@ -33,12 +33,13 @@ const getPEOTitle = (peoKey) => {
   return titles[peoKey] || peoKey;
 };
 
-export default function SurveyForm({ onError }) {
+export default function SurveyForm({ onError, forceDisabled = false }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [templates, setTemplates] = useState({});
   const [submitted, setSubmitted] = useState({ cdc: false, department: false });
   const [hasActiveJobFair, setHasActiveJobFair] = useState(true);
+  const [isJobFairDay, setIsJobFairDay] = useState(false);
 
   // CDC Survey State
   const [cdcResponses, setCdcResponses] = useState({
@@ -92,6 +93,7 @@ export default function SurveyForm({ onError }) {
         department: Boolean(submittedData.department ?? submittedData.Department)
       });
       setHasActiveJobFair(Boolean(surveyStatus?.hasActiveJobFair ?? surveyStatus?.HasActiveJobFair ?? true));
+      setIsJobFairDay(Boolean(surveyStatus?.isJobFairDay ?? surveyStatus?.IsJobFairDay ?? false));
     } catch (err) {
       onError(`Failed to load survey templates: ${err.message}`);
     } finally {
@@ -204,14 +206,21 @@ export default function SurveyForm({ onError }) {
         </div>
       )}
 
-      {hasActiveJobFair && submitted.cdc && submitted.department && (
+      {hasActiveJobFair && (!isJobFairDay || forceDisabled) && (
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 text-yellow-800 rounded border border-yellow-200">
+          <AlertCircle className="w-4 h-4" />
+          <span className="text-sm font-medium">Survey is available only on job fair day.</span>
+        </div>
+      )}
+
+      {hasActiveJobFair && isJobFairDay && !forceDisabled && submitted.cdc && submitted.department && (
         <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded border border-green-200">
           <CheckCircle className="w-4 h-4" />
           <span className="text-sm font-medium">You have already submitted both surveys for this job fair.</span>
         </div>
       )}
 
-      {hasActiveJobFair && !(submitted.cdc && submitted.department) && (
+      {hasActiveJobFair && isJobFairDay && !forceDisabled && !(submitted.cdc && submitted.department) && (
       <>
       {/* CDC Survey */}
       <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-2">
