@@ -41,7 +41,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     'Companies',
     'Jobs',
     'Requests',
-    'Queue',
+    'Interviews',
   ];
 
   @override

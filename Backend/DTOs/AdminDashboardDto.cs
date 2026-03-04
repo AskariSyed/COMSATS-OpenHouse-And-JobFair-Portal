@@ -9,6 +9,12 @@
         public int StudentsShortlisted { get; set; }
         public int CDCSurveysReceived { get; set; }
         public int DepartmentSurveysReceived { get; set; }
+        public int? TopRequestedCandidateId { get; set; }
+        public string? TopRequestedCandidateName { get; set; }
+        public int TopRequestedCandidateRequestCount { get; set; }
+        public int? TopHiredCandidateId { get; set; }
+        public string? TopHiredCandidateName { get; set; }
+        public int TopHiredCandidateHireCount { get; set; }
     }
 
 

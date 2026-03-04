@@ -88,6 +88,20 @@ export const getAttendanceStats = (jobFairId) => {
   return api.get(`/Attendance/stats/${jobFairId}`);
 };
 
+export const markCompanyAbsent = (jobFairId, companyId) => {
+  return api.put('/Attendance/mark-absent', {
+    jobFairId,
+    companyId,
+  });
+};
+
+export const markCompanyPresent = (jobFairId, companyId) => {
+  return api.put('/Attendance/mark-present', {
+    jobFairId,
+    companyId,
+  });
+};
+
 // --- Job Fair management ---
 export const deleteJobFair = (jobFairId) => api.delete(`/admin/jobfairs/${jobFairId}`);
 export const activateJobFair = (jobFairId) => api.post(`/admin/jobfairs/${jobFairId}/activate`);

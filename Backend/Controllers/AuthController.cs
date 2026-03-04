@@ -186,6 +186,18 @@ namespace JobFairPortal.Controllers
                 return Unauthorized("Account not verified. Please complete the OTP verification process.");
             }
 
+            if (role == UserRole.Company && !string.IsNullOrWhiteSpace(loginDto.FcmToken))
+            {
+                var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == user.UserId);
+                if (company != null)
+                {
+                    company.FcmToken = loginDto.FcmToken;
+                    company.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("FCM token updated for company: {CompanyId}", company.CompanyId);
+                }
+            }
+
             var token = _tokenService.GenerateJwtToken(user);
 
             _logger.LogInformation("Login successful for role {Role}, user: {UserId}", role, user.UserId);

@@ -173,7 +173,9 @@ namespace JobFairPortal.Controllers
                 // Find participation for this company in this job fair
                 var participation = await _context.CompanyJobFairParticipations
                     .Include(p => p.Company)
+                        .ThenInclude(c => c.Room)
                     .Include(p => p.JobFair)
+                    .Include(p => p.Room)
                     .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == session.JobFairId);
 
                 if (participation == null)
@@ -188,7 +190,13 @@ namespace JobFairPortal.Controllers
                 }
 
                 if (participation.IsPresent)
-                    return Ok(new { message = "Attendance already marked", companyId = company.CompanyId });
+                    return Ok(new
+                    {
+                        message = "Attendance already marked",
+                        companyId = company.CompanyId,
+                        companyName = participation.Company?.Name,
+                        roomName = participation.Room?.RoomName ?? participation.Company?.Room?.RoomName
+                    });
 
                 // Mark attendance
                 participation.IsPresent = true;
@@ -211,7 +219,8 @@ namespace JobFairPortal.Controllers
                 {
                     message = "Attendance marked successfully",
                     companyId = company.CompanyId,
-                    companyName = participation.Company?.Name
+                    companyName = participation.Company?.Name,
+                    roomName = participation.Room?.RoomName ?? participation.Company?.Room?.RoomName
                 });
             }
             catch (Exception ex)
@@ -465,6 +474,115 @@ namespace JobFairPortal.Controllers
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }  // POST /attendance/end-session
+
+        [HttpPut("mark-absent")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> MarkCompanyAbsent([FromBody] MarkAbsentRequest? payload)
+        {
+            try
+            {
+                if (payload == null)
+                    return BadRequest(new { error = "Invalid request body" });
+
+                if (payload.JobFairId <= 0 || payload.CompanyId <= 0)
+                    return BadRequest(new { error = "jobFairId and companyId must be positive integers" });
+
+                var participation = await _context.CompanyJobFairParticipations
+                    .Include(p => p.Company)
+                    .FirstOrDefaultAsync(p => p.JobFairId == payload.JobFairId && p.CompanyId == payload.CompanyId);
+
+                if (participation == null)
+                    return NotFound(new { error = "Company participation not found for this job fair" });
+
+                if (!participation.IsPresent)
+                    return Ok(new
+                    {
+                        message = "Company is already marked absent",
+                        companyId = payload.CompanyId,
+                        jobFairId = payload.JobFairId
+                    });
+
+                participation.IsPresent = false;
+                participation.ArrivalStatus = ArrivalStatus.Pending;
+                participation.UpdatedAt = DateTime.UtcNow;
+
+                if (participation.Company != null)
+                {
+                    participation.Company.IsPresent = false;
+                    participation.Company.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Company marked absent successfully",
+                    companyId = payload.CompanyId,
+                    jobFairId = payload.JobFairId
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking company absent");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
+        [HttpPut("mark-present")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> MarkCompanyPresent([FromBody] MarkPresentRequest? payload)
+        {
+            try
+            {
+                if (payload == null)
+                    return BadRequest(new { error = "Invalid request body" });
+
+                if (payload.JobFairId <= 0 || payload.CompanyId <= 0)
+                    return BadRequest(new { error = "jobFairId and companyId must be positive integers" });
+
+                var participation = await _context.CompanyJobFairParticipations
+                    .Include(p => p.Company)
+                    .FirstOrDefaultAsync(p => p.JobFairId == payload.JobFairId && p.CompanyId == payload.CompanyId);
+
+                if (participation == null)
+                    return NotFound(new { error = "Company participation not found for this job fair" });
+
+                if (participation.IsPresent)
+                    return Ok(new
+                    {
+                        message = "Company is already marked present",
+                        companyId = payload.CompanyId,
+                        jobFairId = payload.JobFairId
+                    });
+
+                participation.IsPresent = true;
+                participation.ArrivalStatus = participation.ArrivalStatus == ArrivalStatus.PreRegistered
+                    ? ArrivalStatus.PreRegistered
+                    : ArrivalStatus.OnSpot;
+                participation.UpdatedAt = DateTime.UtcNow;
+
+                if (participation.Company != null)
+                {
+                    participation.Company.IsPresent = true;
+                    participation.Company.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Company marked present successfully",
+                    companyId = payload.CompanyId,
+                    jobFairId = payload.JobFairId
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking company present");
+                return StatusCode(500, new { error = "Internal server error" });
+            }
+        }
+
         // Admin endpoint to end a dynamic attendance session
         // Body: { "sessionToken": "..." }
         [HttpPost("end-session")]
@@ -519,5 +637,17 @@ namespace JobFairPortal.Controllers
     public class MarkAttendanceRequest
     {
         public string SessionToken { get; set; } = string.Empty;
+    }
+
+    public class MarkAbsentRequest
+    {
+        public int JobFairId { get; set; }
+        public int CompanyId { get; set; }
+    }
+
+    public class MarkPresentRequest
+    {
+        public int JobFairId { get; set; }
+        public int CompanyId { get; set; }
     }
 }

@@ -56,7 +56,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-x-hidden overflow-y-hidden">
       
       {/* 1. Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -69,8 +69,8 @@ const AdminLayout = () => {
       {/* 2. Sidebar Navigation */}
       <aside 
         className={`
-          fixed lg:static inset-y-0 left-0 z-30 w-64 bg-slate-900 shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out relative overflow-hidden flex flex-col
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          fixed lg:relative inset-y-0 left-0 z-30 w-[82vw] max-w-64 sm:w-64 lg:w-64 bg-slate-900 shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out overflow-hidden flex flex-col lg:translate-x-0 lg:flex-shrink-0
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         {/* Background gradient effects */}
@@ -187,10 +187,10 @@ const AdminLayout = () => {
       </aside>
 
       {/* 3. Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex-1 min-w-0 max-w-full flex flex-col overflow-hidden w-full">
         
         {/* Mobile Hamburger Menu - Only visible on mobile */}
-        <div className="lg:hidden bg-white shadow-sm p-4 flex items-center">
+        <div className="lg:hidden w-full bg-white shadow-sm p-4 flex items-center">
           <button 
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
@@ -203,9 +203,9 @@ const AdminLayout = () => {
         </div>
 
         {/* Page Content (Dynamic) */}
-        <main className="flex-1 overflow-y-auto bg-gray-50 scroll-smooth">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 scroll-smooth">
           <div className="p-4 lg:p-8">
-            <div className="max-w-7xl mx-auto">
+            <div className="w-full max-w-7xl mx-auto">
               <Outlet />
             </div>
           </div>

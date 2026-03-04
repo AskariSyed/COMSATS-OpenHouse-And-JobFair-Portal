@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye } from 'lucide-react';
-import { getStudents, getFileUrl } from '../api';
+import { getStudents, getStudentsByInterviewStatus, getFileUrl } from '../api';
 
 export default function StudentDirectory({ onSelect, onError }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ type: '', value: '' });
   const [sortBy, setSortBy] = useState('name'); // Default sort by name
+  const [listMode, setListMode] = useState('all');
 
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const data = await getStudents(filters.type, filters.value);
+      let data;
+      if (listMode === 'all') {
+        data = await getStudents(filters.type, filters.value);
+      } else {
+        data = await getStudentsByInterviewStatus(listMode);
+      }
       setStudents(data || []);
     } catch (err) {
       onError(err.message);
@@ -20,7 +26,7 @@ export default function StudentDirectory({ onSelect, onError }) {
     }
   };
 
-  useEffect(() => { fetchStudents(); }, []);
+  useEffect(() => { fetchStudents(); }, [listMode]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -55,6 +61,67 @@ export default function StudentDirectory({ onSelect, onError }) {
 
   // --- LOGIC: Render Status Chip ---
   const renderStatusChip = (student) => {
+    const interviewOutcome = (student.InterviewOutcome || student.interviewOutcome || '').toLowerCase();
+    const currentInterviewStatus = (student.CurrentInterviewStatus || student.currentInterviewStatus || '').toLowerCase();
+
+    if (currentInterviewStatus === 'queued') {
+      return (
+        <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-blue-200 whitespace-nowrap">
+          <Clock className="w-3 h-3" /> Queued
+        </span>
+      );
+    }
+    if (currentInterviewStatus === 'inprogress') {
+      return (
+        <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-purple-200 whitespace-nowrap">
+          <Clock className="w-3 h-3" /> In Progress
+        </span>
+      );
+    }
+    if (currentInterviewStatus === 'hired') {
+      return (
+        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" /> Hired
+        </span>
+      );
+    }
+    if (currentInterviewStatus === 'shortlisted') {
+      return (
+        <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-blue-200 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" /> Shortlisted
+        </span>
+      );
+    }
+    if (currentInterviewStatus === 'rejected') {
+      return (
+        <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-red-100 whitespace-nowrap">
+          <XCircle className="w-3 h-3" /> Rejected
+        </span>
+      );
+    }
+
+    if (interviewOutcome === 'hired') {
+      return (
+        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" /> Hired
+        </span>
+      );
+    }
+    if (interviewOutcome === 'shortlisted') {
+      return (
+        <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-blue-200 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3" /> Shortlisted
+        </span>
+      );
+    }
+    if (interviewOutcome === 'rejected') {
+      return (
+        <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-red-100 whitespace-nowrap">
+          <XCircle className="w-3 h-3" /> Rejected
+        </span>
+      );
+    }
+
     const req = student.InterviewRequest || student.interviewRequest;
     
     if (!req || (!req.HasRequest && !req.hasRequest)) return null;
@@ -67,7 +134,7 @@ export default function StudentDirectory({ onSelect, onError }) {
     if (status === 'accepted') {
         return (
         <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 border border-green-200 whitespace-nowrap">
-                <CheckCircle2 className="w-3 h-3" /> Scheduled
+          <CheckCircle2 className="w-3 h-3" /> Accepted
             </span>
         );
     }
@@ -98,12 +165,40 @@ export default function StudentDirectory({ onSelect, onError }) {
 
   return (
     <div>
+      <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: 'all', label: 'All Students' },
+            { key: 'hired', label: 'Hired' },
+            { key: 'shortlisted', label: 'Shortlisted' },
+            { key: 'rejected', label: 'Rejected' }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setListMode(tab.key)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                listMode === tab.key
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
         <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Filter By</label>
-            <select className="w-full border rounded-lg p-2" onChange={(e) => setFilters({...filters, type: e.target.value})}>
+            <select
+              className="w-full border rounded-lg p-2"
+              onChange={(e) => setFilters({...filters, type: e.target.value})}
+              disabled={listMode !== 'all'}
+            >
               <option value="">All Students</option>
               <option value="skill">Skill</option>
               <option value="department">Department</option>
@@ -113,8 +208,8 @@ export default function StudentDirectory({ onSelect, onError }) {
           <div className="col-span-2">
             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Search Term</label>
             <input 
-              disabled={!filters.type}
-              placeholder={!filters.type ? "Select filter first..." : "Enter search term..."} 
+              disabled={!filters.type || listMode !== 'all'}
+              placeholder={listMode !== 'all' ? 'Filters disabled for outcome lists' : !filters.type ? "Select filter first..." : "Enter search term..."}
               className="w-full border rounded-lg p-2"
               onChange={(e) => setFilters({...filters, value: e.target.value})}
             />
@@ -133,7 +228,7 @@ export default function StudentDirectory({ onSelect, onError }) {
             </select>
           </div>
           <div className="flex items-end">
-            <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+            <button type="submit" disabled={listMode !== 'all'} className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               <Search className="w-4 h-4" /> Search
             </button>
           </div>

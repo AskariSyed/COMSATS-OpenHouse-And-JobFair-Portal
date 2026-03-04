@@ -103,7 +103,9 @@ namespace JobFairPortal.Controllers
             if (!int.TryParse(userIdClaim, out int userId))
                 return Unauthorized();
 
+            // Ensure the Student.User navigation is loaded to avoid NullReference when accessing student.User.FullName
             var student = await _context.Students
+                .Include(s => s.User)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
             if (student == null)
@@ -126,26 +128,29 @@ namespace JobFairPortal.Controllers
 
             await _context.SaveChangesAsync();
 
-            // Send FCM notification to company when student accepts
-            if (!string.IsNullOrWhiteSpace(interviewRequest.Company.FcmToken))
+            // Null-safe notification send
+            var company = interviewRequest.Company;
+            var studentName = student.User?.FullName ?? "A student";
+
+            if (company != null && !string.IsNullOrWhiteSpace(company.FcmToken))
             {
                 try
                 {
                     var message = new Message
                     {
-                        Token = interviewRequest.Company.FcmToken,
+                        Token = company.FcmToken,
                         Notification = new FirebaseAdmin.Messaging.Notification
                         {
                             Title = "Interview Request Accepted",
-                            Body = $"{student.User.FullName} has accepted your interview request"
+                            Body = $"{studentName} has accepted your interview request"
                         },
                         Data = new Dictionary<string, string>
-                        {
-                            { "RequestId", interviewRequest.RequestId.ToString() },
-                            { "StudentId", student.StudentId.ToString() },
-                            { "StudentName", student.User.FullName },
-                            { "Type", "RequestAccepted" }
-                        }
+                {
+                    { "RequestId", interviewRequest.RequestId.ToString() },
+                    { "StudentId", student.StudentId.ToString() },
+                    { "StudentName", studentName },
+                    { "Type", "RequestAccepted" }
+                }
                     };
 
                     await FirebaseMessaging.DefaultInstance.SendAsync(message);
@@ -162,7 +167,7 @@ namespace JobFairPortal.Controllers
             {
                 Message = "Interview request accepted successfully.",
                 RequestId = interviewRequest.RequestId,
-                CompanyName = interviewRequest.Company.Name,
+                CompanyName = interviewRequest.Company?.Name ?? "Unknown",
                 Status = interviewRequest.Status.ToString(),
                 AcceptedAt = interviewRequest.UpdatedAt
             });
@@ -1696,6 +1701,8 @@ namespace JobFairPortal.Controllers
                     CompanyName = i.Company.Name,
                     CompanyLogo = i.Company.LogoUrl,
                     ScheduledTime = i.ScheduledTime,
+                    StartedAt = i.StartedAt,
+                    EndedAt = i.EndedAt,
                     DurationMinutes = i.Company.InterviewDurationMinutes,
                     Room = i.Company.Room != null ? i.Company.Room.RoomName : "TBD",
                     Status = i.Status.ToString()
@@ -1776,6 +1783,8 @@ namespace JobFairPortal.Controllers
             var jobs = await _context.Jobs
                 .Include(j => j.Company)
                 .Where(j => j.JobFairId == activeJobFairId)
+                .Where(j => _context.CompanyJobFairParticipations
+                    .Any(p => p.JobFairId == activeJobFairId && p.CompanyId == j.CompanyId))
                 .Select(j => new
                 {
                     j.JobId,
@@ -1822,7 +1831,9 @@ namespace JobFairPortal.Controllers
 
             var jobsQuery = _context.Jobs
                 .Include(j => j.Company)
-                .Where(j => j.JobFairId == activeJobFairId);
+                .Where(j => j.JobFairId == activeJobFairId)
+                .Where(j => _context.CompanyJobFairParticipations
+                    .Any(p => p.JobFairId == activeJobFairId && p.CompanyId == j.CompanyId));
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
@@ -2251,6 +2262,41 @@ namespace JobFairPortal.Controllers
                 Status = i.Status.ToString()
             }).ToList();
 
+            var recommendedJobs = new List<object>();
+            if (activeJobFairId.HasValue && student.Skills != null && student.Skills.Any())
+            {
+                var fairJobs = await _context.Jobs
+                    .Include(j => j.Company)
+                    .Where(j => j.JobFairId == activeJobFairId.Value)
+                    .Where(j => _context.CompanyJobFairParticipations
+                        .Any(p => p.JobFairId == activeJobFairId.Value && p.CompanyId == j.CompanyId))
+                    .ToListAsync();
+
+                recommendedJobs = fairJobs
+                    .Select(job => new
+                    {
+                        Job = job,
+                        MatchCount = job.RequiredSkills?.Intersect(student.Skills, StringComparer.OrdinalIgnoreCase).Count() ?? 0,
+                        MatchedSkills = job.RequiredSkills?.Intersect(student.Skills, StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>()
+                    })
+                    .Where(x => x.MatchCount > 0)
+                    .OrderByDescending(x => x.MatchCount)
+                    .ThenByDescending(x => x.MatchedSkills.Count)
+                    .Take(6)
+                    .Select(x => (object)new
+                    {
+                        x.Job.JobId,
+                        x.Job.JobTitle,
+                        x.Job.JobType,
+                        CompanyId = x.Job.CompanyId,
+                        CompanyName = x.Job.Company.Name,
+                        CompanyLogo = x.Job.Company.LogoUrl,
+                        MatchCount = x.MatchCount,
+                        MatchedSkills = x.MatchedSkills
+                    })
+                    .ToList();
+            }
+
             var pendingInvites = student.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Pending);
 
             var notices = new List<object>();
@@ -2294,6 +2340,7 @@ namespace JobFairPortal.Controllers
                     AllInterviews = allInterviews,
                     NextInterview = nextInterview
                 },
+                RecommendedJobs = recommendedJobs,
                 Notices = notices
             };
 
@@ -2319,6 +2366,8 @@ namespace JobFairPortal.Controllers
             var allJobs = await _context.Jobs
                 .Include(j => j.Company)
                 .Where(j => j.JobFairId == activeJobFair.JobFairId)
+                .Where(j => _context.CompanyJobFairParticipations
+                    .Any(p => p.JobFairId == activeJobFair.JobFairId && p.CompanyId == j.CompanyId))
                 .ToListAsync();
 
             // In-memory matching

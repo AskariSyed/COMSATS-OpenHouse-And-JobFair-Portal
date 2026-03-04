@@ -44,7 +44,12 @@ async function request(endpoint, method = 'GET', body = null, isFileUpload = fal
     
     if (response.status === 401) {
       console.warn("Unauthorized access");
-      // Optional: window.location.href = '/login';
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
+      throw new Error('Unauthorized');
     }
 
     if (!response.ok) {
@@ -76,7 +81,7 @@ export const login = (role, email, password, fcmToken = null) => {
 };
 
 export const registerFcmToken = (fcmToken) => {
-  return request('/Company/register-fcm-token', 'POST', { fcmToken });
+  return request('/Company/register-fcm-token', 'POST', { token: fcmToken });
 };
 // Missing function restored:
 export const registerCompany = (formData) => {
@@ -97,6 +102,10 @@ export const verifyResetOtpAndSetPassword = (userId, otp, newPassword, confirmPa
   return request('/Auth/forgot-password/verify-otp', 'POST', { userId, otp, newPassword, confirmPassword });
 };
 
+export const changePassword = (currentPassword, newPassword, confirmPassword) => {
+  return request('/Auth/change-password', 'POST', { currentPassword, newPassword, confirmPassword });
+};
+
 // --- COMPANY: ANALYTICS ---
 export const getAnalytics = () => {
   return request('/Company/analytics');
@@ -113,6 +122,10 @@ export const getStudents = (filterType, filterValue) => {
     endpoint = `/Company/students/search-by-department?department=${encodeURIComponent(filterValue)}`;
   }
   return request(endpoint);
+};
+
+export const getStudentsByInterviewStatus = (status) => {
+  return request(`/Company/students/by-interview-status?status=${encodeURIComponent(status)}`);
 };
 
 export const getStudentProfile = (studentId) => {

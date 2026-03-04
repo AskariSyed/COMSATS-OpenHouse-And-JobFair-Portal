@@ -17,9 +17,9 @@ List<CollapsibleItem> generateSidebarItems(
       isSelected: true,
     ),
     CollapsibleItem(
-      text: 'Queue',
+      text: 'Interviews',
       icon: Icons.list_alt_outlined,
-      onPressed: () => setState(() => currentRoute = 'Queue'),
+      onPressed: () => setState(() => currentRoute = 'Interviews'),
     ),
     CollapsibleItem(
       text: 'Companies',

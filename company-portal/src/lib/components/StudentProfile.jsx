@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, Github, Linkedin, Globe, Send, CheckCircle2, XCircle, Clock, Calendar, Phone, Play, Twitter, Facebook, Instagram, Briefcase as Portfolio } from 'lucide-react';
-import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest } from '../api';
+import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest, startInterview, completeInterview } from '../api';
 import { getThumbnailUrl, getYoutubeId } from '../utils/videoUtils';
 
-export default function StudentProfile({ studentId, onBack, onViewFYP }) {
+export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+   const [interviewActionLoading, setInterviewActionLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -46,6 +47,48 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
     finally { setActionLoading(false); }
   };
 
+   const handleStartCurrentInterview = async (interviewId) => {
+      if (!interviewId) return;
+      setInterviewActionLoading(true);
+      try {
+         await startInterview(interviewId);
+         setRefreshKey(k => k + 1);
+      } catch (err) {
+         alert(err.message || 'Failed to start interview');
+      } finally {
+         setInterviewActionLoading(false);
+      }
+   };
+
+   const handleEndCurrentInterview = async (interviewId) => {
+      if (!interviewId) return;
+
+      const result = window.prompt('Enter interview result: Hired, Shortlisted, or Rejected', 'Hired');
+      if (!result) return;
+
+      const normalized = result.trim().toLowerCase();
+      const allowedMap = {
+         hired: 'Hired',
+         shortlisted: 'Shortlisted',
+         rejected: 'Rejected'
+      };
+
+      if (!allowedMap[normalized]) {
+         alert('Invalid result. Use Hired, Shortlisted, or Rejected.');
+         return;
+      }
+
+      setInterviewActionLoading(true);
+      try {
+         await completeInterview(interviewId, allowedMap[normalized]);
+         setRefreshKey(k => k + 1);
+      } catch (err) {
+         alert(err.message || 'Failed to end interview');
+      } finally {
+         setInterviewActionLoading(false);
+      }
+   };
+
   // --- HEADER ACTION RENDERER ---
   const renderHeaderAction = () => {
     if (!profile) return null;
@@ -53,8 +96,59 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
     const req = profile.InterviewRequest || profile.interviewRequest || {};
     const hasRequest = req.HasRequest === true || req.hasRequest === true;
     const status = (req.Status || req.status || '').toLowerCase();
+      const currentInterview = profile.CurrentInterview || profile.currentInterview;
+      const currentInterviewStatus = String(currentInterview?.Status || currentInterview?.status || '').toLowerCase();
+      const currentInterviewId = currentInterview?.InterviewId || currentInterview?.interviewId;
     const requestedByVal = req.RequestedBy !== undefined ? req.RequestedBy : req.requestedBy;
     const isStudentRequest = requestedByVal === 1 || requestedByVal === 'Student';
+
+      if (currentInterviewId && currentInterviewStatus === 'inprogress') {
+         return (
+            <button
+               onClick={() => handleEndCurrentInterview(currentInterviewId)}
+               disabled={interviewActionLoading}
+               className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-amber-600 hover:bg-amber-700 text-white transition-all transform hover:-translate-y-0.5 disabled:opacity-60"
+            >
+               {interviewActionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><XCircle className="w-4 h-4" /> End Interview</>}
+            </button>
+         );
+      }
+
+      if (currentInterviewId && currentInterviewStatus === 'queued') {
+         return (
+            <button
+               onClick={() => handleStartCurrentInterview(currentInterviewId)}
+               disabled={interviewActionLoading}
+               className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-green-600 hover:bg-green-700 text-white transition-all transform hover:-translate-y-0.5 disabled:opacity-60"
+            >
+               {interviewActionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><Play className="w-4 h-4" /> Start Interview</>}
+            </button>
+         );
+      }
+
+      if (currentInterviewStatus === 'hired') {
+         return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default">
+               <CheckCircle2 className="w-5 h-5" /> Hired
+            </div>
+         );
+      }
+
+      if (currentInterviewStatus === 'shortlisted') {
+         return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-blue-50 text-blue-700 border border-blue-200 cursor-default">
+               <CheckCircle2 className="w-5 h-5" /> Shortlisted
+            </div>
+         );
+      }
+
+      if (currentInterviewStatus === 'rejected') {
+         return (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-red-50 text-red-600 border border-red-200 cursor-default">
+               <XCircle className="w-5 h-5" /> Rejected
+            </div>
+         );
+      }
 
     // 1. No Request -> "Send Request"
     if (!hasRequest) {
@@ -67,9 +161,20 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
 
     // 2. Scheduled -> Badge
     if (status === 'accepted') {
+         if (!currentInterviewId) {
+            return (
+               <button
+                  onClick={() => onNavigateToInterviews && onNavigateToInterviews()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5"
+               >
+                  <Calendar className="w-4 h-4" /> Schedule Interview
+               </button>
+            );
+         }
+
       return (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-50 text-green-700 border border-green-200 cursor-default">
-          <CheckCircle2 className="w-5 h-5" /> Interview Scheduled
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-50 text-green-700 border border-green-200 cursor-default">
+               <CheckCircle2 className="w-5 h-5" /> Request Accepted
         </div>
       );
     }
@@ -83,7 +188,7 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
       );
     }
 
-    // 4. Pending
+      // 4. Pending
     if (status === 'pending') {
       // 4a. Incoming (from Student)
       if (isStudentRequest) {
@@ -101,7 +206,7 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
       // 4b. Outgoing (from Company)
       return (
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-yellow-50 text-yellow-700 border border-yellow-200 cursor-default">
-          <Clock className="w-5 h-5" /> Request Pending
+               <Clock className="w-5 h-5" /> Interview Requested
         </div>
       );
     }
@@ -160,6 +265,41 @@ export default function StudentProfile({ studentId, onBack, onViewFYP }) {
                  {renderHeaderAction()}
               </div>
            </div>
+
+                <div className="ml-36 mt-2 flex flex-wrap gap-2">
+                   {(() => {
+                      const req = profile.InterviewRequest || profile.interviewRequest || {};
+                      const reqStatus = String(req.Status || req.status || '').toLowerCase();
+                      const interview = profile.CurrentInterview || profile.currentInterview;
+                      const interviewStatus = String(interview?.Status || interview?.status || '').toLowerCase();
+
+                      return (
+                         <>
+                            {reqStatus === 'pending' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">Interview Requested</span>
+                            )}
+                            {interviewStatus === 'queued' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Interview Queued</span>
+                            )}
+                            {interviewStatus === 'inprogress' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">Interview In Progress</span>
+                            )}
+                            {reqStatus === 'accepted' && !interviewStatus && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">Accepted (Awaiting Schedule)</span>
+                            )}
+                            {interviewStatus === 'hired' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Hired</span>
+                            )}
+                            {interviewStatus === 'shortlisted' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Shortlisted</span>
+                            )}
+                            {interviewStatus === 'rejected' && (
+                               <span className="text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">Rejected</span>
+                            )}
+                         </>
+                      );
+                   })()}
+                </div>
 
            {/* Contact & Links Bar */}
            <div className="mt-8 pt-6 border-t border-gray-100 flex flex-wrap justify-between gap-6">

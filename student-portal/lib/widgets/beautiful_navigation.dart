@@ -113,9 +113,9 @@ class BeautifulWebNavBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     _NavBarItem(
-                      title: "Queue",
+                      title: "Interviews",
                       icon: Icons.list_alt_outlined,
-                      isActive: currentRoute == 'Queue',
+                      isActive: currentRoute == 'Interviews',
                       onTap: () => _nav(context, const QueueScreen()),
                     ),
                     const SizedBox(width: 8),
@@ -405,7 +405,7 @@ class BeautifulMobileNavBar extends StatelessWidget {
               context,
               Icons.list_alt,
               Icons.list_alt_outlined,
-              "Queue",
+              "Interviews",
               4,
             ),
             _buildItem(

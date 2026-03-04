@@ -3,6 +3,7 @@ class DashboardData {
   final MarketOverview marketOverview;
   final ActionsRequired actionsRequired;
   final InterviewStats interviewStats;
+  final List<RecommendedJob> recommendedJobs;
   final List<NoticeSummary> notices;
 
   DashboardData({
@@ -10,6 +11,7 @@ class DashboardData {
     required this.marketOverview,
     required this.actionsRequired,
     required this.interviewStats,
+    required this.recommendedJobs,
     required this.notices,
   });
 
@@ -21,9 +23,47 @@ class DashboardData {
       marketOverview: MarketOverview.fromJson(json['marketOverview'] ?? {}),
       actionsRequired: ActionsRequired.fromJson(json['actionsRequired'] ?? {}),
       interviewStats: InterviewStats.fromJson(json['interviewStats'] ?? {}),
+        recommendedJobs:
+          (json['recommendedJobs'] as List<dynamic>?)
+            ?.map((e) => RecommendedJob.fromJson(e))
+            .toList() ??
+          [],
       notices:
           (json['notices'] as List<dynamic>?)
               ?.map((e) => NoticeSummary.fromJson(e))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class RecommendedJob {
+  final int jobId;
+  final String jobTitle;
+  final String companyName;
+  final String? companyLogo;
+  final int matchCount;
+  final List<String> matchedSkills;
+
+  RecommendedJob({
+    required this.jobId,
+    required this.jobTitle,
+    required this.companyName,
+    this.companyLogo,
+    required this.matchCount,
+    required this.matchedSkills,
+  });
+
+  factory RecommendedJob.fromJson(Map<String, dynamic> json) {
+    return RecommendedJob(
+      jobId: json['jobId'] ?? 0,
+      jobTitle: json['jobTitle'] ?? '',
+      companyName: json['companyName'] ?? '',
+      companyLogo: json['companyLogo'],
+      matchCount: json['matchCount'] ?? 0,
+      matchedSkills:
+          (json['matchedSkills'] as List<dynamic>?)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
     );

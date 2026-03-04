@@ -137,6 +137,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       isWide,
                     ),
                     const SizedBox(height: 24),
+                    _buildRecommendedJobs(context, dashboardData.recommendedJobs),
+                    const SizedBox(height: 24),
                     _buildActionsRequired(
                       context,
                       dashboardData.actionsRequired,
@@ -205,6 +207,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               context,
                                               dashboardData.marketOverview,
                                               isWide,
+                                            ),
+                                            const SizedBox(height: 24),
+                                            _buildRecommendedJobs(
+                                              context,
+                                              dashboardData.recommendedJobs,
                                             ),
                                             const SizedBox(height: 24),
                                             _buildActionsRequired(
@@ -556,6 +563,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Text('No pending actions. Good job!'),
                 ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedJobs(
+    BuildContext context,
+    List<RecommendedJob> jobs,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Recommended Jobs', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: jobs.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text('Add more profile skills to get personalized job recommendations.'),
+                  )
+                : Column(
+                    children: jobs.map((job) {
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        leading: const CircleAvatar(child: Icon(Icons.work_outline)),
+                        title: Text(job.jobTitle),
+                        subtitle: Text(
+                          '${job.companyName} • ${job.matchCount} skill match${job.matchCount > 1 ? 'es' : ''}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const JobsScreen()),
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
           ),
         ),
       ],

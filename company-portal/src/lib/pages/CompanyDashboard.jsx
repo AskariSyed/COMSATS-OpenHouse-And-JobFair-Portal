@@ -14,11 +14,18 @@ import SurveyForm from '../components/SurveyForm';
 import AttendanceScanner from '../components/AttendanceScanner';
 import { getConfirmationStatus } from '../api';
 
-export default function CompanyDashboard({ user, onError, activeTab }) {
+export default function CompanyDashboard({ user, onError, activeTab, onTabChange }) {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAttendanceScanner, setShowAttendanceScanner] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
+
+  const normalizedAttendance = attendanceStatus
+    ? {
+        jobFairDate: attendanceStatus.jobFairDate || attendanceStatus.JobFairDate,
+        isPresent: attendanceStatus.isPresent ?? attendanceStatus.IsPresent,
+      }
+    : null;
 
   useEffect(() => {
     setSelectedStudentId(null);
@@ -37,9 +44,9 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
       .catch(() => setAttendanceStatus(null));
   };
 
-  const jobFairDate = attendanceStatus?.jobFairDate ? new Date(attendanceStatus.jobFairDate) : null;
+  const jobFairDate = normalizedAttendance?.jobFairDate ? new Date(normalizedAttendance.jobFairDate) : null;
   const isJobFairDay = jobFairDate ? jobFairDate.toDateString() === new Date().toDateString() : false;
-  const canMarkAttendance = isJobFairDay && !attendanceStatus?.isPresent;
+  const canMarkAttendance = isJobFairDay && !normalizedAttendance?.isPresent;
 
   const safeSelectStudent = (student) => {
     const id = student.studentId || student.StudentId || student.id || student.Id;
@@ -73,7 +80,13 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
       <AttendanceScanner
         onBack={() => setShowAttendanceScanner(false)}
         onError={onError}
-        onMarked={() => {
+        onMarked={(result) => {
+          const roomName = result?.roomName || result?.RoomName;
+          const companyName = result?.companyName || result?.CompanyName || user?.name || 'Company';
+          const welcomeMessage = roomName
+            ? `Welcome ${companyName}! Your room number is ${roomName}.`
+            : `Welcome ${companyName}! Attendance marked successfully.`;
+          window.alert(welcomeMessage);
           refreshAttendanceStatus();
           setShowAttendanceScanner(false);
         }}
@@ -87,6 +100,10 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
         <StudentProfile 
           studentId={selectedStudentId} 
           onBack={() => setSelectedStudentId(null)} 
+          onNavigateToInterviews={() => {
+            setSelectedStudentId(null);
+            if (onTabChange) onTabChange('interviews');
+          }}
           onViewFYP={(projectId) => {
             setSelectedStudentId(null);
             setSelectedProjectId(projectId);
@@ -99,14 +116,14 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
       {canMarkAttendance && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between gap-3">
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-blue-900">Job Fair Attendance</p>
             <p className="text-xs text-blue-700">Today is Job Fair day. Scan the admin QR to mark your company as present.</p>
           </div>
           <button
             onClick={() => setShowAttendanceScanner(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
           >
             Mark Attendance
           </button>
@@ -116,7 +133,7 @@ export default function CompanyDashboard({ user, onError, activeTab }) {
       {activeTab === 'profile' && <CompanyProfile onError={onError} />}
       {activeTab === 'students' && <StudentDirectory onSelect={safeSelectStudent} onError={onError} />}
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
-      {activeTab === 'interviews' && <InterviewManager onError={onError} />}
+      {activeTab === 'interviews' && <InterviewManager onError={onError} onSelectStudent={safeSelectStudent} />}
       {activeTab === 'requests' && <CompanyRequests onError={onError} />}
       {activeTab === 'surveys' && <SurveyForm onError={onError} />}
       {activeTab === 'notices' && <NoticesBoard onError={onError} />}

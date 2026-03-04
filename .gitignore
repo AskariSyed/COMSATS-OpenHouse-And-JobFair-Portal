@@ -5,3 +5,5 @@ obj/
 /config
 /uploads/student
 /Program.cs
+/Backend/uploads
+/Backend/wwwroot/uploads/companies\logo

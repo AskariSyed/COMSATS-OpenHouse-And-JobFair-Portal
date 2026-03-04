@@ -13,8 +13,23 @@ namespace JobFairPortal.DTOs
     }
     public class CompanyCreateDto
     {
+        [Required]
         public string Name { get; set; } = null!;
+
+        [Required]
         public string Industry { get; set; } = null!;
+
+        [Required]
+        public string FocalPersonName { get; set; } = null!;
+
+        [Required, EmailAddress]
+        public string Email { get; set; } = null!;
+
+        [Required, Phone]
+        public string FocalPersonPhone { get; set; } = null!;
+
+        [Range(1, 20)]
+        public int RepsCount { get; set; } = 1;
     }
 
     public class CompanyResponseDto

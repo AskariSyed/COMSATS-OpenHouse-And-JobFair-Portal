@@ -8,6 +8,7 @@ export function createCompanyRequestsConnection() {
 
   connection = new HubConnectionBuilder()
     .withUrl(apiBase + '/hubs/companyRequests', {
+      withCredentials: false,
       accessTokenFactory: () => localStorage.getItem('token') || ''
     })
     .configureLogging(LogLevel.Information)

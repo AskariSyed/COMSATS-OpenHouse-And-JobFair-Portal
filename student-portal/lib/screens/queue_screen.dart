@@ -4,6 +4,7 @@ import 'dart:async';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/model/interview.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
@@ -74,7 +75,7 @@ class _QueueScreenState extends State<QueueScreen> {
           return Scaffold(
             backgroundColor: scaffoldBg,
             extendBody: true,
-            appBar: const BeautifulAppBar(title: "Interview Queue"),
+            appBar: const BeautifulAppBar(title: "Interviews"),
             body: _buildMessageContent(context, isMobile: true, isDark: isDark),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 4),
           );
@@ -105,7 +106,7 @@ class _QueueScreenState extends State<QueueScreen> {
 
                 // 🔹 Beautiful Web Navigation Bar
                 BeautifulWebNavBar(
-                  currentRoute: 'Queue',
+                  currentRoute: 'Interviews',
                   profileImageUrl: profileImageUrl,
                   userName: student?.user.fullName ?? "User",
                 ),
@@ -123,23 +124,20 @@ class _QueueScreenState extends State<QueueScreen> {
     required bool isDark,
   }) {
     final studentProvider = Provider.of<StudentProvider>(context);
-    final interviews = studentProvider.scheduledInterviews;
-    final queueInterviews =
-        interviews
-            .where(
-              (i) =>
-                  i.status.toLowerCase() == 'queued' ||
-                  i.status.toLowerCase() == 'inprogress',
-            )
-            .toList()
-          ..sort((a, b) {
-            final aTime = a.scheduledTime;
-            final bTime = b.scheduledTime;
-            if (aTime == null && bTime == null) return 0;
-            if (aTime == null) return 1;
-            if (bTime == null) return -1;
-            return aTime.compareTo(bTime);
-          });
+    final interviews = List<Interview>.from(studentProvider.scheduledInterviews)
+      ..sort((a, b) {
+        final statusCmp = _getStatusPriority(a.status).compareTo(
+          _getStatusPriority(b.status),
+        );
+        if (statusCmp != 0) return statusCmp;
+
+        final aTime = a.scheduledTime;
+        final bTime = b.scheduledTime;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return aTime.compareTo(bTime);
+      });
     final isLoading = studentProvider.isLoading;
     final error = studentProvider.scheduledInterviewsError;
 
@@ -151,7 +149,7 @@ class _QueueScreenState extends State<QueueScreen> {
         : Colors.orange.shade50;
 
     // Show loading indicator
-    if (isLoading && queueInterviews.isEmpty) {
+    if (isLoading && interviews.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -168,7 +166,7 @@ class _QueueScreenState extends State<QueueScreen> {
     }
 
     // Show error if any
-    if (error != null && queueInterviews.isEmpty) {
+    if (error != null && interviews.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -207,14 +205,14 @@ class _QueueScreenState extends State<QueueScreen> {
     }
 
     // Show interviews list if available
-    if (queueInterviews.isNotEmpty) {
+    if (interviews.isNotEmpty) {
       return Padding(
         padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Your Scheduled Interviews",
+              "Your Interviews",
               style: TextStyle(
                 fontSize: isMobile ? 24 : 32,
                 fontWeight: FontWeight.bold,
@@ -223,16 +221,16 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              "You have ${queueInterviews.length} interview${queueInterviews.length != 1 ? 's' : ''} in queue",
+              "Showing upcoming, in-progress, shortlisted, hired and rejected interviews",
               style: TextStyle(fontSize: 16, color: subTextColor),
             ),
             const SizedBox(height: 24),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: queueInterviews.length,
+              itemCount: interviews.length,
               itemBuilder: (context, index) {
-                final interview = queueInterviews[index];
+                final interview = interviews[index];
                 return _buildInterviewQueueCard(
                   interview: interview,
                   isMobile: isMobile,
@@ -266,7 +264,7 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              "No Scheduled Interviews Yet",
+              "No Interviews Yet",
               style: TextStyle(
                 fontSize: isMobile ? 22 : 28,
                 fontWeight: FontWeight.bold,
@@ -313,7 +311,7 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Widget _buildInterviewQueueCard({
-    required dynamic interview,
+    required Interview interview,
     required bool isMobile,
     required bool isDark,
   }) {
@@ -403,9 +401,25 @@ class _QueueScreenState extends State<QueueScreen> {
                       children: [
                         _buildMobileDetailRow(
                           icon: Icons.play_circle_outline,
-                          label: 'Start Time',
+                          label: 'Scheduled Start',
                           value: interview.scheduledTime != null
                               ? _formatActualDateTime(interview.scheduledTime!)
+                              : 'TBD',
+                        ),
+                        const SizedBox(height: 8),
+                        _buildMobileDetailRow(
+                          icon: Icons.login_outlined,
+                          label: 'Actual Start',
+                          value: interview.startedAt != null
+                              ? _formatActualDateTime(interview.startedAt!)
+                              : 'TBD',
+                        ),
+                        const SizedBox(height: 8),
+                        _buildMobileDetailRow(
+                          icon: Icons.logout_outlined,
+                          label: 'Ended At',
+                          value: interview.endedAt != null
+                              ? _formatActualDateTime(interview.endedAt!)
                               : 'TBD',
                         ),
                         const SizedBox(height: 8),
@@ -422,14 +436,6 @@ class _QueueScreenState extends State<QueueScreen> {
                           label: 'Room',
                           value: interview.room,
                         ),
-                        const SizedBox(height: 8),
-                        _buildMobileDetailRow(
-                          icon: Icons.timer_outlined,
-                          label: 'Time Left',
-                          value: _getRemainingTimeString(
-                            interview.scheduledTime,
-                          ),
-                        ),
                       ],
                     ),
                   )
@@ -440,9 +446,25 @@ class _QueueScreenState extends State<QueueScreen> {
                     children: [
                       _buildQueueInfoPill(
                         icon: Icons.play_circle_outline,
-                        label: 'Start',
+                        label: 'Scheduled Start',
                         value: interview.scheduledTime != null
                             ? _formatActualDateTime(interview.scheduledTime!)
+                            : 'TBD',
+                        isDark: isDark,
+                      ),
+                      _buildQueueInfoPill(
+                        icon: Icons.login_outlined,
+                        label: 'Actual Start',
+                        value: interview.startedAt != null
+                            ? _formatActualDateTime(interview.startedAt!)
+                            : 'TBD',
+                        isDark: isDark,
+                      ),
+                      _buildQueueInfoPill(
+                        icon: Icons.logout_outlined,
+                        label: 'Ended At',
+                        value: interview.endedAt != null
+                            ? _formatActualDateTime(interview.endedAt!)
                             : 'TBD',
                         isDark: isDark,
                       ),
@@ -458,12 +480,6 @@ class _QueueScreenState extends State<QueueScreen> {
                         icon: Icons.meeting_room_outlined,
                         label: 'Room',
                         value: interview.room,
-                        isDark: isDark,
-                      ),
-                      _buildQueueInfoPill(
-                        icon: Icons.timer_outlined,
-                        label: 'Time Left',
-                        value: _getRemainingTimeString(interview.scheduledTime),
                         isDark: isDark,
                       ),
                     ],
@@ -638,22 +654,20 @@ class _QueueScreenState extends State<QueueScreen> {
     return months[month - 1];
   }
 
-  String _getRemainingTimeString(DateTime? scheduledTime) {
-    if (scheduledTime == null) return "TBD";
-
-    final now = DateTime.now();
-    final difference = scheduledTime.toLocal().difference(now);
-
-    if (difference.isNegative) {
-      return "Interview started";
-    } else if (difference.inDays > 0) {
-      return "${difference.inDays}d ${difference.inHours % 24}h";
-    } else if (difference.inHours > 0) {
-      return "${difference.inHours}h ${difference.inMinutes % 60}m";
-    } else if (difference.inMinutes > 0) {
-      return "${difference.inMinutes}m ${difference.inSeconds % 60}s";
-    } else {
-      return "Starting soon";
+  int _getStatusPriority(String status) {
+    switch (status.toLowerCase()) {
+      case 'queued':
+        return 0;
+      case 'inprogress':
+        return 1;
+      case 'shortlisted':
+        return 2;
+      case 'hired':
+        return 3;
+      case 'rejected':
+        return 4;
+      default:
+        return 5;
     }
   }
 }

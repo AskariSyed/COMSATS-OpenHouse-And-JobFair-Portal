@@ -59,7 +59,7 @@ Widget buildBottomNav(BuildContext context, int currentIndex) {
       BottomNavigationBarItem(
         icon: Icon(Icons.list_alt_outlined),
         activeIcon: Icon(Icons.list_alt),
-        label: 'Queue',
+        label: 'Interviews',
       ),
       BottomNavigationBarItem(
         icon: Icon(Icons.inbox_outlined),

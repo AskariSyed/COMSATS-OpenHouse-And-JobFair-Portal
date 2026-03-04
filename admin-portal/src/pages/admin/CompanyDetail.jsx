@@ -420,7 +420,16 @@ const CompanyDetail = () => {
                     <tbody className="divide-y divide-gray-100">
                       {data.scheduledInterviews.length > 0 ? data.scheduledInterviews.map((int) => (
                         <tr key={int.interviewId} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{int.studentName}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {int.studentId ? (
+                              <button
+                                onClick={() => navigate(`/admin/students/${int.studentId}`)}
+                                className="text-indigo-700 hover:underline"
+                              >
+                                {int.studentName}
+                              </button>
+                            ) : int.studentName}
+                          </td>
                           <td className="px-4 py-3 text-gray-500">{int.studentRegistration}</td>
                           <td className="px-4 py-3 text-indigo-600 font-medium">
                             {int.interviewDate ? new Date(int.interviewDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'TBD'}
@@ -462,7 +471,14 @@ const CompanyDetail = () => {
                     <tbody className="divide-y divide-gray-100">
                       {data.hiredStudents.length > 0 ? data.hiredStudents.map((s) => (
                         <tr key={s.studentId} className="hover:bg-green-50/50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{s.studentName}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            <button
+                              onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                              className="text-indigo-700 hover:underline"
+                            >
+                              {s.studentName}
+                            </button>
+                          </td>
                           <td className="px-4 py-3 text-gray-500">{s.studentRegistration}</td>
                           <td className="px-4 py-3 text-gray-500">{s.department}</td>
                           <td className="px-4 py-3 text-right font-bold text-green-600">{s.cgpa.toFixed(2)}</td>
@@ -493,7 +509,14 @@ const CompanyDetail = () => {
                     <tbody className="divide-y divide-gray-100">
                       {data.shortlistedStudents.length > 0 ? data.shortlistedStudents.map((s) => (
                         <tr key={s.studentId} className="hover:bg-indigo-50/50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{s.studentName}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            <button
+                              onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                              className="text-indigo-700 hover:underline"
+                            >
+                              {s.studentName}
+                            </button>
+                          </td>
                           <td className="px-4 py-3 text-gray-500">{s.studentRegistration}</td>
                           <td className="px-4 py-3 text-gray-500">{s.department}</td>
                           <td className="px-4 py-3 text-right font-bold text-indigo-600">{s.cgpa.toFixed(2)}</td>

@@ -2,7 +2,8 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
-import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus } from '../api';
+import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword } from '../api';
+import { allSkillsList } from '../../data/skills';
 
 export default function CompanyProfile({ onError }) {
   const [profile, setProfile] = useState(null);
@@ -12,7 +13,8 @@ export default function CompanyProfile({ onError }) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Modals
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileEditSection, setProfileEditSection] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showJobModal, setShowJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
 
@@ -35,6 +37,12 @@ export default function CompanyProfile({ onError }) {
 
   // --- HANDLERS ---
   const handleConfirmAttendance = async () => {
+    const canConfirm = attendance?.canConfirmAttendance ?? attendance?.CanConfirmAttendance;
+    if (!canConfirm) {
+      onError('Attendance confirmation is only allowed one day before the job fair date.');
+      return;
+    }
+
     if (!confirm("Are you sure you want to confirm your attendance? This will notify the administration.")) return;
     
     setConfirming(true);
@@ -62,6 +70,25 @@ export default function CompanyProfile({ onError }) {
   };
 
   const { contactInfo, focalPerson, interviewStats, jobs } = profile;
+  const interviewDurationMinutes = profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30;
+  const attendanceModel = attendance
+    ? {
+        isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
+        arrivalStatus: attendance.arrivalStatus ?? attendance.ArrivalStatus,
+        roomAssigned: attendance.roomAssigned ?? attendance.RoomAssigned,
+        roomDetails: (() => {
+          const room = attendance.roomDetails ?? attendance.RoomDetails;
+          if (!room) return null;
+          return {
+            roomName: room.roomName ?? room.RoomName,
+            capacity: room.capacity ?? room.Capacity,
+          };
+        })(),
+        confirmedAt: attendance.confirmedAt ?? attendance.ConfirmedAt,
+        canConfirmAttendance: attendance.canConfirmAttendance ?? attendance.CanConfirmAttendance,
+        daysUntilJobFair: attendance.daysUntilJobFair ?? attendance.DaysUntilJobFair,
+      }
+    : null;
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-10">
@@ -70,11 +97,11 @@ export default function CompanyProfile({ onError }) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
         {/* Gradient Cover */}
         <div className="h-40 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 relative">
-           <button 
-             onClick={() => setShowProfileModal(true)} 
+           <button
+             onClick={() => setShowPasswordModal(true)}
              className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors backdrop-blur-sm"
            >
-              <Edit2 className="w-4 h-4" /> Edit Profile
+             Change Password
            </button>
         </div>
 
@@ -92,7 +119,21 @@ export default function CompanyProfile({ onError }) {
 
           {/* Info Row */}
           <div className="ml-36 pt-3 min-h-[60px] flex flex-col justify-center">
-             <h1 className="text-3xl font-bold text-gray-900">{profile.name}</h1>
+             <div className="flex flex-wrap items-center gap-3">
+               <h1 className="text-3xl font-bold text-gray-900">{profile.name}</h1>
+               <button
+                 onClick={() => setProfileEditSection('details')}
+                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+               >
+                 <Edit2 className="w-3.5 h-3.5" /> Edit Details
+               </button>
+               <button
+                 onClick={() => setProfileEditSection('branding')}
+                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 transition-colors"
+               >
+                 <Edit2 className="w-3.5 h-3.5" /> Edit Logo
+               </button>
+             </div>
              <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-1">
                <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4 text-blue-500"/> {profile.industry}</span>
                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-blue-500"/> {profile.address}</span>
@@ -102,6 +143,9 @@ export default function CompanyProfile({ onError }) {
                  </a>
                )}
              </div>
+               {profile.description && (
+                 <p className="mt-2 text-sm text-gray-600 max-w-2xl">{profile.description}</p>
+               )}
           </div>
         </div>
       </div>
@@ -119,7 +163,7 @@ export default function CompanyProfile({ onError }) {
         {/* --- LEFT COLUMN: DETAILS --- */}
         <div className="space-y-6">
             {/* Attendance Card */}
-            {attendance && (
+            {attendanceModel && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
                   <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -130,35 +174,41 @@ export default function CompanyProfile({ onError }) {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Status</span>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      attendance.isConfirmed 
+                      attendanceModel.isConfirmed 
                         ? 'bg-green-100 text-green-700' 
                         : 'bg-yellow-100 text-yellow-700'
                     }`}>
-                      {attendance.arrivalStatus}
+                      {attendanceModel.arrivalStatus}
                     </span>
                   </div>
 
-                  {attendance.roomAssigned && (
+                  {attendanceModel.roomAssigned && (
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <div className="text-sm text-blue-800 font-medium">Assigned Room</div>
-                      <div className="text-lg font-bold text-blue-900">{attendance.roomDetails?.roomName}</div>
-                      <div className="text-xs text-blue-600">Capacity: {attendance.roomDetails?.capacity}</div>
+                      <div className="text-lg font-bold text-blue-900">{attendanceModel.roomDetails?.roomName}</div>
+                      <div className="text-xs text-blue-600">Capacity: {attendanceModel.roomDetails?.capacity}</div>
                     </div>
                   )}
 
-                  {!attendance.isConfirmed && (
+                  {!attendanceModel.isConfirmed && (
                     <button
                       onClick={handleConfirmAttendance}
-                      disabled={confirming}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      disabled={confirming || !attendanceModel.canConfirmAttendance}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Attendance'}
                     </button>
                   )}
+
+                  {!attendanceModel.isConfirmed && !attendanceModel.canConfirmAttendance && (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      Attendance confirmation is available only one day before the job fair.
+                    </div>
+                  )}
                   
-                  {attendance.isConfirmed && (
+                  {attendanceModel.isConfirmed && (
                      <div className="text-center text-sm text-gray-500">
-                        Confirmed on {new Date(attendance.confirmedAt).toLocaleDateString()}
+                        Confirmed on {new Date(attendanceModel.confirmedAt).toLocaleDateString()}
                      </div>
                   )}
                 </div>
@@ -188,9 +238,17 @@ export default function CompanyProfile({ onError }) {
 
             {/* Official Contact */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
-                    <Phone className="w-5 h-5 text-blue-600" /> Official Contact
-                </h3>
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                      <Phone className="w-5 h-5 text-blue-600" /> Official Contact
+                  </h3>
+                  <button
+                    onClick={() => setProfileEditSection('contact')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                  </button>
+                </div>
                 <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600"><Mail className="w-4 h-4"/></div>
@@ -206,6 +264,24 @@ export default function CompanyProfile({ onError }) {
                             <p className="font-medium text-gray-900">{contactInfo.phone}</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-blue-600" /> Interview Settings
+                  </h3>
+                  <button
+                    onClick={() => setProfileEditSection('interview')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                  </button>
+                </div>
+                <div className="text-sm">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 font-bold">Expected Interview Duration</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">{interviewDurationMinutes} minutes</p>
                 </div>
             </div>
 
@@ -287,7 +363,19 @@ export default function CompanyProfile({ onError }) {
       </div>
 
       {/* --- MODALS --- */}
-      {showProfileModal && <ProfileModal profile={profile} onClose={() => setShowProfileModal(false)} onSave={async () => { setRefreshKey(k => k+1); setShowProfileModal(false); }} onError={onError} />}
+      {profileEditSection && (
+        <ProfileModal
+          profile={profile}
+          section={profileEditSection}
+          onClose={() => setProfileEditSection(null)}
+          onSave={async () => {
+            setRefreshKey(k => k+1);
+            setProfileEditSection(null);
+          }}
+          onError={onError}
+        />
+      )}
+      {showPasswordModal && <PasswordModal onClose={() => setShowPasswordModal(false)} onError={onError} />}
       
       {showJobModal && <JobModal job={editingJob} onClose={() => setShowJobModal(false)} onSave={async () => { setRefreshKey(k => k+1); setShowJobModal(false); }} onError={onError} />}
 
@@ -320,7 +408,12 @@ function AddLinkButton({ onAdd }) {
   return (
     <div className="flex items-center gap-2 animate-fade-in bg-white border border-gray-200 rounded-lg p-1.5 absolute right-6 z-10 shadow-xl">
        <select className="text-xs border border-gray-300 rounded p-1.5 outline-none focus:border-blue-500 bg-white" value={data.platform} onChange={e => setData({...data, platform: parseInt(e.target.value)})}>
-         <option value={0}>LinkedIn</option><option value={1}>Website</option><option value={2}>Facebook</option><option value={3}>Twitter</option>
+         <option value={0}>LinkedIn</option>
+         <option value={1}>Website</option>
+         <option value={2}>Twitter</option>
+         <option value={3}>Facebook</option>
+         <option value={4}>Instagram</option>
+         <option value={5}>Other</option>
        </select>
        <input className="text-xs border border-gray-300 rounded p-1.5 w-32 outline-none focus:border-blue-500" placeholder="https://..." value={data.url} onChange={e => setData({...data, url: e.target.value})} />
        <button onClick={handleSubmit} className="bg-green-500 text-white p-1.5 rounded hover:bg-green-600"><CheckCircle className="w-3 h-3"/></button>
@@ -329,12 +422,38 @@ function AddLinkButton({ onAdd }) {
   );
 }
 
-function ProfileModal({ profile, onClose, onSave, onError }) {
-  const [formData, setFormData] = useState({ ...profile, Logo: null });
+function ProfileModal({ profile, section, onClose, onSave, onError }) {
+  const [formData, setFormData] = useState({
+    ...profile,
+    description: profile?.description || '',
+    interviewDurationMinutes: profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30,
+    Logo: null
+  });
   const [loading, setLoading] = useState(false);
+
+  const modalTitleMap = {
+    details: 'Edit Company Details',
+    contact: 'Edit Official Contact',
+    interview: 'Edit Interview Settings',
+    branding: 'Update Company Logo'
+  };
+
+  const showDetails = section === 'details';
+  const showContact = section === 'contact';
+  const showInterview = section === 'interview';
+  const showBranding = section === 'branding';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if ((formData.description || '').length > 500) {
+      onError('Description cannot exceed 500 characters.');
+      return;
+    }
+    const duration = Number(formData.interviewDurationMinutes || 30);
+    if (duration < 5 || duration > 240) {
+      onError('Interview duration must be between 5 and 240 minutes.');
+      return;
+    }
     setLoading(true);
     try {
       const data = new FormData();
@@ -342,6 +461,8 @@ function ProfileModal({ profile, onClose, onSave, onError }) {
       data.append('CompanyPhone', formData.contactInfo.phone);
       data.append('Website', formData.website || '');
       data.append('Address', formData.address);
+      data.append('Description', formData.description || '');
+      data.append('InterviewDurationMinutes', String(formData.interviewDurationMinutes || 30));
       if(formData.Logo) data.append('Logo', formData.Logo);
       
       await updateCompanyProfile(data);
@@ -353,16 +474,51 @@ function ProfileModal({ profile, onClose, onSave, onError }) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-           <h3 className="text-lg font-bold text-gray-900">Edit Company Profile</h3>
+           <h3 className="text-lg font-bold text-gray-900">{modalTitleMap[section] || 'Edit Company Profile'}</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-           <Input label="Official Email" value={formData.contactInfo.email} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, email: e.target.value}})} />
-           <Input label="Official Phone" value={formData.contactInfo.phone} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, phone: e.target.value}})} />
-           <Input label="Website URL" value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} />
-           <Input label="Headquarters Address" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+           {showContact && (
+             <>
+               <Input label="Official Email" value={formData.contactInfo.email} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, email: e.target.value}})} />
+               <Input label="Official Phone" value={formData.contactInfo.phone} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, phone: e.target.value}})} />
+             </>
+           )}
+
+           {showDetails && (
+             <>
+               <Input label="Website URL" value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} />
+               <Input label="Headquarters Address" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+               <div>
+                 <div className="flex items-center justify-between mb-1.5">
+                   <label className="block text-xs font-bold text-gray-500 uppercase">Company Description</label>
+                   <span className={`text-xs font-semibold ${(formData.description || '').length > 500 ? 'text-red-600' : 'text-gray-500'}`}>
+                     {(formData.description || '').length}/500
+                   </span>
+                 </div>
+                 <textarea
+                   className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all h-28 resize-none"
+                   value={formData.description || ''}
+                   maxLength={500}
+                   onChange={e => setFormData({...formData, description: e.target.value.slice(0, 500)})}
+                   placeholder="Write a short company description"
+                 />
+               </div>
+             </>
+           )}
+
+           {showInterview && (
+             <Input
+               label="Expected Interview Time (minutes)"
+               type="number"
+               min="5"
+               max="240"
+               value={formData.interviewDurationMinutes}
+               onChange={e => setFormData({...formData, interviewDurationMinutes: Number(e.target.value)})}
+             />
+           )}
            
-           <div className="pt-2">
+           {showBranding && <div className="pt-2">
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Update Logo</label>
               <div className="flex items-center justify-center w-full">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -374,7 +530,7 @@ function ProfileModal({ profile, onClose, onSave, onError }) {
                       <input type="file" className="hidden" onChange={e => setFormData({...formData, Logo: e.target.files[0]})} />
                   </label>
               </div> 
-           </div>
+                   </div>}
 
            <div className="pt-4 flex gap-3">
               <button type="button" onClick={onClose} className="flex-1 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">Cancel</button>
@@ -388,9 +544,84 @@ function ProfileModal({ profile, onClose, onSave, onError }) {
   );
 }
 
+function PasswordModal({ onClose, onError }) {
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const validate = () => {
+    const nextErrors = {};
+    if (!form.currentPassword.trim()) {
+      nextErrors.currentPassword = 'Current password is required';
+    }
+    if (!form.newPassword) {
+      nextErrors.newPassword = 'New password is required';
+    } else if (form.newPassword.length < 8) {
+      nextErrors.newPassword = 'New password must be at least 8 characters';
+    }
+    if (!form.confirmPassword) {
+      nextErrors.confirmPassword = 'Confirm password is required';
+    } else if (form.confirmPassword !== form.newPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match';
+    }
+    if (form.currentPassword && form.newPassword && form.currentPassword === form.newPassword) {
+      nextErrors.newPassword = 'New password must be different from current password';
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      await changePassword(form.currentPassword, form.newPassword, form.confirmPassword);
+      alert('Password changed successfully');
+      onClose();
+    } catch (err) {
+      onError(err.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-down">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+           <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
+           <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <Input label="Current Password" type="password" value={form.currentPassword} onChange={e => { setForm({ ...form, currentPassword: e.target.value }); setErrors({ ...errors, currentPassword: undefined }); }} />
+            {errors.currentPassword && <p className="mt-1 text-xs text-red-600">{errors.currentPassword}</p>}
+          </div>
+          <div>
+            <Input label="New Password" type="password" value={form.newPassword} onChange={e => { setForm({ ...form, newPassword: e.target.value }); setErrors({ ...errors, newPassword: undefined }); }} />
+            {errors.newPassword && <p className="mt-1 text-xs text-red-600">{errors.newPassword}</p>}
+          </div>
+          <div>
+            <Input label="Confirm Password" type="password" value={form.confirmPassword} onChange={e => { setForm({ ...form, confirmPassword: e.target.value }); setErrors({ ...errors, confirmPassword: undefined }); }} />
+            {errors.confirmPassword && <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>}
+          </div>
+          <div className="pt-3 flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">Cancel</button>
+            <button disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex justify-center gap-2 transition-colors shadow-lg shadow-blue-200">
+              {loading ? <Loader2 className="animate-spin w-5 h-5"/> : 'Update Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function JobModal({ job, onClose, onSave, onError }) {
   const [formData, setFormData] = useState(job || { JobTitle: '', JobDescription: '', JobCount: 1, JobType: 0, RequiredSkills: [] });
   const [skillInput, setSkillInput] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -414,10 +645,17 @@ function JobModal({ job, onClose, onSave, onError }) {
 
   const addSkill = (e) => {
     e.preventDefault();
-    if(skillInput) {
+     const manualSkill = skillInput.trim();
+     const dropdownSkill = selectedSkill.trim();
+     const skillToAdd = manualSkill || dropdownSkill;
+     if (skillToAdd) {
        const skills = formData.RequiredSkills || formData.requiredSkills || [];
-       setFormData({...formData, RequiredSkills: [...skills, skillInput]});
+       const exists = skills.some(s => String(s).toLowerCase() === skillToAdd.toLowerCase());
+       if (!exists) {
+         setFormData({...formData, RequiredSkills: [...skills, skillToAdd]});
+       }
        setSkillInput('');
+       setSelectedSkill('');
     }
   };
 
@@ -452,7 +690,17 @@ function JobModal({ job, onClose, onSave, onError }) {
            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Required Skills</label>
               <div className="flex gap-2 mb-3">
-                 <input className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" value={skillInput} onChange={e => setSkillInput(e.target.value)} placeholder="Type a skill..." />
+                 <select
+                   className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                   value={selectedSkill}
+                   onChange={e => setSelectedSkill(e.target.value)}
+                 >
+                   <option value="">Select skill from list...</option>
+                   {allSkillsList.map(skill => (
+                     <option key={skill} value={skill}>{skill}</option>
+                   ))}
+                 </select>
+                 <input className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" value={skillInput} onChange={e => setSkillInput(e.target.value)} placeholder="Or type custom skill..." />
                  <button onClick={addSkill} className="bg-blue-50 text-blue-600 px-4 rounded-lg text-sm font-bold hover:bg-blue-100 border border-blue-100">Add</button>
               </div>
               <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-gray-50 rounded-lg border border-gray-100">
@@ -481,11 +729,11 @@ function JobModal({ job, onClose, onSave, onError }) {
   );
 }
 
-function Input({ label, value, onChange, type="text", placeholder }) {
+function Input({ label, value, onChange, type="text", placeholder, ...rest }) {
   return (
     <div>
       <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">{label}</label>
-      <input type={type} placeholder={placeholder} value={value || ''} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
+      <input type={type} placeholder={placeholder} value={value || ''} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all" {...rest} />
     </div>
   );
 }

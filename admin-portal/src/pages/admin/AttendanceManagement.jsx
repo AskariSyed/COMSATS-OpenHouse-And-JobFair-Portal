@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Download, RefreshCw, Play, X, Eye, Copy, Check, Pause } from 'lucide-react';
+import { Download, RefreshCw, Play, X, Eye, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ import * as api from '../../lib/api';
 const AttendanceManagement = () => {
   const [jobFairs, setJobFairs] = useState([]);
   const [selectedJobFair, setSelectedJobFair] = useState(null);
+  const [jobFairStats, setJobFairStats] = useState({});
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sessionToken, setSessionToken] = useState(null);
@@ -15,6 +16,9 @@ const AttendanceManagement = () => {
   const [attendedCompanies, setAttendedCompanies] = useState([]);
   const [copiedToken, setCopiedToken] = useState(false);
   const qrRef = useRef(null);
+
+  const getJobFairId = (jobFair) => jobFair?.JobFairId || jobFair?.jobFairId;
+  const getCompanyId = (company) => company?.id || company?.companyId || company?.CompanyId;
 
   // Fetch Job Fairs
   useEffect(() => {
@@ -26,11 +30,52 @@ const AttendanceManagement = () => {
       const response = await api.getAllJobFairs();
       // Handle paginated response - data.jobFairs is the array
       const jobFairsList = response.data?.jobFairs || response.data || [];
-      setJobFairs(Array.isArray(jobFairsList) ? jobFairsList : []);
+      const fairs = Array.isArray(jobFairsList) ? jobFairsList : [];
+      setJobFairs(fairs);
+      await fetchJobFairCardStats(fairs);
     } catch (error) {
       toast.error('Failed to fetch job fairs');
       console.error(error);
       setJobFairs([]); // Set empty array on error
+      setJobFairStats({});
+    }
+  };
+
+  const fetchJobFairCardStats = async (fairs) => {
+    try {
+      const statsEntries = await Promise.all(
+        fairs.map(async (fair) => {
+          const jobFairId = getJobFairId(fair);
+          if (!jobFairId) {
+            return [String(Math.random()), { totalCompanies: 0, presentCompanies: 0 }];
+          }
+
+          try {
+            const [companiesRes, attendanceRes] = await Promise.all([
+              api.getCompaniesForJobFair(jobFairId),
+              api.getAttendanceStats(jobFairId),
+            ]);
+
+            const fairCompanies = Array.isArray(companiesRes.data) ? companiesRes.data : [];
+            const fairAttendance = Array.isArray(attendanceRes.data) ? attendanceRes.data : [];
+
+            return [
+              String(jobFairId),
+              {
+                totalCompanies: fairCompanies.length,
+                presentCompanies: fairAttendance.filter((c) => c.isPresent).length,
+              },
+            ];
+          } catch {
+            return [String(jobFairId), { totalCompanies: 0, presentCompanies: 0 }];
+          }
+        })
+      );
+
+      setJobFairStats(Object.fromEntries(statsEntries));
+    } catch (error) {
+      console.error('Failed to fetch job fair card stats', error);
+      setJobFairStats({});
     }
   };
 
@@ -44,17 +89,22 @@ const AttendanceManagement = () => {
   const fetchCompanies = async () => {
     try {
       setLoading(true);
-      const jobFairId = selectedJobFair.JobFairId || selectedJobFair.jobFairId;
+      const jobFairId = getJobFairId(selectedJobFair);
       const response = await api.getCompaniesForJobFair(jobFairId);
       // Ensure we always set an array
       setCompanies(Array.isArray(response.data) ? response.data : []);
       setSessionToken(null);
       setSessionActive(false);
-      setAttendedCompanies([]);
+      await fetchAttendanceStats(jobFairId);
+
+      if (isJobFairToday(selectedJobFair)) {
+        await loadDailyQr(jobFairId);
+      }
     } catch (error) {
       toast.error('Failed to fetch companies');
       console.error(error);
       setCompanies([]); // Set empty array on error
+      setAttendedCompanies([]);
     } finally {
       setLoading(false);
     }
@@ -68,12 +118,11 @@ const AttendanceManagement = () => {
 
     try {
       setLoading(true);
-      const jobFairId = selectedJobFair.JobFairId || selectedJobFair.jobFairId;
-      const response = await api.generateDailyAttendanceQr(jobFairId);
-      setSessionToken(response.data.sessionToken);
-      setSessionActive(true);
-      setAttendedCompanies([]);
-      toast.success('Daily attendance QR generated');
+      const jobFairId = getJobFairId(selectedJobFair);
+      await loadDailyQr(jobFairId);
+      await fetchAttendanceStats(jobFairId);
+      await fetchJobFairs();
+      toast.success('Daily attendance QR is ready');
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message || 'Failed to start attendance session';
       toast.error(errorMsg);
@@ -81,6 +130,19 @@ const AttendanceManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadDailyQr = async (jobFairId) => {
+    const response = await api.generateDailyAttendanceQr(jobFairId);
+    const token = response?.data?.sessionToken;
+
+    if (!token) {
+      throw new Error('No QR token returned by server');
+    }
+
+    setSessionToken(token);
+    setSessionActive(true);
+    return token;
   };
 
   const handleEndAttendanceSession = async () => {
@@ -91,6 +153,7 @@ const AttendanceManagement = () => {
       toast.success('Attendance session ended');
       // Refresh attendance data
       await fetchAttendanceStats();
+      await fetchJobFairs();
     } catch (error) {
       toast.error('Failed to end attendance session');
       console.error(error);
@@ -99,16 +162,34 @@ const AttendanceManagement = () => {
     }
   };
 
-  const fetchAttendanceStats = async () => {
+  const fetchAttendanceStats = async (jobFairIdParam = null) => {
     try {
-      const jobFairId = selectedJobFair.JobFairId || selectedJobFair.jobFairId;
+      const jobFairId = jobFairIdParam || getJobFairId(selectedJobFair);
+      if (!jobFairId) return;
+
       const response = await api.getAttendanceStats(jobFairId);
-      const attended = response.data.filter(c => c.isPresent).map(c => c.id);
+      const stats = Array.isArray(response.data) ? response.data : [];
+      const attended = stats
+        .filter((c) => c.isPresent)
+        .map((c) => String(c.id || c.companyId || c.CompanyId));
       setAttendedCompanies(attended);
     } catch (error) {
       console.error('Failed to fetch attendance stats', error);
     }
   };
+
+  useEffect(() => {
+    if (!selectedJobFair || !sessionActive) return;
+
+    const jobFairId = getJobFairId(selectedJobFair);
+    if (!jobFairId) return;
+
+    const intervalId = setInterval(() => {
+      fetchAttendanceStats(jobFairId);
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [selectedJobFair, sessionActive]);
 
   const handleDownloadQR = async () => {
     try {
@@ -174,6 +255,50 @@ const AttendanceManagement = () => {
     setTimeout(() => setCopiedToken(false), 2000);
   };
 
+  const handleMarkAbsent = async (company) => {
+    try {
+      const jobFairId = getJobFairId(selectedJobFair);
+      const companyId = getCompanyId(company);
+
+      if (!jobFairId || !companyId) {
+        toast.error('Unable to mark absent: missing company or job fair ID');
+        return;
+      }
+
+      await api.markCompanyAbsent(jobFairId, Number(companyId));
+      toast.success(`${company.companyName || company.name || 'Company'} marked absent`);
+
+      await fetchAttendanceStats(jobFairId);
+      await fetchJobFairs();
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 'Failed to mark company absent';
+      toast.error(errorMsg);
+      console.error(error);
+    }
+  };
+
+  const handleMarkPresent = async (company) => {
+    try {
+      const jobFairId = getJobFairId(selectedJobFair);
+      const companyId = getCompanyId(company);
+
+      if (!jobFairId || !companyId) {
+        toast.error('Unable to mark present: missing company or job fair ID');
+        return;
+      }
+
+      await api.markCompanyPresent(jobFairId, Number(companyId));
+      toast.success(`${company.companyName || company.name || 'Company'} marked present`);
+
+      await fetchAttendanceStats(jobFairId);
+      await fetchJobFairs();
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 'Failed to mark company present';
+      toast.error(errorMsg);
+      console.error(error);
+    }
+  };
+
   const isJobFairToday = (jobFair) => {
     const jobFairDate = new Date(jobFair.Date || jobFair.date);
     const today = new Date();
@@ -192,9 +317,11 @@ const AttendanceManagement = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {jobFairs.map(jf => {
                 const today = isJobFairToday(jf);
+                const fairId = String(getJobFairId(jf));
+                const fairStats = jobFairStats[fairId] || { totalCompanies: 0, presentCompanies: 0 };
                 return (
                   <button
-                    key={jf.JobFairId || jf.jobFairId}
+                    key={getJobFairId(jf)}
                     onClick={() => setSelectedJobFair(jf)}
                     disabled={!today}
                     className={`p-4 border-2 rounded-lg transition text-left ${
@@ -213,8 +340,9 @@ const AttendanceManagement = () => {
                       {new Date(jf.Date || jf.date).toLocaleDateString()}
                     </p>
                     <p className="text-xs text-gray-500 mt-2">
-                      {jf.TotalCompanies || 0} Companies • {jf.TotalStudents || 0} Students
+                      {fairStats.totalCompanies} Companies
                     </p>
+                    <p className="text-xs text-gray-500 mt-1">{fairStats.presentCompanies} Present</p>
                     {!today && (
                       <p className="text-xs text-red-600 mt-2 font-medium">Attendance unavailable on this date</p>
                     )}
@@ -282,7 +410,7 @@ const AttendanceManagement = () => {
                   <h2 className="text-2xl font-bold">Daily Attendance QR</h2>
                   <div className="flex items-center gap-2">
                     <span className="inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                    <span className="text-green-600 font-semibold">Active</span>
+                    <span className="text-green-600 font-semibold">Valid Today</span>
                   </div>
                 </div>
 
@@ -341,15 +469,6 @@ const AttendanceManagement = () => {
                     className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition"
                   >
                     Print QR
-                  </button>
-
-                  <button
-                    onClick={handleEndAttendanceSession}
-                    disabled={loading}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2"
-                  >
-                    <Pause size={18} />
-                    End Session
                   </button>
                 </div>
               </div>
@@ -413,13 +532,45 @@ const AttendanceManagement = () => {
           <h2 className="text-xl font-semibold mb-4">Companies Attended ({attendedCompanies.length})</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {companies
-              .filter(c => attendedCompanies.includes(c.id))
+              .filter(c => attendedCompanies.includes(String(getCompanyId(c))))
               .map(company => (
-                <div key={company.id} className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                  <p className="text-sm font-semibold text-gray-800 break-words">{company.companyName}</p>
+                <div key={getCompanyId(company)} className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                  <p className="text-sm font-semibold text-gray-800 break-words">{company.companyName || company.name || 'Company'}</p>
                   <span className="inline-block mt-2 px-2 py-1 bg-green-200 text-green-800 text-xs rounded-full">
                     ✓ Present
                   </span>
+                  <button
+                    onClick={() => handleMarkAbsent(company)}
+                    className="mt-2 w-full px-2 py-1.5 text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition"
+                  >
+                    Mark Absent
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {sessionActive && companies.some(c => !attendedCompanies.includes(String(getCompanyId(c)))) && (
+        <div className="mt-6 bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4">
+            Companies Not Present ({companies.filter(c => !attendedCompanies.includes(String(getCompanyId(c)))).length})
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {companies
+              .filter(c => !attendedCompanies.includes(String(getCompanyId(c))))
+              .map(company => (
+                <div key={getCompanyId(company)} className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                  <p className="text-sm font-semibold text-gray-800 break-words">{company.companyName || company.name || 'Company'}</p>
+                  <span className="inline-block mt-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full">
+                    Not Present
+                  </span>
+                  <button
+                    onClick={() => handleMarkPresent(company)}
+                    className="mt-2 w-full px-2 py-1.5 text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 rounded-md transition"
+                  >
+                    Mark Present
+                  </button>
                 </div>
               ))}
           </div>

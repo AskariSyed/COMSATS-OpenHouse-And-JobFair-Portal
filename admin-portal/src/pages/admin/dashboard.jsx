@@ -92,7 +92,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="w-full max-w-full space-y-8 animate-fade-in overflow-x-hidden">
       
       {/* 1. Header */}
       <div>
@@ -136,6 +136,44 @@ const Dashboard = () => {
       </div>
 
       {/* 3. Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top Candidate By Company Requests</p>
+          <div className="mt-3 flex items-center justify-between">
+            <div>
+              <p className="text-lg font-bold text-gray-900">{stats?.topRequestedCandidateName || 'No data yet'}</p>
+              <p className="text-sm text-gray-500">{stats?.topRequestedCandidateRequestCount || 0} company requests</p>
+            </div>
+            {stats?.topRequestedCandidateId && (
+              <button
+                onClick={() => navigate(`/admin/students/${stats.topRequestedCandidateId}`)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              >
+                View Profile
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top Candidate By Hires</p>
+          <div className="mt-3 flex items-center justify-between">
+            <div>
+              <p className="text-lg font-bold text-gray-900">{stats?.topHiredCandidateName || 'No data yet'}</p>
+              <p className="text-sm text-gray-500">{stats?.topHiredCandidateHireCount || 0} hired outcomes</p>
+            </div>
+            {stats?.topHiredCandidateId && (
+              <button
+                onClick={() => navigate(`/admin/students/${stats.topHiredCandidateId}`)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              >
+                View Profile
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Recruitment Progress (Pie Chart) */}

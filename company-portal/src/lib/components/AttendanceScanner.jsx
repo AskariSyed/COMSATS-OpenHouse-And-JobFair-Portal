@@ -26,11 +26,11 @@ export default function AttendanceScanner({ onBack, onError, onMarked }) {
 
     setSubmitting(true);
     try {
-      await markAttendanceByQr(token);
+      const response = await markAttendanceByQr(token);
       setMarked(true);
       setCameraStatus('Attendance marked successfully.');
       stopStream();
-      if (onMarked) onMarked();
+      if (onMarked) onMarked(response);
     } catch (err) {
       onError(err.message || 'Failed to mark attendance');
       setCameraStatus('QR not valid. Try again.');

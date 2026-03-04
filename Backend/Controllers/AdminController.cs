@@ -18,6 +18,7 @@ using Microsoft.Extensions.Configuration;
 using Notification = FirebaseAdmin.Messaging.Notification;
 using Microsoft.Extensions.Caching.Memory;
 using FirebaseAdmin;
+using JobFairPortal.Services;
 
 
 
@@ -36,14 +37,16 @@ namespace JobFairPortal.Controllers
 
         private readonly ILogger<AdminController> _logger;
         private readonly IMemoryCache _cache;
+        private readonly MailKitMailService _mailService;
 
 
 
-        public AdminController(JobFairRecruitmentDbContext context, ILogger<AdminController> logger, IMemoryCache cache)
+        public AdminController(JobFairRecruitmentDbContext context, ILogger<AdminController> logger, IMemoryCache cache, MailKitMailService mailService)
         {
             _context = context;
             _logger = logger;
             _cache = cache;
+            _mailService = mailService;
         }
         // -----------------------------
         // 1. Create Admin
@@ -689,13 +692,63 @@ namespace JobFairPortal.Controllers
             var activeJobFairId = await GetActiveJobFairIdAsync();
             if (activeJobFairId == null) return BadRequest("No active job fair.");
 
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required.");
+
+            if (string.IsNullOrWhiteSpace(dto.FocalPersonName))
+                return BadRequest("Focal person name is required.");
+
+            if (string.IsNullOrWhiteSpace(dto.FocalPersonPhone))
+                return BadRequest("Focal person phone is required.");
+
+            var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+
+            var existingCompanyWithSameEmail = await _context.Companies
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.User.Email.ToLower() == normalizedEmail);
+
+            if (existingCompanyWithSameEmail != null)
+                return BadRequest("A company with this email already exists.");
+
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail && u.Role == UserRole.Company);
+
+            string? generatedTempPassword = null;
+
+            if (existingUser == null)
+            {
+                generatedTempPassword = $"OnSpot@{Guid.NewGuid():N}";
+                existingUser = new User
+                {
+                    Email = normalizedEmail,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(generatedTempPassword),
+                    Role = UserRole.Company,
+                    FullName = dto.FocalPersonName,
+                    Phone = dto.FocalPersonPhone,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Users.Add(existingUser);
+                await _context.SaveChangesAsync();
+            }
+
             var company = new Company
             {
                 Name = dto.Name,
                 Industry = dto.Industry,
-                
+                UserId = existingUser.UserId,
+                FocalPersonName = dto.FocalPersonName,
+                FocalPersonEmail = normalizedEmail,
+                FocalPersonPhone = dto.FocalPersonPhone,
+                CompanyEmail = normalizedEmail,
+                CompanyPhone = dto.FocalPersonPhone,
+                RepsCount = dto.RepsCount > 0 ? dto.RepsCount : 1,
+                InterviewDurationMinutes = 30,
                 IsPresent = true,
                 JobFairId = activeJobFairId.Value, // Set initial fair
+                CurrentJobFairId = activeJobFairId.Value,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -710,11 +763,53 @@ namespace JobFairPortal.Controllers
                 JobFairId = activeJobFairId.Value,
                 ArrivalStatus = ArrivalStatus.OnSpot,
                 IsPresent = true,
+                RepsCount = company.RepsCount,
+                InterviewDurationMinutes = company.InterviewDurationMinutes,
                 RegisteredAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             _context.CompanyJobFairParticipations.Add(participation);
             await _context.SaveChangesAsync();
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var subject = "On-Spot Company Registration - Job Fair Portal";
+                    var body = generatedTempPassword == null
+                        ? $"""
+Hello {dto.FocalPersonName},
+
+Your company ({dto.Name}) has been registered on-spot for the active job fair.
+
+Email: {normalizedEmail}
+
+Your account already existed, so your previous password remains unchanged.
+
+Regards,
+Job Fair Team
+"""
+                        : $"""
+Hello {dto.FocalPersonName},
+
+Your company ({dto.Name}) has been registered on-spot for the active job fair.
+
+Login email: {normalizedEmail}
+Temporary password: {generatedTempPassword}
+
+Please login and change your password immediately.
+
+Regards,
+Job Fair Team
+""";
+
+                    await _mailService.SendMailAsync(normalizedEmail, subject, body);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send on-spot company registration email to {Email}", normalizedEmail);
+                }
+            });
 
             return Ok(new CompanyResponseDto
             {
@@ -864,6 +959,36 @@ namespace JobFairPortal.Controllers
                 var activeJobFairId = await GetActiveJobFairIdAsync();
                 if (activeJobFairId == null) return Ok(new DashboardOverviewDto());
 
+                var topRequestedCandidate = await _context.InterviewRequests
+                    .Where(r => r.JobFairId == activeJobFairId.Value && r.RequestedBy == RequestedBy.Company)
+                    .GroupBy(r => r.StudentId)
+                    .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                    .OrderByDescending(x => x.Count)
+                    .ThenBy(x => x.StudentId)
+                    .FirstOrDefaultAsync();
+
+                var topRequestedStudentName = topRequestedCandidate == null
+                    ? null
+                    : await _context.Students
+                        .Where(s => s.StudentId == topRequestedCandidate.StudentId)
+                        .Select(s => s.User.FullName)
+                        .FirstOrDefaultAsync();
+
+                var topHiredCandidate = await _context.Interviews
+                    .Where(i => i.JobFairId == activeJobFairId.Value && i.Status == InterviewStatus.Hired)
+                    .GroupBy(i => i.StudentId)
+                    .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                    .OrderByDescending(x => x.Count)
+                    .ThenBy(x => x.StudentId)
+                    .FirstOrDefaultAsync();
+
+                var topHiredStudentName = topHiredCandidate == null
+                    ? null
+                    : await _context.Students
+                        .Where(s => s.StudentId == topHiredCandidate.StudentId)
+                        .Select(s => s.User.FullName)
+                        .FirstOrDefaultAsync();
+
                 // ✅ FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
                 {
@@ -874,7 +999,13 @@ namespace JobFairPortal.Controllers
                     StudentsHired = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Hired),
                     StudentsShortlisted = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Shortlisted),
                     CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.CDC),
-                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.Department)
+                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.Department),
+                    TopRequestedCandidateId = topRequestedCandidate?.StudentId,
+                    TopRequestedCandidateName = topRequestedStudentName,
+                    TopRequestedCandidateRequestCount = topRequestedCandidate?.Count ?? 0,
+                    TopHiredCandidateId = topHiredCandidate?.StudentId,
+                    TopHiredCandidateName = topHiredStudentName,
+                    TopHiredCandidateHireCount = topHiredCandidate?.Count ?? 0
                 };
 
                 // 3. Save to Cache options (e.g., expire after 5 minutes)
@@ -1264,6 +1395,21 @@ namespace JobFairPortal.Controllers
                 Status = room.Status,
                 CompanyName = null
             });
+        }
+
+        [HttpDelete("rooms/{roomId}")]
+        public async Task<IActionResult> DeleteRoom(int roomId)
+        {
+            var room = await _context.Rooms.FirstOrDefaultAsync(r => r.RoomId == roomId);
+            if (room == null) return NotFound("Room not found.");
+
+            if (room.CompanyId.HasValue || room.Status != RoomStatus.Vacant)
+                return BadRequest("Only vacant rooms can be deleted. Remove/deallocate company first.");
+
+            _context.Rooms.Remove(room);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Room deleted successfully." });
         }
 
 

@@ -3,6 +3,8 @@ class Interview {
   final String companyName;
   final String? companyLogo;
   final DateTime? scheduledTime;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
   final int? durationMinutes;
   final String room;
   final String status;
@@ -12,6 +14,8 @@ class Interview {
     required this.companyName,
     this.companyLogo,
     this.scheduledTime,
+    this.startedAt,
+    this.endedAt,
     this.durationMinutes,
     required this.room,
     required this.status,
@@ -25,6 +29,10 @@ class Interview {
       scheduledTime: json['scheduledTime'] != null
           ? DateTime.parse(json['scheduledTime'])
           : null,
+      startedAt: json['startedAt'] != null
+          ? DateTime.parse(json['startedAt'])
+          : null,
+      endedAt: json['endedAt'] != null ? DateTime.parse(json['endedAt']) : null,
       durationMinutes: json['durationMinutes'],
       room: json['room'] ?? 'TBD',
       status: json['status'] ?? 'Queued',
@@ -37,6 +45,8 @@ class Interview {
       'companyName': companyName,
       'companyLogo': companyLogo,
       'scheduledTime': scheduledTime?.toIso8601String(),
+      'startedAt': startedAt?.toIso8601String(),
+      'endedAt': endedAt?.toIso8601String(),
       'durationMinutes': durationMinutes,
       'room': room,
       'status': status,

@@ -1,15 +1,17 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download } from 'lucide-react';
 import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile } from '../api';
+import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
-export default function InterviewManager({ onError }) {
-  const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled
+export default function InterviewManager({ onError, onSelectStudent }) {
+  const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled | completed
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); 
   
   const [pendingRequests, setPendingRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
+  const [completedInterviews, setCompletedInterviews] = useState([]);
   const [scheduledInterviews, setScheduledInterviews] = useState([]);
   const [stats, setStats] = useState(null);
 
@@ -31,6 +33,7 @@ export default function InterviewManager({ onError }) {
   const [selectedScheduledInterview, setSelectedScheduledInterview] = useState(null);
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [downloadingAllCvs, setDownloadingAllCvs] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -39,9 +42,48 @@ export default function InterviewManager({ onError }) {
       getAllInterviewRequests('Accepted'),
       getAnalytics()
     ]).then(([requestsData, acceptedData, analyticsData]) => {
+      const normalizedScheduled = (analyticsData.interviews?.scheduledInterviews || []).filter((interview) => {
+        const scheduledTime = interview.scheduledTime || interview.ScheduledTime;
+        const status = String(interview.status || interview.Status || '').toLowerCase();
+        if (!scheduledTime) return false;
+
+        const interviewDate = new Date(scheduledTime);
+        if (Number.isNaN(interviewDate.getTime())) return false;
+
+        return status === 'queued' || status === 'accepted' || status === 'inprogress' || status === '';
+      });
+
+      const allAcceptedRequests = acceptedData.requests || [];
+      const completed = allAcceptedRequests
+        .filter((req) => {
+          const interview = req.interview || req.Interview;
+          const interviewStatus = String(interview?.interviewStatus || interview?.InterviewStatus || '').toLowerCase();
+          return interviewStatus === 'hired' || interviewStatus === 'shortlisted' || interviewStatus === 'rejected';
+        })
+        .map((req) => {
+          const interview = req.interview || req.Interview;
+          return {
+            requestId: req.requestId || req.RequestId,
+            studentId: req.studentId || req.StudentId,
+            studentName: req.studentName || req.StudentName,
+            studentRegistration: req.studentRegistration || req.StudentRegistration,
+            studentCvUrl: req.studentCvUrl || req.StudentCvUrl,
+            status: interview?.interviewStatus || interview?.InterviewStatus || 'Completed',
+            scheduledTime: interview?.scheduledTime || interview?.ScheduledTime,
+            endedAt: interview?.endedAt || interview?.EndedAt,
+          };
+        });
+
+      const acceptedOnly = allAcceptedRequests.filter((req) => {
+        const interview = req.interview || req.Interview;
+        const interviewStatus = String(interview?.interviewStatus || interview?.InterviewStatus || '').toLowerCase();
+        return interviewStatus !== 'hired' && interviewStatus !== 'shortlisted' && interviewStatus !== 'rejected';
+      });
+
       setPendingRequests(requestsData.pendingRequests || []);
-      setAcceptedRequests(acceptedData.requests || []);
-      setScheduledInterviews(analyticsData.interviews?.scheduledInterviews || []);
+      setAcceptedRequests(acceptedOnly);
+      setCompletedInterviews(completed);
+      setScheduledInterviews(normalizedScheduled);
       setStats(analyticsData.summary);
     })
     .catch(err => onError(err.message))
@@ -189,6 +231,124 @@ export default function InterviewManager({ onError }) {
     }
   };
 
+  const downloadBlob = (bytes, fileName, mimeType = 'application/pdf') => {
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const normalizeStatusLabel = (status) => {
+    const val = String(status || '').trim().toLowerCase();
+    if (val === 'hired') return 'HIRED';
+    if (val === 'shortlisted') return 'SHORTLISTED';
+    if (val === 'rejected') return 'REJECTED';
+    return 'COMPLETED';
+  };
+
+  const applyWatermark = async (pdfDoc, label) => {
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    pages.forEach((page) => {
+      const { width, height } = page.getSize();
+      const textSize = Math.min(width, height) / 8;
+      page.drawText(label, {
+        x: width * 0.12,
+        y: height * 0.45,
+        size: textSize,
+        font,
+        color: rgb(0.85, 0.1, 0.1),
+        rotate: degrees(35),
+        opacity: 0.18,
+      });
+    });
+  };
+
+  const handleDownloadCv = async (item) => {
+    if (!item?.studentCvUrl) {
+      onError('CV not available for this student.');
+      return;
+    }
+
+    try {
+      const cvUrl = getFileUrl(item.studentCvUrl);
+      const response = await fetch(cvUrl);
+      if (!response.ok) throw new Error('Failed to fetch CV');
+
+      const contentType = response.headers.get('content-type') || '';
+      const bytes = await response.arrayBuffer();
+      const nameBase = `${(item.studentName || 'student').replace(/[^a-z0-9]/gi, '_')}_${normalizeStatusLabel(item.status).toLowerCase()}`;
+
+      if (contentType.includes('pdf') || String(item.studentCvUrl).toLowerCase().endsWith('.pdf')) {
+        const pdfDoc = await PDFDocument.load(bytes);
+        await applyWatermark(pdfDoc, normalizeStatusLabel(item.status));
+        const out = await pdfDoc.save();
+        downloadBlob(out, `${nameBase}.pdf`);
+      } else {
+        downloadBlob(bytes, `${nameBase}`, contentType || 'application/octet-stream');
+      }
+    } catch (err) {
+      onError(err.message || 'Failed to download CV');
+    }
+  };
+
+  const handleDownloadAllCompletedCvs = async () => {
+    const candidates = completedInterviews.filter((item) => item.studentCvUrl);
+    if (candidates.length === 0) {
+      onError('No CVs available to download.');
+      return;
+    }
+
+    setDownloadingAllCvs(true);
+    try {
+      const mergedDoc = await PDFDocument.create();
+      const skipped = [];
+
+      for (const item of candidates) {
+        try {
+          const cvUrl = getFileUrl(item.studentCvUrl);
+          const response = await fetch(cvUrl);
+          if (!response.ok) throw new Error('fetch failed');
+          const contentType = response.headers.get('content-type') || '';
+          if (!contentType.includes('pdf') && !String(item.studentCvUrl).toLowerCase().endsWith('.pdf')) {
+            skipped.push(item.studentName);
+            continue;
+          }
+
+          const bytes = await response.arrayBuffer();
+          const studentPdf = await PDFDocument.load(bytes);
+          await applyWatermark(studentPdf, normalizeStatusLabel(item.status));
+          const copied = await mergedDoc.copyPages(studentPdf, studentPdf.getPageIndices());
+          copied.forEach((page) => mergedDoc.addPage(page));
+        } catch {
+          skipped.push(item.studentName);
+        }
+      }
+
+      if (mergedDoc.getPageCount() === 0) {
+        onError('Unable to prepare any PDF CVs for download.');
+        return;
+      }
+
+      const out = await mergedDoc.save();
+      downloadBlob(out, `completed_interviews_cvs_${new Date().toISOString().slice(0, 10)}.pdf`);
+
+      if (skipped.length > 0) {
+        onError(`Downloaded available PDF CVs. Skipped ${skipped.length} non-PDF/unavailable CV(s).`);
+      }
+    } catch (err) {
+      onError(err.message || 'Failed to download all CVs');
+    } finally {
+      setDownloadingAllCvs(false);
+    }
+  };
+
   if (loading && !stats) return <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>;
 
   return (
@@ -207,6 +367,7 @@ export default function InterviewManager({ onError }) {
         <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length} active={activeTab} onClick={setActiveTab} />
         <TabBtn id="accepted" label="Accepted" count={acceptedRequests.length} active={activeTab} onClick={setActiveTab} />
         <TabBtn id="scheduled" label="Scheduled Interviews" active={activeTab} onClick={setActiveTab} />
+        <TabBtn id="completed" label="Completed" count={completedInterviews.length} active={activeTab} onClick={setActiveTab} />
       </div>
 
       {/* --- PENDING REQUESTS VIEW --- */}
@@ -333,18 +494,33 @@ export default function InterviewManager({ onError }) {
                         {new Date(req.responseDate).toLocaleDateString()}
                       </td>
                       <td className="p-4 text-right">
-                        {isAlreadyScheduled(req) ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Scheduled
-                          </span>
-                        ) : (
+                        <div className="flex justify-end gap-2 flex-wrap">
                           <button
-                            onClick={() => openScheduleModal(req)}
-                            className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
+                            onClick={() => {
+                              if (onSelectStudent) {
+                                onSelectStudent(req);
+                                return;
+                              }
+                              handleViewStudentProfile(req);
+                            }}
+                            className="text-gray-600 hover:text-blue-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded"
                           >
-                            <Calendar className="w-3.5 h-3.5" /> Schedule
+                            View Profile
                           </button>
-                        )}
+
+                          {isAlreadyScheduled(req) ? (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Scheduled
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => openScheduleModal(req)}
+                              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
+                            >
+                              <Calendar className="w-3.5 h-3.5" /> Schedule
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -561,6 +737,73 @@ export default function InterviewManager({ onError }) {
               ) : (
                 <p className="text-sm text-gray-500">Profile not available.</p>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'completed' && (
+        <div>
+          {completedInterviews.length === 0 ? (
+            <EmptyState message="No completed interviews yet." />
+          ) : (
+            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+              <div className="px-4 py-3 border-b bg-gray-50 flex justify-end">
+                <button
+                  onClick={handleDownloadAllCompletedCvs}
+                  disabled={downloadingAllCvs}
+                  className="inline-flex items-center gap-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-50"
+                >
+                  {downloadingAllCvs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download All CVs
+                </button>
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                  <tr>
+                    <th className="p-4">Candidate</th>
+                    <th className="p-4">Scheduled</th>
+                    <th className="p-4">Ended</th>
+                    <th className="p-4">Result</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedInterviews.map((item) => (
+                    <tr key={item.requestId} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="p-4 font-medium">
+                        {item.studentName}
+                        <span className="text-gray-400 font-normal text-xs block">{item.studentRegistration}</span>
+                      </td>
+                      <td className="p-4 text-gray-700">{formatDateTime(item.scheduledTime)}</td>
+                      <td className="p-4 text-gray-700">{formatDateTime(item.endedAt)}</td>
+                      <td className="p-4">
+                        <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => onSelectStudent && onSelectStudent(item)}
+                            className="text-gray-600 hover:text-blue-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded inline-flex items-center gap-1"
+                            title="View Profile"
+                          >
+                            <User className="w-3.5 h-3.5" /> Profile
+                          </button>
+                          <button
+                            onClick={() => handleDownloadCv(item)}
+                            disabled={!item.studentCvUrl}
+                            className="text-gray-600 hover:text-indigo-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded inline-flex items-center gap-1 disabled:opacity-50"
+                            title={item.studentCvUrl ? 'Download CV' : 'CV not available'}
+                          >
+                            <Download className="w-3.5 h-3.5" /> CV
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

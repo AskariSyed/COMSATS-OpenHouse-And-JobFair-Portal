@@ -1,0 +1,9 @@
+# Visual Studio temporary files
+.vs/
+bin/
+obj/
+/config
+/uploads/student
+/Program.cs
+/Backend/uploads
+/Backend/wwwroot

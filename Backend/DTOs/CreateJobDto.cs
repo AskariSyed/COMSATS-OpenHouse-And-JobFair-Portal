@@ -57,6 +57,9 @@ namespace JobFairPortal.DTOs
         [Phone]
         public string? UserPhone { get; set; }
 
+        [Range(5, 240)]
+        public int? InterviewDurationMinutes { get; set; }
+
         public IFormFile? Logo { get; set; }
     }
     public class AddContactLinkDto

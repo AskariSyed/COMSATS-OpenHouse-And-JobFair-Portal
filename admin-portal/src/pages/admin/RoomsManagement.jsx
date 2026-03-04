@@ -274,6 +274,17 @@ const RoomsManagement = () => {
     }
   };
 
+  const handleDeleteRoom = async (roomId, roomName) => {
+    if (!window.confirm(`Delete room ${roomName}? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/rooms/${roomId}`);
+      toast.success("Room deleted.");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data || "Failed to delete room");
+    }
+  };
+
   const confirmRoomAllotment = async (roomId) => {
     try {
       await api.put(`/admin/rooms/${roomId}/confirm-allotment`);
@@ -506,12 +517,21 @@ const RoomsManagement = () => {
                               <button onClick={() => setAllocatingRoomId(null)} className="text-gray-400 hover:text-gray-600 px-1">✕</button>
                             </div>
                           ) : (
-                            <button 
-                              onClick={() => setAllocatingRoomId(room.roomId)} 
-                              className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                            >
-                              Assign
-                            </button>
+                            <>
+                              <button 
+                                onClick={() => setAllocatingRoomId(room.roomId)} 
+                                className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                              >
+                                Assign
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRoom(room.roomId, room.roomName)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Room"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
                           )
                         ) : (
                           <div className="flex items-center gap-2">
