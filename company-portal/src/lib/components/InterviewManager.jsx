@@ -1,10 +1,10 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download } from 'lucide-react';
-import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile } from '../api';
+import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews } from '../api';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
-export default function InterviewManager({ onError, onSelectStudent }) {
+export default function InterviewManager({ onError, onSuccess, onSelectStudent }) {
   const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled | completed
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); 
@@ -25,6 +25,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
   const [selectedSlot, setSelectedSlot] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [schedulingAll, setSchedulingAll] = useState(false);
   const [startingInterviewId, setStartingInterviewId] = useState(null);
   const [completeModal, setCompleteModal] = useState(null); // { interview }
   const [selectedResult, setSelectedResult] = useState('Hired');
@@ -166,11 +167,24 @@ export default function InterviewManager({ onError, onSelectStudent }) {
       setAvailableSlots([]);
       setSelectedSlot('');
       setRefreshKey(k => k + 1);
-      onError('Interview scheduled successfully');
+      if (onSuccess) onSuccess('Interview scheduled successfully');
     } catch (err) {
       onError(err.message);
     } finally {
       setScheduling(false);
+    }
+  };
+
+  const handleScheduleAllAccepted = async () => {
+    setSchedulingAll(true);
+    try {
+      const result = await scheduleAllInterviews();
+      setRefreshKey(k => k + 1);
+      if (onSuccess) onSuccess(`Scheduled ${result?.count || 0} interview(s) from accepted requests.`);
+    } catch (err) {
+      onError(`Failed to auto-schedule interviews: ${err.message}`);
+    } finally {
+      setSchedulingAll(false);
     }
   };
 
@@ -185,7 +199,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
     try {
       await startInterview(interview.interviewId);
       setRefreshKey(k => k + 1);
-      onError('Interview marked as started');
+      if (onSuccess) onSuccess('Interview marked as started');
     } catch (err) {
       onError(err.message);
     } finally {
@@ -206,7 +220,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
       await completeInterview(completeModal.interview.interviewId, selectedResult);
       setCompleteModal(null);
       setRefreshKey(k => k + 1);
-      onError(`Interview ended with result: ${selectedResult}`);
+      if (onSuccess) onSuccess(`Interview ended with result: ${selectedResult}`);
     } catch (err) {
       onError(err.message);
     } finally {
@@ -356,7 +370,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
       downloadBlob(out, `completed_interviews_cvs_${new Date().toISOString().slice(0, 10)}.pdf`);
 
       if (skipped.length > 0) {
-        onError(`Downloaded available PDF CVs. Skipped ${skipped.length} non-PDF/unavailable CV(s).`);
+        if (onSuccess) onSuccess(`Downloaded available PDF CVs. Skipped ${skipped.length} non-PDF/unavailable CV(s).`);
       }
     } catch (err) {
       onError(err.message || 'Failed to download all CVs');
@@ -466,6 +480,16 @@ export default function InterviewManager({ onError, onSelectStudent }) {
       {/* --- ACCEPTED REQUESTS VIEW --- */}
       {activeTab === 'accepted' && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={handleScheduleAllAccepted}
+              disabled={schedulingAll || acceptedRequests.length === 0}
+              className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {schedulingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />} Schedule All
+            </button>
+          </div>
+
           {acceptedRequests.length === 0 ? (
             <EmptyState message="No accepted requests." />
           ) : (

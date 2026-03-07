@@ -1,5 +1,6 @@
 class Interview {
   final int interviewId;
+  final int? companyId;
   final String companyName;
   final String? companyLogo;
   final DateTime? scheduledTime;
@@ -11,6 +12,7 @@ class Interview {
 
   Interview({
     required this.interviewId,
+    this.companyId,
     required this.companyName,
     this.companyLogo,
     this.scheduledTime,
@@ -24,6 +26,7 @@ class Interview {
   factory Interview.fromJson(Map<String, dynamic> json) {
     return Interview(
       interviewId: json['interviewId'],
+      companyId: json['companyId'],
       companyName: json['companyName'],
       companyLogo: json['companyLogo'],
       scheduledTime: json['scheduledTime'] != null
@@ -42,6 +45,7 @@ class Interview {
   Map<String, dynamic> toJson() {
     return {
       'interviewId': interviewId,
+      'companyId': companyId,
       'companyName': companyName,
       'companyLogo': companyLogo,
       'scheduledTime': scheduledTime?.toIso8601String(),

@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/firebase_options.dart';
 import 'package:student_job_fair_portal/provider/company_provider.dart';
@@ -19,10 +21,45 @@ import 'package:student_job_fair_portal/utils/page_transitions.dart';
 import 'screens/sigin.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/company_profile_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+void _openCompanyProfileByData(Map<String, dynamic> data) {
+  final type = (data['Type'] ?? data['type'] ?? '').toString().toLowerCase();
+  final companyIdRaw = (data['CompanyId'] ?? data['companyId'] ?? '')
+      .toString();
+  final companyName = (data['CompanyName'] ?? data['companyName'] ?? 'Company')
+      .toString();
+  final companyId = int.tryParse(companyIdRaw);
+
+  if ((type == 'interviewscheduled' || type == 'interviewreminder') &&
+      companyId != null &&
+      companyId > 0) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => CompanyProfileScreen(
+          companyId: companyId,
+          companyName: companyName,
+        ),
+      ),
+    );
+  }
+}
+
+void _openCompanyProfileFromPayload(String? payload) {
+  if (payload == null || payload.isEmpty) return;
+  try {
+    final decoded = json.decode(payload);
+    if (decoded is Map<String, dynamic>) {
+      _openCompanyProfileByData(decoded);
+    }
+  } catch (_) {
+    // Ignore malformed payload.
+  }
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -107,6 +144,7 @@ void main() async {
         if (kDebugMode) {
           print("📩 Notification clicked: ${response.payload}");
         }
+        _openCompanyProfileFromPayload(response.payload);
       },
     );
 
@@ -136,7 +174,7 @@ void main() async {
         // Get FCM token for web (works on Chrome, Firefox, Safari, etc.)
         String? token = await FirebaseMessaging.instance.getToken();
         if (kDebugMode) print("🔑 Web FCM token: $token");
-            } else {
+      } else {
         if (kDebugMode) print('⚠️ Notification permission denied');
       }
     } catch (e) {
@@ -167,6 +205,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  static const String _studentApiBase = 'http://192.168.137.1:5158/api';
+  Timer? _interviewReminderTimer;
+
   @override
   void initState() {
     super.initState();
@@ -403,7 +444,9 @@ class _MyAppState extends State<MyApp> {
       if (message != null && kDebugMode) {
         print("📱 Opened from terminated: ${message.notification?.title}");
         print("📦 Data: ${message.data}");
-        // Handle navigation based on data here
+      }
+      if (message != null) {
+        _openCompanyProfileByData(message.data);
       }
     });
 
@@ -412,7 +455,113 @@ class _MyAppState extends State<MyApp> {
         print("📱 Opened from background: ${message.notification?.title}");
         print("📦 Data: ${message.data}");
       }
+      _openCompanyProfileByData(message.data);
     });
+
+    _startInterviewReminderPolling();
+  }
+
+  @override
+  void dispose() {
+    _interviewReminderTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startInterviewReminderPolling() {
+    if (kIsWeb) return;
+    _checkUpcomingInterviewReminders();
+    _interviewReminderTimer?.cancel();
+    _interviewReminderTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _checkUpcomingInterviewReminders();
+    });
+  }
+
+  Future<void> _checkUpcomingInterviewReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+      if (token == null || token.isEmpty) return;
+
+      final response = await http.get(
+        Uri.parse('$_studentApiBase/Student/interviews/scheduled'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode != 200) return;
+
+      final payload = json.decode(response.body);
+      if (payload is! List) return;
+
+      final nowUtc = DateTime.now().toUtc();
+      for (final row in payload) {
+        if (row is! Map<String, dynamic>) continue;
+
+        final status = (row['status'] ?? '').toString().toLowerCase();
+        if (status != 'queued' &&
+            status != 'accepted' &&
+            status != 'inprogress')
+          continue;
+
+        final scheduledRaw = row['scheduledTime']?.toString();
+        final scheduledUtc = scheduledRaw != null
+            ? DateTime.tryParse(scheduledRaw)?.toUtc()
+            : null;
+        if (scheduledUtc == null) continue;
+
+        final minutesLeft = scheduledUtc.difference(nowUtc).inMinutes;
+        if (minutesLeft <= 0 || minutesLeft > 30) continue;
+
+        int bucket;
+        if (minutesLeft <= 5) {
+          bucket = 5;
+        } else if (minutesLeft <= 15) {
+          bucket = 15;
+        } else {
+          bucket = 30;
+        }
+
+        final interviewId = row['interviewId']?.toString() ?? '';
+        if (interviewId.isEmpty) continue;
+
+        final reminderKey = 'interview_reminder_${interviewId}_$bucket';
+        if (prefs.getBool(reminderKey) == true) continue;
+
+        final companyName = (row['companyName'] ?? 'Company').toString();
+        final room = (row['room'] ?? 'TBD').toString();
+        final companyId = (row['companyId'] ?? '').toString();
+
+        await flutterLocalNotificationsPlugin.show(
+          interviewId.hashCode + bucket,
+          'Interview in $minutesLeft min',
+          '$companyName | Room: $room',
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'fcm_channel',
+              'FCM Notifications',
+              channelDescription:
+                  'This channel is used for important notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+          ),
+          payload: jsonEncode({
+            'type': 'InterviewReminder',
+            'companyId': companyId,
+            'companyName': companyName,
+          }),
+        );
+
+        await prefs.setBool(reminderKey, true);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Interview reminder polling failed: $e');
+      }
+    }
   }
 
   @override

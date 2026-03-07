@@ -36,6 +36,11 @@ class BeautifulWebNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final studentProvider = Provider.of<StudentProvider>(context);
+    final pendingCount = studentProvider.pendingCompanyRequestCount;
+    final upcomingCount = studentProvider.upcomingInterviewCount;
+    final requestReminderCount = pendingCount + upcomingCount;
+
     // 🔹 Theme Colors
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).cardColor;
@@ -116,6 +121,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                       title: "Interviews",
                       icon: Icons.list_alt_outlined,
                       isActive: currentRoute == 'Interviews',
+                      badgeCount: upcomingCount,
                       onTap: () => _nav(context, const QueueScreen()),
                     ),
                     const SizedBox(width: 8),
@@ -123,6 +129,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                       title: "Requests",
                       icon: Icons.inbox_outlined,
                       isActive: currentRoute == 'Requests',
+                      badgeCount: requestReminderCount,
                       onTap: () => _nav(context, const RequestsScreen()),
                     ),
                   ],
@@ -271,12 +278,14 @@ class _NavBarItem extends StatefulWidget {
   final String title;
   final IconData icon;
   final bool isActive;
+  final int badgeCount;
   final VoidCallback onTap;
 
   const _NavBarItem({
     required this.title,
     required this.icon,
     required this.isActive,
+    this.badgeCount = 0,
     required this.onTap,
   });
 
@@ -328,6 +337,27 @@ class _NavBarItemState extends State<_NavBarItem> {
                   fontSize: 14,
                 ),
               ),
+              if (widget.badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    widget.badgeCount > 99 ? '99+' : '${widget.badgeCount}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -346,6 +376,11 @@ class BeautifulMobileNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final studentProvider = Provider.of<StudentProvider>(context);
+    final reminderCount =
+        studentProvider.pendingCompanyRequestCount +
+        studentProvider.upcomingInterviewCount;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).cardColor;
     final primaryColor = Theme.of(context).primaryColor;
@@ -414,6 +449,7 @@ class BeautifulMobileNavBar extends StatelessWidget {
               Icons.inbox_outlined,
               "Requests",
               5,
+              badgeCount: reminderCount,
             ),
           ],
         ),
@@ -426,13 +462,15 @@ class BeautifulMobileNavBar extends StatelessWidget {
     IconData active,
     IconData inactive,
     String label,
-    int index,
-  ) {
+    int index, {
+    int badgeCount = 0,
+  }) {
     return BottomNavigationBarItem(
       icon: _AnimatedIcon(
         activeIcon: active,
         inactiveIcon: inactive,
         isSelected: currentIndex == index,
+        badgeCount: badgeCount,
       ),
       label: label,
     );
@@ -472,11 +510,13 @@ class _AnimatedIcon extends StatelessWidget {
   final IconData activeIcon;
   final IconData inactiveIcon;
   final bool isSelected;
+  final int badgeCount;
 
   const _AnimatedIcon({
     required this.activeIcon,
     required this.inactiveIcon,
     required this.isSelected,
+    this.badgeCount = 0,
   });
 
   @override
@@ -486,20 +526,47 @@ class _AnimatedIcon extends StatelessWidget {
         Theme.of(context).iconTheme.color?.withValues(alpha: 0.5) ??
         Colors.grey;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? primaryColor.withValues(alpha: 0.1)
-            : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        isSelected ? activeIcon : inactiveIcon,
-        size: 24,
-        color: isSelected ? primaryColor : iconColor,
-      ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primaryColor.withValues(alpha: 0.1)
+                : Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isSelected ? activeIcon : inactiveIcon,
+            size: 24,
+            color: isSelected ? primaryColor : iconColor,
+          ),
+        ),
+        if (badgeCount > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              constraints: const BoxConstraints(minWidth: 16),
+              child: Text(
+                badgeCount > 99 ? '99+' : '$badgeCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

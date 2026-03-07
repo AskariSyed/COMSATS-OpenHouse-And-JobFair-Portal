@@ -33,7 +33,7 @@ const getPEOTitle = (peoKey) => {
   return titles[peoKey] || peoKey;
 };
 
-export default function SurveyForm({ onError, forceDisabled = false }) {
+export default function SurveyForm({ onError, onSuccess, forceDisabled = false }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [templates, setTemplates] = useState({});
@@ -179,7 +179,7 @@ export default function SurveyForm({ onError, forceDisabled = false }) {
         department: submitted.department || processedTypes.includes('department')
       });
 
-      onError('✓ Survey submitted successfully!');
+      if (onSuccess) onSuccess('✓ Survey submitted successfully!');
     } catch (err) {
       onError(`Failed to submit survey: ${err.message}`);
     } finally {

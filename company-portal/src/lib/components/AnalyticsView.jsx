@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar } from 'lucide-react';
 import { getAnalytics, scheduleAllInterviews } from '../api';
 
-export default function AnalyticsView({ onError }) {
+export default function AnalyticsView({ onError, onSuccess }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scheduling, setScheduling] = useState(false);
@@ -27,10 +27,13 @@ export default function AnalyticsView({ onError }) {
 
   const handleScheduleInterviews = async () => {
     setScheduling(true);
+    console.debug('[AnalyticsView] Schedule interviews clicked');
     try {
       const result = await scheduleAllInterviews();
-      onError(`✓ ${result.count || 0} interviews scheduled successfully!`);
+      console.debug('[AnalyticsView] Schedule interviews success', result);
+      if (onSuccess) onSuccess(`✓ ${result.count || 0} interviews scheduled successfully!`);
     } catch (err) {
+      console.error('[AnalyticsView] Schedule interviews failed', err);
       onError(`Failed to schedule interviews: ${err.message}`);
     } finally {
       setScheduling(false);

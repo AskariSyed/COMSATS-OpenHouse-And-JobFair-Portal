@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { Loader2, Github, ExternalLink, Users, Code2, PlayCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Loader2, Github, Users, Code2, PlayCircle, Search } from 'lucide-react';
 import { getFinalYearProjects } from '../api';
 import { getThumbnailUrl } from '../utils/videoUtils';
 
 export default function FYPExplorer({ onSelectProject, onError }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [studentQuery, setStudentQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [fypQuery, setFypQuery] = useState('');
 
   useEffect(() => {
     getFinalYearProjects()
@@ -13,6 +16,65 @@ export default function FYPExplorer({ onSelectProject, onError }) {
       .catch(err => onError(err.message))
       .finally(() => setLoading(false));
   }, [onError]);
+
+  const normalize = (value) => String(value || '').trim().toLowerCase();
+  const cleanReg = (value) => normalize(value).replace(/[^a-z0-9]/g, '');
+
+  const getProjectStudents = (project) => project.students || project.teamMembers || project.members || [];
+
+  const departmentOptions = useMemo(() => {
+    const buckets = new Set();
+    projects.forEach((project) => {
+      const projectDepartment = project.department || project.Department;
+      if (projectDepartment) buckets.add(projectDepartment);
+
+      getProjectStudents(project).forEach((student) => {
+        const dept = student.department || student.Department;
+        if (dept) buckets.add(dept);
+      });
+    });
+
+    return [...buckets].sort((a, b) => a.localeCompare(b));
+  }, [projects]);
+
+  const filteredProjects = useMemo(() => {
+    const studentNeedle = normalize(studentQuery);
+    const studentRegNeedle = cleanReg(studentQuery);
+    const fypNeedle = normalize(fypQuery);
+    const departmentNeedle = normalize(departmentFilter);
+
+    return projects.filter((project) => {
+      const title = normalize(project.title || project.name);
+      const students = getProjectStudents(project);
+      const projectDepartment = normalize(project.department || project.Department);
+
+      const projectLevelStudentNames = Array.isArray(project.studentNames)
+        ? project.studentNames.map((n) => normalize(n)).join(' ')
+        : normalize(project.studentNames || project.studentNameList);
+      const projectLevelRegistrations = Array.isArray(project.studentRegistrations)
+        ? project.studentRegistrations.map((r) => cleanReg(r)).join(' ')
+        : cleanReg(project.studentRegistrations || project.studentRegistrationNos || '');
+
+      const matchesFyp = !fypNeedle || title.includes(fypNeedle);
+
+      const matchesStudent = !studentNeedle || (
+        students.some((student) => {
+          const studentName = normalize(student.fullName || student.name || student.studentName);
+          const studentReg = cleanReg(student.registrationNo || student.registration || student.regNo);
+          return studentName.includes(studentNeedle) || (studentRegNeedle && studentReg.includes(studentRegNeedle));
+        })
+        || projectLevelStudentNames.includes(studentNeedle)
+        || (studentRegNeedle && projectLevelRegistrations.includes(studentRegNeedle))
+      );
+
+      const matchesDepartment = !departmentNeedle || (
+        projectDepartment === departmentNeedle
+        || students.some((student) => normalize(student.department || student.Department) === departmentNeedle)
+      );
+
+      return matchesFyp && matchesStudent && matchesDepartment;
+    });
+  }, [projects, studentQuery, departmentFilter, fypQuery]);
 
   if (loading) return <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>;
 
@@ -24,12 +86,56 @@ export default function FYPExplorer({ onSelectProject, onError }) {
           <p className="text-gray-500 text-sm">Discover innovative projects built by graduating students</p>
         </div>
         <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
-          {projects.length} Projects
+          {filteredProjects.length} / {projects.length} Projects
         </span>
       </div>
 
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Student Reg No / Name</label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={studentQuery}
+                onChange={(e) => setStudentQuery(e.target.value)}
+                placeholder="e.g. SP22-BCS-011 or Ali"
+                className="w-full border rounded-lg p-2 pl-9"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="w-full border rounded-lg p-2"
+            >
+              <option value="">All Departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">FYP Name</label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={fypQuery}
+                onChange={(e) => setFypQuery(e.target.value)}
+                placeholder="Search by project title"
+                className="w-full border rounded-lg p-2 pl-9"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map(project => (
+        {filteredProjects.map(project => (
           <div 
             key={project.projectId} 
             onClick={() => onSelectProject(project.projectId)}
@@ -84,6 +190,12 @@ export default function FYPExplorer({ onSelectProject, onError }) {
           </div>
         ))}
       </div>
+
+      {filteredProjects.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200 mt-6">
+          <p className="text-gray-500">No projects match the selected filters.</p>
+        </div>
+      )}
     </div>
   );
 }

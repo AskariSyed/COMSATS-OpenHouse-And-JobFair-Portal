@@ -1,17 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2, Package, ClipboardList } from 'lucide-react';
 import logo from '../../assets/CuiWahJobFairLogo.png';
 
-export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children }) {
+export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children, notificationCounts = {}, nextIncomingInterview = null }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const upcomingSecondsLeft = useMemo(() => {
+    if (!nextIncomingInterview?.scheduledTime) return null;
+    const target = new Date(nextIncomingInterview.scheduledTime).getTime();
+    const diff = Math.floor((target - now) / 1000);
+    return diff >= 0 ? diff : null;
+  }, [nextIncomingInterview, now]);
+
+  const formatCountdown = (seconds) => {
+    if (seconds == null) return '--:--';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   const navItems = [
-    { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, badge: notificationCounts.overview || 0 },
     { id: 'history-analytics', label: 'Past Analytics', icon: LayoutDashboard },
     { id: 'profile', label: 'Company Profile', icon: Building2 },
     { id: 'students', label: 'Student Directory', icon: Users },
     { id: 'fyps', label: 'FYP Gallery', icon: BookOpen },
-    { id: 'interviews', label: 'Interviews', icon: Calendar },
+    { id: 'interviews', label: 'Interviews', icon: Calendar, badge: notificationCounts.interviews || 0 },
     { id: 'requests', label: 'Supply Requests', icon: Package },
     { id: 'surveys', label: 'Surveys', icon: ClipboardList },
     { id: 'notices', label: 'Notices', icon: Bell },
@@ -31,6 +51,11 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
         <div className="flex items-center gap-3">
           <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
           <span className="font-medium text-sm">{item.label}</span>
+          {item.badge > 0 && (
+            <span className="ml-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+              {item.badge > 99 ? '99+' : item.badge}
+            </span>
+          )}
         </div>
         {isActive && <ChevronRight className="w-4 h-4 text-blue-300" />}
       </button>
@@ -96,6 +121,16 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {nextIncomingInterview && upcomingSecondsLeft != null && (
+          <div className="hidden md:flex absolute top-4 left-4 z-30 bg-amber-100 border border-amber-300 text-amber-900 rounded-xl shadow px-4 py-3 items-center gap-3">
+            <Calendar className="w-4 h-4" />
+            <div className="text-xs">
+              <div className="font-semibold">Incoming Interview</div>
+              <div>{nextIncomingInterview.studentName || 'Candidate'} in {formatCountdown(upcomingSecondsLeft)} mins</div>
+            </div>
+          </div>
+        )}
+
         <header className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2 font-bold text-gray-900">
              <img src={logo} alt="CUI Wah Job Fair" className="w-8 h-8 rounded-lg object-contain" />

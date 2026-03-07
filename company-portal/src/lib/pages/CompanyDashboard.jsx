@@ -16,7 +16,7 @@ import PreviousJobFairAnalytics from '../components/PreviousJobFairAnalytics';
 import { getConfirmationStatus } from '../api';
 import { getMySurveyStatus } from '../api';
 
-export default function CompanyDashboard({ user, onError, activeTab, onTabChange, profileContext, onProfileContextChange }) {
+export default function CompanyDashboard({ user, onError, onSuccess, activeTab, onTabChange, profileContext, onProfileContextChange }) {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAttendanceScanner, setShowAttendanceScanner] = useState(false);
@@ -151,14 +151,21 @@ export default function CompanyDashboard({ user, onError, activeTab, onTabChange
           </button>
         </div>
       )}
-      {activeTab === 'overview' && <AnalyticsView onError={onError} />}
+      {activeTab === 'overview' && <AnalyticsView onError={onError} onSuccess={onSuccess} />}
       {activeTab === 'history-analytics' && <PreviousJobFairAnalytics onError={onError} onSelectStudent={safeSelectStudent} />}
       {activeTab === 'profile' && <CompanyProfile onError={onError} />}
-      {activeTab === 'students' && <StudentDirectory onSelect={safeSelectStudent} onError={onError} />}
+      {activeTab === 'students' && (
+        <StudentDirectory
+          onSelect={safeSelectStudent}
+          onError={onError}
+          onSuccess={onSuccess}
+          onNavigateToInterviews={() => onTabChange && onTabChange('interviews')}
+        />
+      )}
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
-      {activeTab === 'interviews' && <InterviewManager onError={onError} onSelectStudent={safeSelectStudent} />}
-      {activeTab === 'requests' && <CompanyRequests onError={onError} />}
-      {activeTab === 'surveys' && <SurveyForm onError={onError} forceDisabled={!(surveyAvailability.hasActiveJobFair && surveyAvailability.isJobFairDay)} />}
+      {activeTab === 'interviews' && <InterviewManager onError={onError} onSuccess={onSuccess} onSelectStudent={safeSelectStudent} />}
+      {activeTab === 'requests' && <CompanyRequests onError={onError} onSuccess={onSuccess} />}
+      {activeTab === 'surveys' && <SurveyForm onError={onError} onSuccess={onSuccess} forceDisabled={!(surveyAvailability.hasActiveJobFair && surveyAvailability.isJobFairDay)} />}
       {activeTab === 'notices' && <NoticesBoard onError={onError} />}
     </div>
   );

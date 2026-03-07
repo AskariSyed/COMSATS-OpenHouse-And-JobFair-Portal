@@ -33,7 +33,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<StudentProvider>(context, listen: false).fetchDashboardData();
+      final provider = Provider.of<StudentProvider>(context, listen: false);
+      provider.fetchDashboardData();
+      provider.fetchInterviewRequests();
+      provider.fetchScheduledInterviews();
     });
   }
 

@@ -1698,6 +1698,7 @@ namespace JobFairPortal.Controllers
                 .Select(i => new
                 {
                     i.InterviewId,
+                    CompanyId = i.CompanyId,
                     CompanyName = i.Company.Name,
                     CompanyLogo = i.Company.LogoUrl,
                     ScheduledTime = i.ScheduledTime,

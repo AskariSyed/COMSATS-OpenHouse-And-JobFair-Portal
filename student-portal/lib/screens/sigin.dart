@@ -230,263 +230,288 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                           constraints: BoxConstraints(
                             maxWidth: isWeb ? 450 : double.infinity,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Mobile Logo
-                              if (!isWeb)
-                                Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Color(
-                                        0xFF2563EB,
-                                      ).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Image.asset(
-                                      'assets/LogoWithoutBg.png',
-                                      height: 70,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.school,
-                                        size: 60,
-                                        color: Color(0xFF2563EB),
+                          child: AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Mobile Logo
+                                if (!isWeb)
+                                  Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Color(
+                                          0xFF2563EB,
+                                        ).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Image.asset(
+                                        'assets/LogoWithoutBg.png',
+                                        height: 70,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(
+                                              Icons.school,
+                                              size: 60,
+                                              color: Color(0xFF2563EB),
+                                            ),
                                       ),
                                     ),
                                   ),
+                                if (!isWeb) const SizedBox(height: 30),
+                                Text(
+                                  "Welcome Back",
+                                  style: TextStyle(
+                                    fontSize: isWeb ? 32 : 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Color(0xFF1E3A8A),
+                                  ),
                                 ),
-                              if (!isWeb) const SizedBox(height: 30),
-                              Text(
-                                "Welcome Back",
-                                style: TextStyle(
-                                  fontSize: isWeb ? 32 : 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark
-                                      ? Colors.white
-                                      : Color(0xFF1E3A8A),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Sign in to continue to your account",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade600,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "Sign in to continue to your account",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: isDark
-                                      ? Colors.grey.shade400
-                                      : Colors.grey.shade600,
-                                ),
-                              ),
-                              const SizedBox(height: 32),
+                                const SizedBox(height: 32),
 
-                              // Registration Number Field
-                              TextField(
-                                controller: regNoController,
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black,
-                                ),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'[a-zA-Z0-9-]'),
+                                // Registration Number Field
+                                TextField(
+                                  controller: regNoController,
+                                  autofillHints: const [AutofillHints.username],
+                                  keyboardType: TextInputType.emailAddress,
+                                  textInputAction: TextInputAction.next,
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white : Colors.black,
                                   ),
-                                  UpperCaseHyphenFormatter(maxLength: 12),
-                                ],
-                                decoration: InputDecoration(
-                                  labelText: "Registration Number",
-                                  labelStyle: TextStyle(
-                                    color: isDark ? Colors.grey.shade400 : null,
-                                  ),
-                                  hintText: "FA22-BCS-155",
-                                  hintStyle: TextStyle(
-                                    color: isDark ? Colors.grey.shade600 : null,
-                                  ),
-                                  prefixIcon: Icon(
-                                    Icons.badge_outlined,
-                                    color: Color(0xFF2563EB),
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: isDark
-                                          ? Colors.grey.shade700
-                                          : Colors.grey.shade300,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'[a-zA-Z0-9-]'),
                                     ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: isDark
-                                          ? Colors.grey.shade700
-                                          : Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFF2563EB),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  filled: true,
-                                  fillColor: isDark
-                                      ? Colors.grey.shade800
-                                      : Colors.grey.shade50,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Password Field
-                              TextField(
-                                controller: passController,
-                                obscureText: !_isPasswordVisible,
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black,
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: "Password",
-                                  labelStyle: TextStyle(
-                                    color: isDark ? Colors.grey.shade400 : null,
-                                  ),
-                                  prefixIcon: Icon(
-                                    Icons.lock_outline,
-                                    color: Color(0xFF2563EB),
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _isPasswordVisible
-                                          ? Icons.visibility
-                                          : Icons.visibility_off,
+                                    UpperCaseHyphenFormatter(maxLength: 12),
+                                  ],
+                                  decoration: InputDecoration(
+                                    labelText: "Registration Number",
+                                    labelStyle: TextStyle(
                                       color: isDark
                                           ? Colors.grey.shade400
-                                          : Colors.grey.shade600,
+                                          : null,
                                     ),
-                                    onPressed: () => setState(
-                                      () => _isPasswordVisible =
-                                          !_isPasswordVisible,
-                                    ),
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
+                                    hintText: "FA22-BCS-155",
+                                    hintStyle: TextStyle(
                                       color: isDark
-                                          ? Colors.grey.shade700
-                                          : Colors.grey.shade300,
+                                          ? Colors.grey.shade600
+                                          : null,
                                     ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: isDark
-                                          ? Colors.grey.shade700
-                                          : Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
+                                    prefixIcon: Icon(
+                                      Icons.badge_outlined,
                                       color: Color(0xFF2563EB),
-                                      width: 2,
                                     ),
-                                  ),
-                                  filled: true,
-                                  fillColor: isDark
-                                      ? Colors.grey.shade800
-                                      : Colors.grey.shade50,
-                                ),
-                              ),
-
-                              // Forgot Password Link
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ForgotPasswordRequestScreen(),
-                                      ),
-                                    );
-                                  },
-                                  child: Text(
-                                    "Forgot Password?",
-                                    style: TextStyle(
-                                      color: Color(0xFF2563EB),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              // Login Button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 54,
-                                child: ElevatedButton(
-                                  onPressed: isLoading ? null : loginStudent,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2563EB),
-                                    shape: RoundedRectangleBorder(
+                                    border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: isDark
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300,
+                                      ),
                                     ),
-                                    elevation: 0,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: isDark
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Color(0xFF2563EB),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    filled: true,
+                                    fillColor: isDark
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade50,
                                   ),
-                                  child: isLoading
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2.5,
-                                          ),
-                                        )
-                                      : const Text(
-                                          "Sign In",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
                                 ),
-                              ),
+                                const SizedBox(height: 20),
 
-                              const SizedBox(height: 24),
-
-                              // Sign Up Link
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    "Don't have an account? ",
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 15,
-                                    ),
+                                // Password Field
+                                TextField(
+                                  controller: passController,
+                                  obscureText: !_isPasswordVisible,
+                                  autofillHints: const [AutofillHints.password],
+                                  enableSuggestions: true,
+                                  autocorrect: false,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) {
+                                    TextInput.finishAutofillContext();
+                                    if (!isLoading) loginStudent();
+                                  },
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white : Colors.black,
                                   ),
-                                  TextButton(
+                                  decoration: InputDecoration(
+                                    labelText: "Password",
+                                    labelStyle: TextStyle(
+                                      color: isDark
+                                          ? Colors.grey.shade400
+                                          : null,
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.lock_outline,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _isPasswordVisible
+                                            ? Icons.visibility
+                                            : Icons.visibility_off,
+                                        color: isDark
+                                            ? Colors.grey.shade400
+                                            : Colors.grey.shade600,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _isPasswordVisible =
+                                            !_isPasswordVisible,
+                                      ),
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: isDark
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: isDark
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Color(0xFF2563EB),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    filled: true,
+                                    fillColor: isDark
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade50,
+                                  ),
+                                ),
+
+                                // Forgot Password Link
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
                                     onPressed: () {
-                                      Navigator.pushReplacement(
+                                      Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) =>
-                                              const StudentSignUpScreen(),
+                                              const ForgotPasswordRequestScreen(),
                                         ),
                                       );
                                     },
-                                    child: const Text(
-                                      "Sign Up",
+                                    child: Text(
+                                      "Forgot Password?",
                                       style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
                                         color: Color(0xFF2563EB),
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Login Button
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 54,
+                                  child: ElevatedButton(
+                                    onPressed: isLoading
+                                        ? null
+                                        : () {
+                                            TextInput.finishAutofillContext();
+                                            loginStudent();
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2563EB),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: isLoading
+                                        ? const SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2.5,
+                                            ),
+                                          )
+                                        : const Text(
+                                            "Sign In",
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Sign Up Link
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      "Don't have an account? ",
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const StudentSignUpScreen(),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text(
+                                        "Sign Up",
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

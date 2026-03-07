@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Diagnostics;
 
 namespace JobFairPortal.Controllers
 {
@@ -3206,8 +3207,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
         [HttpPost("interviews/schedule")]
         public async Task<IActionResult> OptimizeJobFairSchedule([FromQuery] DateTime? date = null)
         {
+            var stopwatch = Stopwatch.StartNew();
             var companyUserId = GetUserIdFromToken();
             if (companyUserId <= 0) return Unauthorized();
+
+            _logger.LogInformation("OptimizeJobFairSchedule started. CompanyUserId={CompanyUserId}, RequestedDate={RequestedDate}", companyUserId, date);
 
             var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
             if (company == null) return NotFound("Company not found.");
@@ -3254,6 +3258,13 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var requestsToSchedule = acceptedRequests
                 .Where(r => !existingCompanyInterviewStudentIds.Contains(r.StudentId))
                 .ToList();
+
+            _logger.LogInformation(
+                "OptimizeJobFairSchedule candidates prepared. CompanyId={CompanyId}, AcceptedRequests={AcceptedRequests}, AlreadyScheduledToday={AlreadyScheduledToday}, RequestsToSchedule={RequestsToSchedule}",
+                company.CompanyId,
+                acceptedRequests.Count,
+                existingCompanyInterviewStudentIds.Count,
+                requestsToSchedule.Count);
 
             if (!requestsToSchedule.Any())
                 return Ok(new { Message = "No accepted requests to schedule." });
@@ -3347,9 +3358,22 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             {
                 var duration = companyDuration;
                 var searchPointer = startTime;
+                var loopGuard = 0;
+                const int maxIterationsPerStudent = 5000;
 
                 while (searchPointer + duration <= hardStop)
                 {
+                    loopGuard++;
+                    if (loopGuard > maxIterationsPerStudent)
+                    {
+                        _logger.LogWarning(
+                            "OptimizeJobFairSchedule loop guard triggered for CompanyId={CompanyId}, StudentId={StudentId}, SearchPointer={SearchPointer:o}",
+                            company.CompanyId,
+                            req.StudentId,
+                            searchPointer);
+                        break;
+                    }
+
                     var potentialEnd = searchPointer + duration;
                     var candidateStartWithBuffer = searchPointer - buffer;
                     var candidateEndWithBuffer = potentialEnd + buffer;
@@ -3388,8 +3412,12 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     if (overlappingEnds.Any())
                     {
                         var maxEnd = overlappingEnds.Max();
-                        searchPointer = maxEnd.Add(buffer);
-                        searchPointer = DateTime.SpecifyKind(new DateTime(searchPointer.Year, searchPointer.Month, searchPointer.Day, searchPointer.Hour, searchPointer.Minute, 0), DateTimeKind.Utc);
+                        var nextPointer = RoundUpToNextMinuteUtc(maxEnd.Add(buffer));
+                        // Ensure pointer always moves forward to avoid getting stuck on the same minute.
+                        if (nextPointer <= searchPointer)
+                            nextPointer = searchPointer.AddMinutes(1);
+
+                        searchPointer = nextPointer;
                         continue;
                     }
 
@@ -3449,35 +3477,76 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
                     await tx.CommitAsync();
 
-                    // --- FCM Notifications: fetch tokens and send
+                    _logger.LogInformation(
+                        "OptimizeJobFairSchedule saved interviews. CompanyId={CompanyId}, ScheduledCount={ScheduledCount}, ElapsedMs={ElapsedMs}",
+                        company.CompanyId,
+                        optimizedInterviews.Count,
+                        stopwatch.ElapsedMilliseconds);
+
+                    // --- Notifications (FCM + Email): send after commit
                     var scheduledStudentIds = optimizedInterviews.Select(i => i.StudentId).Distinct().ToList();
                     var students = await _context.Students
                         .AsNoTracking()
                         .Where(s => scheduledStudentIds.Contains(s.StudentId))
-                        .Select(s => new { s.StudentId, s.FcmToken })
+                        .Select(s => new
+                        {
+                            s.StudentId,
+                            s.FcmToken,
+                            Email = s.User != null ? s.User.Email : null,
+                            FullName = s.User != null ? s.User.FullName : null
+                        })
                         .ToListAsync();
 
-                    var studentTokenMap = students.ToDictionary(s => s.StudentId, s => s.FcmToken);
-
-                    _ = Task.Run(async () =>
-                    {
-                        foreach (var iv in optimizedInterviews)
+                    var companyJobs = await _context.Jobs
+                        .AsNoTracking()
+                        .Where(j => j.CompanyId == company.CompanyId && j.JobFairId == activeJobFair.JobFairId)
+                        .Select(j => new
                         {
-                            if (!studentTokenMap.TryGetValue(iv.StudentId, out var token) || string.IsNullOrWhiteSpace(token))
-                                continue;
+                            j.JobTitle,
+                            j.JobType,
+                            j.NumberOfJobs,
+                            j.JobDescription
+                        })
+                        .ToListAsync();
 
-                            var scheduledIso = iv.ScheduledTime?.ToString("o") ?? "";
+                    var studentMap = students.ToDictionary(s => s.StudentId, s => s);
+                    var interviewRoom = participation.Room?.RoomName ?? "To be announced";
+
+                    var fcmSent = 0;
+                    var fcmSkippedNoToken = 0;
+                    var fcmFailed = 0;
+                    var emailSent = 0;
+                    var emailSkippedNoAddress = 0;
+                    var emailFailed = 0;
+
+                    foreach (var iv in optimizedInterviews)
+                    {
+                        if (!studentMap.TryGetValue(iv.StudentId, out var studentInfo))
+                        {
+                            _logger.LogWarning("OptimizeJobFairSchedule: student details not found for StudentId={StudentId}", iv.StudentId);
+                            continue;
+                        }
+
+                        var scheduledUtc = iv.ScheduledTime ?? DateTime.UtcNow;
+                        var scheduledIso = scheduledUtc.ToString("o");
+                        var scheduledPkt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(scheduledUtc, DateTimeKind.Utc), JobFairTimeZone);
+                        var scheduledPktDisplay = $"{scheduledPkt:dddd, dd MMM yyyy hh:mm tt} PKT";
+
+                        // FCM notification
+                        if (!string.IsNullOrWhiteSpace(studentInfo.FcmToken))
+                        {
                             var message = new Message
                             {
-                                Token = token,
+                                Token = studentInfo.FcmToken,
                                 Notification = new FirebaseAdmin.Messaging.Notification
                                 {
                                     Title = "Interview Scheduled",
-                                    Body = $"{company.Name} scheduled your interview at {scheduledIso}"
+                                    Body = $"{company.Name} scheduled your interview on {scheduledPktDisplay} in room {interviewRoom}. Best of luck!"
                                 },
                                 Data = new Dictionary<string, string>
                                 {
                                     { "InterviewId", iv.InterviewId.ToString() },
+                                    { "RoomNo", interviewRoom },
                                     { "CompanyId", company.CompanyId.ToString() },
                                     { "CompanyName", company.Name },
                                     { "ScheduledTime", scheduledIso },
@@ -3488,13 +3557,71 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                             try
                             {
                                 await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                                fcmSent++;
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogWarning(ex, "FCM send failed for student {StudentId}", iv.StudentId);
+                                fcmFailed++;
+                                _logger.LogWarning(ex, "FCM send failed for student {StudentId}, InterviewId={InterviewId}", iv.StudentId, iv.InterviewId);
                             }
                         }
-                    });
+                        else
+                        {
+                            fcmSkippedNoToken++;
+                            _logger.LogInformation("FCM skipped for StudentId={StudentId} due to missing token", iv.StudentId);
+                        }
+
+                        // Email notification
+                        if (!string.IsNullOrWhiteSpace(studentInfo.Email))
+                        {
+                            var jobsHtml = companyJobs.Any()
+                                ? string.Join("", companyJobs.Select(j => $"<li><strong>{j.JobTitle}</strong> ({j.JobType}) - Openings: {j.NumberOfJobs}<br/><em>{(string.IsNullOrWhiteSpace(j.JobDescription) ? "No description provided." : j.JobDescription)}</em></li>"))
+                                : "<li>No active job postings listed.</li>";
+
+                            var emailBody = $@"
+<p>Dear {(string.IsNullOrWhiteSpace(studentInfo.FullName) ? "Student" : studentInfo.FullName)},</p>
+<p>Your interview has been auto-scheduled. We wish you the best of luck for your interview.</p>
+<p><strong>Company:</strong> {company.Name}<br/>
+<strong>Interview Time (Pakistan):</strong> {scheduledPktDisplay}<br/>
+<strong>Room No:</strong> {interviewRoom}</p>
+
+<h3>Company Details</h3>
+<p><strong>Industry:</strong> {company.Industry ?? "N/A"}<br/>
+<strong>Website:</strong> {(string.IsNullOrWhiteSpace(company.Website) ? "N/A" : company.Website)}<br/>
+<strong>Description:</strong> {company.Description ?? "N/A"}</p>
+
+<h3>Job Posting Details</h3>
+<ul>{jobsHtml}</ul>
+
+<p>Best of luck,<br/>Job Fair Team</p>";
+
+                            try
+                            {
+                                await _mailService.SendMailAsync(studentInfo.Email, "Interview Scheduled", emailBody);
+                                emailSent++;
+                            }
+                            catch (Exception ex)
+                            {
+                                emailFailed++;
+                                _logger.LogWarning(ex, "Email send failed for student {StudentId}, InterviewId={InterviewId}, Email={Email}", iv.StudentId, iv.InterviewId, studentInfo.Email);
+                            }
+                        }
+                        else
+                        {
+                            emailSkippedNoAddress++;
+                            _logger.LogInformation("Email skipped for StudentId={StudentId} due to missing email address", iv.StudentId);
+                        }
+                    }
+
+                    _logger.LogInformation(
+                        "OptimizeJobFairSchedule notifications summary. CompanyId={CompanyId}, FcmSent={FcmSent}, FcmFailed={FcmFailed}, FcmSkippedNoToken={FcmSkippedNoToken}, EmailSent={EmailSent}, EmailFailed={EmailFailed}, EmailSkippedNoAddress={EmailSkippedNoAddress}",
+                        company.CompanyId,
+                        fcmSent,
+                        fcmFailed,
+                        fcmSkippedNoToken,
+                        emailSent,
+                        emailFailed,
+                        emailSkippedNoAddress);
 
                     var result = optimizedInterviews.Select(i => new
                     {
@@ -3509,6 +3636,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 catch (Exception ex)
                 {
                     await tx.RollbackAsync();
+                    _logger.LogError(ex,
+                        "OptimizeJobFairSchedule failed. CompanyId={CompanyId}, RequestsToSchedule={RequestsToSchedule}, ElapsedMs={ElapsedMs}",
+                        company.CompanyId,
+                        requestsToSchedule.Count,
+                        stopwatch.ElapsedMilliseconds);
                     return StatusCode(409, new { Message = "Failed to schedule due to conflicts or an error.", Error = ex.Message });
                 }
             }
@@ -4100,6 +4232,15 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
         private static bool Overlaps(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
         {
             return aStart < bEnd && bStart < aEnd;
+        }
+
+        private static DateTime RoundUpToNextMinuteUtc(DateTime value)
+        {
+            var utc = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+            if (utc.Second == 0 && utc.Millisecond == 0)
+                return utc;
+
+            return new DateTime(utc.Year, utc.Month, utc.Day, utc.Hour, utc.Minute, 0, DateTimeKind.Utc).AddMinutes(1);
         }
         
 

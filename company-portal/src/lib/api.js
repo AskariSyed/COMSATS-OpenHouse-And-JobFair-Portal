@@ -2,6 +2,7 @@
 const CONFIGURED_SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
 export const SERVER_URL = CONFIGURED_SERVER_URL;
 const API_BASE_URL = SERVER_URL ? `${SERVER_URL}/api` : '/api';
+const DEFAULT_TIMEOUT_MS = 60000;
 
 /**
  * Helper to get full file URL
@@ -19,8 +20,9 @@ export const getFileUrl = (path) => {
 /**
  * Generic Fetch Wrapper
  */
-async function request(endpoint, method = 'GET', body = null, isFileUpload = false) {
+async function request(endpoint, method = 'GET', body = null, isFileUpload = false, options = {}) {
   const token = localStorage.getItem('token');
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, debugLabel = `${method} ${endpoint}` } = options;
   const headers = {};
   
   // If it's NOT a file upload, set Content-Type to JSON
@@ -33,14 +35,36 @@ async function request(endpoint, method = 'GET', body = null, isFileUpload = fal
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const requestUrl = `${API_BASE_URL}${endpoint}`;
+  const startedAt = Date.now();
+
   const config = {
     method,
     headers,
-    body: body ? (isFileUpload ? body : JSON.stringify(body)) : null
+    body: body ? (isFileUpload ? body : JSON.stringify(body)) : null,
+    signal: controller.signal
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    console.debug('[API] Request started', {
+      label: debugLabel,
+      method,
+      url: requestUrl,
+      timeoutMs,
+      hasBody: !!body,
+      body: isFileUpload ? '[FormData]' : body
+    });
+
+    const response = await fetch(requestUrl, config);
+    const elapsedMs = Date.now() - startedAt;
+    console.debug('[API] Response received', {
+      label: debugLabel,
+      status: response.status,
+      ok: response.ok,
+      elapsedMs
+    });
     
     if (response.status === 401) {
       console.warn("Unauthorized access");
@@ -61,8 +85,22 @@ async function request(endpoint, method = 'GET', body = null, isFileUpload = fal
     return text ? JSON.parse(text) : {};
     
   } catch (error) {
+    const elapsedMs = Date.now() - startedAt;
+    if (error?.name === 'AbortError') {
+      console.error('[API] Request timeout', {
+        label: debugLabel,
+        method,
+        url: requestUrl,
+        timeoutMs,
+        elapsedMs
+      });
+      throw new Error(`Request timed out after ${timeoutMs}ms (${debugLabel})`);
+    }
+
     console.error("API Request Failed:", error);
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -186,7 +224,10 @@ export const rejectInterviewRequest = (requestId, reason) => {
 export const scheduleAllInterviews = (date = null) => {
   let endpoint = '/Company/interviews/schedule';
   if (date) endpoint += `?date=${encodeURIComponent(date)}`;
-  return request(endpoint, 'POST', {});
+  return request(endpoint, 'POST', {}, false, {
+    timeoutMs: 120000,
+    debugLabel: 'scheduleAllInterviews'
+  });
 };
 
 export const getStudentAvailability = (studentId, date = null, stepMinutes = 5) => {

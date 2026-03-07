@@ -1,20 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye } from 'lucide-react';
-import { getStudents, getStudentsByInterviewStatus, getFileUrl } from '../api';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye, Send, Calendar, Download, X } from 'lucide-react';
+import { getStudents, getStudentsByInterviewStatus, getFileUrl, sendInterviewRequest } from '../api';
+import { allSkillsList, skillsData } from '../../data/skills';
 
-export default function StudentDirectory({ onSelect, onError }) {
+export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ type: '', value: '' });
+  const [filters, setFilters] = useState({ name: '', registration: '', department: '', skills: [] });
   const [sortBy, setSortBy] = useState('name'); // Default sort by name
   const [listMode, setListMode] = useState('all');
+  const [requestingStudentId, setRequestingStudentId] = useState(null);
+  const [skillToAdd, setSkillToAdd] = useState('');
 
   const fetchStudents = async () => {
     setLoading(true);
     try {
       let data;
       if (listMode === 'all') {
-        data = await getStudents(filters.type, filters.value);
+        // Fetch full list and apply filters on client to support richer search combinations.
+        data = await getStudents();
       } else {
         data = await getStudentsByInterviewStatus(listMode);
       }
@@ -28,14 +32,178 @@ export default function StudentDirectory({ onSelect, onError }) {
 
   useEffect(() => { fetchStudents(); }, [listMode]);
 
+  const normalize = (val) => String(val || '').trim().toLowerCase();
+  const cleanReg = (val) => normalize(val).replace(/[^a-z0-9]/g, '');
+
+  const formatRegistrationInput = (val) => String(val || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '')
+    .replace(/-{2,}/g, '-');
+
+  const departmentOptions = useMemo(() => {
+    const fromStudents = (students || [])
+      .map((s) => s.Department || s.department || '')
+      .filter(Boolean);
+    const fromSkillsData = (skillsData?.departments || []).map((d) => d.name).filter(Boolean);
+    return [...new Set([...fromSkillsData, ...fromStudents])].sort((a, b) => a.localeCompare(b));
+  }, [students]);
+
+  const availableSkills = useMemo(
+    () => allSkillsList.filter((skill) => !filters.skills.includes(skill)),
+    [filters.skills]
+  );
+
+  const filteredStudents = useMemo(() => {
+    const nameQuery = normalize(filters.name);
+    const regQuery = cleanReg(filters.registration);
+    const deptQuery = normalize(filters.department);
+    const selectedSkills = (filters.skills || []).map(normalize).filter(Boolean);
+
+    return (students || []).filter((s) => {
+      const studentName = normalize(s.Name || s.name);
+      const studentReg = cleanReg(s.RegistrationNo || s.registrationNo);
+      const studentDept = normalize(s.Department || s.department);
+      const studentSkills = (s.Skills || s.skills || []).map(normalize);
+
+      const matchesName = !nameQuery || studentName.includes(nameQuery);
+      const matchesRegistration = !regQuery || studentReg.includes(regQuery);
+      const matchesDepartment = !deptQuery || studentDept === deptQuery;
+      const matchesSkills = selectedSkills.length === 0 || selectedSkills.every((skill) => studentSkills.includes(skill));
+
+      return matchesName && matchesRegistration && matchesDepartment && matchesSkills;
+    });
+  }, [students, filters, listMode]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     fetchStudents();
   };
 
+  const handleAddSkill = (skill) => {
+    if (!skill) return;
+    setFilters((prev) => {
+      if (prev.skills.includes(skill)) return prev;
+      return { ...prev, skills: [...prev.skills, skill] };
+    });
+    setSkillToAdd('');
+  };
+
+  const handleRemoveSkill = (skill) => {
+    setFilters((prev) => ({ ...prev, skills: prev.skills.filter((s) => s !== skill) }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({ name: '', registration: '', department: '', skills: [] });
+    setSkillToAdd('');
+  };
+
+  const getInterviewMeta = (student) => {
+    const req = student.InterviewRequest || student.interviewRequest || {};
+    const hasRequest = req.HasRequest === true || req.hasRequest === true;
+    const reqStatus = normalize(req.Status || req.status);
+    const currentInterviewStatus = normalize(student.CurrentInterviewStatus || student.currentInterviewStatus);
+    const currentInterviewId = student.CurrentInterviewId || student.currentInterviewId || null;
+
+    const cvUrl = student.CvUrl || student.cvUrl || student.CVUrl || student.user?.cvUrl || null;
+    const isAccepted = reqStatus === 'accepted';
+    const alreadyScheduled = Boolean(currentInterviewId) || currentInterviewStatus === 'queued' || currentInterviewStatus === 'inprogress';
+
+    return {
+      canSendRequest: !hasRequest,
+      canSchedule: isAccepted,
+      alreadyScheduled,
+      cvUrl,
+    };
+  };
+
+  const handleSendInterviewRequest = async (student) => {
+    const studentId = getStudentId(student);
+    if (!studentId) {
+      onError('Missing Student ID');
+      return;
+    }
+
+    setRequestingStudentId(studentId);
+    try {
+      await sendInterviewRequest(studentId);
+      await fetchStudents();
+      if (onSuccess) onSuccess('Interview request sent successfully.');
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setRequestingStudentId(null);
+    }
+  };
+
+  const renderActionButtons = (student, safeId, compact = false) => {
+    const { canSendRequest, canSchedule, alreadyScheduled, cvUrl } = getInterviewMeta(student);
+
+    const iconBtnBase = 'w-8 h-8 rounded-full inline-flex items-center justify-center transition-colors';
+
+    return (
+      <div className={`flex ${compact ? 'justify-center' : 'justify-center'} items-center gap-1 flex-wrap`}>
+        <button
+          onClick={() => {
+            if (!safeId) return onError('Missing Student ID');
+            onSelect({ ...student, studentId: safeId });
+          }}
+          className={`${iconBtnBase} text-blue-600 hover:bg-blue-50`}
+          title="View Profile"
+          aria-label="View Profile"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+
+        {cvUrl && (
+          <a
+            href={getFileUrl(cvUrl)}
+            target="_blank"
+            rel="noreferrer"
+            className={`${iconBtnBase} text-gray-700 hover:bg-gray-100`}
+            title="View / Download CV"
+            aria-label="View or Download CV"
+          >
+            <Download className="w-4 h-4" />
+          </a>
+        )}
+
+        {canSendRequest && (
+          <button
+            onClick={() => handleSendInterviewRequest(student)}
+            disabled={requestingStudentId === safeId}
+            className={`${iconBtnBase} text-blue-700 hover:bg-blue-100 disabled:opacity-60`}
+            title="Request Interview"
+            aria-label="Request Interview"
+          >
+            {requestingStudentId === safeId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        )}
+
+        {canSchedule && (
+          <button
+            onClick={() => {
+              if (onNavigateToInterviews) {
+                onNavigateToInterviews();
+                return;
+              }
+              if (!safeId) return onError('Missing Student ID');
+              onSelect({ ...student, studentId: safeId });
+            }}
+            disabled={alreadyScheduled}
+            className={`${iconBtnBase} ${alreadyScheduled ? 'text-emerald-700 bg-emerald-50' : 'text-indigo-700 hover:bg-indigo-100'} disabled:opacity-50`}
+            title={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
+            aria-label={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
+          >
+            <Calendar className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   // Sorting Logic
   const getSortedStudents = () => {
-    return [...students].sort((a, b) => {
+    return [...filteredStudents].sort((a, b) => {
       if (sortBy === 'cgpa') {
         const cgpaA = Number(a.CGPA ?? a.cgpa ?? -1);
         const cgpaB = Number(b.CGPA ?? b.cgpa ?? -1);
@@ -191,29 +359,59 @@ export default function StudentDirectory({ onSelect, onError }) {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Filter By</label>
-            <select
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Student Name</label>
+            <input
               className="w-full border rounded-lg p-2"
-              onChange={(e) => setFilters({...filters, type: e.target.value})}
-              disabled={listMode !== 'all'}
-            >
-              <option value="">All Students</option>
-              <option value="skill">Skill</option>
-              <option value="department">Department</option>
-              <option value="registration">Registration No</option>
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Search Term</label>
-            <input 
-              disabled={!filters.type || listMode !== 'all'}
-              placeholder={listMode !== 'all' ? 'Filters disabled for outcome lists' : !filters.type ? "Select filter first..." : "Enter search term..."}
-              className="w-full border rounded-lg p-2"
-              onChange={(e) => setFilters({...filters, value: e.target.value})}
+              value={filters.name}
+              placeholder="e.g. Ali"
+              onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
             />
           </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Registration No</label>
+            <input
+              className="w-full border rounded-lg p-2"
+              value={filters.registration}
+              placeholder="e.g. SP22-BCS-001"
+              onChange={(e) => setFilters((prev) => ({ ...prev, registration: formatRegistrationInput(e.target.value) }))}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
+            <select
+              value={filters.department}
+              onChange={(e) => setFilters((prev) => ({ ...prev, department: e.target.value }))}
+              className="w-full border rounded-lg p-2"
+            >
+              <option value="">All Departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Add Skill</label>
+            <select
+              className="w-full border rounded-lg p-2"
+              value={skillToAdd}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSkillToAdd(value);
+                if (value) handleAddSkill(value);
+              }}
+            >
+              <option value="">Select skill...</option>
+              {availableSkills.map((skill) => (
+                <option key={skill} value={skill}>{skill}</option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Sort By</label>
             <select 
@@ -227,12 +425,41 @@ export default function StudentDirectory({ onSelect, onError }) {
               <option value="registration">Registration No</option>
             </select>
           </div>
-          <div className="flex items-end">
-            <button type="submit" disabled={listMode !== 'all'} className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              <Search className="w-4 h-4" /> Search
+
+          <div className="flex items-end gap-2">
+            <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+              <Search className="w-4 h-4" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Clear
             </button>
           </div>
         </form>
+
+        <div className="mt-3 min-h-7">
+          {filters.skills.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {filters.skills.map((skill) => (
+                <span key={skill} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded-full text-[11px] font-medium">
+                  {skill}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSkill(skill)}
+                    className="text-blue-600 hover:text-blue-800"
+                    title={`Remove ${skill}`}
+                    aria-label={`Remove ${skill}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Students Table */}
@@ -297,17 +524,9 @@ export default function StudentDirectory({ onSelect, onError }) {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (!safeId) return onError("Missing Student ID");
-                      onSelect({ ...student, studentId: safeId });
-                    }}
-                    className="mt-2 w-full px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center"
-                    title="View Profile"
-                    aria-label="View Profile"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
+                  <div className="mt-2 w-full">
+                    {renderActionButtons(student, safeId, true)}
+                  </div>
                 </div>
               );
             })}
@@ -390,17 +609,7 @@ export default function StudentDirectory({ onSelect, onError }) {
                         </div>
                       </td>
                       <td className="px-2 py-2.5 text-center align-middle">
-                        <button 
-                          onClick={() => {
-                            if (!safeId) return onError("Missing Student ID");
-                            onSelect({ ...student, studentId: safeId });
-                          }} 
-                          className="w-8 h-8 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors inline-flex items-center justify-center"
-                          title="View Profile"
-                          aria-label="View Profile"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        {renderActionButtons(student, safeId)}
                       </td>
                     </tr>
                   );

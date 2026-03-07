@@ -37,6 +37,26 @@ class StudentProvider with ChangeNotifier {
   List<InterviewRequest> get interviewRequests => _interviewRequests;
   List<Interview> _scheduledInterviews = [];
   List<Interview> get scheduledInterviews => _scheduledInterviews;
+  int get pendingCompanyRequestCount => _interviewRequests
+      .where(
+        (r) =>
+            r.requestedBy == RequestedBy.Company &&
+            r.status == RequestStatus.Pending,
+      )
+      .length;
+
+  int get upcomingInterviewCount {
+    final now = DateTime.now();
+    return _scheduledInterviews.where((i) {
+      final status = i.status.toLowerCase();
+      return i.scheduledTime != null &&
+          i.scheduledTime!.isAfter(now) &&
+          (status == 'queued' ||
+              status == 'accepted' ||
+              status == 'inprogress');
+    }).length;
+  }
+
   String? _scheduledInterviewsError;
   String? get scheduledInterviewsError => _scheduledInterviewsError;
 

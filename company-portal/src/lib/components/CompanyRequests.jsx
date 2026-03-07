@@ -39,7 +39,7 @@ const normalizeStatus = (status) => {
   return 'Pending';
 };
 
-export default function CompanyRequests({ onError }) {
+export default function CompanyRequests({ onError, onSuccess }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -72,7 +72,7 @@ export default function CompanyRequests({ onError }) {
     
     try {
       await cancelCompanyRequest(requestId);
-      onError('Request cancelled successfully');
+      if (onSuccess) onSuccess('Request cancelled successfully');
       fetchRequests();
     } catch (err) {
       onError(`Failed to cancel request: ${err.message}`);
@@ -100,7 +100,7 @@ export default function CompanyRequests({ onError }) {
         additionalInfo: formData.additionalInfo.trim()
       });
       
-      onError('Request submitted successfully!');
+      if (onSuccess) onSuccess('Request submitted successfully!');
       setFormData({ type: 'Supplies', description: '', quantity: 1, additionalInfo: '' });
       setShowForm(false);
       fetchRequests();

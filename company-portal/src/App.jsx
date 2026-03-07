@@ -6,7 +6,7 @@ import ForgotPasswordPage from './lib/pages/ForgotPasswordPage';
 import CompanyDashboard from './lib/pages/CompanyDashboard';
 import DashboardLayout from './lib/layouts/DashboardLayout';
 import { requestFcmToken } from './lib/firebase';
-import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair } from './lib/api';
+import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair, getPendingInterviewRequests, getAnalytics } from './lib/api';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -17,6 +17,8 @@ export default function App() {
   const [participationLoading, setParticipationLoading] = useState(false);
   const [participationRepsCount, setParticipationRepsCount] = useState(1);
   const [studentProfileContext, setStudentProfileContext] = useState('current');
+  const [notificationCounts, setNotificationCounts] = useState({ interviews: 0, overview: 0 });
+  const [nextIncomingInterview, setNextIncomingInterview] = useState(null);
   const unauthorizedTimerRef = useRef(null);
 
   const registerTokenForSession = async () => {
@@ -96,6 +98,56 @@ export default function App() {
     };
 
     checkParticipationPrompt();
+  }, [currentView, user]);
+
+  useEffect(() => {
+    if (currentView !== 'dashboard' || !user) return;
+
+    let intervalId;
+
+    const refreshCompanyNotifications = async () => {
+      try {
+        const [pendingData, analyticsData] = await Promise.all([
+          getPendingInterviewRequests(),
+          getAnalytics()
+        ]);
+
+        const pendingCount = (pendingData?.pendingRequests || []).length;
+        const now = Date.now();
+        const scheduled = (analyticsData?.interviews?.scheduledInterviews || []).filter((i) => {
+          const t = i?.scheduledTime || i?.ScheduledTime;
+          const status = String(i?.status || i?.Status || '').toLowerCase();
+          if (!t || (status !== 'queued' && status !== 'accepted' && status !== 'inprogress' && status !== '')) return false;
+          const ts = new Date(t).getTime();
+          return !Number.isNaN(ts) && ts > now;
+        }).sort((a, b) => {
+          const ta = new Date(a.scheduledTime || a.ScheduledTime).getTime();
+          const tb = new Date(b.scheduledTime || b.ScheduledTime).getTime();
+          return ta - tb;
+        });
+
+        const next = scheduled.length > 0 ? scheduled[0] : null;
+        const incomingWithin30 = next ? ((new Date(next.scheduledTime || next.ScheduledTime).getTime() - now) <= 30 * 60 * 1000) : false;
+
+        setNotificationCounts({
+          interviews: pendingCount + (incomingWithin30 ? 1 : 0),
+          overview: pendingCount
+        });
+        setNextIncomingInterview(incomingWithin30 ? {
+          scheduledTime: next.scheduledTime || next.ScheduledTime,
+          studentName: next.studentName || next.StudentName || next.registrationNo || 'Candidate'
+        } : null);
+      } catch (err) {
+        console.warn('Failed to refresh company notification badges', err);
+      }
+    };
+
+    refreshCompanyNotifications();
+    intervalId = setInterval(refreshCompanyNotifications, 30000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [currentView, user]);
 
   const showNotification = (msg, type = 'success') => {
@@ -205,13 +257,21 @@ export default function App() {
       )}
       
       {currentView === 'dashboard' && user && (
-        <DashboardLayout user={user} onLogout={handleLogout} activeTab={activeTab} onTabChange={setActiveTab}>
+        <DashboardLayout
+          user={user}
+          onLogout={handleLogout}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          notificationCounts={notificationCounts}
+          nextIncomingInterview={nextIncomingInterview}
+        >
           <CompanyDashboard
             user={user}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             profileContext={studentProfileContext}
             onProfileContextChange={setStudentProfileContext}
+            onSuccess={(m) => showNotification(m, 'success')}
             onError={(m) => showNotification(m, 'error')}
           />
         </DashboardLayout>
