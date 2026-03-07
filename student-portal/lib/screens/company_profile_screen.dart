@@ -203,7 +203,6 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         final bool isMobile = screenWidth < 800;
 
         // ---------------- MOBILE LAYOUT ----------------
-        final isDark = Theme.of(context).brightness == Brightness.dark;
         if (isMobile) {
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -512,130 +511,204 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   // --- Logic for Request Button vs Status Card ---
 
   Widget _buildActionSection(CompanyDetail company) {
-    if (company.interviewRequest != null) {
-      final req = company.interviewRequest!;
+    final req = company.interviewRequest;
+    final requestStatus = req?.status.toLowerCase() ?? '';
+    final requestedBy = req?.requestedBy.toLowerCase() ?? '';
+    final interviewStatus =
+        (company.latestInterview?.status ?? req?.currentInterviewStatus ?? '')
+            .toLowerCase();
+    final scheduledTime =
+        company.latestInterview?.scheduledTime ?? req?.interviewScheduledTime;
+    final interviewRoom =
+        company.latestInterview?.room ?? req?.interviewRoom ?? 'TBA';
+    final scheduledDisplay = scheduledTime != null
+        ? '${scheduledTime.toLocal().day.toString().padLeft(2, '0')}-${scheduledTime.toLocal().month.toString().padLeft(2, '0')}-${scheduledTime.toLocal().year} ${scheduledTime.toLocal().hour.toString().padLeft(2, '0')}:${scheduledTime.toLocal().minute.toString().padLeft(2, '0')}'
+        : null;
+
+    if (requestStatus == 'pending') {
       // 1. PENDING REQUEST
-      if (req.status == 'Pending') {
+      if (requestedBy == 'company') {
         // A. Invited by Company (Action needed)
-        if (req.requestedBy == 'Company') {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          return Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.purple.shade900.withValues(alpha: 0.3)
-                  : Colors.purple.shade50,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark ? Colors.purple.shade700 : Colors.purple.shade200,
-              ),
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.purple.shade900.withValues(alpha: 0.3)
+                : Colors.purple.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.purple.shade700 : Colors.purple.shade200,
             ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.mail_outline,
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.mail_outline,
+                    color: isDark
+                        ? Colors.purple.shade300
+                        : Colors.purple.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "You have been Invited!",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                       color: isDark
-                          ? Colors.purple.shade300
-                          : Colors.purple.shade700,
+                          ? Colors.purple.shade200
+                          : Colors.purple.shade800,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "You have been Invited!",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? Colors.purple.shade200
-                            : Colors.purple.shade800,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${company.name} wants to interview you.",
+                style: TextStyle(color: Colors.purple.shade700),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isSendingRequest
+                          ? null
+                          : () => _handleRejectInvite(req!.requestId),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
+                      child: const Text("Decline"),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "${company.name} wants to interview you.",
-                  style: TextStyle(color: Colors.purple.shade700),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isSendingRequest
-                            ? null
-                            : () => _handleRejectInvite(req.requestId),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text("Decline"),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isSendingRequest
+                          ? null
+                          : () => _handleAcceptInvite(req!.requestId),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
+                      child: _isSendingRequest
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text("Accept Invite"),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _isSendingRequest
-                            ? null
-                            : () => _handleAcceptInvite(req.requestId),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: _isSendingRequest
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text("Accept Invite"),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
-        // B. Sent by Student (Waiting)
-        else {
-          return _buildStatusCard(
-            color: Colors.orange,
-            icon: Icons.hourglass_top,
-            title: "Request Sent",
-            subtitle: "Waiting for company response.",
-          );
-        }
-      }
-      // 2. ACCEPTED
-      else if (req.status == 'Accepted') {
-        return _buildStatusCard(
-          color: Colors.green,
-          icon: Icons.check_circle_outline,
-          title: "Interview Scheduled",
-          subtitle: "Congratulations! The request has been accepted.",
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       }
-      // 3. REJECTED
-      else {
-        return _buildStatusCard(
-          color: Colors.red,
-          icon: Icons.cancel_outlined,
-          title: "Request Rejected",
-          subtitle: "This request was not successful.",
-        );
-      }
+
+      // B. Sent by Student (Waiting)
+      return _buildStatusCard(
+        color: Colors.orange,
+        icon: Icons.hourglass_top,
+        title: "Request Sent",
+        subtitle: "Waiting for company response.",
+      );
     }
 
-    // 4. NO REQUEST -> SHOW BUTTON
+    if (interviewStatus == 'queued') {
+      if (scheduledDisplay != null) {
+        return _buildStatusCard(
+          color: Colors.green,
+          icon: Icons.event_available,
+          title: 'Interview Scheduled',
+          subtitle: 'Time: $scheduledDisplay • Room: $interviewRoom',
+        );
+      }
+
+      return _buildStatusCard(
+        color: Colors.blue,
+        icon: Icons.schedule,
+        title: "Request Accepted",
+        subtitle:
+            "Your request is accepted. Interview scheduling is in progress.",
+      );
+    }
+
+    if (interviewStatus == 'inprogress') {
+      return _buildStatusCard(
+        color: Colors.deepPurple,
+        icon: Icons.play_circle_outline,
+        title: "Interview On-going",
+        subtitle: "Your interview is currently in progress.",
+      );
+    }
+
+    if (interviewStatus == 'hired') {
+      return _buildStatusCard(
+        color: Colors.green,
+        icon: Icons.verified,
+        title: "Hired",
+        subtitle: "Congratulations! You have been hired.",
+      );
+    }
+
+    if (interviewStatus == 'shortlisted') {
+      return _buildStatusCard(
+        color: Colors.teal,
+        icon: Icons.stars,
+        title: "Shortlisted",
+        subtitle: "Great news! You are shortlisted.",
+      );
+    }
+
+    if (interviewStatus == 'rejected') {
+      return _buildStatusCard(
+        color: Colors.red,
+        icon: Icons.cancel_outlined,
+        title: "Not Selected",
+        subtitle: "This interview did not result in selection.",
+      );
+    }
+
+    if (requestStatus == 'accepted') {
+      if (scheduledDisplay != null) {
+        return _buildStatusCard(
+          color: Colors.green,
+          icon: Icons.event_available,
+          title: 'Interview Scheduled',
+          subtitle: 'Time: $scheduledDisplay • Room: $interviewRoom',
+        );
+      }
+
+      return _buildStatusCard(
+        color: Colors.green,
+        icon: Icons.check_circle_outline,
+        title: "Request Accepted",
+        subtitle: "Your interview request has been accepted.",
+      );
+    }
+
+    if (requestStatus == 'rejected') {
+      return _buildStatusCard(
+        color: Colors.red,
+        icon: Icons.cancel_outlined,
+        title: "Request Rejected",
+        subtitle: "This request was not successful.",
+      );
+    }
+
+    // NO REQUEST/INTERVIEW -> SHOW BUTTON
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -782,11 +855,11 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
             ),
           if (company.contactLinks.isNotEmpty) ...[
             const SizedBox(height: 20),
-            const Text(
+            Text(
               "Social Profiles",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
             const SizedBox(height: 12),
@@ -975,7 +1048,7 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey.shade900,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
               ],
@@ -1067,10 +1140,10 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                       )
                     : Text(
                         value,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
               ],

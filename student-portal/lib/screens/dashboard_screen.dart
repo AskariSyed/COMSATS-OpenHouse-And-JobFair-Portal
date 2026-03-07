@@ -11,8 +11,13 @@ import 'package:student_job_fair_portal/screens/settings_screen.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 import 'package:student_job_fair_portal/widgets/interview_status_chart.dart';
 import 'package:student_job_fair_portal/widgets/market_overview_chart.dart';
+import 'package:student_job_fair_portal/services/cv_generator.dart';
+import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,6 +27,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  bool _hasShownCvPrompt = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,10 +44,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ).fetchDashboardData();
   }
 
+  Future<void> _promptUploadCv() async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final student = studentProvider.student;
+    if (student == null) return;
+
+    final shouldUploadNow = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Profile Complete 🎉'),
+        content: const Text(
+          'Your profile is complete. Upload your CV now so companies can view it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Upload CV'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldUploadNow != true || !mounted) return;
+
+    final String? cvEmail = await showDialog<String>(
+      context: context,
+      builder: (ctx) => const CVEditorDialog(),
+    );
+
+    if (!mounted) return;
+
+    showTopSnackBar(
+      Overlay.of(context),
+      const CustomSnackBar.info(message: 'Preparing CV upload...'),
+    );
+
+    try {
+      final pdfBytes = await CVGenerator.generatePdfBytes(
+        student,
+        customEmail: cvEmail,
+      );
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        pdfBytes,
+        fileName:
+            '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
+      );
+
+      if (!mounted) return;
+
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'CV uploaded successfully. Companies can now view it.',
+              )
+            : const CustomSnackBar.error(message: 'Failed to upload CV.'),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error uploading CV: $e'),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final studentProvider = Provider.of<StudentProvider>(context);
     final dashboardData = studentProvider.dashboardData;
+    if (dashboardData != null) {
+      final studentCvMissing =
+          studentProvider.student?.cvUrl == null ||
+          studentProvider.student!.cvUrl!.isEmpty;
+
+      if (!_hasShownCvPrompt &&
+          dashboardData.studentProfile.completeness >= 100 &&
+          studentCvMissing) {
+        _hasShownCvPrompt = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _promptUploadCv();
+          }
+        });
+      }
+    }
+
     final isLoading = studentProvider.isLoading;
     final error = studentProvider.dashboardError;
     final student = studentProvider.student;
@@ -137,7 +233,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       isWide,
                     ),
                     const SizedBox(height: 24),
-                    _buildRecommendedJobs(context, dashboardData.recommendedJobs),
+                    _buildRecommendedJobs(
+                      context,
+                      dashboardData.recommendedJobs,
+                    ),
                     const SizedBox(height: 24),
                     _buildActionsRequired(
                       context,
@@ -313,7 +412,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       profile.name,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
                     ),
                     Text(
                       profile.registrationNo,
@@ -329,7 +431,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
+                          color: Colors.green.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.green),
                         ),
@@ -383,6 +485,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ],
                       ),
+                    if (profile.completeness < 100) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade700),
+                        ),
+                        child: Text(
+                          'Please complete your profile to improve visibility for recruiters.',
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? Colors.amber.shade100
+                                : Colors.amber.shade900,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                     if (!profile.isRegisteredForFair) ...[
                       const SizedBox(height: 8),
                       Container(
@@ -502,6 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
               Text(
@@ -584,22 +712,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: jobs.isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(8.0),
-                    child: Text('Add more profile skills to get personalized job recommendations.'),
+                    child: Text(
+                      'Add more profile skills to get personalized job recommendations.',
+                    ),
                   )
                 : Column(
                     children: jobs.map((job) {
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                        leading: const CircleAvatar(child: Icon(Icons.work_outline)),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                        ),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.work_outline),
+                        ),
                         title: Text(job.jobTitle),
                         subtitle: Text(
                           '${job.companyName} • ${job.matchCount} skill match${job.matchCount > 1 ? 'es' : ''}',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
+                          if (job.companyId > 0) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CompanyProfileScreen(
+                                  companyId: job.companyId,
+                                  companyName: job.companyName,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const JobsScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const JobsScreen(),
+                            ),
                           );
                         },
                       );

@@ -379,11 +379,13 @@ export default function InterviewManager({ onError, onSelectStudent }) {
       </div>
 
       {/* --- Tabs --- */}
-      <div className="border-b border-gray-200 flex gap-6">
-        <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length} active={activeTab} onClick={setActiveTab} />
-        <TabBtn id="accepted" label="Accepted" count={acceptedRequests.length} active={activeTab} onClick={setActiveTab} />
-        <TabBtn id="scheduled" label="Scheduled Interviews" active={activeTab} onClick={setActiveTab} />
-        <TabBtn id="completed" label="Completed" count={completedInterviews.length} active={activeTab} onClick={setActiveTab} />
+      <div className="border-b border-gray-200 overflow-x-auto">
+        <div className="flex gap-6 min-w-max">
+          <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length} active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="accepted" label="Accepted" count={acceptedRequests.length} active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="scheduled" label="Scheduled Interviews" active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="completed" label="Completed" count={completedInterviews.length} active={activeTab} onClick={setActiveTab} />
+        </div>
       </div>
 
       {/* --- PENDING REQUESTS VIEW --- */}
@@ -467,8 +469,8 @@ export default function InterviewManager({ onError, onSelectStudent }) {
           {acceptedRequests.length === 0 ? (
             <EmptyState message="No accepted requests." />
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-              <table className="w-full text-sm text-left">
+            <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[980px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
                     <th className="p-4">Candidate</th>
@@ -554,8 +556,8 @@ export default function InterviewManager({ onError, onSelectStudent }) {
           {scheduledInterviews.length === 0 ? (
              <EmptyState message="No upcoming interviews scheduled." />
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-              <table className="w-full text-sm text-left">
+            <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
                     <th className="p-4">Candidate</th>
@@ -763,7 +765,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
           {completedInterviews.length === 0 ? (
             <EmptyState message="No completed interviews yet." />
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
               <div className="px-4 py-3 border-b bg-gray-50 flex justify-end">
                 <button
                   onClick={handleDownloadAllCompletedCvs}
@@ -773,7 +775,7 @@ export default function InterviewManager({ onError, onSelectStudent }) {
                   {downloadingAllCvs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download All CVs
                 </button>
               </div>
-              <table className="w-full text-sm text-left">
+              <table className="w-full min-w-[900px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
                     <th className="p-4">Candidate</th>

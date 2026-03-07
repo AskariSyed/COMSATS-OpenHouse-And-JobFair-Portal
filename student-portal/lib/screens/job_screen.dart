@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -200,6 +199,9 @@ class _JobsScreenState extends State<JobsScreen> {
                                                 .headlineSmall
                                                 ?.copyWith(
                                                   fontWeight: FontWeight.bold,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodyLarge?.color,
                                                 ),
                                           ),
                                           const SizedBox(height: 10),

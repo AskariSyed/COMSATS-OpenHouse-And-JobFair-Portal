@@ -1964,6 +1964,7 @@ namespace JobFairPortal.Controllers
             var participation = await _context.CompanyJobFairParticipations
                 .Include(p => p.Company)
                     .ThenInclude(c => c.User)
+                .Include(p => p.Room)
                 .Include(p => p.Company)
                     .ThenInclude(c => c.CompanyContactLinks)
                 .Include(p => p.Company)
@@ -1977,6 +1978,10 @@ namespace JobFairPortal.Controllers
 
             var company = participation.Company;
             var interviewRequest = company.InterviewRequests.FirstOrDefault();
+            var latestInterview = await _context.Interviews
+                .Where(i => i.StudentId == student.StudentId && i.CompanyId == companyId && i.JobFairId == activeJobFair.JobFairId)
+                .OrderByDescending(i => i.UpdatedAt)
+                .FirstOrDefaultAsync();
 
             var companyProfile = new
             {
@@ -2024,6 +2029,9 @@ namespace JobFairPortal.Controllers
                     RequestId = interviewRequest.RequestId,
                     Status = interviewRequest.Status.ToString(),
                     RequestedBy = interviewRequest.RequestedBy.ToString(),
+                    CurrentInterviewStatus = latestInterview?.Status.ToString(),
+                    InterviewScheduledTime = latestInterview?.ScheduledTime,
+                    InterviewRoom = participation.Room != null ? participation.Room.RoomName : null,
                     ReasonForReject = interviewRequest.ReasonForReject,
                     RequestDate = interviewRequest.CreatedAt,
                     ResponseDate = interviewRequest.UpdatedAt,
@@ -2035,7 +2043,16 @@ namespace JobFairPortal.Controllers
                         ? $"You sent a request on {interviewRequest.CreatedAt:MMM dd, yyyy}"
                         : $"{company.Name} sent you a request on {interviewRequest.CreatedAt:MMM dd, yyyy}",
                 } : null,
-                CanRequestInterview = interviewRequest == null,
+                LatestInterview = latestInterview != null ? new
+                {
+                    latestInterview.InterviewId,
+                    Status = latestInterview.Status.ToString(),
+                    latestInterview.ScheduledTime,
+                    latestInterview.StartedAt,
+                    latestInterview.EndedAt,
+                    Room = participation.Room != null ? participation.Room.RoomName : null
+                } : null,
+                CanRequestInterview = interviewRequest == null && latestInterview == null,
                 company.CreatedAt,
                 company.UpdatedAt
             };

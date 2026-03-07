@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, Github, Linkedin, Globe, Send, CheckCircle2, XCircle, Clock, Calendar, Phone, Play, Twitter, Facebook, Instagram, Briefcase as Portfolio } from 'lucide-react';
-import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest, startInterview, completeInterview } from '../api';
+import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest, startInterview, startWalkInInterview, completeInterview } from '../api';
 import { getThumbnailUrl, getYoutubeId } from '../utils/videoUtils';
 
 export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews, readOnly = false }) {
@@ -8,6 +8,11 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
    const [interviewActionLoading, setInterviewActionLoading] = useState(false);
+   const [endInterviewModal, setEndInterviewModal] = useState({
+      open: false,
+      interviewId: null,
+      result: 'Hired'
+   });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -18,6 +23,29 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
       .catch(err => console.error("Profile load error:", err))
       .finally(() => setLoading(false));
   }, [studentId, refreshKey]);
+
+   const getCurrentInterviewFromProfile = (sourceProfile) => {
+      if (!sourceProfile) {
+         return { interviewId: null, status: '' };
+      }
+
+      const currentInterview = sourceProfile.CurrentInterview || sourceProfile.currentInterview || {};
+      const interviewId =
+         currentInterview?.InterviewId ||
+         currentInterview?.interviewId ||
+         sourceProfile.CurrentInterviewId ||
+         sourceProfile.currentInterviewId ||
+         null;
+      const status = String(
+         currentInterview?.Status ||
+         currentInterview?.status ||
+         sourceProfile.CurrentInterviewStatus ||
+         sourceProfile.currentInterviewStatus ||
+         ''
+      ).toLowerCase();
+
+      return { interviewId, status };
+   };
 
   // --- ACTIONS ---
   const handleSendRequest = async () => {
@@ -63,24 +91,25 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
    const handleEndCurrentInterview = async (interviewId) => {
       if (!interviewId) return;
 
-      const result = window.prompt('Enter interview result: Hired, Shortlisted, or Rejected', 'Hired');
-      if (!result) return;
+      setEndInterviewModal({
+         open: true,
+         interviewId,
+         result: 'Hired'
+      });
+   };
 
-      const normalized = result.trim().toLowerCase();
-      const allowedMap = {
-         hired: 'Hired',
-         shortlisted: 'Shortlisted',
-         rejected: 'Rejected'
-      };
+   const confirmEndCurrentInterview = async () => {
+      const interviewId = endInterviewModal.interviewId;
+      const selectedResult = endInterviewModal.result;
+      if (!interviewId || !selectedResult) return;
 
-      if (!allowedMap[normalized]) {
-         alert('Invalid result. Use Hired, Shortlisted, or Rejected.');
-         return;
-      }
+      const allowed = ['Hired', 'Shortlisted', 'Rejected'];
+      if (!allowed.includes(selectedResult)) return;
 
       setInterviewActionLoading(true);
       try {
-         await completeInterview(interviewId, allowedMap[normalized]);
+         await completeInterview(interviewId, selectedResult);
+         setEndInterviewModal({ open: false, interviewId: null, result: 'Hired' });
          setRefreshKey(k => k + 1);
       } catch (err) {
          alert(err.message || 'Failed to end interview');
@@ -88,6 +117,76 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
          setInterviewActionLoading(false);
       }
    };
+
+    const handleStartWalkInInterview = async () => {
+         if (!studentId) return;
+
+         if (!window.confirm('Are you really starting a walk in interview?')) {
+            return;
+         }
+
+         setInterviewActionLoading(true);
+         try {
+            const result = await startWalkInInterview(studentId, false);
+            const optimisticInterviewId = result?.InterviewId || result?.interviewId || null;
+            const optimisticStartedAt = result?.StartedAt || result?.startedAt || new Date().toISOString();
+
+            setProfile(prev => {
+               if (!prev) return prev;
+               const existing = prev.CurrentInterview || prev.currentInterview || {};
+               return {
+                  ...prev,
+                  CurrentInterview: {
+                     ...existing,
+                     InterviewId: optimisticInterviewId || existing.InterviewId || existing.interviewId,
+                     Status: 'InProgress',
+                     StartedAt: optimisticStartedAt,
+                     ScheduledTime: null
+                  }
+               };
+            });
+            setRefreshKey(k => k + 1);
+         } catch (err) {
+            const message = String(err?.message || '');
+            const needsOverwrite = message.toLowerCase().includes('confirm overwrite') || message.toLowerCase().includes('requiresoverride');
+
+            if (needsOverwrite) {
+               const confirmOverwrite = window.confirm('A scheduled interview already exists. Overwrite it and start walk-in now?');
+               if (confirmOverwrite) {
+                  try {
+                     const result = await startWalkInInterview(studentId, true);
+                     const optimisticInterviewId = result?.InterviewId || result?.interviewId || null;
+                     const optimisticStartedAt = result?.StartedAt || result?.startedAt || new Date().toISOString();
+
+                     setProfile(prev => {
+                        if (!prev) return prev;
+                        const existing = prev.CurrentInterview || prev.currentInterview || {};
+                        return {
+                           ...prev,
+                           CurrentInterview: {
+                              ...existing,
+                              InterviewId: optimisticInterviewId || existing.InterviewId || existing.interviewId,
+                              Status: 'InProgress',
+                              StartedAt: optimisticStartedAt,
+                              ScheduledTime: null
+                           }
+                        };
+                     });
+                     setRefreshKey(k => k + 1);
+                     return;
+                  } catch (overwriteErr) {
+                     alert(overwriteErr.message || 'Failed to overwrite scheduled interview');
+                     return;
+                  }
+               }
+               return;
+            }
+
+            alert(err.message || 'Failed to start walk-in interview');
+         } finally {
+            setInterviewActionLoading(false);
+         }
+    };
 
   // --- HEADER ACTION RENDERER ---
   const renderHeaderAction = () => {
@@ -113,9 +212,8 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
     const req = profile.InterviewRequest || profile.interviewRequest || {};
     const hasRequest = req.HasRequest === true || req.hasRequest === true;
     const status = (req.Status || req.status || '').toLowerCase();
-      const currentInterview = profile.CurrentInterview || profile.currentInterview;
-      const currentInterviewStatus = String(currentInterview?.Status || currentInterview?.status || '').toLowerCase();
-      const currentInterviewId = currentInterview?.InterviewId || currentInterview?.interviewId;
+      const { interviewId: currentInterviewId, status: currentInterviewStatus } = getCurrentInterviewFromProfile(profile);
+         const walkInInterviewEnabledNow = profile.walkInInterviewEnabledNow ?? profile.WalkInInterviewEnabledNow ?? false;
     const requestedByVal = req.RequestedBy !== undefined ? req.RequestedBy : req.requestedBy;
     const isStudentRequest = requestedByVal === 1 || requestedByVal === 'Student';
 
@@ -169,23 +267,45 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
 
     // 1. No Request -> "Send Request"
     if (!hasRequest) {
-      return (
-        <button onClick={handleSendRequest} disabled={actionLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5">
-          {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><Send className="w-4 h-4" /> Send Interview Request</>}
-        </button>
-      );
+         return (
+            <div className="flex items-center gap-2">
+               <button onClick={handleSendRequest} disabled={actionLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5">
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><Send className="w-4 h-4" /> Send Interview Request</>}
+               </button>
+               {walkInInterviewEnabledNow && (
+                  <button
+                     onClick={handleStartWalkInInterview}
+                     disabled={interviewActionLoading}
+                     className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-0.5 disabled:opacity-60"
+                  >
+                     {interviewActionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><Play className="w-4 h-4" /> Start Walk-in Interview</>}
+                  </button>
+               )}
+            </div>
+         );
     }
 
     // 2. Scheduled -> Badge
     if (status === 'accepted') {
          if (!currentInterviewId) {
             return (
-               <button
-                  onClick={() => onNavigateToInterviews && onNavigateToInterviews()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5"
-               >
-                  <Calendar className="w-4 h-4" /> Schedule Interview
-               </button>
+               <div className="flex items-center gap-2">
+                  <button
+                     onClick={() => onNavigateToInterviews && onNavigateToInterviews()}
+                     className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5"
+                  >
+                     <Calendar className="w-4 h-4" /> Schedule Interview
+                  </button>
+                  {walkInInterviewEnabledNow && (
+                    <button
+                      onClick={handleStartWalkInInterview}
+                      disabled={interviewActionLoading}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-0.5 disabled:opacity-60"
+                    >
+                      {interviewActionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <><Play className="w-4 h-4" /> Start Walk-in Interview</>}
+                    </button>
+                  )}
+               </div>
             );
          }
 
@@ -287,8 +407,7 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                    {(() => {
                       const req = profile.InterviewRequest || profile.interviewRequest || {};
                       const reqStatus = String(req.Status || req.status || '').toLowerCase();
-                      const interview = profile.CurrentInterview || profile.currentInterview;
-                      const interviewStatus = String(interview?.Status || interview?.status || '').toLowerCase();
+                      const { status: interviewStatus } = getCurrentInterviewFromProfile(profile);
 
                       return (
                          <>
@@ -582,6 +701,47 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
             </div>
          </div>
       </div>
+
+      {endInterviewModal.open && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-6">
+               <h3 className="text-lg font-bold text-gray-900">End Interview</h3>
+               <p className="text-sm text-gray-600 mt-1">Select final interview result.</p>
+
+               <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Result</label>
+                  <select
+                     value={endInterviewModal.result}
+                     onChange={(e) => setEndInterviewModal(prev => ({ ...prev, result: e.target.value }))}
+                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     disabled={interviewActionLoading}
+                  >
+                     <option value="Hired">Hired</option>
+                     <option value="Shortlisted">Shortlisted</option>
+                     <option value="Rejected">Rejected</option>
+                  </select>
+               </div>
+
+               <div className="mt-6 flex justify-end gap-3">
+                  <button
+                     onClick={() => setEndInterviewModal({ open: false, interviewId: null, result: 'Hired' })}
+                     disabled={interviewActionLoading}
+                     className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-60"
+                  >
+                     Cancel
+                  </button>
+                  <button
+                     onClick={confirmEndCurrentInterview}
+                     disabled={interviewActionLoading}
+                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-60"
+                  >
+                     {interviewActionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                     Confirm End
+                  </button>
+               </div>
+            </div>
+         </div>
+      )}
 
 
 

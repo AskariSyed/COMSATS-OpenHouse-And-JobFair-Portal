@@ -1009,46 +1009,63 @@ Job Fair Team
                 // ⚠️ CACHE MISS: Data not found, fetch from Database
                 _logger.LogInformation("Fetching dashboard stats from DB...");
 
-                var topRequestedCandidate = await _context.InterviewRequests
+                var topRequestedCandidates = await _context.InterviewRequests
                     .Where(r => r.JobFairId == activeJobFairId.Value)
                     .GroupBy(r => r.StudentId)
-                    .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                    .Select(g => new DashboardTopCandidateDto
+                    {
+                        StudentId = g.Key,
+                        CandidateName = _context.Students
+                            .Where(s => s.StudentId == g.Key)
+                            .Select(s => s.User.FullName)
+                            .FirstOrDefault() ?? "Unknown",
+                        Count = g.Count()
+                    })
                     .OrderByDescending(x => x.Count)
                     .ThenBy(x => x.StudentId)
-                    .FirstOrDefaultAsync();
+                    .Take(5)
+                    .ToListAsync();
 
-                if (topRequestedCandidate == null)
+                if (!topRequestedCandidates.Any())
                 {
-                    topRequestedCandidate = await _context.Interviews
+                    topRequestedCandidates = await _context.Interviews
                         .Where(i => i.JobFairId == activeJobFairId.Value)
                         .GroupBy(i => i.StudentId)
-                        .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                        .Select(g => new DashboardTopCandidateDto
+                        {
+                            StudentId = g.Key,
+                            CandidateName = _context.Students
+                                .Where(s => s.StudentId == g.Key)
+                                .Select(s => s.User.FullName)
+                                .FirstOrDefault() ?? "Unknown",
+                            Count = g.Count()
+                        })
                         .OrderByDescending(x => x.Count)
                         .ThenBy(x => x.StudentId)
-                        .FirstOrDefaultAsync();
+                        .Take(5)
+                        .ToListAsync();
                 }
 
-                var topRequestedStudentName = topRequestedCandidate == null
-                    ? null
-                    : await _context.Students
-                        .Where(s => s.StudentId == topRequestedCandidate.StudentId)
-                        .Select(s => s.User.FullName)
-                        .FirstOrDefaultAsync();
+                var topRequestedCandidate = topRequestedCandidates.FirstOrDefault();
 
-                var topHiredCandidate = await _context.Interviews
+                var topHiredCandidates = await _context.Interviews
                     .Where(i => i.JobFairId == activeJobFairId.Value && i.Status == InterviewStatus.Hired)
                     .GroupBy(i => i.StudentId)
-                    .Select(g => new { StudentId = g.Key, Count = g.Count() })
+                    .Select(g => new DashboardTopCandidateDto
+                    {
+                        StudentId = g.Key,
+                        CandidateName = _context.Students
+                            .Where(s => s.StudentId == g.Key)
+                            .Select(s => s.User.FullName)
+                            .FirstOrDefault() ?? "Unknown",
+                        Count = g.Count()
+                    })
                     .OrderByDescending(x => x.Count)
                     .ThenBy(x => x.StudentId)
-                    .FirstOrDefaultAsync();
+                    .Take(5)
+                    .ToListAsync();
 
-                var topHiredStudentName = topHiredCandidate == null
-                    ? null
-                    : await _context.Students
-                        .Where(s => s.StudentId == topHiredCandidate.StudentId)
-                        .Select(s => s.User.FullName)
-                        .FirstOrDefaultAsync();
+                var topHiredCandidate = topHiredCandidates.FirstOrDefault();
 
                 // ✅ FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
@@ -1062,11 +1079,13 @@ Job Fair Team
                     CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.CDC),
                     DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.Department),
                     TopRequestedCandidateId = topRequestedCandidate?.StudentId,
-                    TopRequestedCandidateName = topRequestedStudentName,
+                    TopRequestedCandidateName = topRequestedCandidate?.CandidateName,
                     TopRequestedCandidateRequestCount = topRequestedCandidate?.Count ?? 0,
                     TopHiredCandidateId = topHiredCandidate?.StudentId,
-                    TopHiredCandidateName = topHiredStudentName,
-                    TopHiredCandidateHireCount = topHiredCandidate?.Count ?? 0
+                    TopHiredCandidateName = topHiredCandidate?.CandidateName,
+                    TopHiredCandidateHireCount = topHiredCandidate?.Count ?? 0,
+                    TopRequestedCandidates = topRequestedCandidates,
+                    TopHiredCandidates = topHiredCandidates
                 };
 
                 // 3. Save to Cache options (e.g., expire after 5 minutes)

@@ -284,6 +284,9 @@ const SurveyResponses = () => {
     const surveyType = filters.surveyType === 'all' ? 'All' : filters.surveyType;
     doc.text(`Survey Type: ${surveyType} | Total Responses: ${processedSurveys.length}`, 14, 35);
 
+    const cdcSurveyItems = processedSurveys.filter((s) => s.type === 'CDC');
+    const deptSurveyItems = processedSurveys.filter((s) => s.type === 'Department');
+
     // Create table
     const tableData = processedSurveys.map(survey => [
       survey.companyName,
@@ -316,25 +319,169 @@ const SurveyResponses = () => {
         useCORS: true,
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = 180;
+      const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      let y = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 12 : 55;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const marginX = 14;
+      const marginBottom = 15;
+      const imageWidth = pageWidth - marginX * 2;
+      const pxPerMm = canvas.width / imageWidth;
 
-      if (y + imgHeight > pageHeight - 15) {
+      let y = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 12 : 55;
+      if (y > pageHeight - 30) {
         doc.addPage();
         y = 20;
       }
 
       doc.setFontSize(12);
       doc.setTextColor(0);
-      doc.text(title, 14, y - 4);
-      doc.addImage(imgData, 'PNG', 14, y, imgWidth, imgHeight);
+      doc.text(title, marginX, y - 4);
+
+      const renderSlice = (sourceOffsetPx, sourceHeightPx, targetYmm) => {
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sourceHeightPx;
+        const context = sliceCanvas.getContext('2d');
+        if (!context) return;
+
+        context.drawImage(
+          canvas,
+          0,
+          sourceOffsetPx,
+          canvas.width,
+          sourceHeightPx,
+          0,
+          0,
+          canvas.width,
+          sourceHeightPx
+        );
+
+        const sliceHeightMm = sourceHeightPx / pxPerMm;
+        doc.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', marginX, targetYmm, imageWidth, sliceHeightMm);
+      };
+
+      let remainingPx = canvas.height;
+      let sourceOffsetPx = 0;
+      let targetY = y;
+
+      while (remainingPx > 0) {
+        const availableMm = pageHeight - marginBottom - targetY;
+        if (availableMm <= 5) {
+          doc.addPage();
+          targetY = 20;
+          continue;
+        }
+
+        const maxSlicePx = Math.max(1, Math.floor(availableMm * pxPerMm));
+        const slicePx = Math.min(remainingPx, maxSlicePx);
+        renderSlice(sourceOffsetPx, slicePx, targetY);
+
+        remainingPx -= slicePx;
+        sourceOffsetPx += slicePx;
+
+        if (remainingPx > 0) {
+          doc.addPage();
+          targetY = 20;
+        }
+      }
     };
 
     await addChartSection('CDC Feedback Graphs', cdcExportRef);
     await addChartSection('Department Analysis Graphs', deptExportRef);
+
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.text('Numeric Summary', 14, 20);
+
+    autoTable(doc, {
+      startY: 26,
+      head: [['Metric', 'Value']],
+      body: [
+        ['Total Responses', String(processedSurveys.length)],
+        ['CDC Responses', String(cdcSurveyItems.length)],
+        ['Department Responses', String(deptSurveyItems.length)],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 9 }
+    });
+
+    const getCDCStatsForItems = (items, field) => {
+      const counts = { Good: 0, Average: 0, Bad: 0 };
+      items.forEach((item) => {
+        const value = item.responses?.[field] || 'Average';
+        if (counts[value] !== undefined) counts[value] += 1;
+      });
+      return counts;
+    };
+
+    const getDeptStatsForItems = (items, field) => {
+      const counts = { Exceptionally: 0, ToAGreatExtent: 0, Moderately: 0, Somewhat: 0, NotAtAll: 0 };
+      items.forEach((item) => {
+        const value = item.responses?.[field];
+        if (value && counts[value] !== undefined) counts[value] += 1;
+      });
+      return counts;
+    };
+
+    const cdcSummaryRows = [
+      ['FYP Quality', 'FypQuality'],
+      ['Arrangement Quality', 'ArrangementQuality'],
+      ['Lunch Quality', 'LunchQuality']
+    ].map(([label, key]) => {
+      const counts = getCDCStatsForItems(cdcSurveyItems, key);
+      const total = counts.Good + counts.Average + counts.Bad;
+      return [label, String(counts.Good), String(counts.Average), String(counts.Bad), String(total)];
+    });
+
+    autoTable(doc, {
+      startY: (doc.lastAutoTable?.finalY || 30) + 10,
+      head: [['CDC Question', 'Good', 'Average', 'Bad', 'Total']],
+      body: cdcSummaryRows,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129] },
+      styles: { fontSize: 8 }
+    });
+
+    const deptSummaryRows = [
+      ['PEO-1 Q1', 'PEO1_Q1'],
+      ['PEO-1 Q2', 'PEO1_Q2'],
+      ['PEO-1 Q3', 'PEO1_Q3'],
+      ['PEO-2 Q1', 'PEO2_Q1'],
+      ['PEO-2 Q2', 'PEO2_Q2'],
+      ['PEO-3 Q1', 'PEO3_Q1'],
+      ['PEO-3 Q2', 'PEO3_Q2'],
+      ['PEO-4 Q1', 'PEO4_Q1'],
+      ['PEO-4 Q2', 'PEO4_Q2'],
+      ['PEO-4 Q3', 'PEO4_Q3']
+    ].map(([label, key]) => {
+      const counts = getDeptStatsForItems(deptSurveyItems, key);
+      const total =
+        counts.Exceptionally +
+        counts.ToAGreatExtent +
+        counts.Moderately +
+        counts.Somewhat +
+        counts.NotAtAll;
+
+      return [
+        label,
+        String(counts.Exceptionally),
+        String(counts.ToAGreatExtent),
+        String(counts.Moderately),
+        String(counts.Somewhat),
+        String(counts.NotAtAll),
+        String(total)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: (doc.lastAutoTable?.finalY || 30) + 10,
+      head: [['Dept Question', 'Exceptional', 'Great', 'Moderate', 'Somewhat', 'Not At All', 'Total']],
+      body: deptSummaryRows,
+      theme: 'grid',
+      headStyles: { fillColor: [245, 158, 11] },
+      styles: { fontSize: 7 }
+    });
 
     doc.save(`Survey_Responses_${surveyType}_${new Date().toISOString().split('T')[0]}.pdf`);
     toast.success("PDF downloaded successfully!");

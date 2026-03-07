@@ -91,6 +91,26 @@ const Dashboard = () => {
     { name: 'Dept Surveys', count: stats?.departmentSurveysReceived || 0 },
   ];
 
+  const topRequestedCandidates = stats?.topRequestedCandidates?.length
+    ? stats.topRequestedCandidates
+    : (stats?.topRequestedCandidateId
+      ? [{
+          studentId: stats.topRequestedCandidateId,
+          candidateName: stats.topRequestedCandidateName,
+          count: stats.topRequestedCandidateRequestCount,
+        }]
+      : []);
+
+  const topHiredCandidates = stats?.topHiredCandidates?.length
+    ? stats.topHiredCandidates
+    : (stats?.topHiredCandidateId
+      ? [{
+          studentId: stats.topHiredCandidateId,
+          candidateName: stats.topHiredCandidateName,
+          count: stats.topHiredCandidateHireCount,
+        }]
+      : []);
+
   return (
     <div className="w-full max-w-full space-y-8 animate-fade-in overflow-x-hidden">
       
@@ -138,37 +158,49 @@ const Dashboard = () => {
       {/* 3. Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Top Candidate By Company Requests</p>
-          <div className="mt-3 flex items-center justify-between">
-            <div>
-              <p className="text-lg font-bold text-gray-900">{stats?.topRequestedCandidateName || 'No data yet'}</p>
-              <p className="text-sm text-gray-500">{stats?.topRequestedCandidateRequestCount || 0} company requests</p>
-            </div>
-            {stats?.topRequestedCandidateId && (
-              <button
-                onClick={() => navigate(`/admin/students/${stats.topRequestedCandidateId}`)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-              >
-                View Profile
-              </button>
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Company Requests</p>
+          <div className="mt-3 space-y-3">
+            {topRequestedCandidates.length > 0 ? topRequestedCandidates.slice(0, 5).map((candidate, index) => (
+              <div key={`top-requested-${candidate.studentId || index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
+                  <p className="text-xs text-gray-500">{candidate.count || 0} company requests</p>
+                </div>
+                {candidate.studentId && (
+                  <button
+                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  >
+                    View Profile
+                  </button>
+                )}
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500">No data yet</p>
             )}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Top Candidate By Hires</p>
-          <div className="mt-3 flex items-center justify-between">
-            <div>
-              <p className="text-lg font-bold text-gray-900">{stats?.topHiredCandidateName || 'No data yet'}</p>
-              <p className="text-sm text-gray-500">{stats?.topHiredCandidateHireCount || 0} hired outcomes</p>
-            </div>
-            {stats?.topHiredCandidateId && (
-              <button
-                onClick={() => navigate(`/admin/students/${stats.topHiredCandidateId}`)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-              >
-                View Profile
-              </button>
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Hires</p>
+          <div className="mt-3 space-y-3">
+            {topHiredCandidates.length > 0 ? topHiredCandidates.slice(0, 5).map((candidate, index) => (
+              <div key={`top-hired-${candidate.studentId || index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
+                  <p className="text-xs text-gray-500">{candidate.count || 0} hired outcomes</p>
+                </div>
+                {candidate.studentId && (
+                  <button
+                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  >
+                    View Profile
+                  </button>
+                )}
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500">No data yet</p>
             )}
           </div>
         </div>

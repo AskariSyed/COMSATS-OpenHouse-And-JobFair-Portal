@@ -29,11 +29,17 @@ class CompanyInterviewStatus {
   final int requestId;
   final String status; // Pending, Accepted, Rejected
   final String requestedBy; // Student, Company
+  final String? currentInterviewStatus;
+  final DateTime? interviewScheduledTime;
+  final String? interviewRoom;
 
   CompanyInterviewStatus({
     required this.requestId,
     required this.status,
     required this.requestedBy,
+    this.currentInterviewStatus,
+    this.interviewScheduledTime,
+    this.interviewRoom,
   });
 
   factory CompanyInterviewStatus.fromJson(Map<String, dynamic> json) {
@@ -41,6 +47,46 @@ class CompanyInterviewStatus {
       requestId: json['requestId'] ?? 0,
       status: json['status'] ?? 'Pending',
       requestedBy: json['requestedBy'] ?? 'Student',
+      currentInterviewStatus: json['currentInterviewStatus'],
+      interviewScheduledTime: json['interviewScheduledTime'] != null
+          ? DateTime.tryParse(json['interviewScheduledTime'].toString())
+          : null,
+      interviewRoom: json['interviewRoom'],
+    );
+  }
+}
+
+class CompanyLatestInterview {
+  final int interviewId;
+  final String status;
+  final DateTime? scheduledTime;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+  final String? room;
+
+  CompanyLatestInterview({
+    required this.interviewId,
+    required this.status,
+    this.scheduledTime,
+    this.startedAt,
+    this.endedAt,
+    this.room,
+  });
+
+  factory CompanyLatestInterview.fromJson(Map<String, dynamic> json) {
+    return CompanyLatestInterview(
+      interviewId: json['interviewId'] ?? 0,
+      status: json['status'] ?? 'Queued',
+      scheduledTime: json['scheduledTime'] != null
+          ? DateTime.tryParse(json['scheduledTime'].toString())
+          : null,
+      startedAt: json['startedAt'] != null
+          ? DateTime.tryParse(json['startedAt'].toString())
+          : null,
+      endedAt: json['endedAt'] != null
+          ? DateTime.tryParse(json['endedAt'].toString())
+          : null,
+      room: json['room'],
     );
   }
 }
@@ -67,6 +113,7 @@ class Company {
   // 🔹 NEW FIELDS
   final bool canRequestInterview;
   final CompanyInterviewStatus? interviewRequest;
+  final CompanyLatestInterview? latestInterview;
 
   Company({
     required this.companyId,
@@ -88,6 +135,7 @@ class Company {
     required this.jobs,
     this.canRequestInterview = true,
     this.interviewRequest,
+    this.latestInterview,
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
@@ -155,6 +203,7 @@ class CompanyDetail {
   // 🔹 NEW FIELDS
   final bool canRequestInterview;
   final CompanyInterviewStatus? interviewRequest;
+  final CompanyLatestInterview? latestInterview;
 
   bool get isPresent => arrivalStatus == 1;
 
@@ -178,6 +227,7 @@ class CompanyDetail {
     this.arrivalStatus = 0,
     this.canRequestInterview = true,
     this.interviewRequest,
+    this.latestInterview,
   });
 
   factory CompanyDetail.fromJson(Map<String, dynamic> json) {
@@ -218,6 +268,9 @@ class CompanyDetail {
       canRequestInterview: json['canRequestInterview'] ?? true,
       interviewRequest: json['interviewRequest'] != null
           ? CompanyInterviewStatus.fromJson(json['interviewRequest'])
+          : null,
+      latestInterview: json['latestInterview'] != null
+          ? CompanyLatestInterview.fromJson(json['latestInterview'])
           : null,
     );
   }

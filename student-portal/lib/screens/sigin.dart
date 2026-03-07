@@ -9,7 +9,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/screens/forgetpassword_screen.dart';
-import 'package:student_job_fair_portal/screens/profile.dart';
 import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
@@ -183,20 +182,13 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
+                          Image.asset(
+                            'assets/LogoWithoutBg.png',
+                            height: 120,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.school,
+                              size: 80,
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Image.asset(
-                              'assets/LogoWithoutBg.png',
-                              height: 100,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.school,
-                                size: 80,
-                                color: Color(0xFF2563EB),
-                              ),
                             ),
                           ),
                           const SizedBox(height: 30),

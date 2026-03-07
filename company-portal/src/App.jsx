@@ -25,12 +25,9 @@ export default function App() {
       if (token) {
         await registerFcmToken(token);
         console.log('FCM token registered successfully');
-      } else {
-        showNotification('Push notifications unavailable: permission denied or token not available.', 'error');
       }
     } catch (error) {
       console.warn('FCM token registration failed:', error);
-      showNotification('Push notifications blocked by network/firewall. Use localhost and allow notifications, then retry.', 'error');
     }
   };
 

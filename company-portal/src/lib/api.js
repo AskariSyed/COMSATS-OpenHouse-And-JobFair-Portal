@@ -206,6 +206,12 @@ export const startInterview = (interviewId) => {
   return request(`/Company/interviews/${interviewId}/start`, 'POST', {});
 };
 
+export const startWalkInInterview = (studentId, overrideScheduledInterview = false) => {
+  return request(`/Company/students/${studentId}/walkin/start`, 'POST', {
+    overrideScheduledInterview
+  });
+};
+
 export const completeInterview = (interviewId, resultStatus) => {
   return request(`/Company/interviews/${interviewId}/complete`, 'POST', { resultStatus });
 };

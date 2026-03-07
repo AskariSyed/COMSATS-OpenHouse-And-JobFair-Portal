@@ -22,6 +22,8 @@ namespace JobFairPortal.Controllers
         private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
         private static readonly TimeSpan WorkingDayStartLocal = TimeSpan.FromHours(9);
         private static readonly TimeSpan WorkingDayEndLocal = TimeSpan.FromHours(16.5);
+        private static readonly TimeSpan WalkInStartLocal = new TimeSpan(8, 30, 0);
+        private static readonly TimeSpan WalkInEndLocal = new TimeSpan(16, 30, 0);
 
         public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService)
         {
@@ -744,13 +746,19 @@ namespace JobFairPortal.Controllers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
 
-            var targetJobFairId = currentCompany?.CurrentJobFairId ?? activeJobFair?.JobFairId;
+            var targetJobFairId = activeJobFair?.JobFairId ?? currentCompany?.CurrentJobFairId;
             var canInterviewInCurrentFair = false;
+            var walkInInterviewEnabledNow = false;
 
             if (currentCompany != null && targetJobFairId.HasValue)
             {
                 canInterviewInCurrentFair = await _context.CompanyJobFairParticipations
                     .AnyAsync(p => p.CompanyId == currentCompany.CompanyId && p.JobFairId == targetJobFairId.Value);
+
+                if (canInterviewInCurrentFair && activeJobFair != null)
+                {
+                    walkInInterviewEnabledNow = IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow);
+                }
             }
 
             var student = await _context.Students
@@ -810,6 +818,8 @@ namespace JobFairPortal.Controllers
                 },
 
                 CanInterviewInCurrentFair = canInterviewInCurrentFair,
+                WalkInInterviewEnabledNow = walkInInterviewEnabledNow,
+                ActiveJobFairDate = activeJobFair?.date,
 
                 // --- Interview Request Status from Current Company ---
                 InterviewRequest = currentCompany != null && canInterviewInCurrentFair
@@ -2003,6 +2013,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
                 CompanyId = company.CompanyId,
                 StudentId = student.StudentId,
                 Status = RequestStatus.Pending,
+                RequestedBy = RequestedBy.Company,
 
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -2038,6 +2049,30 @@ public async Task<IActionResult> GetAllInterviewRequests(
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(student.User?.Email))
+            {
+                try
+                {
+                    var requestEmailBody = $@"
+<p>Dear {student.User.FullName},</p>
+<p><strong>{company.Name}</strong> has sent you an interview request for the ongoing job fair.</p>
+<p>Please review this request in your student portal and accept or reject it at your convenience.</p>
+
+<h3>Company Contact</h3>
+<p><strong>Focal Person:</strong> {company.FocalPersonName}<br/>
+<strong>Email:</strong> {(string.IsNullOrWhiteSpace(company.FocalPersonEmail) ? "N/A" : company.FocalPersonEmail)}<br/>
+<strong>Phone:</strong> {(string.IsNullOrWhiteSpace(company.FocalPersonPhone) ? "N/A" : company.FocalPersonPhone)}</p>
+
+<p>Best wishes,<br/>Job Fair Team</p>";
+
+                    await _mailService.SendMailAsync(student.User.Email, "New Interview Request", requestEmailBody);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send request email to student {StudentId}", student.StudentId);
                 }
             }
 
@@ -3181,6 +3216,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (activeJobFair == null) return BadRequest("No active job fair. Scheduling available only during an active fair.");
 
             var participation = await _context.CompanyJobFairParticipations
+                .Include(p => p.Room)
                 .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
 
             if (participation == null) return BadRequest("Company is not registered for the active job fair.");
@@ -3602,6 +3638,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (activeJobFair == null) return BadRequest("No active job fair.");
 
             var participation = await _context.CompanyJobFairParticipations
+                .Include(p => p.Room)
                 .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
 
             if (participation == null) return BadRequest("Company not registered for the active job fair.");
@@ -3682,6 +3719,9 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             try
             {
                 var scheduledIso = scheduledTime.ToString("o");
+                var scheduledPkt = TimeZoneInfo.ConvertTimeFromUtc(scheduledTime, JobFairTimeZone);
+                var scheduledPktDisplay = $"{scheduledPkt:dddd, dd MMM yyyy hh:mm tt} PKT";
+                var interviewRoom = participation.Room?.RoomName ?? "To be announced";
 
                 if (!string.IsNullOrWhiteSpace(student.FcmToken))
                 {
@@ -3691,11 +3731,12 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                         Notification = new FirebaseAdmin.Messaging.Notification
                         {
                             Title = "Interview Scheduled",
-                            Body = $"{company.Name} scheduled an interview for you at {scheduledIso}"
+                            Body = $"{company.Name} scheduled your interview on {scheduledPktDisplay}"
                         },
                         Data = new Dictionary<string, string>
                         {
                             { "InterviewId", interview.InterviewId.ToString() },
+                            { "Room No", interviewRoom },
                             { "CompanyId", company.CompanyId.ToString() },
                             { "ScheduledTime", scheduledIso },
                             { "Type", "InterviewScheduled" }
@@ -3712,9 +3753,10 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
                     var emailBody = $@"
 <p>Dear {student.User.FullName},</p>
-<p>Your interview has been scheduled.</p>
+<p>Your interview has been scheduled. Wishing you all the best for your interview!</p>
 <p><strong>Company:</strong> {company.Name}<br/>
-<strong>Time (UTC):</strong> {scheduledIso}</p>
+<strong>Interview Time (Pakistan):</strong> {scheduledPktDisplay}<br/>
+<strong>Room:</strong> {interviewRoom}</p>
 
 <h3>Company Profile</h3>
 <p><strong>Industry:</strong> {company.Industry ?? "N/A"}<br/>
@@ -3773,6 +3815,127 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 interview.InterviewId,
                 interview.StartedAt,
                 Status = interview.Status.ToString()
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("students/{studentId}/walkin/start")]
+        public async Task<IActionResult> StartWalkInInterview(int studentId, [FromBody] StartWalkInInterviewDto? dto)
+        {
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            if (!IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Walk-in interviews are only allowed on job fair day between 8:30 AM and 4:30 PM (PKT).");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null) return BadRequest("Company not registered for the active job fair.");
+            if (!participation.IsPresent) return BadRequest("Company must be marked present to start walk-in interviews.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+            if (student == null) return NotFound("Student not found.");
+
+            var studentParticipationExists = await _context.StudentJobFairParticipations
+                .AnyAsync(sp => sp.StudentId == studentId && sp.JobFairId == activeJobFair.JobFairId);
+
+            if (!studentParticipationExists)
+                return BadRequest("Student is not registered for the active job fair.");
+
+            var existingInProgress = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId
+                    && i.StudentId == studentId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.Status == InterviewStatus.InProgress)
+                .OrderByDescending(i => i.UpdatedAt)
+                .FirstOrDefaultAsync();
+
+            if (existingInProgress != null)
+                return Conflict(new { Message = "A walk-in/scheduled interview is already in progress for this student.", InterviewId = existingInProgress.InterviewId });
+
+            var existingQueued = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId
+                    && i.StudentId == studentId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.Status == InterviewStatus.Queued)
+                .OrderByDescending(i => i.UpdatedAt)
+                .FirstOrDefaultAsync();
+
+            if (existingQueued != null && existingQueued.ScheduledTime.HasValue && !(dto?.OverrideScheduledInterview ?? false))
+            {
+                return Conflict(new
+                {
+                    Message = "A scheduled interview already exists. Confirm overwrite to start walk-in now.",
+                    InterviewId = existingQueued.InterviewId,
+                    existingQueued.ScheduledTime,
+                    RequiresOverride = true
+                });
+            }
+
+            Interview interview;
+
+            if (existingQueued != null)
+            {
+                interview = existingQueued;
+            }
+            else
+            {
+                var walkInRequest = new InterviewRequest
+                {
+                    CompanyId = company.CompanyId,
+                    StudentId = studentId,
+                    JobFairId = activeJobFair.JobFairId,
+                    RequestedBy = RequestedBy.Company,
+                    Status = RequestStatus.Accepted,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.InterviewRequests.Add(walkInRequest);
+                await _context.SaveChangesAsync();
+
+                interview = new Interview
+                {
+                    CompanyId = company.CompanyId,
+                    StudentId = studentId,
+                    RequestId = walkInRequest.RequestId,
+                    JobFairId = activeJobFair.JobFairId,
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+
+            interview.ScheduledTime = null;
+            interview.Status = InterviewStatus.InProgress;
+            interview.StartedAt = DateTime.UtcNow;
+            interview.EndedAt = null;
+            interview.DurationMinutes = participation.InterviewDurationMinutes > 0
+                ? participation.InterviewDurationMinutes
+                : company.InterviewDurationMinutes;
+            interview.UpdatedAt = DateTime.UtcNow;
+
+            if (existingQueued == null)
+            {
+                _context.Interviews.Add(interview);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Walk-in interview started.",
+                interview.InterviewId,
+                interview.StartedAt,
+                Status = interview.Status.ToString(),
+                IsWalkIn = true
             });
         }
 
@@ -3840,13 +4003,31 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
                     if (!string.IsNullOrWhiteSpace(student.User?.Email))
                     {
-                        var body = $@"
+                        var body = parsedStatus == InterviewStatus.Hired
+                            ? $@"
+<p>Dear {student.User.FullName},</p>
+<p>Congratulations! You have been <strong>hired</strong> by <strong>{company.Name}</strong>.</p>
+
+<h3>Company Contact Details</h3>
+<p><strong>Focal Person:</strong> {company.FocalPersonName}<br/>
+<strong>Focal Email:</strong> {(string.IsNullOrWhiteSpace(company.FocalPersonEmail) ? "N/A" : company.FocalPersonEmail)}<br/>
+<strong>Focal Phone:</strong> {(string.IsNullOrWhiteSpace(company.FocalPersonPhone) ? "N/A" : company.FocalPersonPhone)}<br/>
+<strong>Company Email:</strong> {(string.IsNullOrWhiteSpace(company.CompanyEmail) ? "N/A" : company.CompanyEmail)}<br/>
+<strong>Company Phone:</strong> {(string.IsNullOrWhiteSpace(company.CompanyPhone) ? "N/A" : company.CompanyPhone)}</p>
+
+<p>We wish you great success in your professional journey.</p>
+<p>Regards,<br/>Job Fair Team</p>"
+                            : $@"
 <p>Dear {student.User.FullName},</p>
 <p>Your interview with <strong>{company.Name}</strong> has been completed.</p>
 <p><strong>Result:</strong> {parsedStatus}</p>
 <p>Regards,<br/>Job Fair Team</p>";
 
-                        await _mailService.SendMailAsync(student.User.Email, "Interview Result", body);
+                        var subject = parsedStatus == InterviewStatus.Hired
+                            ? "Congratulations! You are hired"
+                            : "Interview Result";
+
+                        await _mailService.SendMailAsync(student.User.Email, subject, body);
                     }
                 }
             }
@@ -3882,6 +4063,18 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
         {
             var utc = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
             return TimeZoneInfo.ConvertTimeFromUtc(utc, JobFairTimeZone).Date;
+        }
+
+        private static bool IsWithinWalkInWindow(DateTime jobFairDateUtc, DateTime currentUtc)
+        {
+            var currentLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(currentUtc, DateTimeKind.Utc), JobFairTimeZone);
+            var fairLocalDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(jobFairDateUtc, DateTimeKind.Utc), JobFairTimeZone).Date;
+
+            if (currentLocal.Date != fairLocalDate)
+                return false;
+
+            var localTime = currentLocal.TimeOfDay;
+            return localTime >= WalkInStartLocal && localTime <= WalkInEndLocal;
         }
 
         private static TimeZoneInfo ResolveJobFairTimeZone()

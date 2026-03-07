@@ -974,7 +974,7 @@ class StudentProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is List) {
-          _scheduledInterviews = (data as List)
+          _scheduledInterviews = (data)
               .map((json) => Interview.fromJson(json))
               .toList();
           _scheduledInterviewsError = null;

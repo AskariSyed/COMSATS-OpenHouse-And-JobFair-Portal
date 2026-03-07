@@ -23,10 +23,10 @@ class DashboardData {
       marketOverview: MarketOverview.fromJson(json['marketOverview'] ?? {}),
       actionsRequired: ActionsRequired.fromJson(json['actionsRequired'] ?? {}),
       interviewStats: InterviewStats.fromJson(json['interviewStats'] ?? {}),
-        recommendedJobs:
+      recommendedJobs:
           (json['recommendedJobs'] as List<dynamic>?)
-            ?.map((e) => RecommendedJob.fromJson(e))
-            .toList() ??
+              ?.map((e) => RecommendedJob.fromJson(e))
+              .toList() ??
           [],
       notices:
           (json['notices'] as List<dynamic>?)
@@ -39,6 +39,7 @@ class DashboardData {
 
 class RecommendedJob {
   final int jobId;
+  final int companyId;
   final String jobTitle;
   final String companyName;
   final String? companyLogo;
@@ -47,6 +48,7 @@ class RecommendedJob {
 
   RecommendedJob({
     required this.jobId,
+    required this.companyId,
     required this.jobTitle,
     required this.companyName,
     this.companyLogo,
@@ -57,6 +59,7 @@ class RecommendedJob {
   factory RecommendedJob.fromJson(Map<String, dynamic> json) {
     return RecommendedJob(
       jobId: json['jobId'] ?? 0,
+      companyId: json['companyId'] ?? 0,
       jobTitle: json['jobTitle'] ?? '',
       companyName: json['companyName'] ?? '',
       companyLogo: json['companyLogo'],

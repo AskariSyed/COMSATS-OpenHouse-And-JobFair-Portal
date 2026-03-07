@@ -46,13 +46,26 @@ export const requestFcmToken = async () => {
     // Ensure our messaging service worker is registered and used
     const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
 
-    const permission = await Notification.requestPermission();
+    const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+    let permission = Notification.permission;
+
+    if (permission !== 'granted') {
+      // On iOS web, prompt only when installed as home-screen app.
+      if (isIos && !isStandalone) {
+        console.info('iOS web push requires adding app to Home Screen first.');
+        return null;
+      }
+
+      permission = await Notification.requestPermission();
+    }
+
     if (permission === 'granted') {
       const token = await getToken(messagingInstance, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
       console.log("FCM Token:", token);
       return token;
     } else {
-      console.warn("Notification permission denied");
+      console.warn("Notification permission not granted");
       return null;
     }
   } catch (error) {
