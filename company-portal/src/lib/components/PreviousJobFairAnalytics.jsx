@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Briefcase, Users, CheckCircle, XCircle, Award } from 'lucide-react';
-import { getCompanyHistoricalAnalytics } from '../api';
+import { Loader2, Briefcase, Users, CheckCircle, XCircle, Award, Upload } from 'lucide-react';
+import { copyJobToCurrentJobFair, getCompanyHistoricalAnalytics } from '../api';
 
-export default function PreviousJobFairAnalytics({ onError, onSelectStudent }) {
+export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectStudent }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedJobFairId, setSelectedJobFairId] = useState('');
+  const [exportingJobId, setExportingJobId] = useState(null);
 
   const fetchHistory = async (jobFairId = null) => {
     setLoading(true);
@@ -38,6 +39,18 @@ export default function PreviousJobFairAnalytics({ onError, onSelectStudent }) {
   const summary = data.summary || {};
   const outcomes = data.outcomes || { hired: [], shortlisted: [], rejected: [] };
   const jobs = data.jobs || [];
+
+  const handleExportJob = async (jobId) => {
+    setExportingJobId(jobId);
+    try {
+      await copyJobToCurrentJobFair(jobId);
+      if (onSuccess) onSuccess('Job exported to current job fair successfully.');
+    } catch (err) {
+      onError(err.message || 'Failed to export job');
+    } finally {
+      setExportingJobId(null);
+    }
+  };
 
   const renderStudentsTable = (title, list, colorClass) => (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -116,34 +129,57 @@ export default function PreviousJobFairAnalytics({ onError, onSelectStudent }) {
         <p className="mt-1 text-2xl font-bold text-gray-900">{summary.hiringRate || 0}%</p>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Jobs Posted In Selected Fair</div>
-        <div className="max-h-80 overflow-auto">
-          {jobs.length === 0 ? (
-            <p className="p-4 text-sm text-gray-500">No jobs posted in this job fair.</p>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">Title</th>
-                  <th className="px-4 py-2">Type</th>
-                  <th className="px-4 py-2">Openings</th>
-                  <th className="px-4 py-2">Skills</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {jobs.map((job) => (
-                  <tr key={job.jobId}>
-                    <td className="px-4 py-2 font-medium text-gray-900">{job.jobTitle}</td>
-                    <td className="px-4 py-2 text-gray-600">{job.jobType}</td>
-                    <td className="px-4 py-2 text-gray-600">{job.numberOfJobs}</td>
-                    <td className="px-4 py-2 text-gray-600">{(job.requiredSkills || []).join(', ') || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+        <div className="flex items-center justify-between border-b pb-3 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700">Jobs Posted In Selected Fair</h3>
+          {data.canExportToCurrentJobFair && (
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+              Export enabled for active fair
+            </span>
           )}
         </div>
+
+        {jobs.length === 0 ? (
+          <p className="p-4 text-sm text-gray-500">No jobs posted in this job fair.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {jobs.map((job) => (
+              <div key={job.jobId} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-shadow">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-bold text-gray-900 text-sm">{job.jobTitle}</h4>
+                  <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">
+                    {job.numberOfJobs} openings
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Type: {job.jobType}</p>
+                <p className="text-sm text-gray-600 mt-2 line-clamp-3">{job.jobDescription || 'No description provided.'}</p>
+
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {(job.requiredSkills || []).length > 0 ? (job.requiredSkills || []).slice(0, 6).map((skill, idx) => (
+                    <span key={`${job.jobId}-${idx}`} className="text-[10px] bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full">
+                      {skill}
+                    </span>
+                  )) : (
+                    <span className="text-xs text-gray-400">No skills listed.</span>
+                  )}
+                </div>
+
+                {data.canExportToCurrentJobFair && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => handleExportJob(job.jobId)}
+                      disabled={exportingJobId === job.jobId}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {exportingJobId === job.jobId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      Export To Current Fair
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

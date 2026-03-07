@@ -23,8 +23,11 @@ namespace JobFairPortal.Controllers
         private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
         private static readonly TimeSpan WorkingDayStartLocal = TimeSpan.FromHours(9);
         private static readonly TimeSpan WorkingDayEndLocal = TimeSpan.FromHours(16.5);
-        private static readonly TimeSpan WalkInStartLocal = new TimeSpan(8, 30, 0);
+        private static readonly TimeSpan InterviewCutoffLocal = TimeSpan.FromHours(16.5);
+        private static readonly TimeSpan WalkInStartLocal = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan WalkInEndLocal = new TimeSpan(16, 30, 0);
+        private static readonly TimeSpan LunchBreakStartLocal = new TimeSpan(13, 0, 0);
+        private static readonly TimeSpan LunchBreakEndLocal = new TimeSpan(14, 0, 0);
 
         public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService)
         {
@@ -758,7 +761,13 @@ namespace JobFairPortal.Controllers
 
                 if (canInterviewInCurrentFair && activeJobFair != null)
                 {
-                    walkInInterviewEnabledNow = IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow);
+                    var activeParticipation = await _context.CompanyJobFairParticipations
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.CompanyId == currentCompany.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+                    walkInInterviewEnabledNow = currentCompany.IsWalkInInterviewing
+                        && activeParticipation?.IsPresent == true
+                        && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow);
                 }
             }
 
@@ -966,6 +975,9 @@ namespace JobFairPortal.Controllers
             var targetJobFair = await _context.JobFairs
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.JobFairId == targetJobFairId.Value);
+            var targetParticipation = await _context.CompanyJobFairParticipations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == targetJobFairId.Value);
 
             // Get FYP projects with student details
             var fypProjects = await _context.Projects
@@ -1049,6 +1061,12 @@ namespace JobFairPortal.Controllers
                 CompanyId = company.CompanyId,
                 CompanyName = company.Name,
                 JobFairDate = targetJobFair?.date,
+                IsPresent = targetParticipation?.IsPresent ?? false,
+                IsWalkInInterviewing = company.IsWalkInInterviewing,
+                CanToggleWalkInInterviewing = targetParticipation != null
+                    && targetParticipation.IsPresent
+                    && targetJobFair != null
+                    && IsWithinWalkInWindow(targetJobFair.date, DateTime.UtcNow),
 
                 // FYP Projects
                 FYPProjects = new
@@ -1069,6 +1087,9 @@ namespace JobFairPortal.Controllers
                     TotalStudentsCalled = totalStudentsCalled,
                     HiredCount = totalHired,
                     HiringRate = Math.Round(hiringRate, 2) + "%",
+                    RequestsSentCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.RequestedBy == RequestedBy.Company && ir.Status == RequestStatus.Pending),
+                    AcceptedRequestsCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.Status == RequestStatus.Accepted),
+                    PendingRequestsCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.Status == RequestStatus.Pending),
                     RejectedCount = await _context.Interviews
                         .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Rejected)
                         .CountAsync()
@@ -1269,6 +1290,14 @@ namespace JobFairPortal.Controllers
                 ? jobFairId.Value
                 : availableJobFairs.First().JobFairId;
 
+            var canExportToCurrentJobFair = false;
+            var currentJobFairId = activeJobFair?.JobFairId;
+            if (activeJobFair != null && selectedJobFairId != activeJobFair.JobFairId)
+            {
+                canExportToCurrentJobFair = await _context.CompanyJobFairParticipations
+                    .AnyAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+            }
+
             var jobs = await _context.Jobs
                 .Where(j => j.CompanyId == company.CompanyId && j.JobFairId == selectedJobFairId)
                 .OrderByDescending(j => j.CreatedAt)
@@ -1313,6 +1342,8 @@ namespace JobFairPortal.Controllers
             {
                 AvailableJobFairs = availableJobFairs,
                 SelectedJobFairId = selectedJobFairId,
+                CurrentJobFairId = currentJobFairId,
+                CanExportToCurrentJobFair = canExportToCurrentJobFair,
                 Summary = new
                 {
                     TotalJobsPosted = jobs.Count,
@@ -1609,6 +1640,12 @@ namespace JobFairPortal.Controllers
 
             if (company == null)
                 return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             var request = await _context.InterviewRequests
                 .Include(r => r.Student)
@@ -1975,6 +2012,8 @@ public async Task<IActionResult> GetAllInterviewRequests(
             var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null)
                 return BadRequest("No active Job Fair found. Cannot send interview requests.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             var company = await _context.Companies
                 .Include(c => c.User)
@@ -2710,6 +2749,79 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
        
         [Authorize(Roles = "Company")]
+        [HttpPost("jobs/{jobId}/copy-to-current-jobfair")]
+        public async Task<IActionResult> CopyJobToCurrentJobFair(int jobId)
+        {
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (company == null)
+                return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found.");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null)
+                return BadRequest("Company is not participating in the current active job fair.");
+
+            var sourceJob = await _context.Jobs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.JobId == jobId && j.CompanyId == company.CompanyId);
+
+            if (sourceJob == null)
+                return NotFound("Job not found.");
+
+            if (sourceJob.JobFairId == activeJobFair.JobFairId)
+                return BadRequest("Job already belongs to the current active job fair.");
+
+            var duplicate = await _context.Jobs.AnyAsync(j =>
+                j.CompanyId == company.CompanyId
+                && j.JobFairId == activeJobFair.JobFairId
+                && j.JobTitle == sourceJob.JobTitle
+                && j.JobType == sourceJob.JobType
+                && j.JobDescription == sourceJob.JobDescription);
+
+            if (duplicate)
+                return BadRequest("A similar job already exists in the current active job fair.");
+
+            var newJob = new Job
+            {
+                CompanyId = company.CompanyId,
+                JobFairId = activeJobFair.JobFairId,
+                JobTitle = sourceJob.JobTitle,
+                JobDescription = sourceJob.JobDescription,
+                RequiredSkills = sourceJob.RequiredSkills ?? Array.Empty<string>(),
+                JobType = sourceJob.JobType,
+                NumberOfJobs = sourceJob.NumberOfJobs,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Jobs.Add(newJob);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Job exported to current job fair successfully.",
+                SourceJobId = sourceJob.JobId,
+                NewJobId = newJob.JobId,
+                CurrentJobFairId = activeJobFair.JobFairId
+            });
+        }
+
+        [Authorize(Roles = "Company")]
         [HttpGet("profile")]
         public async Task<IActionResult> GetCompanyProfile()
         {
@@ -2822,7 +2934,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     RepsCount = company.RepsCount,
                     InterviewDurationMinutes = company.InterviewDurationMinutes,
                     ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
-                    IsPresent = company.IsPresent
+                    IsPresent = company.IsPresent,
+                    IsWalkInInterviewing = company.IsWalkInInterviewing
                 },
 
                 // --- Timestamps ---
@@ -2954,6 +3067,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 }
             }
 
+            if (dto.IsWalkInInterviewing.HasValue)
+            {
+                company.IsWalkInInterviewing = dto.IsWalkInInterviewing.Value;
+            }
+
             company.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
@@ -2964,7 +3082,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 LogoUrl = company.LogoUrl,
                 Website = company.Website,
                 InterviewDurationMinutes = company.InterviewDurationMinutes,
-                RepsCount = company.RepsCount
+                RepsCount = company.RepsCount,
+                IsWalkInInterviewing = company.IsWalkInInterviewing
             });
         }
 
@@ -3218,6 +3337,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null) return BadRequest("No active job fair. Scheduling available only during an active fair.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             var participation = await _context.CompanyJobFairParticipations
                 .Include(p => p.Room)
@@ -3232,6 +3353,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var buffer = TimeSpan.FromSeconds(90);
             var nowUtc = DateTime.UtcNow;
             var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(scheduleDate);
+            var (lunchStart, lunchEnd) = GetLunchBreakWindowUtc(scheduleDate);
             var startTime = nowUtc > dayStart ? nowUtc : dayStart;
 
             var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
@@ -3375,6 +3497,12 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     }
 
                     var potentialEnd = searchPointer + duration;
+                    if (Overlaps(searchPointer, potentialEnd, lunchStart, lunchEnd))
+                    {
+                        searchPointer = lunchEnd;
+                        continue;
+                    }
+
                     var candidateStartWithBuffer = searchPointer - buffer;
                     var candidateEndWithBuffer = potentialEnd + buffer;
 
@@ -3657,6 +3785,8 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null) return BadRequest("No active job fair.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             var participation = await _context.CompanyJobFairParticipations
                 .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
@@ -3951,6 +4081,43 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
         }
 
         [Authorize(Roles = "Company")]
+        [HttpPost("walkin/interviewing")]
+        public async Task<IActionResult> ToggleWalkInInterviewing([FromBody] ToggleWalkInInterviewingDto dto)
+        {
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            var participation = await _context.CompanyJobFairParticipations
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+            if (participation == null) return BadRequest("Company is not participating in active job fair.");
+
+            if (dto.IsEnabled)
+            {
+                if (!participation.IsPresent)
+                    return BadRequest("Company must be marked present to start walk-in interviewing.");
+
+                if (!IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow))
+                    return BadRequest("Walk-in interviewing can only be started on Job Fair day between 9:00 AM and 4:30 PM PKT.");
+            }
+
+            company.IsWalkInInterviewing = dto.IsEnabled;
+            company.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = dto.IsEnabled ? "Walk-in interviewing started." : "Walk-in interviewing stopped.",
+                IsWalkInInterviewing = company.IsWalkInInterviewing
+            });
+        }
+
+        [Authorize(Roles = "Company")]
         [HttpPost("students/{studentId}/walkin/start")]
         public async Task<IActionResult> StartWalkInInterview(int studentId, [FromBody] StartWalkInInterviewDto? dto)
         {
@@ -3964,13 +4131,14 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (activeJobFair == null) return BadRequest("No active job fair.");
 
             if (!IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow))
-                return BadRequest("Walk-in interviews are only allowed on job fair day between 8:30 AM and 4:30 PM (PKT).");
+                return BadRequest("Walk-in interviews are only allowed on job fair day between 9:00 AM and 4:30 PM (PKT).");
 
             var participation = await _context.CompanyJobFairParticipations
                 .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
 
             if (participation == null) return BadRequest("Company not registered for the active job fair.");
             if (!participation.IsPresent) return BadRequest("Company must be marked present to start walk-in interviews.");
+            if (!company.IsWalkInInterviewing) return BadRequest("Walk-in interviewing is not enabled. Start it from dashboard first.");
 
             var student = await _context.Students
                 .Include(s => s.User)
@@ -4191,6 +4359,18 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             );
         }
 
+        private static (DateTime lunchStartUtc, DateTime lunchEndUtc) GetLunchBreakWindowUtc(DateTime localDate)
+        {
+            var date = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Unspecified);
+            var lunchStartLocal = date.Add(LunchBreakStartLocal);
+            var lunchEndLocal = date.Add(LunchBreakEndLocal);
+
+            return (
+                TimeZoneInfo.ConvertTimeToUtc(lunchStartLocal, JobFairTimeZone),
+                TimeZoneInfo.ConvertTimeToUtc(lunchEndLocal, JobFairTimeZone)
+            );
+        }
+
         private static DateTime GetDateInJobFairTimeZone(DateTime utcDateTime)
         {
             var utc = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
@@ -4207,6 +4387,17 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             var localTime = currentLocal.TimeOfDay;
             return localTime >= WalkInStartLocal && localTime <= WalkInEndLocal;
+        }
+
+        private static bool HasInterviewCutoffPassed(DateTime jobFairDateUtc, DateTime currentUtc)
+        {
+            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(currentUtc, DateTimeKind.Utc), JobFairTimeZone);
+            var fairLocalDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(jobFairDateUtc, DateTimeKind.Utc), JobFairTimeZone).Date;
+
+            if (nowLocal.Date > fairLocalDate)
+                return true;
+
+            return nowLocal.Date == fairLocalDate && nowLocal.TimeOfDay > InterviewCutoffLocal;
         }
 
         private static TimeZoneInfo ResolveJobFairTimeZone()

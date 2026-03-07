@@ -112,8 +112,11 @@ class Company {
 
   // 🔹 NEW FIELDS
   final bool canRequestInterview;
+  final bool isWalkInInterviewing;
   final CompanyInterviewStatus? interviewRequest;
   final CompanyLatestInterview? latestInterview;
+  final bool isInterviewWindowOpen;
+  final DateTime? interviewCutoffLocal;
 
   Company({
     required this.companyId,
@@ -134,8 +137,11 @@ class Company {
     required this.jobCount,
     required this.jobs,
     this.canRequestInterview = true,
+    this.isWalkInInterviewing = false,
     this.interviewRequest,
     this.latestInterview,
+    this.isInterviewWindowOpen = true,
+    this.interviewCutoffLocal,
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
@@ -164,6 +170,7 @@ class Company {
 
       // 🔹 Parse New Fields
       canRequestInterview: json['canRequestInterview'] ?? true,
+      isWalkInInterviewing: json['isWalkInInterviewing'] ?? false,
       interviewRequest: json['interviewRequest'] != null
           ? CompanyInterviewStatus.fromJson(json['interviewRequest'])
           : null,
@@ -202,8 +209,11 @@ class CompanyDetail {
 
   // 🔹 NEW FIELDS
   final bool canRequestInterview;
+  final bool isWalkInInterviewing;
   final CompanyInterviewStatus? interviewRequest;
   final CompanyLatestInterview? latestInterview;
+  final bool isInterviewWindowOpen;
+  final DateTime? interviewCutoffLocal;
 
   bool get isPresent => arrivalStatus == 1;
 
@@ -226,8 +236,11 @@ class CompanyDetail {
     required this.uniqueSkillsRequired,
     this.arrivalStatus = 0,
     this.canRequestInterview = true,
+    this.isWalkInInterviewing = false,
     this.interviewRequest,
     this.latestInterview,
+    this.isInterviewWindowOpen = true,
+    this.interviewCutoffLocal,
   });
 
   factory CompanyDetail.fromJson(Map<String, dynamic> json) {
@@ -266,11 +279,16 @@ class CompanyDetail {
 
       // 🔹 Parse New Fields
       canRequestInterview: json['canRequestInterview'] ?? true,
+      isWalkInInterviewing: json['isWalkInInterviewing'] ?? false,
       interviewRequest: json['interviewRequest'] != null
           ? CompanyInterviewStatus.fromJson(json['interviewRequest'])
           : null,
       latestInterview: json['latestInterview'] != null
           ? CompanyLatestInterview.fromJson(json['latestInterview'])
+          : null,
+      isInterviewWindowOpen: json['isInterviewWindowOpen'] ?? true,
+      interviewCutoffLocal: json['interviewCutoffLocal'] != null
+          ? DateTime.tryParse(json['interviewCutoffLocal'].toString())
           : null,
     );
   }

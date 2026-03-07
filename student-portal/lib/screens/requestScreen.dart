@@ -24,7 +24,9 @@ import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class RequestsScreen extends StatefulWidget {
-  const RequestsScreen({super.key});
+  final int initialTabIndex; // 0 = Sent, 1 = Received
+
+  const RequestsScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<RequestsScreen> createState() => _RequestsScreenState();
@@ -51,7 +53,13 @@ class _RequestsScreenState extends State<RequestsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final safeInitialIndex = widget.initialTabIndex.clamp(0, 1);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: safeInitialIndex,
+    );
+    _webTabIndex = safeInitialIndex;
 
     // Initialize Sidebar for Web
     _sidebarItems = generateSidebarItems(context, setState, 'Requests');

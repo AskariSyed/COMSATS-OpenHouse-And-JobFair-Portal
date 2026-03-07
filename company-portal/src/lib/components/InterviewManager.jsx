@@ -4,8 +4,9 @@ import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, 
 import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews } from '../api';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
-export default function InterviewManager({ onError, onSuccess, onSelectStudent }) {
+export default function InterviewManager({ onError, onSuccess, onSelectStudent, navigationTarget }) {
   const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled | completed
+  const [pendingView, setPendingView] = useState('all'); // all | inbox | sent
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0); 
   
@@ -35,6 +36,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
   const [selectedStudentProfile, setSelectedStudentProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [downloadingAllCvs, setDownloadingAllCvs] = useState(false);
+  const [isInterviewWindowClosed, setIsInterviewWindowClosed] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -81,6 +83,8 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
         return interviewStatus !== 'hired' && interviewStatus !== 'shortlisted' && interviewStatus !== 'rejected';
       });
 
+      setIsInterviewWindowClosed(hasCutoffPassed(analyticsData?.jobFairDate));
+
       setPendingRequests(requestsData.pendingRequests || []);
       setAcceptedRequests(acceptedOnly);
       setCompletedInterviews(completed);
@@ -91,12 +95,48 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
     .finally(() => setLoading(false));
   }, [refreshKey, onError]);
 
+  useEffect(() => {
+    if (!navigationTarget) return;
+    if (navigationTarget.tab) setActiveTab(navigationTarget.tab);
+    if (navigationTarget.pendingView) setPendingView(navigationTarget.pendingView);
+  }, [navigationTarget]);
+
   const formatDateTime = (value) => {
     if (!value) return '--';
     return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
   };
 
+  const getPktDateParts = (inputDate) => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date(inputDate));
+    const pick = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+    return { year: pick('year'), month: pick('month'), day: pick('day'), hour: pick('hour'), minute: pick('minute') };
+  };
+
+  const hasCutoffPassed = (jobFairDate) => {
+    if (!jobFairDate) return false;
+    const now = getPktDateParts(new Date());
+    const fair = getPktDateParts(jobFairDate);
+    const nowDateNum = now.year * 10000 + now.month * 100 + now.day;
+    const fairDateNum = fair.year * 10000 + fair.month * 100 + fair.day;
+    if (nowDateNum > fairDateNum) return true;
+    if (nowDateNum < fairDateNum) return false;
+    return now.hour > 16 || (now.hour === 16 && now.minute > 30);
+  };
+
   const handleAccept = async () => {
+    if (isInterviewWindowClosed) {
+      onError('Job Fair has ended.');
+      return;
+    }
     setProcessing(true);
     try {
       await acceptInterviewRequest(actionModal.request.requestId);
@@ -125,6 +165,11 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
   };
 
   const openScheduleModal = async (request) => {
+    if (isInterviewWindowClosed) {
+      onError('Job Fair has ended.');
+      return;
+    }
+
     setScheduleModal({ request });
     setAvailableSlots([]);
     setSlotDurationMinutes(30);
@@ -150,6 +195,11 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
   };
 
   const handleScheduleStudent = async () => {
+    if (isInterviewWindowClosed) {
+      onError('Job Fair has ended.');
+      return;
+    }
+
     if (!scheduleModal?.request?.studentId || !selectedSlot) {
       onError('Please select an available slot');
       return;
@@ -176,6 +226,11 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
   };
 
   const handleScheduleAllAccepted = async () => {
+    if (isInterviewWindowClosed) {
+      onError('Job Fair has ended.');
+      return;
+    }
+
     setSchedulingAll(true);
     try {
       const result = await scheduleAllInterviews();
@@ -193,6 +248,14 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
       (interview) => String(interview.studentId) === String(request.studentId)
     );
   };
+
+  const filteredPendingRequests = pendingRequests.filter((req) => {
+    if (pendingView === 'all') return true;
+    const isIncoming = req.requestedBy === 1 || req.requestedBy === 'Student';
+    if (pendingView === 'inbox') return isIncoming;
+    if (pendingView === 'sent') return !isIncoming;
+    return true;
+  });
 
   const handleStartInterview = async (interview) => {
     setStartingInterviewId(interview.interviewId);
@@ -405,11 +468,17 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
       {/* --- PENDING REQUESTS VIEW --- */}
       {activeTab === 'pending' && (
         <div className="space-y-4">
-          {pendingRequests.length === 0 ? (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPendingView('all')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>All ({pendingRequests.length})</button>
+            <button onClick={() => setPendingView('inbox')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'inbox' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Inbox ({pendingRequests.filter(r => r.requestedBy === 1 || r.requestedBy === 'Student').length})</button>
+            <button onClick={() => setPendingView('sent')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'sent' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Sent ({pendingRequests.filter(r => !(r.requestedBy === 1 || r.requestedBy === 'Student')).length})</button>
+          </div>
+
+          {filteredPendingRequests.length === 0 ? (
             <EmptyState message="No pending requests." />
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {pendingRequests.map(req => {
+              {filteredPendingRequests.map(req => {
                 // Logic: Check who requested (0 = Company, 1 = Student)
                 const isIncoming = req.requestedBy === 1 || req.requestedBy === 'Student';
 
@@ -427,7 +496,12 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-gray-900">{req.studentName}</h4>
+                            <button
+                              onClick={() => onSelectStudent && onSelectStudent(req)}
+                              className="font-bold text-gray-900 hover:text-blue-700"
+                            >
+                              {req.studentName}
+                            </button>
                             {/* BADGE: Who requested? */}
                             {isIncoming ? (
                                 <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold border border-purple-200">
@@ -448,10 +522,18 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
 
                     {/* Actions */}
                     <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
+                      <button
+                        onClick={() => onSelectStudent && onSelectStudent(req)}
+                        className="flex-1 md:flex-none bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+                      >
+                        View Profile
+                      </button>
+
                       {isIncoming ? (
                         <>
                             <button 
                               onClick={() => { setActionModal({ type: 'accept', request: req }); }}
+                              disabled={isInterviewWindowClosed}
                               className="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm"
                             >
                               <CheckCircle2 className="w-4 h-4" /> Accept
@@ -483,7 +565,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
           <div className="flex justify-end">
             <button
               onClick={handleScheduleAllAccepted}
-              disabled={schedulingAll || acceptedRequests.length === 0}
+              disabled={schedulingAll || acceptedRequests.length === 0 || isInterviewWindowClosed}
               className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
             >
               {schedulingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />} Schedule All
@@ -557,6 +639,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent }
                           ) : (
                             <button
                               onClick={() => openScheduleModal(req)}
+                              disabled={isInterviewWindowClosed}
                               className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
                             >
                               <Calendar className="w-3.5 h-3.5" /> Schedule

@@ -63,7 +63,14 @@ namespace JobFairPortal.DTOs
         [Range(1, 100)]
         public int? RepsCount { get; set; }
 
+        public bool? IsWalkInInterviewing { get; set; }
+
         public IFormFile? Logo { get; set; }
+    }
+
+    public class ToggleWalkInInterviewingDto
+    {
+        public bool IsEnabled { get; set; }
     }
     public class AddContactLinkDto
     {

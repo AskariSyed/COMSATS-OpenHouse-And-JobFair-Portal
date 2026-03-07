@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye, Send, Calendar, Download, X } from 'lucide-react';
-import { getStudents, getStudentsByInterviewStatus, getFileUrl, sendInterviewRequest } from '../api';
+import { getStudents, getStudentsByInterviewStatus, getFileUrl, sendInterviewRequest, getAnalytics } from '../api';
 import { allSkillsList, skillsData } from '../../data/skills';
 
 export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews }) {
@@ -11,6 +11,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const [listMode, setListMode] = useState('all');
   const [requestingStudentId, setRequestingStudentId] = useState(null);
   const [skillToAdd, setSkillToAdd] = useState('');
+  const [isInterviewWindowClosed, setIsInterviewWindowClosed] = useState(false);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -32,8 +33,54 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
   useEffect(() => { fetchStudents(); }, [listMode]);
 
+  useEffect(() => {
+    const loadInterviewWindow = async () => {
+      try {
+        const analytics = await getAnalytics();
+        const fairDate = analytics?.jobFairDate;
+        if (!fairDate) return;
+        setIsInterviewWindowClosed(hasCutoffPassed(fairDate));
+      } catch {
+        // Keep UI permissive if analytics is unavailable; backend still enforces rule.
+      }
+    };
+    loadInterviewWindow();
+  }, []);
+
   const normalize = (val) => String(val || '').trim().toLowerCase();
   const cleanReg = (val) => normalize(val).replace(/[^a-z0-9]/g, '');
+
+  const getPktDateParts = (inputDate) => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Karachi',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date(inputDate));
+    const pick = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+    return {
+      year: pick('year'),
+      month: pick('month'),
+      day: pick('day'),
+      hour: pick('hour'),
+      minute: pick('minute')
+    };
+  };
+
+  const hasCutoffPassed = (jobFairDate) => {
+    const now = getPktDateParts(new Date());
+    const fair = getPktDateParts(jobFairDate);
+    const nowDateNum = now.year * 10000 + now.month * 100 + now.day;
+    const fairDateNum = fair.year * 10000 + fair.month * 100 + fair.day;
+
+    if (nowDateNum > fairDateNum) return true;
+    if (nowDateNum < fairDateNum) return false;
+    return now.hour > 16 || (now.hour === 16 && now.minute > 30);
+  };
 
   const formatRegistrationInput = (val) => String(val || '')
     .toUpperCase()
@@ -117,6 +164,11 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   };
 
   const handleSendInterviewRequest = async (student) => {
+    if (isInterviewWindowClosed) {
+      onError('Job Fair has ended.');
+      return;
+    }
+
     const studentId = getStudentId(student);
     if (!studentId) {
       onError('Missing Student ID');
@@ -142,35 +194,39 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
     return (
       <div className={`flex ${compact ? 'justify-center' : 'justify-center'} items-center gap-1 flex-wrap`}>
-        <button
-          onClick={() => {
-            if (!safeId) return onError('Missing Student ID');
-            onSelect({ ...student, studentId: safeId });
-          }}
-          className={`${iconBtnBase} text-blue-600 hover:bg-blue-50`}
-          title="View Profile"
-          aria-label="View Profile"
-        >
-          <Eye className="w-4 h-4" />
-        </button>
-
         {cvUrl && (
-          <a
-            href={getFileUrl(cvUrl)}
-            target="_blank"
-            rel="noreferrer"
-            className={`${iconBtnBase} text-gray-700 hover:bg-gray-100`}
-            title="View / Download CV"
-            aria-label="View or Download CV"
-          >
-            <Download className="w-4 h-4" />
-          </a>
+          <>
+            <a
+              href={getFileUrl(cvUrl)}
+              target="_blank"
+              rel="noreferrer"
+              className={`${iconBtnBase} text-blue-600 hover:bg-blue-50`}
+              title="View CV"
+              aria-label="View CV"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Eye className="w-4 h-4" />
+            </a>
+            <a
+              href={getFileUrl(cvUrl)}
+              download
+              className={`${iconBtnBase} text-gray-700 hover:bg-gray-100`}
+              title="Download CV"
+              aria-label="Download CV"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Download className="w-4 h-4" />
+            </a>
+          </>
         )}
 
         {canSendRequest && (
           <button
-            onClick={() => handleSendInterviewRequest(student)}
-            disabled={requestingStudentId === safeId}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSendInterviewRequest(student);
+            }}
+            disabled={requestingStudentId === safeId || isInterviewWindowClosed}
             className={`${iconBtnBase} text-blue-700 hover:bg-blue-100 disabled:opacity-60`}
             title="Request Interview"
             aria-label="Request Interview"
@@ -181,7 +237,8 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
         {canSchedule && (
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (onNavigateToInterviews) {
                 onNavigateToInterviews();
                 return;
@@ -189,7 +246,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
               if (!safeId) return onError('Missing Student ID');
               onSelect({ ...student, studentId: safeId });
             }}
-            disabled={alreadyScheduled}
+            disabled={alreadyScheduled || isInterviewWindowClosed}
             className={`${iconBtnBase} ${alreadyScheduled ? 'text-emerald-700 bg-emerald-50' : 'text-indigo-700 hover:bg-indigo-100'} disabled:opacity-50`}
             title={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
             aria-label={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
@@ -482,7 +539,14 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
               const allSkills = skills.length > 0 ? skills.join(', ') : 'No skills listed';
 
               return (
-                <div key={key} className="border border-gray-200 rounded-lg p-2.5 bg-white">
+                <div
+                  key={key}
+                  className="border border-gray-200 rounded-lg p-2.5 bg-white cursor-pointer"
+                  onClick={() => {
+                    if (!safeId) return onError('Missing Student ID');
+                    onSelect({ ...student, studentId: safeId });
+                  }}
+                >
                   <div className="flex items-center gap-2.5 mb-2">
                     <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xs overflow-hidden border border-gray-100 flex-shrink-0">
                       {student.ProfilePicUrl || student.profilePicUrl ? (
@@ -555,7 +619,14 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                   const allSkills = skills.length > 0 ? skills.join(', ') : 'No skills listed';
 
                   return (
-                    <tr key={key} className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50/30 transition-colors">
+                    <tr
+                      key={key}
+                      className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        if (!safeId) return onError('Missing Student ID');
+                        onSelect({ ...student, studentId: safeId });
+                      }}
+                    >
                       <td className="px-2 py-2.5 text-left align-middle">
                         <div className="flex items-center justify-start gap-2.5 min-w-0">
                           <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xs overflow-hidden border border-gray-100 flex-shrink-0">

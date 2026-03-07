@@ -16,12 +16,71 @@ import PreviousJobFairAnalytics from '../components/PreviousJobFairAnalytics';
 import { getConfirmationStatus } from '../api';
 import { getMySurveyStatus } from '../api';
 
+const SURVEY_REMINDER_INTERVAL_MS = 20 * 60 * 1000;
+
+const getPktDateParts = (inputDate) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date(inputDate));
+  const pick = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+
+  return {
+    year: pick('year'),
+    month: pick('month'),
+    day: pick('day'),
+    hour: pick('hour'),
+    minute: pick('minute'),
+  };
+};
+
+const isAfterMandatorySurveyTimePkt = (jobFairDate) => {
+  if (!jobFairDate) return false;
+  const now = getPktDateParts(new Date());
+  const fair = getPktDateParts(jobFairDate);
+  const nowDateNum = now.year * 10000 + now.month * 100 + now.day;
+  const fairDateNum = fair.year * 10000 + fair.month * 100 + fair.day;
+
+  if (nowDateNum !== fairDateNum) return false;
+  return now.hour > 14 || (now.hour === 14 && now.minute >= 0);
+};
+
 export default function CompanyDashboard({ user, onError, onSuccess, activeTab, onTabChange, profileContext, onProfileContextChange }) {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAttendanceScanner, setShowAttendanceScanner] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [surveyAvailability, setSurveyAvailability] = useState({ hasActiveJobFair: true, isJobFairDay: true });
+  const [surveySubmitted, setSurveySubmitted] = useState(false);
+  const [surveyReminderOpen, setSurveyReminderOpen] = useState(false);
+  const [interviewNavTarget, setInterviewNavTarget] = useState({ tab: 'pending', pendingView: 'all', key: 0 });
+
+  const reminderStorageKey = `companySurveyReminderLastShown:${user?.id || user?.email || 'default'}`;
+
+  const refreshSurveyStatus = () => {
+    getMySurveyStatus()
+      .then((status) => {
+        const hasActive = Boolean(status?.hasActiveJobFair ?? status?.HasActiveJobFair ?? true);
+        const isFairDay = Boolean(status?.isJobFairDay ?? status?.IsJobFairDay ?? false);
+        const submittedData = status?.submitted || status?.Submitted || {};
+        const cdcSubmitted = Boolean(submittedData.cdc ?? submittedData.Cdc);
+        const departmentSubmitted = Boolean(submittedData.department ?? submittedData.Department);
+
+        setSurveyAvailability({
+          hasActiveJobFair: hasActive,
+          isJobFairDay: isFairDay,
+        });
+        setSurveySubmitted(cdcSubmitted && departmentSubmitted);
+      })
+      .catch(() => setSurveyAvailability({ hasActiveJobFair: true, isJobFairDay: false }));
+  };
 
   const normalizedAttendance = attendanceStatus
     ? {
@@ -40,15 +99,44 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
       .then((status) => setAttendanceStatus(status))
       .catch(() => setAttendanceStatus(null));
 
-    getMySurveyStatus()
-      .then((status) => {
-        setSurveyAvailability({
-          hasActiveJobFair: Boolean(status?.hasActiveJobFair ?? status?.HasActiveJobFair ?? true),
-          isJobFairDay: Boolean(status?.isJobFairDay ?? status?.IsJobFairDay ?? false),
-        });
-      })
-      .catch(() => setSurveyAvailability({ hasActiveJobFair: true, isJobFairDay: false }));
+    refreshSurveyStatus();
   }, []);
+
+  useEffect(() => {
+    const checkReminder = () => {
+      const isPresent = Boolean(normalizedAttendance?.isPresent);
+      const isSurveyPending = !surveySubmitted;
+      const shouldPrompt =
+        surveyAvailability.hasActiveJobFair &&
+        surveyAvailability.isJobFairDay &&
+        isPresent &&
+        isSurveyPending &&
+        isAfterMandatorySurveyTimePkt(normalizedAttendance?.jobFairDate);
+
+      if (!shouldPrompt) {
+        setSurveyReminderOpen(false);
+        return;
+      }
+
+      const lastShown = Number(localStorage.getItem(reminderStorageKey) || 0);
+      const nowMs = Date.now();
+      if (!lastShown || nowMs - lastShown >= SURVEY_REMINDER_INTERVAL_MS) {
+        setSurveyReminderOpen(true);
+        localStorage.setItem(reminderStorageKey, String(nowMs));
+      }
+    };
+
+    checkReminder();
+    const intervalId = setInterval(checkReminder, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [
+    surveyAvailability.hasActiveJobFair,
+    surveyAvailability.isJobFairDay,
+    surveySubmitted,
+    normalizedAttendance?.isPresent,
+    normalizedAttendance?.jobFairDate,
+    reminderStorageKey,
+  ]);
 
   const refreshAttendanceStatus = () => {
     getConfirmationStatus()
@@ -137,6 +225,33 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
 
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
+      {surveyReminderOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-amber-300 bg-amber-50 shadow-2xl p-5">
+            <p className="text-base font-bold text-amber-900">Mandatory Survey Required for Certificate</p>
+            <p className="text-sm text-amber-800 mt-2">
+              It is after 2:00 PM on Job Fair day. Please complete the survey to receive your certificate.
+            </p>
+            <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <button
+                onClick={() => {
+                  setSurveyReminderOpen(false);
+                  if (onTabChange) onTabChange('surveys');
+                }}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-semibold"
+              >
+                Fill Survey Now
+              </button>
+              <button
+                onClick={() => setSurveyReminderOpen(false)}
+                className="px-3 py-2 border border-amber-300 hover:bg-amber-100 text-amber-900 rounded-md text-sm font-semibold"
+              >
+                Remind Me Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {canMarkAttendance && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -151,9 +266,18 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
           </button>
         </div>
       )}
-      {activeTab === 'overview' && <AnalyticsView onError={onError} onSuccess={onSuccess} />}
-      {activeTab === 'history-analytics' && <PreviousJobFairAnalytics onError={onError} onSelectStudent={safeSelectStudent} />}
-      {activeTab === 'profile' && <CompanyProfile onError={onError} />}
+      {activeTab === 'overview' && (
+        <AnalyticsView
+          onError={onError}
+          onSuccess={onSuccess}
+          onNavigateToInterviews={(tab = 'pending', pendingView = 'all') => {
+            setInterviewNavTarget({ tab, pendingView, key: Date.now() });
+            if (onTabChange) onTabChange('interviews');
+          }}
+        />
+      )}
+      {activeTab === 'history-analytics' && <PreviousJobFairAnalytics onError={onError} onSuccess={onSuccess} onSelectStudent={safeSelectStudent} />}
+      {activeTab === 'profile' && <CompanyProfile onError={onError} onSuccess={onSuccess} />}
       {activeTab === 'students' && (
         <StudentDirectory
           onSelect={safeSelectStudent}
@@ -163,9 +287,25 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
         />
       )}
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
-      {activeTab === 'interviews' && <InterviewManager onError={onError} onSuccess={onSuccess} onSelectStudent={safeSelectStudent} />}
+      {activeTab === 'interviews' && (
+        <InterviewManager
+          onError={onError}
+          onSuccess={onSuccess}
+          onSelectStudent={safeSelectStudent}
+          navigationTarget={interviewNavTarget}
+        />
+      )}
       {activeTab === 'requests' && <CompanyRequests onError={onError} onSuccess={onSuccess} />}
-      {activeTab === 'surveys' && <SurveyForm onError={onError} onSuccess={onSuccess} forceDisabled={!(surveyAvailability.hasActiveJobFair && surveyAvailability.isJobFairDay)} />}
+      {activeTab === 'surveys' && (
+        <SurveyForm
+          onError={onError}
+          onSuccess={(message) => {
+            if (onSuccess) onSuccess(message);
+            refreshSurveyStatus();
+          }}
+          forceDisabled={!(surveyAvailability.hasActiveJobFair && surveyAvailability.isJobFairDay)}
+        />
+      )}
       {activeTab === 'notices' && <NoticesBoard onError={onError} />}
     </div>
   );

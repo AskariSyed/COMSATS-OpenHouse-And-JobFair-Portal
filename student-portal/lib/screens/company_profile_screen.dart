@@ -78,6 +78,18 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   // --- Actions ---
 
   Future<void> _handleSendInterviewRequest() async {
+    final company = Provider.of<CompanyProvider>(
+      context,
+      listen: false,
+    ).selectedCompany;
+    if (company != null && !company.isInterviewWindowOpen) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(message: "Job Fair has ended."),
+      );
+      return;
+    }
+
     setState(() => _isSendingRequest = true);
 
     final studentProvider = Provider.of<StudentProvider>(
@@ -108,6 +120,18 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   }
 
   Future<void> _handleAcceptInvite(int requestId) async {
+    final company = Provider.of<CompanyProvider>(
+      context,
+      listen: false,
+    ).selectedCompany;
+    if (company != null && !company.isInterviewWindowOpen) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(message: "Job Fair has ended."),
+      );
+      return;
+    }
+
     setState(() => _isSendingRequest = true);
     final provider = Provider.of<StudentProvider>(context, listen: false);
     final error = await provider.acceptCompanyInvite(requestId);
@@ -511,6 +535,15 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   // --- Logic for Request Button vs Status Card ---
 
   Widget _buildActionSection(CompanyDetail company) {
+    if (!company.isInterviewWindowOpen) {
+      return _buildStatusCard(
+        color: Colors.red,
+        icon: Icons.event_busy,
+        title: "Job Fair Closed",
+        subtitle: "Job Fair has ended.",
+      );
+    }
+
     final req = company.interviewRequest;
     final requestStatus = req?.status.toLowerCase() ?? '';
     final requestedBy = req?.requestedBy.toLowerCase() ?? '';

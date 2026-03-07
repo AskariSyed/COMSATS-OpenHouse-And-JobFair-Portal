@@ -118,6 +118,21 @@ const CompanySurveyDetail = () => {
     });
   };
 
+  const getCdcDistribution = (questionKey) => {
+    const counts = { Good: 0, Average: 0, Bad: 0 };
+
+    cdcSurveys.forEach((surveyItem) => {
+      const responses = surveyItem.responses || {};
+      const fallbackKey = questionKey.charAt(0).toLowerCase() + questionKey.slice(1);
+      const value = responses[questionKey] ?? responses[fallbackKey] ?? 'Average';
+      if (counts[value] !== undefined) {
+        counts[value] += 1;
+      }
+    });
+
+    return counts;
+  };
+
   const downloadIndividualReport = () => {
     if (!company) return;
 
@@ -169,6 +184,68 @@ const CompanySurveyDetail = () => {
         theme: 'striped',
         headStyles: { fillColor: [245, 158, 11] },
         styles: { fontSize: 8 }
+      });
+
+      const cdcChartQuestions = [
+        { key: 'FypQuality', label: 'FYP Quality' },
+        { key: 'ArrangementQuality', label: 'Arrangement Quality' },
+        { key: 'LunchQuality', label: 'Lunch Quality' }
+      ];
+
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setTextColor(37, 99, 235);
+      doc.text('CDC Feedback Graph Summary', 14, 18);
+      doc.setFontSize(9);
+      doc.setTextColor(90);
+      doc.text('Stacked bars represent Good, Average, and Bad responses.', 14, 24);
+
+      let y = 36;
+      cdcChartQuestions.forEach((question) => {
+        const counts = getCdcDistribution(question.key);
+        const total = counts.Good + counts.Average + counts.Bad;
+
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFontSize(11);
+        doc.setTextColor(31, 41, 55);
+        doc.text(question.label, 14, y);
+
+        const barX = 14;
+        const barY = y + 4;
+        const barWidth = 130;
+        const barHeight = 8;
+
+        const segments = [
+          { key: 'Good', color: [16, 185, 129] },
+          { key: 'Average', color: [245, 158, 11] },
+          { key: 'Bad', color: [239, 68, 68] }
+        ];
+
+        let currentX = barX;
+        segments.forEach((segment) => {
+          const ratio = total > 0 ? counts[segment.key] / total : 0;
+          const width = barWidth * ratio;
+          if (width > 0) {
+            doc.setFillColor(...segment.color);
+            doc.rect(currentX, barY, width, barHeight, 'F');
+            currentX += width;
+          }
+        });
+
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(barX, barY, barWidth, barHeight);
+
+        doc.setFontSize(8);
+        doc.setTextColor(75, 85, 99);
+        doc.text(`Good: ${counts.Good}`, 150, barY + 2.5);
+        doc.text(`Average: ${counts.Average}`, 150, barY + 6);
+        doc.text(`Bad: ${counts.Bad}`, 150, barY + 9.5);
+
+        y += 26;
       });
 
       const safeName = (company.name || 'company').replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '_');

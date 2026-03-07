@@ -237,23 +237,13 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                 // Mobile Logo
                                 if (!isWeb)
                                   Center(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: Color(
-                                          0xFF2563EB,
-                                        ).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Image.asset(
-                                        'assets/LogoWithoutBg.png',
-                                        height: 70,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(
-                                              Icons.school,
-                                              size: 60,
-                                              color: Color(0xFF2563EB),
-                                            ),
+                                    child: Image.asset(
+                                      'assets/LogoWithoutBg.png',
+                                      height: 70,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.school,
+                                        size: 60,
+                                        color: Color(0xFF2563EB),
                                       ),
                                     ),
                                   ),

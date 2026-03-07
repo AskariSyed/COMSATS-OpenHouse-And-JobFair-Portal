@@ -15,6 +15,7 @@ import 'package:student_job_fair_portal/model/projectMember.dart';
 import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/model/dashboard_data.dart';
 import 'package:student_job_fair_portal/model/interview.dart';
+import 'package:student_job_fair_portal/mixins/enums.dart';
 
 class StudentProvider with ChangeNotifier {
   Student? _student;
@@ -68,6 +69,28 @@ class StudentProvider with ChangeNotifier {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $_token',
   };
+
+  String _extractApiError(
+    http.Response response, {
+    String fallback = 'Request failed',
+  }) {
+    String message = response.body.trim();
+    try {
+      final decoded = json.decode(response.body);
+      if (decoded is Map && decoded['message'] != null) {
+        message = decoded['message'].toString();
+      } else if (decoded is String) {
+        message = decoded;
+      }
+    } catch (_) {
+      // Keep raw response body when it is not JSON.
+    }
+
+    if (message.isEmpty) {
+      return '$fallback with status ${response.statusCode}';
+    }
+    return message;
+  }
 
   // Helper to set loading state
   void _setLoading(bool loading) {
@@ -932,22 +955,7 @@ class StudentProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         return null; // Success
       } else {
-        // Try to parse a friendly error message from the response
-        // Response might be plain text (like "You already have a pending request...")
-        // or JSON (like { "message": "..." })
-        String errorMsg = response.body;
-        try {
-          final bodyJson = json.decode(response.body);
-          if (bodyJson is Map && bodyJson.containsKey('message')) {
-            errorMsg = bodyJson['message'];
-          }
-        } catch (_) {
-          // If not JSON, stick with the raw body (e.g. simple string from BadRequest)
-        }
-
-        return errorMsg.isNotEmpty
-            ? errorMsg
-            : "Request failed with status ${response.statusCode}";
+        return _extractApiError(response, fallback: 'Request failed');
       }
     } catch (e) {
       return "Network error: $e";
@@ -1047,7 +1055,7 @@ class StudentProvider with ChangeNotifier {
         await fetchInterviewRequests(); // Refresh list
         return null;
       }
-      return "Failed to accept: ${response.body}";
+      return _extractApiError(response, fallback: 'Failed to accept');
     } catch (e) {
       return "Error: $e";
     }
@@ -1065,7 +1073,7 @@ class StudentProvider with ChangeNotifier {
         await fetchInterviewRequests(); // Refresh list
         return null;
       }
-      return "Failed to reject: ${response.body}";
+      return _extractApiError(response, fallback: 'Failed to reject');
     } catch (e) {
       return "Error: $e";
     }

@@ -2257,6 +2257,7 @@ Job Fair Team
                     .ThenInclude(c => c.Jobs) // Load jobs to filter by fair
                 .Include(p => p.Company)
                     .ThenInclude(c => c.User)
+                .Include(p => p.Room)
                 .Where(p => p.JobFairId == jobFairId)
                 .ToListAsync();
 
@@ -2268,6 +2269,9 @@ Job Fair Team
 
             // 2. Fetch Interviews & Requests for this fair
             var interviews = await _context.Interviews
+                .Include(i => i.Company)
+                .Include(i => i.Student)
+                    .ThenInclude(s => s.User)
                 .Where(i => i.JobFairId == jobFairId)
                 .ToListAsync();
 
@@ -2280,6 +2284,87 @@ Job Fair Team
                 .ToListAsync();
 
             // 3. Calculate Stats
+            var studentsDetailed = studentParticipations
+                .Select(sp => new
+                {
+                    StudentId = sp.StudentId,
+                    Name = sp.Student.User?.FullName,
+                    RegistrationNo = sp.Student.RegistrationNo,
+                    Department = sp.Student.Department,
+                    CGPA = sp.Student.CGPA,
+                    ProfilePicUrl = sp.Student.ProfilePicUrl,
+                    CvUrl = sp.Student.CvUrl,
+                    Hired = interviews.Any(i => i.StudentId == sp.StudentId && i.Status == InterviewStatus.Hired),
+                    Shortlisted = interviews.Any(i => i.StudentId == sp.StudentId && i.Status == InterviewStatus.Shortlisted),
+                    InterviewCount = interviews.Count(i => i.StudentId == sp.StudentId)
+                })
+                .OrderByDescending(s => s.Hired)
+                .ThenByDescending(s => s.Shortlisted)
+                .ThenByDescending(s => s.CGPA)
+                .ToList();
+
+            var companyDetailed = companyParticipations
+                .Select(p => new
+                {
+                    CompanyId = p.CompanyId,
+                    CompanyName = p.Company.Name,
+                    Industry = p.Company.Industry,
+                    IsPresent = p.IsPresent,
+                    TotalJobOpenings = p.Company.Jobs.Count(j => j.JobFairId == jobFairId),
+                    TotalInterviews = interviews.Count(i => i.CompanyId == p.CompanyId),
+                    HiredCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Hired),
+                    ShortlistedCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Shortlisted),
+                    RejectedCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Rejected),
+                    PendingCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Queued)
+                })
+                .OrderByDescending(c => c.TotalInterviews)
+                .ThenByDescending(c => c.HiredCount)
+                .ToList();
+
+            var jobsDetailed = companyParticipations
+                .SelectMany(p => p.Company.Jobs
+                    .Where(j => j.JobFairId == jobFairId)
+                    .Select(j => new
+                    {
+                        JobId = j.JobId,
+                        JobTitle = j.JobTitle,
+                        JobType = j.JobType.ToString(),
+                        Location = (string?)null,
+                        CompanyId = p.CompanyId,
+                        CompanyName = p.Company.Name,
+                        SalaryRange = (string?)null,
+                        IsActive = true,
+                        NumberOfJobs = j.NumberOfJobs,
+                        CreatedAt = j.CreatedAt
+                    }))
+                .OrderByDescending(j => j.CreatedAt)
+                .ToList();
+
+            var companyRoomLookup = companyParticipations
+                .GroupBy(p => p.CompanyId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault()?.Room?.RoomName);
+
+            var interviewsDetailed = interviews
+                .Select(i => new
+                {
+                    InterviewId = i.InterviewId,
+                    CompanyId = i.CompanyId,
+                    CompanyName = i.Company?.Name,
+                    StudentId = i.StudentId,
+                    StudentName = i.Student?.User?.FullName,
+                    StudentRegistrationNo = i.Student?.RegistrationNo,
+                    ScheduledTime = i.ScheduledTime,
+                    StartedAt = i.StartedAt,
+                    EndedAt = i.EndedAt,
+                    RoomNo = companyRoomLookup.TryGetValue(i.CompanyId, out var roomName) ? roomName : null,
+                    Result = i.Status.ToString(),
+                    DurationMinutes = (i.StartedAt.HasValue && i.EndedAt.HasValue)
+                        ? (int?)(i.EndedAt.Value - i.StartedAt.Value).TotalMinutes
+                        : null
+                })
+                .OrderByDescending(i => i.ScheduledTime)
+                .ToList();
+
             var analytics = new
             {
                 JobFairId = jobFair.JobFairId,
@@ -2350,6 +2435,14 @@ Job Fair Team
                     AllocationRate = rooms.Count > 0
                         ? Math.Round((double)rooms.Count(r => r.Status == RoomStatus.Alloted) / rooms.Count * 100, 2)
                         : 0
+                },
+
+                DetailedLists = new
+                {
+                    Students = studentsDetailed,
+                    Companies = companyDetailed,
+                    JobOpenings = jobsDetailed,
+                    Interviews = interviewsDetailed
                 }
             };
 

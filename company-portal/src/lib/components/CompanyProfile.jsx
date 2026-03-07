@@ -2,10 +2,10 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
-import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword } from '../api';
+import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword, getCompanyHistoricalAnalytics, copyJobToCurrentJobFair } from '../api';
 import { allSkillsList } from '../../data/skills';
 
-export default function CompanyProfile({ onError }) {
+export default function CompanyProfile({ onError, onSuccess }) {
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,6 +17,11 @@ export default function CompanyProfile({ onError }) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showJobModal, setShowJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
+  const [showImportJobsModal, setShowImportJobsModal] = useState(false);
+  const [importHistoryData, setImportHistoryData] = useState(null);
+  const [importHistoryLoading, setImportHistoryLoading] = useState(false);
+  const [selectedImportJobFairId, setSelectedImportJobFairId] = useState('');
+  const [importingJobId, setImportingJobId] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -69,9 +74,53 @@ export default function CompanyProfile({ onError }) {
     }
   };
 
+  const normalizeJobFairs = (data) => {
+    const fairs = data?.jobFairs || data?.JobFairs || [];
+    return fairs.map((fair) => ({
+      jobFairId: fair.jobFairId || fair.JobFairId,
+      jobFairName: fair.jobFairName || fair.JobFairName,
+      jobFairDate: fair.jobFairDate || fair.JobFairDate,
+      jobs: fair.jobs || fair.Jobs || [],
+    }));
+  };
+
+  const handleOpenImportJobs = async () => {
+    setShowImportJobsModal(true);
+    setImportHistoryLoading(true);
+    try {
+      const data = await getCompanyHistoricalAnalytics();
+      setImportHistoryData(data);
+      const fairs = normalizeJobFairs(data);
+      if (fairs.length > 0) {
+        setSelectedImportJobFairId(String(fairs[0].jobFairId));
+      } else {
+        setSelectedImportJobFairId('');
+      }
+    } catch (err) {
+      onError(err.message || 'Failed to load previous job fairs.');
+      setShowImportJobsModal(false);
+    } finally {
+      setImportHistoryLoading(false);
+    }
+  };
+
+  const handleImportJob = async (jobId) => {
+    setImportingJobId(jobId);
+    try {
+      const result = await copyJobToCurrentJobFair(jobId);
+      onSuccess?.(result?.message || 'Job imported to current job fair.');
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      onError(err.message || 'Failed to import job.');
+    } finally {
+      setImportingJobId(null);
+    }
+  };
+
   const { contactInfo, focalPerson, interviewStats, jobs } = profile;
   const interviewDurationMinutes = profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30;
   const repsCount = profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1;
+  const isWalkInInterviewing = profile?.companySettings?.isWalkInInterviewing ?? profile?.companySettings?.IsWalkInInterviewing ?? false;
   const attendanceModel = attendance
     ? {
         isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
@@ -285,6 +334,10 @@ export default function CompanyProfile({ onError }) {
                   <p className="text-xl font-bold text-gray-900 mt-1">{interviewDurationMinutes} minutes</p>
                   <p className="text-xs uppercase tracking-wide text-gray-500 font-bold mt-4">Number of Representatives</p>
                   <p className="text-xl font-bold text-gray-900 mt-1">{repsCount}</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 font-bold mt-4">Walk-In Interviewing</p>
+                  <p className={`text-base font-bold mt-1 ${isWalkInInterviewing ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    {isWalkInInterviewing ? 'Active' : 'Inactive'}
+                  </p>
                 </div>
             </div>
 
@@ -315,9 +368,14 @@ export default function CompanyProfile({ onError }) {
                         <h2 className="text-xl font-bold text-gray-900">Job Postings</h2>
                         <p className="text-sm text-gray-500">Manage your open positions</p>
                     </div>
-                    <button onClick={() => { setEditingJob(null); setShowJobModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all transform hover:-translate-y-0.5">
-                        <Plus className="w-4 h-4" /> Post Job
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleOpenImportJobs} className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors">
+                    <Briefcase className="w-4 h-4" /> Import From Previous Fair
                     </button>
+                    <button onClick={() => { setEditingJob(null); setShowJobModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all transform hover:-translate-y-0.5">
+                      <Plus className="w-4 h-4" /> Post Job
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="p-6 space-y-4">
@@ -382,6 +440,23 @@ export default function CompanyProfile({ onError }) {
       
       {showJobModal && <JobModal job={editingJob} onClose={() => setShowJobModal(false)} onSave={async () => { setRefreshKey(k => k+1); setShowJobModal(false); }} onError={onError} />}
 
+      {showImportJobsModal && (
+        <ImportJobsModal
+          loading={importHistoryLoading}
+          data={importHistoryData}
+          selectedJobFairId={selectedImportJobFairId}
+          onSelectJobFair={setSelectedImportJobFairId}
+          importingJobId={importingJobId}
+          onImportJob={handleImportJob}
+          onClose={() => {
+            setShowImportJobsModal(false);
+            setImportHistoryData(null);
+            setSelectedImportJobFairId('');
+            setImportingJobId(null);
+          }}
+        />
+      )}
+
     </div>
   );
 }
@@ -394,6 +469,84 @@ function StatCard({ label, value, icon: Icon, color }) {
     <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colors[color]}`}><Icon className="w-6 h-6"/></div>
       <div><div className="text-2xl font-bold text-gray-900 leading-none mb-1">{value}</div><div className="text-xs text-gray-500 uppercase font-bold tracking-wide">{label}</div></div>
+    </div>
+  );
+}
+
+function ImportJobsModal({ loading, data, selectedJobFairId, onSelectJobFair, importingJobId, onImportJob, onClose }) {
+  const fairs = (data?.jobFairs || data?.JobFairs || []).map((fair) => ({
+    jobFairId: fair.jobFairId || fair.JobFairId,
+    jobFairName: fair.jobFairName || fair.JobFairName,
+    jobFairDate: fair.jobFairDate || fair.JobFairDate,
+    jobs: fair.jobs || fair.Jobs || [],
+  }));
+
+  const selectedFair = fairs.find((fair) => String(fair.jobFairId) === String(selectedJobFairId));
+  const jobs = selectedFair?.jobs || [];
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h3 className="text-lg font-bold text-gray-900">Import Jobs From Previous Job Fair</h3>
+          <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {loading ? (
+            <div className="h-40 flex items-center justify-center">
+              <Loader2 className="animate-spin w-7 h-7 text-blue-600" />
+            </div>
+          ) : fairs.length === 0 ? (
+            <div className="text-center py-12 border border-dashed border-gray-300 rounded-xl text-gray-500">
+              No previous job fair data found.
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Select Previous Job Fair</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                  value={selectedJobFairId}
+                  onChange={(e) => onSelectJobFair(e.target.value)}
+                >
+                  {fairs.map((fair) => (
+                    <option key={fair.jobFairId} value={fair.jobFairId}>
+                      {fair.jobFairName} ({new Date(fair.jobFairDate).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {jobs.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-gray-300 rounded-xl text-gray-500">
+                    No jobs found in this job fair.
+                  </div>
+                ) : (
+                  jobs.map((job) => (
+                    <div key={job.jobId || job.JobId} className="border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{job.jobTitle || job.JobTitle}</h4>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{job.jobDescription || job.JobDescription}</p>
+                        <div className="mt-2 text-xs text-gray-500">Openings: {job.numberOfJobs || job.NumberOfJobs || 0}</div>
+                      </div>
+                      <button
+                        onClick={() => onImportJob(job.jobId || job.JobId)}
+                        disabled={importingJobId === (job.jobId || job.JobId)}
+                        className="shrink-0 px-3 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 flex items-center gap-2"
+                      >
+                        {importingJobId === (job.jobId || job.JobId) ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        Import
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

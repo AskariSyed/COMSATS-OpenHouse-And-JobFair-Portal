@@ -1,15 +1,17 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
 import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar } from 'lucide-react';
-import { getAnalytics, scheduleAllInterviews } from '../api';
+import { getAnalytics, scheduleAllInterviews, setWalkInInterviewing } from '../api';
 
-export default function AnalyticsView({ onError, onSuccess }) {
+export default function AnalyticsView({ onError, onSuccess, onNavigateToInterviews }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scheduling, setScheduling] = useState(false);
+  const [togglingWalkIn, setTogglingWalkIn] = useState(false);
   const [isJobFairDay, setIsJobFairDay] = useState(false);
 
-  useEffect(() => {
+  const loadAnalytics = () => {
+    setLoading(true);
     getAnalytics()
       .then((analyticsData) => {
         setData(analyticsData);
@@ -23,6 +25,10 @@ export default function AnalyticsView({ onError, onSuccess }) {
       })
       .catch(err => onError(err.message))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadAnalytics();
   }, [onError]);
 
   const handleScheduleInterviews = async () => {
@@ -40,11 +46,26 @@ export default function AnalyticsView({ onError, onSuccess }) {
     }
   };
 
+  const handleToggleWalkIn = async (isEnabled) => {
+    setTogglingWalkIn(true);
+    try {
+      const result = await setWalkInInterviewing(isEnabled);
+      if (onSuccess) onSuccess(result?.message || (isEnabled ? 'Walk-in interviewing started.' : 'Walk-in interviewing stopped.'));
+      loadAnalytics();
+    } catch (err) {
+      onError(err.message || 'Failed to update walk-in interviewing status.');
+    } finally {
+      setTogglingWalkIn(false);
+    }
+  };
+
   if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto w-10 h-10 text-blue-600" /></div>;
   if (!data) return <div className="text-center text-gray-500 p-12">No analytics data available.</div>;
 
   // Destructure based on C# Controller JSON structure (camelCase)
   const { summary, interviews } = data;
+  const canToggleWalkIn = Boolean(data.canToggleWalkInInterviewing);
+  const isWalkInInterviewing = Boolean(data.isWalkInInterviewing);
 
   return (
     <div className="space-y-8 pb-10">
@@ -53,25 +74,37 @@ export default function AnalyticsView({ onError, onSuccess }) {
            <h2 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h2>
            <p className="text-gray-500">Overview for {data.companyName}</p>
         </div>
-        {isJobFairDay && (
+        <div className="flex items-center gap-2">
+          {isJobFairDay && (
+            <button
+              onClick={handleScheduleInterviews}
+              disabled={scheduling}
+              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {scheduling ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Scheduling...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-5 h-5" />
+                  Schedule All Interviews
+                </>
+              )}
+            </button>
+          )}
+
           <button
-            onClick={handleScheduleInterviews}
-            disabled={scheduling}
-            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => handleToggleWalkIn(!isWalkInInterviewing)}
+            disabled={togglingWalkIn || (!canToggleWalkIn && !isWalkInInterviewing)}
+            className={`px-4 py-2.5 text-white font-bold rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isWalkInInterviewing ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+            title={!canToggleWalkIn && !isWalkInInterviewing ? 'Walk-in interviewing can only be started on Job Fair day between 9:00 AM and 4:30 PM PKT and when marked present.' : undefined}
           >
-            {scheduling ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Scheduling...
-              </>
-            ) : (
-              <>
-                <Calendar className="w-5 h-5" />
-                Schedule All Interviews
-              </>
-            )}
+            {togglingWalkIn ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {isWalkInInterviewing ? 'Stop Walk-In Interviewing' : 'Start Walk-In Interviewing'}
           </button>
-        )}
+        </div>
       </div>
       
       {/* KPI Cards */}
@@ -108,6 +141,29 @@ export default function AnalyticsView({ onError, onSuccess }) {
         {/* Pipeline Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
           <h3 className="font-bold text-gray-900 mb-6">Recruitment Pipeline</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <button
+              onClick={() => onNavigateToInterviews && onNavigateToInterviews('pending', 'sent')}
+              className="text-left rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 hover:bg-blue-100"
+            >
+              <p className="text-xs text-blue-700 font-semibold">Requests Sent</p>
+              <p className="text-xl font-bold text-blue-900">{interviews.requestsSentCount || 0}</p>
+            </button>
+            <button
+              onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+              className="text-left rounded-xl border border-green-200 bg-green-50 px-4 py-3 hover:bg-green-100"
+            >
+              <p className="text-xs text-green-700 font-semibold">Accepted Requests</p>
+              <p className="text-xl font-bold text-green-900">{interviews.acceptedRequestsCount || 0}</p>
+            </button>
+            <button
+              onClick={() => onNavigateToInterviews && onNavigateToInterviews('pending', 'inbox')}
+              className="text-left rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100"
+            >
+              <p className="text-xs text-orange-700 font-semibold">Pending Requests</p>
+              <p className="text-xl font-bold text-orange-900">{interviews.pendingRequestsCount || 0}</p>
+            </button>
+          </div>
           <div className="space-y-6">
             <ProgressBar label="Shortlisted" value={interviews.shortlistedCount} total={summary.totalStudentsCalled} color="bg-blue-500" />
             <ProgressBar label="Scheduled Interviews" value={interviews.scheduledCount} total={summary.totalStudentsCalled} color="bg-yellow-500" />

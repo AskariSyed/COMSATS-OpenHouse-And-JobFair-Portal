@@ -20,6 +20,10 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<StudentController> _logger;
+        private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
+        private static readonly TimeSpan InterviewCutoffLocal = TimeSpan.FromHours(16.5);
+        private static readonly TimeSpan WalkInStartLocal = new TimeSpan(9, 0, 0);
+        private static readonly TimeSpan WalkInEndLocal = new TimeSpan(16, 30, 0);
 
 
 
@@ -110,6 +114,12 @@ namespace JobFairPortal.Controllers
 
             if (student == null)
                 return NotFound("Student not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active job fair.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             var interviewRequest = await _context.InterviewRequests
                 .Include(r => r.Company)
@@ -1751,7 +1761,10 @@ namespace JobFairPortal.Controllers
                     InterviewRequestStatus = p.Company.InterviewRequests
                         .Select(ir => ir.Status.ToString())
                         .FirstOrDefault() ?? "None",
-                    CanRequestInterview = !p.Company.InterviewRequests.Any()
+                    CanRequestInterview = !p.Company.InterviewRequests.Any(),
+                    IsWalkInInterviewing = p.IsPresent
+                        && p.Company.IsWalkInInterviewing
+                        && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow)
                 })
                 .ToListAsync();
 
@@ -2054,6 +2067,11 @@ namespace JobFairPortal.Controllers
                     Room = participation.Room != null ? participation.Room.RoomName : null
                 } : null,
                 CanRequestInterview = interviewRequest == null && latestInterview == null,
+                IsWalkInInterviewing = participation.IsPresent
+                    && company.IsWalkInInterviewing
+                    && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow),
+                IsInterviewWindowOpen = !HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow),
+                InterviewCutoffLocal = activeJobFair.date.Date.Add(InterviewCutoffLocal),
                 company.CreatedAt,
                 company.UpdatedAt
             };
@@ -2078,6 +2096,8 @@ namespace JobFairPortal.Controllers
 
             var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null) return BadRequest("No active job fair.");
+            if (HasInterviewCutoffPassed(activeJobFair.date, DateTime.UtcNow))
+                return BadRequest("Job Fair has ended.");
 
             // Validate Student Participation
             var isStudentParticipating = await _context.StudentJobFairParticipations
@@ -2151,6 +2171,48 @@ namespace JobFairPortal.Controllers
                 CompanyName = companyParticipation.Company.Name,
                 Status = interviewRequest.Status.ToString()
             });
+        }
+
+        private static bool HasInterviewCutoffPassed(DateTime jobFairDateUtc, DateTime currentUtc)
+        {
+            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(currentUtc, DateTimeKind.Utc), JobFairTimeZone);
+            var fairLocalDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(jobFairDateUtc, DateTimeKind.Utc), JobFairTimeZone).Date;
+
+            if (nowLocal.Date > fairLocalDate)
+                return true;
+
+            return nowLocal.Date == fairLocalDate && nowLocal.TimeOfDay > InterviewCutoffLocal;
+        }
+
+        private static bool IsWithinWalkInWindow(DateTime jobFairDateUtc, DateTime currentUtc)
+        {
+            var currentLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(currentUtc, DateTimeKind.Utc), JobFairTimeZone);
+            var fairLocalDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(jobFairDateUtc, DateTimeKind.Utc), JobFairTimeZone).Date;
+
+            if (currentLocal.Date != fairLocalDate)
+                return false;
+
+            var localTime = currentLocal.TimeOfDay;
+            return localTime >= WalkInStartLocal && localTime <= WalkInEndLocal;
+        }
+
+        private static TimeZoneInfo ResolveJobFairTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Pakistan Standard Time");
+            }
+            catch
+            {
+                try
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi");
+                }
+                catch
+                {
+                    return TimeZoneInfo.Utc;
+                }
+            }
         }
 
         // -----------------------------

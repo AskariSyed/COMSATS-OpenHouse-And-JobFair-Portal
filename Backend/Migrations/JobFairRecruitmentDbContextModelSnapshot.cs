@@ -235,6 +235,9 @@ namespace JobFairPortal.Migrations
                     b.Property<bool>("IsPresent")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsWalkInInterviewing")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("JobFairId")
                         .HasColumnType("integer");
 

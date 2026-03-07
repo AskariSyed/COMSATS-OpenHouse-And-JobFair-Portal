@@ -12,6 +12,7 @@ import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/screens/job_screen.dart';
 import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
+import 'package:student_job_fair_portal/screens/requestScreen.dart';
 import 'package:student_job_fair_portal/widgets/interview_status_chart.dart';
 import 'package:student_job_fair_portal/widgets/market_overview_chart.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
@@ -669,7 +670,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   subtitle: const Text('Action needed'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    // Navigate to interviews
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const RequestsScreen(initialTabIndex: 1),
+                      ),
+                    );
                   },
                 ),
               if (actions.pendingProjectInvitesCount > 0)

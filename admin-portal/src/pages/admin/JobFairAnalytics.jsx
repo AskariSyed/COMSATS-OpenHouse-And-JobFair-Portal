@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell 
@@ -14,8 +15,12 @@ import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
-  <div className="bg-white p-2.5 rounded-lg border border-gray-100 shadow-sm flex items-start justify-between">
+const StatCard = ({ title, value, subtext, icon: Icon, color, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full text-left bg-white p-2.5 rounded-lg border border-gray-100 shadow-sm flex items-start justify-between hover:shadow-md hover:border-indigo-200 transition"
+  >
     <div>
       <p className="text-xs font-medium text-gray-500">{title}</p>
       <h3 className="text-lg font-bold text-gray-900 mt-1">{value}</h3>
@@ -24,16 +29,135 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
     <div className={`p-2 rounded-lg ${color} bg-opacity-10`}>
       <Icon className={color.replace('bg-', 'text-')} size={18} />
     </div>
-  </div>
+  </button>
 );
 
 const JobFairAnalytics = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [fairs, setFairs] = useState([]);
   const [selectedFairId, setSelectedFairId] = useState(location?.state?.jobFairId || null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false); // New state for download button
+  const [detailModal, setDetailModal] = useState({
+    open: false,
+    type: null,
+    title: '',
+    rows: []
+  });
+
+  const openDetailModal = (type) => {
+    if (!data?.detailedLists) {
+      toast.error('Detailed data is not available for this event yet.');
+      return;
+    }
+
+    const mapping = {
+      students: {
+        title: 'Students Participating In This Job Fair',
+        rows: data.detailedLists.students || []
+      },
+      companies: {
+        title: 'Participating Companies & Stats',
+        rows: data.detailedLists.companies || []
+      },
+      jobs: {
+        title: 'Job Openings In This Job Fair',
+        rows: data.detailedLists.jobOpenings || []
+      },
+      interviews: {
+        title: 'Interviews Conducted With Full Timeline',
+        rows: data.detailedLists.interviews || []
+      }
+    };
+
+    const selected = mapping[type];
+    if (!selected || selected.rows.length === 0) {
+      toast.error('No records found.');
+      return;
+    }
+
+    setDetailModal({ open: true, type, title: selected.title, rows: selected.rows });
+  };
+
+  const downloadDetailCSV = () => {
+    if (!detailModal.rows?.length) return;
+
+    const toCsvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    let headers = [];
+    let rows = [];
+
+    if (detailModal.type === 'students') {
+      headers = ['Name', 'Registration', 'Department', 'CGPA', 'Interview Count', 'Hired', 'Shortlisted'];
+      rows = detailModal.rows.map((s) => [
+        s.name,
+        s.registrationNo,
+        s.department,
+        s.cgpa,
+        s.interviewCount,
+        s.hired ? 'Yes' : 'No',
+        s.shortlisted ? 'Yes' : 'No'
+      ]);
+    }
+
+    if (detailModal.type === 'companies') {
+      headers = ['Company', 'Industry', 'Present', 'Job Openings', 'Total Interviews', 'Hired', 'Shortlisted', 'Rejected', 'Pending'];
+      rows = detailModal.rows.map((c) => [
+        c.companyName,
+        c.industry,
+        c.isPresent ? 'Yes' : 'No',
+        c.totalJobOpenings,
+        c.totalInterviews,
+        c.hiredCount,
+        c.shortlistedCount,
+        c.rejectedCount,
+        c.pendingCount
+      ]);
+    }
+
+    if (detailModal.type === 'jobs') {
+      headers = ['Job Title', 'Company', 'Type', 'Location', 'Salary', 'Active'];
+      rows = detailModal.rows.map((j) => [
+        j.jobTitle,
+        j.companyName,
+        j.jobType,
+        j.location,
+        j.salaryRange,
+        j.isActive ? 'Yes' : 'No'
+      ]);
+    }
+
+    if (detailModal.type === 'interviews') {
+      headers = ['Company', 'Student', 'Registration', 'Scheduled', 'Actual Start', 'End', 'Result', 'Room No', 'Duration (min)'];
+      rows = detailModal.rows.map((i) => [
+        i.companyName,
+        i.studentName,
+        i.studentRegistrationNo,
+        i.scheduledTime ? new Date(i.scheduledTime).toLocaleString() : '',
+        i.startedAt ? new Date(i.startedAt).toLocaleString() : '',
+        i.endedAt ? new Date(i.endedAt).toLocaleString() : '',
+        i.result,
+        i.roomNo,
+        i.durationMinutes ?? ''
+      ]);
+    }
+
+    const csvContent = [
+      headers.map(toCsvCell).join(','),
+      ...rows.map((row) => row.map(toCsvCell).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${detailModal.type}_jobfair_${selectedFairId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
 
   // 1. Fetch Job Fairs
   useEffect(() => {
@@ -259,18 +383,21 @@ const JobFairAnalytics = () => {
               value={data.overallStats.totalStudents} 
               icon={Users} 
               color="bg-blue-500" 
+              onClick={() => openDetailModal('students')}
             />
             <StatCard 
               title="Participating Companies" 
               value={data.overallStats.totalCompanies} 
               icon={Building2} 
               color="bg-purple-500" 
+              onClick={() => openDetailModal('companies')}
             />
             <StatCard 
               title="Total Job Openings" 
               value={data.overallStats.totalJobs} 
               icon={Briefcase} 
               color="bg-orange-500" 
+              onClick={() => openDetailModal('jobs')}
             />
             <StatCard 
               title="Interviews Conducted" 
@@ -278,6 +405,7 @@ const JobFairAnalytics = () => {
               subtext={`${data.interviewStats.hiringRate}% Hiring Rate`}
               icon={CheckCircle} 
               color="bg-emerald-500" 
+              onClick={() => openDetailModal('interviews')}
             />
           </div>
 
@@ -400,6 +528,159 @@ const JobFairAnalytics = () => {
 
           </div>
         </>
+      )}
+
+      {detailModal.open && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-900">{detailModal.title}</h3>
+                <p className="text-xs text-gray-500 mt-1">Click records to navigate and use CSV to download the list.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadDetailCSV}
+                  className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                >
+                  <Download size={14} /> Download CSV
+                </button>
+                <button
+                  onClick={() => setDetailModal({ open: false, type: null, title: '', rows: [] })}
+                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto max-h-[75vh]">
+              {detailModal.type === 'students' && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Name</th>
+                      <th className="px-4 py-3 text-left">Registration</th>
+                      <th className="px-4 py-3 text-left">Department</th>
+                      <th className="px-4 py-3 text-right">CGPA</th>
+                      <th className="px-4 py-3 text-right">Interviews</th>
+                      <th className="px-4 py-3 text-center">Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.rows.map((s) => (
+                      <tr key={s.studentId} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3">{s.name}</td>
+                        <td className="px-4 py-3">{s.registrationNo}</td>
+                        <td className="px-4 py-3">{s.department}</td>
+                        <td className="px-4 py-3 text-right">{Number(s.cgpa ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">{s.interviewCount}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                          >
+                            View Profile
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {detailModal.type === 'companies' && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Company</th>
+                      <th className="px-4 py-3 text-left">Industry</th>
+                      <th className="px-4 py-3 text-right">Jobs</th>
+                      <th className="px-4 py-3 text-right">Interviews</th>
+                      <th className="px-4 py-3 text-right">Hired</th>
+                      <th className="px-4 py-3 text-center">Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.rows.map((c) => (
+                      <tr key={c.companyId} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3">{c.companyName}</td>
+                        <td className="px-4 py-3">{c.industry || '-'}</td>
+                        <td className="px-4 py-3 text-right">{c.totalJobOpenings}</td>
+                        <td className="px-4 py-3 text-right">{c.totalInterviews}</td>
+                        <td className="px-4 py-3 text-right text-emerald-700 font-semibold">{c.hiredCount}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => navigate(`/admin/companies/${c.companyId}`)}
+                            className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                          >
+                            View Profile
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {detailModal.type === 'jobs' && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Job Title</th>
+                      <th className="px-4 py-3 text-left">Company</th>
+                      <th className="px-4 py-3 text-left">Type</th>
+                      <th className="px-4 py-3 text-left">Location</th>
+                      <th className="px-4 py-3 text-left">Salary</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.rows.map((j) => (
+                      <tr key={j.jobId} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3">{j.jobTitle}</td>
+                        <td className="px-4 py-3">{j.companyName}</td>
+                        <td className="px-4 py-3">{j.jobType}</td>
+                        <td className="px-4 py-3">{j.location || '-'}</td>
+                        <td className="px-4 py-3">{j.salaryRange || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {detailModal.type === 'interviews' && (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Company</th>
+                      <th className="px-4 py-3 text-left">Student</th>
+                      <th className="px-4 py-3 text-left">Registration</th>
+                      <th className="px-4 py-3 text-left">Scheduled</th>
+                      <th className="px-4 py-3 text-left">Actual Start</th>
+                      <th className="px-4 py-3 text-left">End</th>
+                      <th className="px-4 py-3 text-left">Result</th>
+                      <th className="px-4 py-3 text-left">Room</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailModal.rows.map((i) => (
+                      <tr key={i.interviewId} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-3">{i.companyName || '-'}</td>
+                        <td className="px-4 py-3">{i.studentName || '-'}</td>
+                        <td className="px-4 py-3">{i.studentRegistrationNo || '-'}</td>
+                        <td className="px-4 py-3">{i.scheduledTime ? new Date(i.scheduledTime).toLocaleString() : '-'}</td>
+                        <td className="px-4 py-3">{i.startedAt ? new Date(i.startedAt).toLocaleString() : '-'}</td>
+                        <td className="px-4 py-3">{i.endedAt ? new Date(i.endedAt).toLocaleString() : '-'}</td>
+                        <td className="px-4 py-3">{i.result || '-'}</td>
+                        <td className="px-4 py-3">{i.roomNo || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

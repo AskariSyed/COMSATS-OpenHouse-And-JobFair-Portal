@@ -53,6 +53,7 @@ namespace JobFairPortal.Models
 
         // Removed: ArrivalStatus - now tracked in CompanyJobFairParticipation table only
         public bool IsPresent { get; set; } = false;
+        public bool IsWalkInInterviewing { get; set; } = false;
         public string? SecretKey { get; set; }
         public bool KeyUsed { get; set; } = false;
         public DateTime? KeyExpiry { get; set; }

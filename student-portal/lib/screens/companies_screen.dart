@@ -797,7 +797,17 @@ class _CompanyCardState extends State<CompanyCard> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: cardColor, // 🔹 Theme
       child: InkWell(
-        onTap: () => setState(() => _isExpanded = !_isExpanded),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CompanyProfileScreen(
+                companyId: company.companyId,
+                companyName: company.name,
+              ),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
@@ -874,30 +884,24 @@ class _CompanyCardState extends State<CompanyCard> {
                       ],
                     ),
                   ),
-                  AnimatedRotation(
-                    turns: _isExpanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      Icons.keyboard_arrow_down,
-                      color: subTextColor,
-                    ), // 🔹 Theme
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => setState(() => _isExpanded = !_isExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: AnimatedRotation(
+                        turns: _isExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: subTextColor,
+                        ), // 🔹 Theme
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-
-              // Description
-              if (!_isExpanded && company.description != null)
-                Text(
-                  company.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: subTextColor,
-                    fontSize: 13,
-                    height: 1.4,
-                  ), // 🔹 Theme
-                ),
 
               const SizedBox(height: 16),
               Divider(
@@ -910,31 +914,71 @@ class _CompanyCardState extends State<CompanyCard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.blue.shade900.withValues(alpha: 0.3)
-                              : Colors.blue.shade50,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.work_outline,
-                          size: 14,
-                          color: isDark ? Colors.blue.shade300 : Colors.blue,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.blue.shade900.withValues(alpha: 0.3)
+                                  : Colors.blue.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.work_outline,
+                              size: 14,
+                              color: isDark
+                                  ? Colors.blue.shade300
+                                  : Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "${company.jobCount} Jobs",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.blue.shade300
+                                  : Colors.blue,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        "${company.jobCount} Jobs",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.blue.shade300 : Colors.blue,
+                      if (company.isWalkInInterviewing)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.green.shade900.withValues(alpha: 0.3)
+                                : Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.green.shade700
+                                  : Colors.green.shade200,
+                            ),
+                          ),
+                          child: Text(
+                            "Walk-In Interviewing",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.green.shade300
+                                  : Colors.green.shade700,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   if (company.website != null)
@@ -969,29 +1013,21 @@ class _CompanyCardState extends State<CompanyCard> {
                           const SizedBox(height: 16),
                           Divider(color: dividerColor.withValues(alpha: 0.1)),
                           const SizedBox(height: 8),
-                          Center(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CompanyProfileScreen(
-                                      companyId: company.companyId,
-                                      companyName: company.name,
-                                    ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.visibility, size: 18),
-                              label: const Text("View Full Profile"),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Theme.of(context).primaryColor,
-                                side: BorderSide(
-                                  color: Theme.of(context).primaryColor,
+                          if (company.description != null &&
+                              company.description!.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: Text(
+                                company.description!,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 13,
+                                  height: 1.45,
                                 ),
                               ),
                             ),
-                          ),
                           const SizedBox(height: 16),
                           // Job List (Using basic list for brevity, logic remains same)
                           if (company.jobs.isNotEmpty)

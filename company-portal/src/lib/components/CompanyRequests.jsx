@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Loader2, AlertCircle, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { createCompanyRequest, getMyRequests, cancelCompanyRequest } from '../api';
 
 const REQUEST_TYPES = ['Supplies', 'Cleaning', 'Info', 'Equipment', 'Other'];
@@ -44,6 +44,7 @@ export default function CompanyRequests({ onError, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [expandedRequestId, setExpandedRequestId] = useState(null);
   const [formData, setFormData] = useState({
     type: 'Supplies',
     description: '',
@@ -214,76 +215,97 @@ export default function CompanyRequests({ onError, onSuccess }) {
           <p className="text-gray-500 mt-2">Loading requests...</p>
         </div>
       ) : requests && requests.length > 0 ? (
-        <div className="space-y-3">
-          {requests.map((req) => {
-            const normalizedStatus = normalizeStatus(req.status);
-            const statusConfig = REQUEST_STATUSES[normalizedStatus] || REQUEST_STATUSES.Pending;
-            const StatusIcon = statusConfig.icon;
-            const fulfilledAt = req.fulfilledAt || req.FulfilledAt;
-            
-            return (
-              <div key={req.companyRequestId} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-bold text-gray-900">{req.description}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 whitespace-nowrap ${statusConfig.color}`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {normalizedStatus}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
-                      <div>
-                        <p className="text-gray-500 text-xs font-semibold uppercase">Current Status</p>
-                        <p className="text-gray-900 font-medium">{normalizedStatus}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs font-semibold uppercase">Type</p>
-                        <p className="text-gray-900 font-medium">{REQUEST_TYPE_MAP[req.type] || req.type}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs font-semibold uppercase">Quantity</p>
-                        <p className="text-gray-900 font-medium">{req.quantity}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 text-xs font-semibold uppercase">Submitted</p>
-                        <p className="text-gray-900 font-medium">{new Date(req.createdAt).toLocaleString()}</p>
-                      </div>
-                      {normalizedStatus === 'Fulfilled' && fulfilledAt && (
-                        <div>
-                          <p className="text-gray-500 text-xs font-semibold uppercase">Fulfilled</p>
-                          <p className="text-gray-900 font-medium">{new Date(fulfilledAt).toLocaleString()}</p>
-                        </div>
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Quantity</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Submitted</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Description</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((req) => {
+                  const normalizedStatus = normalizeStatus(req.status);
+                  const statusConfig = REQUEST_STATUSES[normalizedStatus] || REQUEST_STATUSES.Pending;
+                  const StatusIcon = statusConfig.icon;
+                  const fulfilledAt = req.fulfilledAt || req.FulfilledAt;
+                  const isExpanded = expandedRequestId === req.companyRequestId;
+                  const shortDescription = req.description?.length > 55
+                    ? `${req.description.slice(0, 55)}...`
+                    : req.description;
+
+                  return (
+                    <React.Fragment key={req.companyRequestId}>
+                      <tr className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-900 font-medium">{REQUEST_TYPE_MAP[req.type] || req.type}</td>
+                        <td className="px-4 py-3 text-gray-900">{req.quantity}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border items-center gap-1 whitespace-nowrap ${statusConfig.color}`}>
+                            <StatusIcon className="w-3 h-3" />
+                            {normalizedStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{new Date(req.createdAt).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-700">{shortDescription || '--'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setExpandedRequestId(isExpanded ? null : req.companyRequestId)}
+                              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-100 text-gray-700 inline-flex items-center gap-1"
+                            >
+                              {isExpanded ? 'Hide' : 'View'}
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                            {(normalizedStatus === 'Pending' || normalizedStatus === 'InProgress') && (
+                              <button
+                                onClick={() => handleCancelRequest(req.companyRequestId)}
+                                className="px-3 py-1.5 text-sm border border-red-200 text-red-700 rounded-md hover:bg-red-50 inline-flex items-center gap-1"
+                                title="Cancel Request"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Full Description</p>
+                                <p className="text-gray-900">{req.description || '--'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Additional Notes</p>
+                                <p className="text-gray-900">{req.additionalInfo || '--'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Admin Note</p>
+                                <p className="text-blue-800">{req.adminNote || '--'}</p>
+                              </div>
+                              {normalizedStatus === 'Fulfilled' && fulfilledAt && (
+                                <div>
+                                  <p className="text-xs font-semibold uppercase text-gray-500 mb-1">Fulfilled At</p>
+                                  <p className="text-gray-900">{new Date(fulfilledAt).toLocaleString()}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </div>
-
-                    {req.additionalInfo && (
-                      <p className="text-sm text-gray-600 italic">📝 {req.additionalInfo}</p>
-                    )}
-
-                    {req.adminNote && (
-                      <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded mt-2">
-                        <span className="font-semibold">Admin Note:</span> {req.adminNote}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Cancel Button - Only show if request is Pending or InProgress */}
-                  {(normalizedStatus === 'Pending' || normalizedStatus === 'InProgress') && (
-                    <button
-                      onClick={() => handleCancelRequest(req.companyRequestId)}
-                      className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition flex items-center gap-2"
-                      title="Cancel Request"
-                    >
-                      <XCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">Cancel</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">

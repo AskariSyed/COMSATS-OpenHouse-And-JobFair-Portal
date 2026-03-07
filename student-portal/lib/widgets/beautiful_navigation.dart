@@ -157,7 +157,7 @@ class BeautifulWebNavBar extends StatelessWidget {
     return Row(
       children: [
         Image.asset(
-          'LogoWithoutBg.png',
+          'assets/LogoWithoutBg.png',
           height: 40,
           errorBuilder: (_, __, ___) => Icon(Icons.school, color: primary),
         ),

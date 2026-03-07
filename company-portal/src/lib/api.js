@@ -253,6 +253,10 @@ export const startWalkInInterview = (studentId, overrideScheduledInterview = fal
   });
 };
 
+export const setWalkInInterviewing = (isEnabled) => {
+  return request('/Company/walkin/interviewing', 'POST', { isEnabled });
+};
+
 export const completeInterview = (interviewId, resultStatus) => {
   return request(`/Company/interviews/${interviewId}/complete`, 'POST', { resultStatus });
 };
@@ -311,6 +315,7 @@ export const getCompanyJobs = (page = 1) => request(`/Company/jobs?page=${page}`
 export const createJob = (jobData) => request('/Company/jobs', 'POST', jobData);
 export const updateJob = (jobId, jobData) => request(`/Company/jobs/${jobId}`, 'PUT', jobData);
 export const deleteJob = (jobId) => request(`/Company/jobs/${jobId}`, 'DELETE');
+export const copyJobToCurrentJobFair = (jobId) => request(`/Company/jobs/${jobId}/copy-to-current-jobfair`, 'POST', {});
 
 // Contact Links
 export const addContactLink = (data) => request('/Company/contact-links', 'POST', data);
