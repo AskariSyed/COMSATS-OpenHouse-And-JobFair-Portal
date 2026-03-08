@@ -46,6 +46,7 @@ const YouTubeThumbnail = ({ url, alt }) => {
 };
 
 const StudentDetail = () => {
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   const { studentId } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -76,7 +77,14 @@ const StudentDetail = () => {
       setCredentialsLoading(true);
       const updateData = {};
       if (credentialsFormData.email.trim()) updateData.email = credentialsFormData.email.trim();
-      if (credentialsFormData.password.trim()) updateData.password = credentialsFormData.password.trim();
+      if (credentialsFormData.password.trim()) {
+        if (!strongPasswordRegex.test(credentialsFormData.password.trim())) {
+          toast.error('Password must include uppercase, lowercase, number, special character and be at least 8 characters.');
+          setCredentialsLoading(false);
+          return;
+        }
+        updateData.password = credentialsFormData.password.trim();
+      }
 
       if (Object.keys(updateData).length === 0) {
         toast.error('Please update at least one field');

@@ -165,12 +165,12 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
       int columns = 1;
       if (availableWidth > 1350) {
         columns = 5;
-      } else if (availableWidth > 1000)
-        columns = 4;
-      else if (availableWidth > 700)
-        columns = 3;
-      else if (availableWidth > 450)
-        columns = 2;
+      } else if (availableWidth > 1000){
+        columns = 4;}
+      else if (availableWidth > 700){
+        columns = 3;}
+      else if (availableWidth > 450){
+        columns = 2;}
 
       final double spacing = 16.0;
       final double totalSpacing = (columns - 1) * spacing;

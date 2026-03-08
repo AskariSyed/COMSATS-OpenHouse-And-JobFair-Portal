@@ -1,10 +1,8 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 import 'package:shimmer/shimmer.dart';
 
 // Providers & Models
@@ -14,16 +12,9 @@ import 'package:student_job_fair_portal/model/company.dart';
 import 'package:student_job_fair_portal/model/job.dart';
 
 // Widgets
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
-
-// Navigation
-import 'package:student_job_fair_portal/screens/profile.dart';
-import 'package:student_job_fair_portal/screens/job_screen.dart';
-import 'package:student_job_fair_portal/screens/requestScreen.dart';
-import 'package:student_job_fair_portal/widgets/custom_nav_bar.dart';
 
 class CompanyProfileScreen extends StatefulWidget {
   final int companyId;
@@ -41,22 +32,12 @@ class CompanyProfileScreen extends StatefulWidget {
 
 class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
-  late List<CollapsibleItem> _sidebarItems;
   bool _isSendingRequest = false; // Loading state for request button
   bool _isDescriptionExpanded = false;
-
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _sidebarItems = generateSidebarItems(context, setState, 'Companies');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCompanyDetails();
     });
@@ -1322,116 +1303,6 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWebHeader(
-    BuildContext context,
-    dynamic student,
-    String? profileImageUrl,
-  ) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 80,
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.8),
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 30),
-            child: Row(
-              children: [
-                Image.asset('assets/StudentJobFairPortalLogo.png', height: 35),
-                const SizedBox(width: 12),
-                Text(
-                  "COMSATS Job Fair",
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-                const Spacer(),
-                ..._sidebarItems.map((item) {
-                  final isSelected = item.text == 'Companies';
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                    child: TextButton.icon(
-                      onPressed: () {
-                        if (_implementedRoutes.contains(item.text)) {
-                          if (item.text == 'Profile') {
-                            Navigator.pushReplacement(
-                              context,
-                              FadePageRoute(page: const ProfileScreen()),
-                            );
-                          } else if (item.text == 'Companies') {
-                            Navigator.pop(context);
-                          } else if (item.text == 'Jobs') {
-                            Navigator.pushReplacement(
-                              context,
-                              FadePageRoute(page: const JobsScreen()),
-                            );
-                          } else if (item.text == 'Requests') {
-                            Navigator.pushReplacement(
-                              context,
-                              FadePageRoute(page: const RequestsScreen()),
-                            );
-                          }
-                        }
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: isSelected
-                            ? Theme.of(context).primaryColor
-                            : Colors.grey.shade700,
-                        backgroundColor: isSelected
-                            ? Theme.of(
-                                context,
-                              ).primaryColor.withValues(alpha: 0.1)
-                            : Colors.transparent,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 18,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      icon: Icon(item.icon, size: 18),
-                      label: Text(
-                        item.text,
-                        style: TextStyle(
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                const SizedBox(width: 20),
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.grey.shade200,
-                  backgroundImage: profileImageUrl != null
-                      ? NetworkImage(profileImageUrl)
-                      : null,
-                  child: profileImageUrl == null
-                      ? Text(
-                          (student?.user.fullName ?? "U")[0].toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        )
-                      : null,
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

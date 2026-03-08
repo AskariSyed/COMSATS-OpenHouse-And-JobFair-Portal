@@ -21,6 +21,16 @@ export default function App() {
   const [nextIncomingInterview, setNextIncomingInterview] = useState(null);
   const unauthorizedTimerRef = useRef(null);
 
+  const withCompanyAvatar = async (baseUser) => {
+    try {
+      const profile = await getCompanyProfile();
+      const logoUrl = profile?.logoUrl || profile?.LogoUrl || null;
+      return { ...baseUser, avatarUrl: logoUrl };
+    } catch {
+      return baseUser;
+    }
+  };
+
   const registerTokenForSession = async () => {
     try {
       const token = await requestFcmToken();
@@ -45,8 +55,9 @@ export default function App() {
       }
 
       try {
-        await getCompanyProfile();
-        setUser(JSON.parse(savedUser));
+        const hydratedUser = await withCompanyAvatar(JSON.parse(savedUser));
+        localStorage.setItem('user', JSON.stringify(hydratedUser));
+        setUser(hydratedUser);
         setCurrentView('dashboard');
         await registerTokenForSession();
       } catch {
@@ -155,10 +166,12 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleLogin = (authData) => {
+  const handleLogin = async (authData) => {
     localStorage.setItem('token', authData.token);
-    localStorage.setItem('user', JSON.stringify({ name: authData.name, role: authData.role, id: authData.userId }));
-    setUser({ name: authData.name, role: authData.role, id: authData.userId });
+    const baseUser = { name: authData.name, role: authData.role, id: authData.userId };
+    const hydratedUser = await withCompanyAvatar(baseUser);
+    localStorage.setItem('user', JSON.stringify(hydratedUser));
+    setUser(hydratedUser);
     setCurrentView('dashboard');
     showNotification(`Welcome back, ${authData.name}!`);
     registerTokenForSession();

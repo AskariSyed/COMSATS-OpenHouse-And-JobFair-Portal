@@ -18,6 +18,7 @@ const getImageUrl = (path) => {
 };
 
 const StudentsList = () => {
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalCount: 0 });
@@ -103,7 +104,14 @@ const StudentsList = () => {
       setEditLoading(true);
       const updateData = {};
       if (editFormData.email.trim()) updateData.email = editFormData.email.trim();
-      if (editFormData.password.trim()) updateData.password = editFormData.password.trim();
+      if (editFormData.password.trim()) {
+        if (!strongPasswordRegex.test(editFormData.password.trim())) {
+          toast.error('Password must include uppercase, lowercase, number, special character and be at least 8 characters.');
+          setEditLoading(false);
+          return;
+        }
+        updateData.password = editFormData.password.trim();
+      }
 
       if (Object.keys(updateData).length === 0) {
         toast.error('Please update at least one field');

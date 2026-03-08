@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { KeyRound, Mail, ArrowRight, CheckCircle2, Loader2, ChevronLeft, ShieldCheck } from 'lucide-react';
 import { sendPasswordResetOtp, verifyResetOtpAndSetPassword } from '../api';
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function ForgotPasswordPage({ onNavigate }) {
   const [step, setStep] = useState(1); // 1: Email, 2: OTP & New Pass
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,12 @@ export default function ForgotPasswordPage({ onNavigate }) {
 
   const handleReset = async (e) => {
     e.preventDefault();
+    if (!STRONG_PASSWORD_REGEX.test(passwords.new)) {
+      return setMessage({
+        text: 'Password must include uppercase, lowercase, number, special character and be at least 8 characters.',
+        type: 'error',
+      });
+    }
     if (passwords.new !== passwords.confirm) return setMessage({ text: "Passwords don't match", type: "error" });
     setLoading(true);
     try {

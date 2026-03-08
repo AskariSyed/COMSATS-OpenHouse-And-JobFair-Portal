@@ -24,8 +24,8 @@ class PasswordValidator {
     }
 
     // Check for at least one special character
-    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
-      return 'Password must contain at least one special character (!@#\$%^&*...)';
+    if (!password.contains(RegExp(r'[^A-Za-z0-9]'))) {
+      return 'Password must contain at least one special character';
     }
 
     return null; // Password is valid
@@ -37,7 +37,7 @@ class PasswordValidator {
         '• Contain at least one uppercase letter (A-Z)\n'
         '• Contain at least one lowercase letter (a-z)\n'
         '• Contain at least one number (0-9)\n'
-        '• Contain at least one special character (!@#\$%^&*...)';
+        '• Contain at least one special character';
   }
 
   static Map<String, bool> getPasswordStrength(String password) {
@@ -46,7 +46,7 @@ class PasswordValidator {
       'uppercase': password.contains(RegExp(r'[A-Z]')),
       'lowercase': password.contains(RegExp(r'[a-z]')),
       'number': password.contains(RegExp(r'[0-9]')),
-      'special': password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]')),
+      'special': password.contains(RegExp(r'[^A-Za-z0-9]')),
     };
   }
 }

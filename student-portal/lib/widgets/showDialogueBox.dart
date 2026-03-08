@@ -370,21 +370,23 @@ void showUpdatePhoneDialog(BuildContext context) {
     content: TextField(
       controller: phoneCtrl,
       keyboardType: TextInputType.phone,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       decoration: const InputDecoration(
         labelText: "Phone Number",
-        hintText: "e.g. +92 300 1234567",
+        hintText: "e.g. 03001234567",
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.phone),
       ),
     ),
     onSave: () async {
-      if (phoneCtrl.text.trim().isEmpty) {
-        throw Exception("Phone number cannot be empty.");
+      final phone = phoneCtrl.text.trim();
+      if (!RegExp(r'^\d{11}$').hasMatch(phone)) {
+        throw Exception("Phone number must be exactly 11 digits.");
       }
       await Provider.of<StudentProvider>(
         context,
         listen: false,
-      ).updatePhoneNumber(phoneCtrl.text.trim());
+      ).updatePhoneNumber(phone);
     },
   );
 }
@@ -395,69 +397,152 @@ void showAddEducationDialog(BuildContext context) {
   final fieldCtrl = TextEditingController();
   final startCtrl = TextEditingController();
   final endCtrl = TextEditingController();
-  final cgpaCtrl = TextEditingController();
+  final percentageCtrl = TextEditingController();
+  final marksObtainedCtrl = TextEditingController();
+  final totalMarksCtrl = TextEditingController();
+  String gradingType = 'CGPA';
+
+  double? resolveCgpaValue() {
+    if (gradingType == 'CGPA') {
+      final cgpa = double.tryParse(percentageCtrl.text.trim());
+      if (cgpa == null || cgpa < 0 || cgpa > 4.0) {
+        throw Exception('CGPA must be between 0.00 and 4.00.');
+      }
+      return cgpa;
+    }
+
+    if (gradingType == 'Percentage') {
+      final percentage = double.tryParse(percentageCtrl.text.trim());
+      if (percentage == null || percentage < 0 || percentage > 100) {
+        throw Exception('Percentage must be between 0 and 100.');
+      }
+      return (percentage / 25.0).clamp(0.0, 4.0);
+    }
+
+    final obtained = double.tryParse(marksObtainedCtrl.text.trim());
+    final total = double.tryParse(totalMarksCtrl.text.trim());
+    if (obtained == null || total == null || total <= 0) {
+      throw Exception('Provide valid obtained and total marks.');
+    }
+    if (obtained < 0 || obtained > total) {
+      throw Exception('Obtained marks must be between 0 and total marks.');
+    }
+    return ((obtained / total) * 4.0).clamp(0.0, 4.0);
+  }
 
   showGenericDialog(
     context: context,
     title: "Add Education",
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: institutionCtrl,
-          decoration: const InputDecoration(labelText: "Institution Name"),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: degreeCtrl,
-          decoration: const InputDecoration(labelText: "Degree"),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: fieldCtrl,
-          decoration: const InputDecoration(
-            labelText: "Field of Study (e.g. CS)",
+    content: StatefulBuilder(
+      builder: (ctx, setStateDialog) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: institutionCtrl,
+            decoration: const InputDecoration(labelText: "Institution Name"),
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: startCtrl,
-          readOnly: true,
-          onTap: () => selectDate(context, startCtrl),
-          decoration: const InputDecoration(
-            labelText: "Start Date",
-            hintText: "YYYY-MM-DD",
-            suffixIcon: Icon(Icons.calendar_today),
+          const SizedBox(height: 10),
+          TextField(
+            controller: degreeCtrl,
+            decoration: const InputDecoration(labelText: "Degree"),
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: endCtrl,
-          readOnly: true,
-          onTap: () => selectDate(context, endCtrl),
-          decoration: const InputDecoration(
-            labelText: "End Date",
-            hintText: "Leave empty if current",
-            suffixIcon: Icon(Icons.calendar_today),
+          const SizedBox(height: 10),
+          TextField(
+            controller: fieldCtrl,
+            decoration: const InputDecoration(
+              labelText: "Field of Study (e.g. CS)",
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: cgpaCtrl,
-          decoration: const InputDecoration(labelText: "CGPA (Optional)"),
-          keyboardType: TextInputType.number,
-        ),
-      ],
+          const SizedBox(height: 10),
+          TextField(
+            controller: startCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, startCtrl),
+            decoration: const InputDecoration(
+              labelText: "Start Date",
+              hintText: "YYYY-MM-DD",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: endCtrl,
+            readOnly: true,
+            onTap: () => selectDate(context, endCtrl),
+            decoration: const InputDecoration(
+              labelText: "End Date",
+              hintText: "Leave empty if current",
+              suffixIcon: Icon(Icons.calendar_today),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: gradingType,
+            decoration: const InputDecoration(labelText: 'Grading Type'),
+            items: const [
+              DropdownMenuItem(value: 'CGPA', child: Text('CGPA (0 - 4.0)')),
+              DropdownMenuItem(
+                value: 'Percentage',
+                child: Text('Percentage (0 - 100)'),
+              ),
+              DropdownMenuItem(
+                value: 'Marks',
+                child: Text('Marks Obtained / Total Marks'),
+              ),
+            ],
+            onChanged: (val) {
+              if (val == null) return;
+              setStateDialog(() => gradingType = val);
+            },
+          ),
+          const SizedBox(height: 10),
+          if (gradingType == 'Marks') ...[
+            TextField(
+              controller: marksObtainedCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Marks Obtained'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: totalMarksCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Total Marks'),
+            ),
+          ] else ...[
+            TextField(
+              controller: percentageCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: gradingType == 'CGPA' ? 'CGPA' : 'Percentage',
+              ),
+            ),
+          ],
+        ],
+      ),
     ),
     onSave: () async {
+      if (institutionCtrl.text.trim().isEmpty ||
+          degreeCtrl.text.trim().isEmpty ||
+          startCtrl.text.trim().isEmpty) {
+        throw Exception('Institution, degree, and start date are required.');
+      }
+
+      final cgpa = resolveCgpaValue();
+
       await Provider.of<StudentProvider>(context, listen: false).addEducation({
-        "institutionName": institutionCtrl.text,
-        "degree": degreeCtrl.text,
-        "fieldOfStudy": fieldCtrl.text,
+        "institutionName": institutionCtrl.text.trim(),
+        "degree": degreeCtrl.text.trim(),
+        "fieldOfStudy": fieldCtrl.text.trim(),
         "startDate": "${startCtrl.text}T00:00:00Z",
         "endDate": endCtrl.text.isNotEmpty ? "${endCtrl.text}T00:00:00Z" : null,
         "isCurrent": endCtrl.text.isEmpty,
-        "cgpa": double.tryParse(cgpaCtrl.text) ?? 0.0,
+        "cgpa": cgpa,
       });
     },
   );

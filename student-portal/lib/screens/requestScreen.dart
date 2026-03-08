@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 
 // Mixins & Models
 import 'package:student_job_fair_portal/mixins/enums.dart';
@@ -17,7 +16,6 @@ import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 
 // Widgets
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 // 👈 Import for Bottom Nav
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
@@ -39,16 +37,7 @@ class _RequestsScreenState extends State<RequestsScreen>
 
   // Web State
   int _webTabIndex = 0; // 0 = Sent, 1 = Received
-  late List<CollapsibleItem> _sidebarItems;
   final String _serverBaseUrl = "http://192.168.137.1:5158";
-
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-  ];
 
   @override
   void initState() {
@@ -60,9 +49,6 @@ class _RequestsScreenState extends State<RequestsScreen>
       initialIndex: safeInitialIndex,
     );
     _webTabIndex = safeInitialIndex;
-
-    // Initialize Sidebar for Web
-    _sidebarItems = generateSidebarItems(context, setState, 'Requests');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<StudentProvider>(

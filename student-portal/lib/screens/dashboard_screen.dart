@@ -35,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<StudentProvider>(context, listen: false);
+      provider.fetchProfile();
       provider.fetchDashboardData();
       provider.fetchInterviewRequests();
       provider.fetchScheduledInterviews();
@@ -125,9 +126,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final studentProvider = Provider.of<StudentProvider>(context);
     final dashboardData = studentProvider.dashboardData;
     if (dashboardData != null) {
-      final studentCvMissing =
-          studentProvider.student?.cvUrl == null ||
-          studentProvider.student!.cvUrl!.isEmpty;
+      final providerCv = studentProvider.student?.cvUrl?.trim() ?? '';
+      final studentCvMissing = providerCv.isEmpty;
 
       if (!_hasShownCvPrompt &&
           dashboardData.studentProfile.completeness >= 100 &&

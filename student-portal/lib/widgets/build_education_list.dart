@@ -24,12 +24,48 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
 
     final startCtrl = TextEditingController(text: toDateString(edu.startDate));
     final endCtrl = TextEditingController(text: toDateString(edu.endDate));
-    final cgpaCtrl = TextEditingController(text: edu.cgpa?.toString() ?? '');
+    final gradeValueCtrl = TextEditingController(
+      text: edu.cgpa != null ? edu.cgpa!.toStringAsFixed(2) : '',
+    );
+    final marksObtainedCtrl = TextEditingController();
+    final totalMarksCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) {
         bool isSaving = false;
+        String gradingType = 'CGPA';
+
+        double resolveCgpa() {
+          if (gradingType == 'CGPA') {
+            final cgpa = double.tryParse(gradeValueCtrl.text.trim());
+            if (cgpa == null || cgpa < 0 || cgpa > 4.0) {
+              throw Exception('CGPA must be between 0.00 and 4.00.');
+            }
+            return cgpa;
+          }
+
+          if (gradingType == 'Percentage') {
+            final percentage = double.tryParse(gradeValueCtrl.text.trim());
+            if (percentage == null || percentage < 0 || percentage > 100) {
+              throw Exception('Percentage must be between 0 and 100.');
+            }
+            return (percentage / 25.0).clamp(0.0, 4.0);
+          }
+
+          final obtained = double.tryParse(marksObtainedCtrl.text.trim());
+          final total = double.tryParse(totalMarksCtrl.text.trim());
+          if (obtained == null || total == null || total <= 0) {
+            throw Exception('Provide valid obtained and total marks.');
+          }
+          if (obtained < 0 || obtained > total) {
+            throw Exception(
+              'Obtained marks must be between 0 and total marks.',
+            );
+          }
+          return ((obtained / total) * 4.0).clamp(0.0, 4.0);
+        }
+
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -74,11 +110,64 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      TextField(
-                        controller: cgpaCtrl,
-                        decoration: const InputDecoration(labelText: "CGPA"),
-                        keyboardType: TextInputType.number,
+                      DropdownButtonFormField<String>(
+                        value: gradingType,
+                        decoration: const InputDecoration(
+                          labelText: 'Grading Type',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'CGPA',
+                            child: Text('CGPA (0 - 4.0)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Percentage',
+                            child: Text('Percentage (0 - 100)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Marks',
+                            child: Text('Marks Obtained / Total Marks'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setState(() => gradingType = val);
+                        },
                       ),
+                      const SizedBox(height: 10),
+                      if (gradingType == 'Marks') ...[
+                        TextField(
+                          controller: marksObtainedCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Marks Obtained',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: totalMarksCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Total Marks',
+                          ),
+                        ),
+                      ] else ...[
+                        TextField(
+                          controller: gradeValueCtrl,
+                          decoration: InputDecoration(
+                            labelText: gradingType == 'CGPA'
+                                ? 'CGPA'
+                                : 'Percentage',
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -108,13 +197,16 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                                   ? "${endCtrl.text}T00:00:00Z"
                                   : null,
                               "isCurrent": endCtrl.text.isEmpty,
-                              "cgpa": double.tryParse(cgpaCtrl.text) ?? 0.0,
+                              "cgpa": resolveCgpa(),
                             };
 
-                            await Provider.of<StudentProvider>(
+                            final success = await Provider.of<StudentProvider>(
                               context,
                               listen: false,
                             ).updateEducation(edu.educationId, updateData);
+                            if (!success) {
+                              throw Exception('Failed to update education.');
+                            }
 
                             if (ctx.mounted) Navigator.pop(ctx);
 
@@ -227,12 +319,13 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
       int columns = 1;
       if (availableWidth > 1350) {
         columns = 5;
-      } else if (availableWidth > 1000)
+      } else if (availableWidth > 1000) {
         columns = 4;
-      else if (availableWidth > 700)
+      } else if (availableWidth > 700) {
         columns = 3;
-      else if (availableWidth > 450)
+      } else if (availableWidth > 450) {
         columns = 2;
+      }
 
       final double spacing = 16.0;
       final double totalSpacing = (columns - 1) * spacing;

@@ -7,7 +7,7 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 Future<dynamic> showGenericDialog({
   required String title,
   required Widget content,
-  required Future<void> Function() onSave,
+  required Future<dynamic> Function() onSave,
   required BuildContext context,
   bool mounted = true,
 }) {
@@ -118,7 +118,10 @@ Future<dynamic> showGenericDialog({
                               : () async {
                                   setState(() => isSaving = true);
                                   try {
-                                    await onSave();
+                                    final result = await onSave();
+                                    if (result is bool && result == false) {
+                                      throw Exception('Save operation failed.');
+                                    }
                                     // 🔹 Refresh data after saving
                                     if (mounted) {
                                       await Provider.of<StudentProvider>(

@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:collapsible_sidebar/collapsible_sidebar.dart';
 import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shimmer/shimmer.dart';
@@ -17,7 +16,6 @@ import 'package:student_job_fair_portal/model/company.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
-import 'package:student_job_fair_portal/widgets/generate_sidebaritem.dart';
 
 class CompaniesScreen extends StatefulWidget {
   const CompaniesScreen({super.key});
@@ -28,26 +26,14 @@ class CompaniesScreen extends StatefulWidget {
 
 class _CompaniesScreenState extends State<CompaniesScreen> {
   final String _serverBaseUrl = "http://192.168.137.1:5158";
-  late List<CollapsibleItem> _sidebarItems;
-  final String _currentRoute = 'Companies';
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIndustries = {};
   bool _showOnlyHiring = false;
   String _selectedSortOption = 'Name (A-Z)'; // Default sort
 
-  final List<String> _implementedRoutes = [
-    'Profile',
-    'Dashboard',
-    'Companies',
-    'Jobs',
-    'Requests',
-    'Interviews',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _sidebarItems = generateSidebarItems(context, setState, _currentRoute);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
@@ -206,12 +192,6 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
           // ==================================================================
           // WEB LAYOUT (Themed)
           // ==================================================================
-          _sidebarItems = generateSidebarItems(
-            context,
-            setState,
-            _currentRoute,
-          );
-
           return Scaffold(
             backgroundColor: scaffoldBg, // 🔹 Theme
             body: Stack(
@@ -643,26 +623,6 @@ class CompanyCard extends StatefulWidget {
 class _CompanyCardState extends State<CompanyCard> {
   bool _isExpanded = false;
 
-  // ... (Keep _getJobTypeString, _buildStatusBadge, _buildSkillMatchIndicator logic same) ...
-  // [Omitted for brevity, logic handles colors internally]
-
-  String _getJobTypeString(int type) {
-    switch (type) {
-      case 0:
-        return "Full Time";
-      case 1:
-        return "Part Time";
-      case 2:
-        return "Internship";
-      case 3:
-        return "Remote";
-      case 4:
-        return "Onsite";
-      default:
-        return "Other";
-    }
-  }
-
   Widget _buildStatusBadge() {
     final req = widget.company.interviewRequest;
     if (req == null) return const SizedBox.shrink();
@@ -776,6 +736,10 @@ class _CompanyCardState extends State<CompanyCard> {
   @override
   Widget build(BuildContext context) {
     final company = widget.company;
+    final hasDescription =
+        company.description != null && company.description!.trim().isNotEmpty;
+    final hasJobs = company.jobs.isNotEmpty;
+    final hasExpandableContent = hasDescription || hasJobs;
     final String? logoUrl =
         (company.logoUrl != null && company.logoUrl!.isNotEmpty)
         ? (company.logoUrl!.startsWith('http')
@@ -884,21 +848,22 @@ class _CompanyCardState extends State<CompanyCard> {
                       ],
                     ),
                   ),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => setState(() => _isExpanded = !_isExpanded),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: AnimatedRotation(
-                        turns: _isExpanded ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          Icons.keyboard_arrow_down,
-                          color: subTextColor,
-                        ), // 🔹 Theme
+                  if (hasExpandableContent)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => setState(() => _isExpanded = !_isExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: AnimatedRotation(
+                          turns: _isExpanded ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            Icons.keyboard_arrow_down,
+                            color: subTextColor,
+                          ), // 🔹 Theme
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1007,14 +972,13 @@ class _CompanyCardState extends State<CompanyCard> {
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
                 alignment: Alignment.topCenter,
-                child: _isExpanded
+                child: (_isExpanded && hasExpandableContent)
                     ? Column(
                         children: [
                           const SizedBox(height: 16),
                           Divider(color: dividerColor.withValues(alpha: 0.1)),
                           const SizedBox(height: 8),
-                          if (company.description != null &&
-                              company.description!.trim().isNotEmpty)
+                          if (hasDescription)
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
@@ -1030,7 +994,7 @@ class _CompanyCardState extends State<CompanyCard> {
                             ),
                           const SizedBox(height: 16),
                           // Job List (Using basic list for brevity, logic remains same)
-                          if (company.jobs.isNotEmpty)
+                          if (hasJobs)
                             ...company.jobs.map(
                               (job) => Padding(
                                 padding: const EdgeInsets.symmetric(

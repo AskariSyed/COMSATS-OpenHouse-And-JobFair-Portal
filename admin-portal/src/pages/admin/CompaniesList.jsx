@@ -56,9 +56,14 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
     focalPersonPhone: '' // Added
   });
   const [loading, setLoading] = useState(false);
+  const phoneRegex = /^\d{11}$/;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!phoneRegex.test(String(formData.focalPersonPhone || '').trim())) {
+      toast.error('Phone number must be exactly 11 digits.');
+      return;
+    }
     setLoading(true);
     try {
       await api.post('/admin/companies/onspot', formData);
@@ -147,8 +152,11 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
               <input 
                 type="tel" 
                 required
+                inputMode="numeric"
+                maxLength={11}
+                pattern="\d{11}"
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                placeholder="0300-1234567"
+                placeholder="03001234567"
                 value={formData.focalPersonPhone}
                 onChange={(e) => setFormData({...formData, focalPersonPhone: e.target.value})}
               />

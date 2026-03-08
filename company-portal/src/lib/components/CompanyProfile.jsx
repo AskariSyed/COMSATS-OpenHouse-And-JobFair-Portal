@@ -5,6 +5,9 @@ import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Brief
 import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword, getCompanyHistoricalAnalytics, copyJobToCurrentJobFair } from '../api';
 import { allSkillsList } from '../../data/skills';
 
+const PHONE_11_REGEX = /^\d{11}$/;
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function CompanyProfile({ onError, onSuccess }) {
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState(null);
@@ -616,6 +619,10 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       onError('Representatives must be between 1 and 100.');
       return;
     }
+    if (!PHONE_11_REGEX.test(String(formData.contactInfo.phone || '').trim())) {
+      onError('Official phone must be exactly 11 digits.');
+      return;
+    }
     setLoading(true);
     try {
       const data = new FormData();
@@ -644,7 +651,15 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
            {showContact && (
              <>
                <Input label="Official Email" value={formData.contactInfo.email} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, email: e.target.value}})} />
-               <Input label="Official Phone" value={formData.contactInfo.phone} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, phone: e.target.value}})} />
+               <Input
+                 label="Official Phone"
+                 value={formData.contactInfo.phone}
+                 onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, phone: e.target.value.replace(/\D/g, '').slice(0, 11)}})}
+                 type="tel"
+                 inputMode="numeric"
+                 maxLength={11}
+                 pattern="\d{11}"
+               />
              </>
            )}
 
@@ -729,8 +744,8 @@ function PasswordModal({ onClose, onError }) {
     }
     if (!form.newPassword) {
       nextErrors.newPassword = 'New password is required';
-    } else if (form.newPassword.length < 8) {
-      nextErrors.newPassword = 'New password must be at least 8 characters';
+    } else if (!STRONG_PASSWORD_REGEX.test(form.newPassword)) {
+      nextErrors.newPassword = 'Use 8+ chars with uppercase, lowercase, number, and special character';
     }
     if (!form.confirmPassword) {
       nextErrors.confirmPassword = 'Confirm password is required';

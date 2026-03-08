@@ -41,8 +41,8 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
   };
 
   const validatePassword = (password) => {
-    // At least 8 characters, one uppercase, one lowercase, one digit, one special character
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    // At least 8 chars, one uppercase, one lowercase, one digit, one special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
     return passwordRegex.test(password);
   };
 
@@ -213,7 +213,7 @@ export default function RegisterPage({ onNavigate, onSuccess, onError }) {
                    <InputGroup label="Direct Phone" icon={Phone} name="FocalPersonPhone" value={formData.FocalPersonPhone} onChange={handleChange} placeholder="03001234567" pattern="\d{11}" title="Phone number must be exactly 11 digits" />
                  </div>
                  <InputGroup label="Work Email (Login ID)" icon={Mail} type="email" name="UserEmail" value={formData.UserEmail} onChange={handleChange} placeholder="ali@company.com" />
-                 <InputGroup label="Password" icon={CheckCircle2} type="password" name="UserPassword" value={formData.UserPassword} onChange={handleChange} placeholder="Create a strong password" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}" title="Password must be at least 8 characters with one uppercase, one lowercase, one digit, and one special character (@$!%*?&)" />
+                 <InputGroup label="Password" icon={CheckCircle2} type="password" name="UserPassword" value={formData.UserPassword} onChange={handleChange} placeholder="Create a strong password" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Password must be at least 8 characters with one uppercase, one lowercase, one digit, and one special character." />
                </div>
              )}
 

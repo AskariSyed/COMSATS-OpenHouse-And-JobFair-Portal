@@ -1,5 +1,5 @@
 /* eslint-disable no-empty */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import signalrSvc from '../../services/signalr';
 
@@ -19,6 +19,14 @@ const CompanyRequests = () => {
   const activeJobFairIdRef = useRef(null);
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5158';
+
+  const filteredRequests = useMemo(
+    () =>
+      requests.filter(
+        (r) => !searchTerm || (r.CompanyName && r.CompanyName.toLowerCase().includes(searchTerm.toLowerCase()))
+      ),
+    [requests, searchTerm]
+  );
 
   useEffect(() => {
     fetchActiveJobFairAndList();
@@ -187,7 +195,7 @@ const CompanyRequests = () => {
           <select 
             value={filterStatus} 
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm w-full sm:w-auto"
           >
             <option value="">All Statuses</option>
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -212,7 +220,7 @@ const CompanyRequests = () => {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {STATUSES.map(status => {
           const count = requests.filter(r => r.Status === status).length;
           return (
@@ -224,8 +232,88 @@ const CompanyRequests = () => {
         })}
       </div>
 
-      {/* Data Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 animate-pulse">
+              <div className="h-4 bg-gray-100 rounded w-1/3 mb-3"></div>
+              <div className="h-3 bg-gray-100 rounded w-full mb-2"></div>
+              <div className="h-3 bg-gray-100 rounded w-2/3"></div>
+            </div>
+          ))
+        ) : filteredRequests.length > 0 ? (
+          filteredRequests.map((r) => {
+            const createdDateTime = r.CreatedAt ? new Date(r.CreatedAt) : null;
+            const createdDate = createdDateTime
+              ? createdDateTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'Unknown';
+            const createdTime = createdDateTime
+              ? createdDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              : '';
+
+            const fulfilledDateTime = r.FulfilledAt ? new Date(r.FulfilledAt) : null;
+            const fulfilledDate = fulfilledDateTime
+              ? fulfilledDateTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : null;
+
+            return (
+              <div key={r.CompanyRequestId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Request #{r.CompanyRequestId}</p>
+                    <p className="font-semibold text-gray-900">{r.CompanyName || `Company ${r.CompanyId}`}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    r.Status === 'Fulfilled' ? 'bg-green-100 text-green-800' :
+                    r.Status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                    r.Status === 'InProgress' ? 'bg-blue-100 text-blue-800' :
+                    r.Status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {r.Status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <p className="text-gray-500">Type</p>
+                    <p className="font-medium text-gray-800">{r.Type || 'Unknown'}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <p className="text-gray-500">Quantity</p>
+                    <p className="font-bold text-gray-900">{r.Quantity}</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p><span className="text-gray-500">Created:</span> {createdDate} {createdTime}</p>
+                  <p><span className="text-gray-500">Fulfilled:</span> {fulfilledDate || 'Not fulfilled yet'}</p>
+                </div>
+
+                <div className="text-sm text-gray-700 break-words">
+                  {r.Description || 'No description'}
+                  {r.AdditionalInfo && <p className="text-xs text-gray-500 mt-1">{r.AdditionalInfo}</p>}
+                  {r.AdminNote && <p className="text-xs text-amber-700 mt-1">Note: {r.AdminNote}</p>}
+                </div>
+
+                <select
+                  value={r.Status}
+                  onChange={(e) => updateStatus(r.CompanyRequestId, e.target.value, r.AdminNote)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-500">No requests found</div>
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -248,10 +336,8 @@ const CompanyRequests = () => {
                     <td colSpan="9" className="px-6 py-4"><div className="h-10 bg-gray-100 rounded w-full"></div></td>
                   </tr>
                 ))
-              ) : requests.length > 0 ? (
-                requests
-                  .filter(r => !searchTerm || (r.CompanyName && r.CompanyName.toLowerCase().includes(searchTerm.toLowerCase())))
-                  .map(r => {
+              ) : filteredRequests.length > 0 ? (
+                filteredRequests.map(r => {
                     const createdDateTime = r.CreatedAt ? new Date(r.CreatedAt) : null;
                     const createdDate = createdDateTime ? createdDateTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
                     const createdTime = createdDateTime ? createdDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -345,7 +431,7 @@ const CompanyRequests = () => {
                   })
               ) : (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
                     No requests found
                   </td>
                 </tr>

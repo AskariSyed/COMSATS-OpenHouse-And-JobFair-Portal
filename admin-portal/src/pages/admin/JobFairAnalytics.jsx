@@ -159,6 +159,97 @@ const JobFairAnalytics = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const downloadDetailPDF = () => {
+    if (!detailModal.rows?.length) return;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(16);
+    doc.setTextColor(79, 70, 229);
+    doc.text(detailModal.title, 40, 40);
+    doc.setFontSize(10);
+    doc.setTextColor(110);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+
+    let head = [];
+    let body = [];
+
+    if (detailModal.type === 'students') {
+      head = [['Name', 'Registration', 'Department', 'CGPA', 'Interviews', 'Hired', 'Shortlisted']];
+      body = detailModal.rows.map((s) => [
+        s.name || '-',
+        s.registrationNo || '-',
+        s.department || '-',
+        Number(s.cgpa ?? 0).toFixed(2),
+        s.interviewCount ?? 0,
+        s.hired ? 'Yes' : 'No',
+        s.shortlisted ? 'Yes' : 'No'
+      ]);
+    }
+
+    if (detailModal.type === 'companies') {
+      head = [['Company', 'Industry', 'Present', 'Jobs', 'Interviews', 'Hired', 'Shortlisted', 'Rejected', 'Pending']];
+      body = detailModal.rows.map((c) => [
+        c.companyName || '-',
+        c.industry || '-',
+        c.isPresent ? 'Yes' : 'No',
+        c.totalJobOpenings ?? 0,
+        c.totalInterviews ?? 0,
+        c.hiredCount ?? 0,
+        c.shortlistedCount ?? 0,
+        c.rejectedCount ?? 0,
+        c.pendingCount ?? 0
+      ]);
+    }
+
+    if (detailModal.type === 'jobs') {
+      head = [['Job Title', 'Company', 'Type', 'Location', 'Salary', 'Active']];
+      body = detailModal.rows.map((j) => [
+        j.jobTitle || '-',
+        j.companyName || '-',
+        j.jobType || '-',
+        j.location || '-',
+        j.salaryRange || '-',
+        j.isActive ? 'Yes' : 'No'
+      ]);
+    }
+
+    if (detailModal.type === 'interviews') {
+      head = [['Company', 'Student', 'Registration', 'Scheduled', 'Start', 'End', 'Result', 'Room', 'Duration (min)']];
+      body = detailModal.rows.map((i) => [
+        i.companyName || '-',
+        i.studentName || '-',
+        i.studentRegistrationNo || '-',
+        i.scheduledTime ? new Date(i.scheduledTime).toLocaleString() : '-',
+        i.startedAt ? new Date(i.startedAt).toLocaleString() : '-',
+        i.endedAt ? new Date(i.endedAt).toLocaleString() : '-',
+        i.result || '-',
+        i.roomNo || '-',
+        i.durationMinutes ?? '-'
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 76,
+      head,
+      body,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [79, 70, 229] },
+      margin: { left: 40, right: 40 }
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(140);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - 80, doc.internal.pageSize.getHeight() - 16);
+    }
+
+    doc.save(`${detailModal.type}_jobfair_${selectedFairId}.pdf`);
+  };
+
   // 1. Fetch Job Fairs
   useEffect(() => {
     const fetchFairs = async () => {
@@ -210,23 +301,41 @@ const JobFairAnalytics = () => {
       // Get current job fair info
       const currentFair = fairs.find(f => f.jobFairId === selectedFairId);
       
-      // Initialize PDF
-      const doc = new jsPDF();
+      // Initialize PDF in landscape for large analytics tables
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      const addSectionTitle = (title, y) => {
+        doc.setFontSize(13);
+        doc.setTextColor(31, 41, 55);
+        doc.text(title, 40, y);
+      };
+
+      const ensureSpace = (currentY, needed = 130) => {
+        if (currentY + needed > pageHeight - 40) {
+          doc.addPage();
+          return 40;
+        }
+        return currentY;
+      };
+
+      let y = 40;
 
       // --- Header ---
       doc.setFontSize(22);
       doc.setTextColor(79, 70, 229); // Indigo Color
-      doc.text("Job Fair Impact Report", 14, 20);
+      doc.text("Job Fair Comprehensive Impact Report", 40, y);
       
       doc.setFontSize(12);
       doc.setTextColor(100);
-      doc.text(`Event: ${currentFair?.semester || 'N/A'}`, 14, 30);
-      doc.text(`Date: ${currentFair ? new Date(currentFair.date).toLocaleDateString() : 'N/A'}`, 14, 36);
+      doc.text(`Event: ${currentFair?.semester || 'N/A'}`, 40, y + 18);
+      doc.text(`Date: ${currentFair ? new Date(currentFair.date).toLocaleDateString() : 'N/A'}`, 40, y + 34);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, y + 50);
 
       // --- Executive Summary Section ---
-      doc.setFontSize(14);
-      doc.setTextColor(0);
-      doc.text("Executive Summary", 14, 50);
+      y = 112;
+      addSectionTitle('Executive Summary', y);
       
       const summaryData = [
         ['Total Students', data.overallStats.totalStudents],
@@ -239,19 +348,19 @@ const JobFairAnalytics = () => {
       ];
 
       autoTable(doc, {
-        startY: 55,
+        startY: y + 10,
         head: [['Metric', 'Value']],
         body: summaryData,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229] }, // Indigo header
         styles: { fontSize: 10 },
-        columnStyles: { 0: { fontStyle: 'bold' } }
+        columnStyles: { 0: { fontStyle: 'bold' } },
+        margin: { left: 40, right: 40 }
       });
 
-      // --- Top Recruiters Table ---
-      let finalY = doc.lastAutoTable.finalY + 15;
-      doc.setFontSize(14);
-      doc.text("Top Recruiters", 14, finalY);
+      y = doc.lastAutoTable.finalY + 20;
+      y = ensureSpace(y, 180);
+      addSectionTitle('Top Recruiters', y);
 
       const recruiterData = (data?.companyParticipation || []).slice(0, 10).map(c => [
         c.companyName, 
@@ -260,17 +369,17 @@ const JobFairAnalytics = () => {
       ]);
 
       autoTable(doc, {
-        startY: finalY + 5,
+        startY: y + 8,
         head: [['Company', 'Interviews', 'Hires']],
         body: recruiterData,
         theme: 'grid',
         headStyles: { fillColor: [16, 185, 129] }, // Emerald header
+        margin: { left: 40, right: 40 },
       });
 
-      // --- Department Performance Table ---
-      finalY = doc.lastAutoTable.finalY + 15;
-      doc.setFontSize(14);
-      doc.text("Department Performance", 14, finalY);
+      y = doc.lastAutoTable.finalY + 20;
+      y = ensureSpace(y, 180);
+      addSectionTitle('Department Hiring Performance', y);
 
       const deptData = (data?.studentsByDepartment || []).map(d => [
         d.department,
@@ -279,17 +388,17 @@ const JobFairAnalytics = () => {
       ]);
 
       autoTable(doc, {
-        startY: finalY + 5,
+        startY: y + 8,
         head: [['Department', 'Total Students', 'Hired']],
         body: deptData,
         theme: 'grid',
         headStyles: { fillColor: [245, 158, 11] }, // Amber header
+        margin: { left: 40, right: 40 },
       });
 
-      // --- Top Students Table ---
-      finalY = doc.lastAutoTable.finalY + 15;
-      doc.setFontSize(14);
-      doc.text("Top Performing Students", 14, finalY);
+      y = doc.lastAutoTable.finalY + 20;
+      y = ensureSpace(y, 220);
+      addSectionTitle('Top Performing Students', y);
 
       const studentData = (data?.topStudents || []).slice(0, 10).map(s => [
         s.name,
@@ -299,12 +408,95 @@ const JobFairAnalytics = () => {
       ]);
 
       autoTable(doc, {
-        startY: finalY + 5,
+        startY: y + 8,
         head: [['Name', 'Department', 'CGPA', 'Hired']],
         body: studentData,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241] }, // Indigo header
+        margin: { left: 40, right: 40 },
       });
+
+      const detailedLists = data?.detailedLists || {};
+
+      const appendDetailedTable = (title, head, body, color) => {
+        if (!body || body.length === 0) return;
+        y = doc.lastAutoTable.finalY + 20;
+        y = ensureSpace(y, 200);
+        addSectionTitle(title, y);
+
+        autoTable(doc, {
+          startY: y + 8,
+          head: [head],
+          body,
+          theme: 'striped',
+          styles: { fontSize: 8, cellPadding: 4 },
+          headStyles: { fillColor: color },
+          margin: { left: 40, right: 40 }
+        });
+      };
+
+      appendDetailedTable(
+        'Detailed Student Participation',
+        ['Name', 'Registration', 'Department', 'CGPA', 'Interviews', 'Hired', 'Shortlisted'],
+        (detailedLists.students || []).map((s) => [
+          s.name || '-',
+          s.registrationNo || '-',
+          s.department || '-',
+          Number(s.cgpa ?? 0).toFixed(2),
+          s.interviewCount ?? 0,
+          s.hired ? 'Yes' : 'No',
+          s.shortlisted ? 'Yes' : 'No'
+        ]),
+        [59, 130, 246]
+      );
+
+      appendDetailedTable(
+        'Detailed Company Participation',
+        ['Company', 'Industry', 'Present', 'Jobs', 'Interviews', 'Hired', 'Shortlisted', 'Rejected', 'Pending'],
+        (detailedLists.companies || []).map((c) => [
+          c.companyName || '-',
+          c.industry || '-',
+          c.isPresent ? 'Yes' : 'No',
+          c.totalJobOpenings ?? 0,
+          c.totalInterviews ?? 0,
+          c.hiredCount ?? 0,
+          c.shortlistedCount ?? 0,
+          c.rejectedCount ?? 0,
+          c.pendingCount ?? 0
+        ]),
+        [16, 185, 129]
+      );
+
+      appendDetailedTable(
+        'Detailed Job Openings',
+        ['Job Title', 'Company', 'Type', 'Location', 'Salary', 'Active'],
+        (detailedLists.jobOpenings || []).map((j) => [
+          j.jobTitle || '-',
+          j.companyName || '-',
+          j.jobType || '-',
+          j.location || '-',
+          j.salaryRange || '-',
+          j.isActive ? 'Yes' : 'No'
+        ]),
+        [245, 158, 11]
+      );
+
+      appendDetailedTable(
+        'Detailed Interview Outcomes',
+        ['Company', 'Student', 'Registration', 'Scheduled', 'Start', 'End', 'Result', 'Room', 'Duration'],
+        (detailedLists.interviews || []).map((i) => [
+          i.companyName || '-',
+          i.studentName || '-',
+          i.studentRegistrationNo || '-',
+          i.scheduledTime ? new Date(i.scheduledTime).toLocaleString() : '-',
+          i.startedAt ? new Date(i.startedAt).toLocaleString() : '-',
+          i.endedAt ? new Date(i.endedAt).toLocaleString() : '-',
+          i.result || '-',
+          i.roomNo || '-',
+          i.durationMinutes ?? '-'
+        ]),
+        [99, 102, 241]
+      );
 
       // --- Footer ---
       const pageCount = doc.internal.getNumberOfPages();
@@ -312,7 +504,7 @@ const JobFairAnalytics = () => {
         doc.setPage(i);
         doc.setFontSize(10);
         doc.setTextColor(150);
-        doc.text(`Page ${i} of ${pageCount} - Generated by JobFair Portal`, 105, 290, { align: 'center' });
+        doc.text(`Page ${i} of ${pageCount} - Generated by JobFair Portal`, pageWidth / 2, pageHeight - 16, { align: 'center' });
       }
 
       // Save File
@@ -536,7 +728,7 @@ const JobFairAnalytics = () => {
             <div className="px-5 py-4 border-b flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-gray-900">{detailModal.title}</h3>
-                <p className="text-xs text-gray-500 mt-1">Click records to navigate and use CSV to download the list.</p>
+                <p className="text-xs text-gray-500 mt-1">Click records to navigate and use CSV/PDF to download the list.</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -544,6 +736,12 @@ const JobFairAnalytics = () => {
                   className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
                 >
                   <Download size={14} /> Download CSV
+                </button>
+                <button
+                  onClick={downloadDetailPDF}
+                  className="px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                >
+                  <Download size={14} /> Download PDF
                 </button>
                 <button
                   onClick={() => setDetailModal({ open: false, type: null, title: '', rows: [] })}
