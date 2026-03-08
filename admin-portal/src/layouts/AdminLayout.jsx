@@ -11,7 +11,9 @@ import {
   X,
   BookOpen,
   QrCode,
-  FileText
+  FileText,
+  KeyRound,
+  Loader2
 } from 'lucide-react';
 import { useState } from 'react';
 import { Settings } from 'lucide-react';
@@ -19,6 +21,8 @@ import { TrendingUp } from 'lucide-react';
 import { MessageSquare } from 'lucide-react';
 import { Bell } from 'lucide-react';
 import CuiWahJobFairLogo from '../assets/CuiWahJobFairLogo.png';
+import api from '../lib/api';
+import { toast } from 'react-hot-toast';
 
 // ----------------------------------
 // Helper: Sidebar Item Component
@@ -46,12 +50,76 @@ const SidebarItem = ({ to, icon: Icon, label, onClick }) => (
 const AdminLayout = () => {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const passwordRules = {
+    minLength: passwordForm.newPassword.length >= 8,
+    hasUppercase: /[A-Z]/.test(passwordForm.newPassword),
+    hasLowercase: /[a-z]/.test(passwordForm.newPassword),
+    hasNumber: /\d/.test(passwordForm.newPassword),
+    hasSpecial: /[^A-Za-z0-9]/.test(passwordForm.newPassword),
+  };
+
+  const strongPasswordScore = Object.values(passwordRules).filter(Boolean).length;
+  const passwordStrengthLabel =
+    strongPasswordScore >= 5 ? 'Strong' : strongPasswordScore >= 3 ? 'Medium' : 'Weak';
+  const passwordStrengthColor =
+    strongPasswordScore >= 5 ? 'text-emerald-600' : strongPasswordScore >= 3 ? 'text-amber-600' : 'text-red-600';
 
   // Logout Logic
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
       localStorage.clear();
       navigate('/');
+    }
+  };
+
+  const closeChangePasswordModal = () => {
+    setIsChangePasswordOpen(false);
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast.error('Please fill all password fields.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New password and confirm password do not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await api.post('/Auth/change-password', {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
+      toast.success('Password changed successfully.');
+      closeChangePasswordModal();
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        'Failed to change password. Please try again.';
+      toast.error(String(message));
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -176,6 +244,13 @@ const AdminLayout = () => {
 
         {/* Logout Button */}
         <div className="p-4 border-t border-slate-700 relative z-10 flex-shrink-0">
+          <button
+            onClick={() => setIsChangePasswordOpen(true)}
+            className="mb-2 flex items-center space-x-3 px-4 py-3 w-full text-indigo-300 hover:bg-indigo-900/30 rounded-lg transition-colors"
+          >
+            <KeyRound size={20} />
+            <span className="font-medium">Change Password</span>
+          </button>
           <button 
             onClick={handleLogout}
             className="flex items-center space-x-3 px-4 py-3 w-full text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
@@ -211,6 +286,90 @@ const AdminLayout = () => {
           </div>
         </main>
       </div>
+
+      {isChangePasswordOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
+              <button
+                onClick={closeChangePasswordModal}
+                className="text-gray-400 hover:text-gray-700"
+                disabled={isChangingPassword}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+                <div className="mt-2 space-y-1">
+                  <p className={`text-xs font-semibold ${passwordStrengthColor}`}>
+                    Strength: {passwordStrengthLabel}
+                  </p>
+                  <p className="text-xs text-gray-500">Use at least 8 characters and include uppercase, lowercase, number, and special character.</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                    <span className={passwordRules.minLength ? 'text-emerald-600' : 'text-gray-400'}>8+ chars</span>
+                    <span className={passwordRules.hasUppercase ? 'text-emerald-600' : 'text-gray-400'}>Uppercase</span>
+                    <span className={passwordRules.hasLowercase ? 'text-emerald-600' : 'text-gray-400'}>Lowercase</span>
+                    <span className={passwordRules.hasNumber ? 'text-emerald-600' : 'text-gray-400'}>Number</span>
+                    <span className={passwordRules.hasSpecial ? 'text-emerald-600' : 'text-gray-400'}>Special</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  disabled={isChangingPassword}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-60 flex items-center gap-2"
+                >
+                  {isChangingPassword ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {isChangingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
     
   );

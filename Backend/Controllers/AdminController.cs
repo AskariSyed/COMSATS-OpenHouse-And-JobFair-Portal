@@ -608,6 +608,41 @@ namespace JobFairPortal.Controllers
 
             return Ok(detail);
         }
+
+        [HttpPut("companies/{companyId}/profile")]
+        public async Task<IActionResult> UpdateCompanyProfile(int companyId, [FromBody] AdminUpdateCompanyProfileDto dto)
+        {
+            if (dto == null)
+                return BadRequest(new { Message = "Request body is required." });
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId);
+            if (company == null)
+                return NotFound(new { Message = "Company not found." });
+
+            if (!string.IsNullOrWhiteSpace(dto.Name)) company.Name = dto.Name.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.Industry)) company.Industry = dto.Industry.Trim();
+            if (dto.Description != null) company.Description = dto.Description.Trim();
+            if (dto.Website != null) company.Website = dto.Website.Trim();
+            if (dto.Address != null) company.Address = dto.Address.Trim();
+            if (dto.CompanyEmail != null) company.CompanyEmail = dto.CompanyEmail.Trim();
+            if (dto.CompanyPhone != null) company.CompanyPhone = dto.CompanyPhone.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.FocalPersonName)) company.FocalPersonName = dto.FocalPersonName.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.FocalPersonEmail)) company.FocalPersonEmail = dto.FocalPersonEmail.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.FocalPersonPhone)) company.FocalPersonPhone = dto.FocalPersonPhone.Trim();
+            if (dto.RepsCount.HasValue && dto.RepsCount.Value > 0) company.RepsCount = dto.RepsCount.Value;
+            if (dto.InterviewDurationMinutes.HasValue && dto.InterviewDurationMinutes.Value > 0)
+                company.InterviewDurationMinutes = dto.InterviewDurationMinutes.Value;
+
+            company.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Company profile updated successfully.",
+                CompanyId = company.CompanyId,
+                UpdatedAt = company.UpdatedAt
+            });
+        }
         // ... (GetCompanyDetail remains mostly same, but could be enhanced similarly if needed) ...
 
         [HttpGet("companies/filter")]
@@ -1649,6 +1684,55 @@ Job Fair Team
                 UpdatedAt = student.UpdatedAt
             });
         }
+
+        [HttpPut("students/{studentId}/profile")]
+        public async Task<IActionResult> UpdateStudentProfile(int studentId, [FromBody] AdminUpdateStudentProfileDto dto)
+        {
+            if (dto == null)
+                return BadRequest(new { Message = "Request body is required." });
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+                return NotFound(new { Message = "Student not found." });
+
+            if (!string.IsNullOrWhiteSpace(dto.FullName))
+                student.User.FullName = dto.FullName.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.RegistrationNo))
+                student.RegistrationNo = dto.RegistrationNo.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.Department))
+                student.Department = dto.Department.Trim();
+
+            if (!string.IsNullOrWhiteSpace(dto.Phone))
+                student.User.Phone = dto.Phone.Trim();
+
+            if (dto.CGPA.HasValue)
+                student.CGPA = dto.CGPA.Value;
+
+            if (dto.Skills != null)
+            {
+                student.Skills = dto.Skills
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            student.User.UpdatedAt = DateTime.UtcNow;
+            student.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Student profile updated successfully.",
+                StudentId = student.StudentId,
+                UpdatedAt = student.UpdatedAt
+            });
+        }
         
         // -----------------------------
         // 17. Filter Students by Department, Min CGPA, or Registration Number
@@ -2020,6 +2104,46 @@ Job Fair Team
         // Send FCM Notification to a Specific Student
         // -----------------------------
 
+        [HttpPost("students/{studentId}/send-email")]
+        public async Task<IActionResult> SendEmailToStudent(int studentId, [FromBody] AdminSendEmailDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Subject) || string.IsNullOrWhiteSpace(dto.Body))
+            {
+                return BadRequest(new { Message = "Subject and body are required." });
+            }
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+            {
+                return NotFound(new { Message = "Student not found." });
+            }
+
+            if (student.User == null || string.IsNullOrWhiteSpace(student.User.Email))
+            {
+                return BadRequest(new { Message = "Student email is not available." });
+            }
+
+            try
+            {
+                await _mailService.SendMailAsync(student.User.Email.Trim(), dto.Subject.Trim(), dto.Body.Trim());
+
+                return Ok(new
+                {
+                    Message = "Email sent successfully.",
+                    StudentId = student.StudentId,
+                    StudentName = student.User.FullName,
+                    StudentEmail = student.User.Email
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send email to student {StudentId}", studentId);
+                return StatusCode(500, new { Message = "Failed to send email. Please try again." });
+            }
+        }
 
         [HttpPost("students/{studentId}/notify")]
         public async Task<IActionResult> NotifyStudent(int studentId, [FromBody] FcmMessageDto dto)
@@ -2038,6 +2162,7 @@ Job Fair Team
                     });
                 }
 
+              
                 // Fetch student
                 var student = await _context.Students
                     .Include(s => s.User)

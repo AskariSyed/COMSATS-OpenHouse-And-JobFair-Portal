@@ -5,7 +5,7 @@ import RegisterPage from './lib/pages/RegisterPage';
 import ForgotPasswordPage from './lib/pages/ForgotPasswordPage';
 import CompanyDashboard from './lib/pages/CompanyDashboard';
 import DashboardLayout from './lib/layouts/DashboardLayout';
-import { requestFcmToken } from './lib/firebase';
+import { requestFcmToken, subscribeToForegroundMessages } from './lib/firebase';
 import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair, getPendingInterviewRequests, getAnalytics } from './lib/api';
 
 export default function App() {
@@ -19,6 +19,7 @@ export default function App() {
   const [studentProfileContext, setStudentProfileContext] = useState('current');
   const [notificationCounts, setNotificationCounts] = useState({ interviews: 0, overview: 0 });
   const [nextIncomingInterview, setNextIncomingInterview] = useState(null);
+  const [fcmPopup, setFcmPopup] = useState(null);
   const unauthorizedTimerRef = useRef(null);
 
   const withCompanyAvatar = async (baseUser) => {
@@ -109,6 +110,28 @@ export default function App() {
     };
 
     checkParticipationPrompt();
+  }, [currentView, user]);
+
+  useEffect(() => {
+    if (currentView !== 'dashboard' || !user) return;
+
+    let unsubscribe = () => {};
+
+    const setupForegroundFcm = async () => {
+      unsubscribe = await subscribeToForegroundMessages((payload) => {
+        const title = payload?.notification?.title || payload?.data?.title || 'Notification';
+        const body = payload?.notification?.body || payload?.data?.body || '';
+        const dataType = payload?.data?.type || '';
+        const action = payload?.data?.action || '';
+
+        setFcmPopup({ title, body, dataType, action });
+      });
+    };
+
+    setupForegroundFcm();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentView, user]);
 
   useEffect(() => {
@@ -247,6 +270,34 @@ export default function App() {
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {participationLoading ? 'Joining...' : 'Yes, Participate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fcmPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-indigo-200 bg-white shadow-2xl p-5">
+            <p className="text-base font-bold text-indigo-900">{fcmPopup.title}</p>
+            <p className="text-sm text-gray-700 mt-2">{fcmPopup.body || 'You have a new update from admin.'}</p>
+            <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              {(fcmPopup.dataType === 'survey_reminder' || fcmPopup.action === 'open_surveys') && (
+                <button
+                  onClick={() => {
+                    setActiveTab('surveys');
+                    setFcmPopup(null);
+                  }}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-semibold"
+                >
+                  Fill Survey Now
+                </button>
+              )}
+              <button
+                onClick={() => setFcmPopup(null)}
+                className="px-3 py-2 border border-gray-300 hover:bg-gray-100 text-gray-800 rounded-md text-sm font-semibold"
+              >
+                Close
               </button>
             </div>
           </div>

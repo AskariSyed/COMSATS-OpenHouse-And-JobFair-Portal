@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Mail, Phone, Globe, Github, Linkedin, 
   Briefcase, Award, GraduationCap, PlayCircle, ExternalLink,
@@ -49,12 +49,29 @@ const StudentDetail = () => {
   const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   const { studentId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingCredentials, setIsEditingCredentials] = useState(false);
   const [credentialsFormData, setCredentialsFormData] = useState({ email: '', password: '' });
   const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailFormData, setEmailFormData] = useState({
+    subject: '',
+    body: ''
+  });
+  const [profileFormData, setProfileFormData] = useState({
+    fullName: '',
+    registrationNo: '',
+    department: '',
+    cgpa: '',
+    phone: '',
+    skills: ''
+  });
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -62,6 +79,19 @@ const StudentDetail = () => {
         const res = await api.get(`/admin/students/${studentId}/details`);
         setData(res.data);
         setCredentialsFormData({ email: res.data.contactDetails?.email || '', password: '' });
+        setProfileFormData({
+          fullName: res.data.name || '',
+          registrationNo: res.data.registrationNo || '',
+          department: res.data.department || '',
+          cgpa: res.data.cgpa ?? '',
+          phone: res.data.contactDetails?.phone || '',
+          skills: (res.data.skills || []).join(', ')
+        });
+
+        const editMode = new URLSearchParams(location.search).get('edit');
+        if (editMode === 'profile') {
+          setIsEditingProfile(true);
+        }
       } catch (err) {
         toast.error("Failed to load profile");
         navigate('/admin/students');
@@ -70,7 +100,7 @@ const StudentDetail = () => {
       }
     };
     fetchDetails();
-  }, [studentId, navigate]);
+  }, [studentId, navigate, location.search]);
 
   const handleSaveCredentials = async () => {
     try {
@@ -104,6 +134,78 @@ const StudentDetail = () => {
       toast.error(errorMsg);
     } finally {
       setCredentialsLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setProfileLoading(true);
+      const parsedCgpa = Number(profileFormData.cgpa);
+      const skills = String(profileFormData.skills || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      await api.put(`/admin/students/${studentId}/profile`, {
+        fullName: profileFormData.fullName,
+        registrationNo: profileFormData.registrationNo,
+        department: profileFormData.department,
+        cgpa: Number.isFinite(parsedCgpa) ? parsedCgpa : undefined,
+        phone: profileFormData.phone,
+        skills,
+      });
+
+      toast.success('Student profile updated successfully');
+      setIsEditingProfile(false);
+
+      const res = await api.get(`/admin/students/${studentId}/details`);
+      setData(res.data);
+      setProfileFormData({
+        fullName: res.data.name || '',
+        registrationNo: res.data.registrationNo || '',
+        department: res.data.department || '',
+        cgpa: res.data.cgpa ?? '',
+        phone: res.data.contactDetails?.phone || '',
+        skills: (res.data.skills || []).join(', ')
+      });
+    } catch (error) {
+      const errorMsg = error.response?.data?.Message || error.response?.data?.message || 'Failed to update student profile';
+      toast.error(errorMsg);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const openEmailModal = () => {
+    setEmailFormData({
+      subject: `Regarding Your Profile - ${data?.name || 'Student'}`,
+      body: `\n\nRegards,\nCOMSATS University Islamabad Wah Campus Job Fair Team`
+    });
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    const subject = String(emailFormData.subject || '').trim();
+    const body = String(emailFormData.body || '').trim();
+
+    if (!subject || !body) {
+      toast.error('Subject and email body are required.');
+      return;
+    }
+
+    try {
+      setEmailSending(true);
+      await api.post(`/admin/students/${studentId}/send-email`, {
+        subject,
+        body,
+      });
+      toast.success('Email sent successfully');
+      setIsEmailModalOpen(false);
+    } catch (error) {
+      const errorMsg = error.response?.data?.Message || error.response?.data?.message || 'Failed to send email';
+      toast.error(errorMsg);
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -166,6 +268,14 @@ const StudentDetail = () => {
               
               {/* EDIT CREDENTIALS BUTTON */}
               <button 
+                onClick={() => setIsEditingProfile(true)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition shadow-md shadow-indigo-200"
+              >
+                <Edit2 size={16} /> Edit Profile
+              </button>
+
+              {/* EDIT CREDENTIALS BUTTON */}
+              <button 
                 onClick={() => setIsEditingCredentials(true)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-md shadow-blue-200"
               >
@@ -180,9 +290,12 @@ const StudentDetail = () => {
                 <Bell size={16} /> Send Notification
               </button>
 
-              <a href={`mailto:${data.contactDetails?.email}`} className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
+              <button
+                onClick={openEmailModal}
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition shadow-md shadow-indigo-200"
+              >
                 <Mail size={16} /> Send Email
-              </a>
+              </button>
 
               {(data.cvUrl || data.CvUrl) && (
                 <a
@@ -196,9 +309,9 @@ const StudentDetail = () => {
               )}
               
               {data.contactDetails?.phone && (
-                <a href={`tel:${data.contactDetails?.phone}`} className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-                  <Phone size={16} /> Call Student
-                </a>
+                <div className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700">
+                  <Phone size={16} /> {data.contactDetails.phone}
+                </div>
               )}
             </div>
 
@@ -214,6 +327,104 @@ const StudentDetail = () => {
               ))}
             </div>
           </div>
+
+          {/* Edit Credentials Modal */}
+          {isEditingProfile && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Edit Student Profile</h3>
+                <button
+                  onClick={() => setIsEditingProfile(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={profileFormData.fullName}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, fullName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration No</label>
+                    <input
+                      type="text"
+                      value={profileFormData.registrationNo}
+                      onChange={(e) => setProfileFormData({ ...profileFormData, registrationNo: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <input
+                      type="text"
+                      value={profileFormData.department}
+                      onChange={(e) => setProfileFormData({ ...profileFormData, department: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CGPA</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="4"
+                      value={profileFormData.cgpa}
+                      onChange={(e) => setProfileFormData({ ...profileFormData, cgpa: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="text"
+                      value={profileFormData.phone}
+                      onChange={(e) => setProfileFormData({ ...profileFormData, phone: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skills (comma separated)</label>
+                  <textarea
+                    rows="3"
+                    value={profileFormData.skills}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, skills: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={profileLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 font-medium transition"
+                  >
+                    <Save size={16} /> Save Profile
+                  </button>
+                  <button
+                    onClick={() => setIsEditingProfile(false)}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Edit Credentials Modal */}
           {isEditingCredentials && (
@@ -461,9 +672,69 @@ const StudentDetail = () => {
       <SendNotificationModal 
         isOpen={isNotifyModalOpen} 
         onClose={() => setIsNotifyModalOpen(false)}
-        studentId={data.studentId}
-        studentName={data.name}
+        recipientId={data.studentId}
+        recipientName={data.name}
+        type="student"
       />
+
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-fade-in">
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900">Send Email to Student</h3>
+              <button onClick={() => setIsEmailModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                <div className="w-full px-4 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-700">
+                  {data?.contactDetails?.email || 'No email'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={emailFormData.subject}
+                  onChange={(e) => setEmailFormData({ ...emailFormData, subject: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email Body</label>
+                <textarea
+                  rows="10"
+                  value={emailFormData.body}
+                  onChange={(e) => setEmailFormData({ ...emailFormData, body: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-y"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3">
+              <button
+                onClick={() => setIsEmailModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                disabled={emailSending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmail}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-60"
+                disabled={emailSending}
+              >
+                {emailSending ? 'Sending...' : 'Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

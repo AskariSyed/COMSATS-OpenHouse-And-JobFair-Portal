@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, isSupported } from "firebase/messaging";
+import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 
 // 1. Replace with your actual Firebase Config from Console
 const firebaseConfig = {
@@ -71,5 +71,31 @@ export const requestFcmToken = async () => {
   } catch (error) {
     console.error("Error retrieving FCM token:", error);
     return null; // Return null so Login Page continues smoothly
+  }
+};
+
+export const subscribeToForegroundMessages = async (onPayload) => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return () => {};
+  }
+
+  try {
+    const supported = await isSupported();
+    if (!supported) return () => {};
+
+    if (!messagingInstance) {
+      messagingInstance = getMessaging(app);
+    }
+
+    const unsubscribe = onMessage(messagingInstance, (payload) => {
+      if (typeof onPayload === 'function') {
+        onPayload(payload);
+      }
+    });
+
+    return unsubscribe;
+  } catch (error) {
+    console.warn('Unable to subscribe to foreground FCM messages:', error);
+    return () => {};
   }
 };

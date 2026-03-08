@@ -13,7 +13,8 @@ import {
   Globe,
   Loader2,
   Bell, 
-  Users // Added
+  Users,
+  Edit2
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -557,6 +558,16 @@ const CompaniesList = () => {
                               Assign
                             </button>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/companies/${company.companyId}?edit=profile`);
+                            }}
+                            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Edit Company Profile"
+                          >
+                            <Edit2 size={16} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

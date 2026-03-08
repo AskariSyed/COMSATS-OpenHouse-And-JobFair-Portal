@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Bell, Send, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../api';
@@ -8,10 +8,18 @@ const SendNotificationModal = ({
   onClose, 
   recipientId = null, 
   recipientName = "All Recipients",
-  type = 'student' // 'student' or 'company'
+  type = 'student', // 'student' or 'company'
+  initialTitle = '',
+  initialBody = ''
 }) => {
-  const [formData, setFormData] = useState({ title: '', body: '' });
+  const [formData, setFormData] = useState({ title: initialTitle, body: initialBody });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({ title: initialTitle, body: initialBody });
+    }
+  }, [isOpen, initialTitle, initialBody]);
 
   if (!isOpen) return null;
 
@@ -39,7 +47,7 @@ const SendNotificationModal = ({
       }
       
       onClose();
-      setFormData({ title: '', body: '' }); 
+      setFormData({ title: initialTitle, body: initialBody }); 
     } catch (error) {
       console.error(error);
       const errData = error.response?.data;

@@ -12,6 +12,7 @@ import html2canvas from 'html2canvas';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import LogoWithoutBg from '../../assets/LogoWithoutBg.png';
+import SendNotificationModal from '../../lib/components/SendNotificationModal';
 
 // Survey question labels
 const SURVEY_QUESTIONS = {
@@ -152,6 +153,7 @@ const SurveyResponses = () => {
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [activeView, setActiveView] = useState('list'); // list, pending, cdc-stats, dept-stats
+  const [notifyModal, setNotifyModal] = useState({ open: false, company: null });
   const cdcChartsRef = useRef(null);
   const deptChartsRef = useRef(null);
   const cdcExportRef = useRef(null);
@@ -974,24 +976,25 @@ const SurveyResponses = () => {
   };
 
   const remindPendingCompany = async (company) => {
+    const companyId = company?.companyId;
+    if (!companyId) {
+      toast.error(`Cannot send reminder to ${company?.companyName || 'company'} (missing company ID)`);
+      return;
+    }
+
     try {
-      await api.post('/admin/surveys/reminders/company', {
-        companyId: company.companyId,
-        companyName: company.companyName,
-        missingSurveyTypes: company.missing,
+      await api.post(`/admin/companies/${companyId}/notify`, {
+        title: 'Reminder to Fill survey',
+        body: `Please fill your pending survey(s): ${company.missing.join(', ')}.`,
+        data: {
+          type: 'survey_reminder',
+          action: 'open_surveys',
+          companyId: String(companyId),
+        },
       });
       toast.success(`Reminder sent to ${company.companyName}`);
-      return;
-    } catch {
-      const email = String(company.email || '').trim();
-      if (email && email !== 'N/A') {
-        const subject = encodeURIComponent('Survey Reminder - Job Fair Portal');
-        const body = encodeURIComponent(`Dear ${company.companyName},\n\nPlease submit your pending survey(s): ${company.missing.join(', ')}.\n\nThank you.`);
-        window.open(`mailto:${email}?subject=${subject}&body=${body}`);
-        toast.success(`Reminder draft opened for ${company.companyName}`);
-      } else {
-        toast.error(`No email found for ${company.companyName}`);
-      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || `Failed to send reminder to ${company.companyName}`);
     }
   };
 
@@ -1001,30 +1004,41 @@ const SurveyResponses = () => {
       return;
     }
 
-    try {
-      await api.post('/admin/surveys/reminders/pending-all', {
-        companies: pendingCompanies.map((company) => ({
-          companyId: company.companyId,
-          companyName: company.companyName,
-          missingSurveyTypes: company.missing,
-        })),
-      });
-      toast.success('Reminder sent to all pending companies');
-      return;
-    } catch {
-      const emails = pendingCompanies
-        .map((company) => String(company.email || '').trim())
-        .filter((email) => email && email !== 'N/A');
+    const loadingToastId = toast.loading('Sending reminders to pending companies...');
 
-      if (emails.length === 0) {
-        toast.error('No email addresses available for pending companies');
+    try {
+      const targets = pendingCompanies.filter((company) => Boolean(company.companyId));
+      if (targets.length === 0) {
+        toast.dismiss(loadingToastId);
+        toast.error('No pending companies with valid company ID');
         return;
       }
 
-      const subject = encodeURIComponent('Survey Reminder - Pending Submissions');
-      const body = encodeURIComponent('Please submit your pending survey response(s) in the Job Fair Portal. Thank you.');
-      window.open(`mailto:?bcc=${encodeURIComponent(emails.join(';'))}&subject=${subject}&body=${body}`);
-      toast.success('Reminder draft opened for all pending companies');
+      const results = await Promise.allSettled(
+        targets.map((company) =>
+          api.post(`/admin/companies/${company.companyId}/notify`, {
+            title: 'Reminder to Fill survey',
+            body: `Please fill your pending survey(s): ${company.missing.join(', ')}.`,
+            data: {
+              type: 'survey_reminder',
+              action: 'open_surveys',
+              companyId: String(company.companyId),
+            },
+          })
+        )
+      );
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+      toast.dismiss(loadingToastId);
+      if (failedCount === 0) {
+        toast.success(`Reminder sent to ${successCount} company${successCount === 1 ? '' : 'ies'}`);
+      } else {
+        toast.error(`Sent to ${successCount}, failed for ${failedCount}`);
+      }
+    } catch {
+      toast.dismiss(loadingToastId);
+      toast.error('Failed to send bulk reminders');
     }
   };
 
@@ -1909,7 +1923,7 @@ const SurveyResponses = () => {
                             <Bell size={14} /> Remind
                           </button>
                           <button
-                            onClick={() => remindPendingCompany(company)}
+                            onClick={() => setNotifyModal({ open: true, company })}
                             className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1"
                           >
                             <Mail size={14} /> Notify
@@ -1939,6 +1953,15 @@ const SurveyResponses = () => {
         </div>
       </div>
       )}
+
+      <SendNotificationModal
+        isOpen={notifyModal.open}
+        onClose={() => setNotifyModal({ open: false, company: null })}
+        recipientId={notifyModal.company?.companyId}
+        recipientName={notifyModal.company?.companyName}
+        type="company"
+        initialTitle="Reminder to Fill survey"
+      />
 
       {/* VIEW 2: CDC Feedback Stats */}
       {activeView === 'cdc-stats' && (

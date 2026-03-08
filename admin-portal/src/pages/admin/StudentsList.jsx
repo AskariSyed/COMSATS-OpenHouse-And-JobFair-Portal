@@ -285,6 +285,13 @@ const StudentsList = () => {
                       ) : (
                         <div className="flex justify-end gap-2">
                           <button 
+                            onClick={() => navigate(`/admin/students/${s.studentId}?edit=profile`)}
+                            className="text-emerald-600 hover:text-emerald-900 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100 transition"
+                            title="Edit Full Profile"
+                          >
+                            <BookOpen size={16} />
+                          </button>
+                          <button 
                             onClick={() => handleEditClick(s)}
                             className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition"
                             title="Edit Credentials"
