@@ -71,25 +71,32 @@ class Student {
     }
   }
 
+  // Helper to read values regardless of backend key casing.
+  static dynamic _pick(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      if (json.containsKey(key)) {
+        return json[key];
+      }
+    }
+    return null;
+  }
+
   // Helper to safely parse lists
   static List<T> _parseList<T>(
     Map<String, dynamic> json,
-    String key,
+    List<String> keys,
     T Function(Map<String, dynamic>) fromJson,
   ) {
-    if (json[key] == null) return [];
-    return (json[key] as List)
+    final raw = _pick(json, keys);
+    if (raw == null || raw is! List) return [];
+    return raw
         .map((item) => fromJson(item as Map<String, dynamic>))
         .toList();
   }
 
   factory Student.fromJson(Map<String, dynamic> json) {
     // 1. Parse Projects List First
-    List<Project> parsedProjects = _parseList(
-      json,
-      'projects',
-      Project.fromJson,
-    );
+    List<Project> parsedProjects = _parseList(json, ['projects', 'Projects'], Project.fromJson);
 
     // 2. Extract FYP Data from the projects list if it exists
     Project? fypData;
@@ -103,14 +110,16 @@ class Student {
 
     // 3. Parse Links (handling both formats)
     List<ContactLink> parsedLinks = [];
-    if (json['contactLinks'] != null) {
-      parsedLinks = _parseList(json, 'contactLinks', ContactLink.fromJson);
-    } else if (json['links'] != null && json['links'] is Map) {
-      (json['links'] as Map<String, dynamic>).forEach((key, value) {
+    final contactLinksRaw = _pick(json, ['contactLinks', 'ContactLinks']);
+    if (contactLinksRaw != null) {
+      parsedLinks = _parseList(json, ['contactLinks', 'ContactLinks'], ContactLink.fromJson);
+    } else if (_pick(json, ['links', 'Links']) is Map) {
+      final linksMap = (_pick(json, ['links', 'Links']) as Map).cast<String, dynamic>();
+      linksMap.forEach((key, value) {
         parsedLinks.add(
           ContactLink(
             linkId: 0,
-            studentId: json['studentId'] ?? 0,
+            studentId: (_pick(json, ['studentId', 'StudentId']) as int?) ?? 0,
             platform: contactPlatformFromString(key),
             url: value,
           ),
@@ -119,16 +128,16 @@ class Student {
     }
 
     return Student(
-      user: User.fromJson(json['user'] ?? {}),
-      studentId: json['studentId'] ?? 0,
-      registrationNo: json['registrationNo'] ?? '',
-      profilePicUrl: json['profilePicUrl'],
-      cvUrl: json['cvUrl'],
-      department: json['department'],
-      cgpa: (json['cgpa'] as num?)?.toDouble() ?? 0.0,
-      fcmToken: json['fcmToken'],
-      createdAt: safeParseDate(json['createdAt']),
-      updatedAt: safeParseDate(json['updatedAt']),
+      user: User.fromJson((_pick(json, ['user', 'User']) as Map<String, dynamic>?) ?? {}),
+      studentId: (_pick(json, ['studentId', 'StudentId']) as int?) ?? 0,
+      registrationNo: (_pick(json, ['registrationNo', 'RegistrationNo']) as String?) ?? '',
+      profilePicUrl: _pick(json, ['profilePicUrl', 'ProfilePicUrl']) as String?,
+      cvUrl: _pick(json, ['cvUrl', 'CvUrl']) as String?,
+      department: _pick(json, ['department', 'Department']) as String?,
+      cgpa: ((_pick(json, ['cgpa', 'CGPA']) as num?)?.toDouble()) ?? 0.0,
+      fcmToken: _pick(json, ['fcmToken', 'FcmToken']) as String?,
+      createdAt: safeParseDate((_pick(json, ['createdAt', 'CreatedAt']) as String?)),
+      updatedAt: safeParseDate((_pick(json, ['updatedAt', 'UpdatedAt']) as String?)),
 
       // Derived FYP Fields
       fypTitle: fypData?.title,
@@ -138,16 +147,12 @@ class Student {
 
       // Lists
       projects: parsedProjects,
-      skills: (json['skills'] as List? ?? []).map((s) => s.toString()).toList(),
+      skills: ((_pick(json, ['skills', 'Skills']) as List?) ?? []).map((s) => s.toString()).toList(),
       contactLinks: parsedLinks,
-      experiences: _parseList(json, 'experiences', Experience.fromJson),
-      educations: _parseList(json, 'educations', Education.fromJson),
-      achievements: _parseList(json, 'achievements', Achievement.fromJson),
-      certifications: _parseList(
-        json,
-        'certifications',
-        Certification.fromJson,
-      ),
+      experiences: _parseList(json, ['experiences', 'Experiences'], Experience.fromJson),
+      educations: _parseList(json, ['educations', 'Educations'], Education.fromJson),
+      achievements: _parseList(json, ['achievements', 'Achievements'], Achievement.fromJson),
+      certifications: _parseList(json, ['certifications', 'Certifications'], Certification.fromJson),
     );
   }
 

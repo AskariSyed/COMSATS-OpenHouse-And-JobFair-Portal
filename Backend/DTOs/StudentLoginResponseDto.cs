@@ -5,6 +5,7 @@ namespace JobFairPortal.DTOs
         public int StudentId { get; set; }
         public string RegistrationNo { get; set; }
         public string? ProfilePicUrl { get; set; }
+        public string? CvUrl { get; set; }
         public string Department { get; set; }
         public decimal CGPA { get; set; }
         public List<string>? Skills { get; set; }

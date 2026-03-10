@@ -141,6 +141,17 @@ class StudentProvider with ChangeNotifier {
   /// ✅ UPDATED FOR WEB & MOBILE
   /// Accepts an XFile directly from image_picker
   Future<bool> uploadProfilePic(XFile xFile) async {
+    final lower = xFile.name.toLowerCase();
+    final isImage =
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp');
+    if (!isImage) {
+      debugPrint("❌ Invalid profile image type: ${xFile.name}");
+      return false;
+    }
+
     if (_student == null) return false;
     _setLoading(true);
 

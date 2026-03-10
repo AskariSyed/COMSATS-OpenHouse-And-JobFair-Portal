@@ -90,16 +90,21 @@ class _QueueScreenState extends State<QueueScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 100.0),
                   child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildMessageContent(
-                          context,
-                          isMobile: false,
-                          isDark: isDark,
-                        ),
-                        const SizedBox(height: 24),
-                        const WebFooter(),
-                      ],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 100,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildMessageContent(
+                            context,
+                            isMobile: false,
+                            isDark: isDark,
+                          ),
+                          const WebFooter(),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -126,9 +131,9 @@ class _QueueScreenState extends State<QueueScreen> {
     final studentProvider = Provider.of<StudentProvider>(context);
     final interviews = List<Interview>.from(studentProvider.scheduledInterviews)
       ..sort((a, b) {
-        final statusCmp = _getStatusPriority(a.status).compareTo(
-          _getStatusPriority(b.status),
-        );
+        final statusCmp = _getStatusPriority(
+          a.status,
+        ).compareTo(_getStatusPriority(b.status));
         if (statusCmp != 0) return statusCmp;
 
         final aTime = a.scheduledTime;

@@ -249,6 +249,15 @@ const CompanyDetail = () => {
     interviewDurationMinutes: ''
   });
 
+  const handleBack = () => {
+    const fromAnalytics = location?.state?.fromAnalytics;
+    if (fromAnalytics?.jobFairId) {
+      navigate('/admin/analytics', { state: fromAnalytics });
+      return;
+    }
+    navigate(-1);
+  };
+
   const fetchDetails = async () => {
     try {
       // Matches AdminController [HttpGet("companies/{companyId}/details")]
@@ -495,7 +504,7 @@ const CompanyDetail = () => {
       
       {/* Back Button */}
       <button 
-        onClick={() => navigate(-1)}
+        onClick={handleBack}
         className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition font-medium mt-6 mb-6"
       >
         <ArrowLeft size={20} /> Back to Directory

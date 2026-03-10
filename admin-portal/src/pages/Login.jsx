@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -15,6 +15,13 @@ const Login = () => {
     password: ''
   });
 
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_session_expired') === '1') {
+      sessionStorage.removeItem('admin_session_expired');
+      toast.error('Session expired. Please login again.');
+    }
+  }, []);
+
   // Handle Input Change
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -24,6 +31,11 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
+    // Ensure stale/foreign tokens do not interfere with login attempts.
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    localStorage.removeItem('userId');
 
     try {
       // 1. Target the Admin Login Endpoint specifically
@@ -52,9 +64,22 @@ const Login = () => {
 
     } catch (error) {
       console.error(error);
-      const errorMsg = error.response?.data || "Access Denied. Invalid credentials.";
-      // If the error is an object (sometimes .NET returns JSON), default to string
-      toast.error(typeof errorMsg === 'string' ? errorMsg : "Login failed. Check your connection.");
+      const status = error?.response?.status;
+      const payload = error?.response?.data;
+
+      let errorMsg = '';
+      if (typeof payload === 'string') {
+        errorMsg = payload;
+      } else if (payload && typeof payload === 'object') {
+        errorMsg = payload.message || payload.Message || payload.title || payload.Title || '';
+      }
+
+      const normalized = String(errorMsg || '').toLowerCase();
+      if (status === 401 && (!errorMsg || normalized.includes('session expired'))) {
+        errorMsg = 'Access Denied. Invalid credentials.';
+      }
+
+      toast.error(errorMsg || 'Login failed. Check your connection.');
     } finally {
       setLoading(false);
     }

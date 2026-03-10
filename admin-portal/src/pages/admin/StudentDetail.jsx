@@ -73,6 +73,15 @@ const StudentDetail = () => {
     skills: ''
   });
 
+  const handleBack = () => {
+    const fromAnalytics = location?.state?.fromAnalytics;
+    if (fromAnalytics?.jobFairId) {
+      navigate('/admin/analytics', { state: fromAnalytics });
+      return;
+    }
+    navigate(-1);
+  };
+
   useEffect(() => {
     const fetchDetails = async () => {
       try {
@@ -226,7 +235,7 @@ const StudentDetail = () => {
       
       {/* Back Button */}
       <button 
-        onClick={() => navigate(-1)}
+        onClick={handleBack}
         className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 transition font-medium mt-6 mb-4"
       >
         <ArrowLeft size={20} /> Back to Directory

@@ -270,6 +270,7 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
         <AnalyticsView
           onError={onError}
           onSuccess={onSuccess}
+          attendanceStatus={attendanceStatus}
           onNavigateToInterviews={(tab = 'pending', pendingView = 'all') => {
             setInterviewNavTarget({ tab, pendingView, key: Date.now() });
             if (onTabChange) onTabChange('interviews');

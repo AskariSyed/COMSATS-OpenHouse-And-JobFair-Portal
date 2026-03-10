@@ -27,7 +27,6 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, badge: notificationCounts.overview || 0 },
-    { id: 'history-analytics', label: 'Past Analytics', icon: LayoutDashboard },
     { id: 'profile', label: 'Company Profile', icon: Building2 },
     { id: 'students', label: 'Student Directory', icon: Users },
     { id: 'fyps', label: 'FYP Gallery', icon: BookOpen },
@@ -35,6 +34,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
     { id: 'requests', label: 'Supply Requests', icon: Package },
     { id: 'surveys', label: 'Surveys', icon: ClipboardList },
     { id: 'notices', label: 'Notices', icon: Bell },
+    { id: 'history-analytics', label: 'Past Analytics', icon: LayoutDashboard },
   ];
 
   const NavItem = ({ item }) => {

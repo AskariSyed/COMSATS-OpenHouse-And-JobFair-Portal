@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -23,6 +24,8 @@ import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
+import 'package:student_job_fair_portal/services/cv_generator.dart';
+import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -234,6 +237,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
+    final lowerName = image.name.toLowerCase();
+    final allowedImage =
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.webp');
+    if (!allowedImage) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(
+          message: 'Please select a valid image file (JPG, JPEG, PNG, WEBP).',
+        ),
+      );
+      return;
+    }
+
     if (mounted) {
       showTopSnackBar(
         Overlay.of(context),
@@ -268,6 +288,197 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
+  }
+
+  Future<void> _uploadGeneratedCvFlow({String? cvEmail}) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final student = studentProvider.student;
+    if (student == null || !mounted) return;
+
+    showTopSnackBar(
+      Overlay.of(context),
+      const CustomSnackBar.info(message: 'Preparing generated CV upload...'),
+    );
+
+    try {
+      final pdfBytes = await CVGenerator.generatePdfBytes(
+        student,
+        customEmail: cvEmail,
+      );
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        pdfBytes,
+        fileName:
+            '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
+      );
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'Generated CV uploaded successfully.',
+              )
+            : const CustomSnackBar.error(
+                message: 'Failed to upload generated CV.',
+              ),
+      );
+      await _loadProfileData();
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error uploading generated CV: $e'),
+      );
+    }
+  }
+
+  Future<void> _pickAndUploadOwnCv() async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        if (!mounted) return;
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.error(
+            message: 'Could not read selected PDF file.',
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.info(message: 'Uploading your PDF CV...'),
+      );
+
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        bytes,
+        fileName: file.name,
+      );
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'Your CV uploaded successfully.',
+              )
+            : const CustomSnackBar.error(message: 'Failed to upload your CV.'),
+      );
+      await _loadProfileData();
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error selecting/uploading PDF: $e'),
+      );
+    }
+  }
+
+  Widget _buildCvActionsCard(BuildContext context) {
+    final student = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    ).student;
+    final hasCv = (student?.cvUrl?.trim().isNotEmpty ?? false);
+
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  hasCv ? 'Your CV is uploaded' : 'Upload Your CV',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: hasCv
+                        ? Colors.green.withOpacity(0.12)
+                        : Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: hasCv ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                  child: Text(
+                    hasCv ? 'Current CV: Uploaded' : 'Current CV: Not Uploaded',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: hasCv
+                          ? Colors.green.shade800
+                          : Colors.orange.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hasCv
+                  ? 'You can replace it with your own PDF or regenerate a fresh CV from profile data.'
+                  : 'Choose to upload your own PDF CV or generate one from your profile.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickAndUploadOwnCv,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Upload My CV (PDF)'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final String? cvEmail = await showDialog<String>(
+                      context: context,
+                      builder: (ctx) => const CVEditorDialog(),
+                    );
+                    if (!mounted) return;
+                    await _uploadGeneratedCvFlow(cvEmail: cvEmail);
+                  },
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Generate & Upload CV'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void onEditLink(dynamic link) {
@@ -563,17 +774,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                     physics: const AlwaysScrollableScrollPhysics(),
-                    child: buildProfileContent(
-                      context,
-                      student,
-                      profileImageUrl,
-                      _onManageProject,
-                      _onEditPicturePressed,
-                      _showAddContactLinkDialog,
-                      onEditLink,
-                      onDeleteLink,
-                      _onUpdateNamePressed,
-                      mounted,
+                    child: Column(
+                      children: [
+                        _buildCvActionsCard(context),
+                        const SizedBox(height: 12),
+                        buildProfileContent(
+                          context,
+                          student,
+                          profileImageUrl,
+                          _onManageProject,
+                          _onEditPicturePressed,
+                          _showAddContactLinkDialog,
+                          onEditLink,
+                          onDeleteLink,
+                          _onUpdateNamePressed,
+                          mounted,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -610,13 +827,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: Theme.of(context)
                                         .textTheme
                                         .headlineSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          // 🔹 Dynamic Color
-                                          color: primaryColor,
-                                        ),
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 20),
+                                  _buildCvActionsCard(context),
+                                  const SizedBox(height: 12),
                                   buildProfileContent(
                                     context,
                                     student,

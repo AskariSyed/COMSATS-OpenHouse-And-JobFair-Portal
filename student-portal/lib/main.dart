@@ -572,6 +572,16 @@ class _MyAppState extends State<MyApp> {
           debugShowCheckedModeBanner: false,
           title: 'Job Fair Portal',
           navigatorKey: navigatorKey,
+          builder: (context, child) {
+            if (kIsWeb && child != null) {
+              return Overlay(
+                initialEntries: [
+                  OverlayEntry(builder: (_) => SelectionArea(child: child)),
+                ],
+              );
+            }
+            return child ?? const SizedBox.shrink();
+          },
           themeMode: themeProvider.themeMode,
           theme: ThemeData.light(useMaterial3: false).copyWith(
             scaffoldBackgroundColor: Colors.white,
@@ -595,6 +605,16 @@ class _MyAppState extends State<MyApp> {
               bodyLarge: TextStyle(color: Colors.black87, fontSize: 16),
               bodyMedium: TextStyle(color: Colors.black87, fontSize: 14),
               bodySmall: TextStyle(color: Colors.black54, fontSize: 12),
+              headlineMedium: TextStyle(
+                color: Colors.black87,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+              headlineSmall: TextStyle(
+                color: Colors.black87,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
               titleLarge: TextStyle(
                 color: Colors.black87,
                 fontSize: 22,
@@ -610,7 +630,7 @@ class _MyAppState extends State<MyApp> {
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
-            ),
+            ).apply(fontFamily: 'Arial'),
             cardTheme: CardThemeData(
               color: Colors.white,
               elevation: 2,
@@ -649,6 +669,16 @@ class _MyAppState extends State<MyApp> {
               bodyLarge: TextStyle(color: Colors.white, fontSize: 16),
               bodyMedium: TextStyle(color: Colors.white, fontSize: 14),
               bodySmall: TextStyle(color: Colors.white70, fontSize: 12),
+              headlineMedium: TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+              headlineSmall: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
               titleLarge: TextStyle(
                 color: Colors.white,
                 fontSize: 22,
@@ -664,7 +694,7 @@ class _MyAppState extends State<MyApp> {
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
-            ),
+            ).apply(fontFamily: 'Arial'),
             cardTheme: CardThemeData(
               color: const Color(0xFF1E1E1E),
               elevation: 4,

@@ -89,260 +89,327 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isWeb = size.width > 800;
+    final isWeb = size.width >= 980;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const brandBlue = Color(0xFF2563EB);
+    const brandNavy = Color(0xFF0F172A);
+    final pageBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? Colors.white : brandNavy;
+    final subtitleColor = isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade600;
+    final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final fieldBorder = isDark ? const Color(0xFF475569) : const Color(0xFFD1D9E6);
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
+      backgroundColor: pageBg,
       body: SafeArea(
         child: SizedBox(
           height: size.height,
           width: size.width,
           child: Row(
             children: [
-              // Left Side - Blue Section (Only on Web)
               if (isWeb)
                 Expanded(
-                  flex: 1,
                   child: Container(
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        colors: [Color(0xFF0B1220), Color(0xFF1E3A8A), Color(0xFF2563EB)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Stack(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Icon(
-                            Icons.person_add_alt_1,
-                            size: 80,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        const Text(
-                          "Join Us Today",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
+                        Positioned(
+                          top: -80,
+                          left: -60,
+                          child: Container(
+                            height: 260,
+                            width: 260,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Start your journey with COMSATS Job Fair",
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
+                        Positioned(
+                          bottom: -100,
+                          right: -70,
+                          child: Container(
+                            height: 320,
+                            width: 320,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 42),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    height: 54,
+                                    width: 54,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      color: Colors.white.withOpacity(0.15),
+                                    ),
+                                    child: Image.asset(
+                                      'assets/LogoWithoutBg.png',
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.school,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      'COMSATS Wah Job Fair',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              const Text(
+                                'Student Signup',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 48,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Create your account and get your credentials sent to your registered email.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.86),
+                                  fontSize: 17,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Designed for the Open House and Job Fair experience.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.72),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-
-              // Right Side - Registration Form
               Expanded(
-                flex: isWeb ? 1 : 1,
                 child: Container(
-                  color: isDark ? Colors.grey.shade900 : Colors.white,
+                  color: pageBg,
                   child: Center(
                     child: SingleChildScrollView(
                       padding: EdgeInsets.symmetric(
-                        horizontal: isWeb ? 60 : 24,
-                        vertical: 40,
+                        horizontal: isWeb ? 54 : 20,
+                        vertical: 30,
                       ),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth: isWeb ? 450 : double.infinity,
+                          maxWidth: isWeb ? 480 : 500,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // Mobile Icon
-                            if (!isWeb)
-                              Center(
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Color(
-                                      0xFF2563EB,
-                                    ).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Icon(
-                                    Icons.person_add_alt_1,
-                                    size: 60,
-                                    color: Color(0xFF2563EB),
-                                  ),
-                                ),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isWeb ? 30 : 22,
+                            vertical: isWeb ? 30 : 24,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDark ? const Color(0x22000000) : const Color(0x1A0F172A),
+                                blurRadius: 32,
+                                offset: const Offset(0, 14),
                               ),
-                            if (!isWeb) const SizedBox(height: 30),
-                            Text(
-                              "Create Account",
-                              style: TextStyle(
-                                fontSize: isWeb ? 32 : 28,
-                                fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? Colors.white
-                                    : Color(0xFF1E3A8A),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "Enter your university registration number to get started. We'll verify your details and send credentials to your email.",
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: isDark
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade600,
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Registration Number Field
-                            TextField(
-                              controller: regNoController,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[a-zA-Z0-9-]'),
-                                ),
-                                UpperCaseHyphenFormatter(maxLength: 12),
-                              ],
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                                color: isDark ? Colors.white : Colors.black,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: "Registration Number",
-                                labelStyle: TextStyle(
-                                  color: isDark ? Colors.grey.shade400 : null,
-                                ),
-                                hintText: "FA22-BCS-155",
-                                hintStyle: TextStyle(
-                                  color: isDark ? Colors.grey.shade600 : null,
-                                ),
-                                prefixIcon: Icon(
-                                  Icons.badge_outlined,
-                                  color: Color(0xFF2563EB),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: isDark
-                                        ? Colors.grey.shade700
-                                        : Colors.grey.shade300,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: isDark
-                                        ? Colors.grey.shade700
-                                        : Colors.grey.shade300,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFF2563EB),
-                                    width: 2,
-                                  ),
-                                ),
-                                filled: true,
-                                fillColor: isDark
-                                    ? Colors.grey.shade800
-                                    : Colors.grey.shade50,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 18,
-                                  horizontal: 16,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 32),
-
-                            // Register Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 54,
-                              child: ElevatedButton(
-                                onPressed: isLoading ? null : signUpStudent,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2563EB),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: isLoading
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
-                                        ),
-                                      )
-                                    : const Text(
-                                        "Create Account",
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (!isWeb)
+                                Center(
+                                  child: Container(
+                                    height: 74,
+                                    width: 74,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [brandNavy, brandBlue],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
                                       ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Login Link
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Already have an account? ",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const StudentLoginScreen(),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Image.asset(
+                                      'assets/LogoWithoutBg.png',
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.school,
+                                        color: Colors.white,
                                       ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    "Sign In",
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF2563EB),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
+                              if (!isWeb) const SizedBox(height: 20),
+                              Text(
+                                'Create Account',
+                                style: TextStyle(
+                                  fontSize: isWeb ? 34 : 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Enter your registration number and we'll send your account credentials by email.",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: subtitleColor,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+
+                              TextField(
+                                controller: regNoController,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                                  UpperCaseHyphenFormatter(maxLength: 12),
+                                ],
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                  color: isDark ? Colors.white : Colors.black,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Registration Number',
+                                  hintText: 'FA22-BCS-155',
+                                  prefixIcon: const Icon(
+                                    Icons.badge_outlined,
+                                    color: brandBlue,
+                                  ),
+                                  filled: true,
+                                  fillColor: fieldFill,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: brandBlue, width: 2),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 26),
+
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: ElevatedButton(
+                                  onPressed: isLoading ? null : signUpStudent,
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    elevation: 0,
+                                  ).copyWith(
+                                    backgroundColor: WidgetStateProperty.all(Colors.transparent),
+                                  ),
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [brandNavy, brandBlue],
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Center(
+                                      child: isLoading
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2.5,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Create Account',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 18),
+
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Already have an account? ',
+                                    style: TextStyle(
+                                      color: subtitleColor,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const StudentLoginScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Sign In',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: brandBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -22,43 +22,24 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
+    final theme = Theme.of(context);
 
     return AppBar(
       title: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
           fontSize: 22,
           letterSpacing: 0.5,
+          color: isDark ? Colors.white : Colors.black87,
         ),
       ),
       centerTitle: true,
-      backgroundColor: Colors.transparent,
-      elevation: 0,
+      backgroundColor: theme.appBarTheme.backgroundColor,
+      foregroundColor: theme.appBarTheme.foregroundColor,
+      elevation: theme.appBarTheme.elevation,
       scrolledUnderElevation: 0,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [const Color(0xFF1565C0), const Color(0xFF4527A0)]
-                : [Colors.blue.shade600, Colors.blue.shade400],
-          ),
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-      ),
-      iconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black87),
       bottom: bottom,
       actions: actions ?? [],
     );

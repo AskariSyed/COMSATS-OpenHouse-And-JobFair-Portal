@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar } from 'lucide-react';
 import { getAnalytics, scheduleAllInterviews, setWalkInInterviewing } from '../api';
 
-export default function AnalyticsView({ onError, onSuccess, onNavigateToInterviews }) {
+export default function AnalyticsView({ onError, onSuccess, onNavigateToInterviews, attendanceStatus = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scheduling, setScheduling] = useState(false);
@@ -66,6 +66,13 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
   const { summary, interviews } = data;
   const canToggleWalkIn = Boolean(data.canToggleWalkInInterviewing);
   const isWalkInInterviewing = Boolean(data.isWalkInInterviewing);
+  const roomName = attendanceStatus?.roomDetails?.roomName || attendanceStatus?.RoomDetails?.RoomName;
+  const unscheduledInterviewsCount =
+    interviews?.unscheduledAcceptedCount ??
+    interviews?.unscheduledCount ??
+    Math.max((interviews?.acceptedRequestsCount || 0) - (interviews?.scheduledCount || 0), 0);
+  const shouldShowScheduleAll = isJobFairDay && unscheduledInterviewsCount > 0;
+  const shouldShowWalkInToggle = isJobFairDay || isWalkInInterviewing;
 
   return (
     <div className="space-y-8 pb-10">
@@ -73,9 +80,10 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
         <div>
            <h2 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h2>
            <p className="text-gray-500">Overview for {data.companyName}</p>
+           {roomName && <p className="text-xs text-blue-700 mt-1">Assigned Room: {roomName}</p>}
         </div>
         <div className="flex items-center gap-2">
-          {isJobFairDay && (
+          {shouldShowScheduleAll && (
             <button
               onClick={handleScheduleInterviews}
               disabled={scheduling}
@@ -95,15 +103,17 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
             </button>
           )}
 
-          <button
-            onClick={() => handleToggleWalkIn(!isWalkInInterviewing)}
-            disabled={togglingWalkIn || (!canToggleWalkIn && !isWalkInInterviewing)}
-            className={`px-4 py-2.5 text-white font-bold rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isWalkInInterviewing ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-            title={!canToggleWalkIn && !isWalkInInterviewing ? 'Walk-in interviewing can only be started on Job Fair day between 9:00 AM and 4:30 PM PKT and when marked present.' : undefined}
-          >
-            {togglingWalkIn ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {isWalkInInterviewing ? 'Stop Walk-In Interviewing' : 'Start Walk-In Interviewing'}
-          </button>
+          {shouldShowWalkInToggle && (
+            <button
+              onClick={() => handleToggleWalkIn(!isWalkInInterviewing)}
+              disabled={togglingWalkIn || (!canToggleWalkIn && !isWalkInInterviewing)}
+              className={`px-4 py-2.5 text-white font-bold rounded-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isWalkInInterviewing ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+              title={!canToggleWalkIn && !isWalkInInterviewing ? 'Walk-in interviewing can only be started on Job Fair day between 9:00 AM and 4:30 PM PKT and when marked present.' : undefined}
+            >
+              {togglingWalkIn ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {isWalkInInterviewing ? 'Stop Walk-In Interviewing' : 'Start Walk-In Interviewing'}
+            </button>
+          )}
         </div>
       </div>
       

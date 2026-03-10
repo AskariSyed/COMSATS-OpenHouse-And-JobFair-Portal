@@ -171,81 +171,88 @@ class _JobsScreenState extends State<JobsScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 100.0),
                   child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1200),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 30,
-                                horizontal: 20,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Available Jobs",
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .headlineSmall
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).textTheme.bodyLarge?.color,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            "Explore opportunities grouped by company.",
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).textTheme.bodySmall?.color,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(
-                                        width: 300,
-                                        child: _buildSearchBar(),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 30),
-                                  showShimmer
-                                      ? buildShimmerGrid(isMobile: false)
-                                      : filteredJobs.isEmpty
-                                      ? const SizedBox(
-                                          height: 200,
-                                          child: Center(
-                                            child: Text("No jobs found."),
-                                          ),
-                                        )
-                                      : _buildJobsGrid(
-                                          filteredJobs,
-                                          isMobile: false,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 100,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1200),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                  horizontal: 20,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Available Jobs",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge
+                                                        ?.color,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              "Explore opportunities grouped by company.",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    color: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.color,
+                                                  ),
+                                            ),
+                                          ],
                                         ),
-                                ],
+                                        SizedBox(
+                                          width: 300,
+                                          child: _buildSearchBar(),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 30),
+                                    showShimmer
+                                        ? buildShimmerGrid(isMobile: false)
+                                        : filteredJobs.isEmpty
+                                        ? const SizedBox(
+                                            height: 200,
+                                            child: Center(
+                                              child: Text("No jobs found."),
+                                            ),
+                                          )
+                                        : _buildJobsGrid(
+                                            filteredJobs,
+                                            isMobile: false,
+                                          ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 40),
-                        const WebFooter(),
-                      ],
+                          const WebFooter(),
+                        ],
+                      ),
                     ),
                   ),
                 ),

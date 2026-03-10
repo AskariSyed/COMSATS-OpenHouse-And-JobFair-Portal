@@ -199,79 +199,83 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 100.0),
                   child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1200),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 30,
-                                horizontal: 20,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Participating Companies",
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .headlineSmall
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color:
-                                                      primaryColor, // 🔹 Theme
-                                                ),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            "Browse companies offering jobs at the fair.",
-                                            style: TextStyle(
-                                              color: Theme.of(context)
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 100,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1200),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                  horizontal: 20,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Participating Companies",
+                                              style: Theme.of(context)
                                                   .textTheme
-                                                  .bodySmall
-                                                  ?.color, // 🔹 Theme
+                                                  .headlineSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(
-                                        width: 300,
-                                        child: _buildSearchBar(),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 30),
-                                  showShimmer
-                                      ? _buildShimmerGrid(isMobile: false)
-                                      : filteredCompanies.isEmpty
-                                      ? const SizedBox(
-                                          height: 200,
-                                          child: Center(
-                                            child: Text("No companies found."),
-                                          ),
-                                        )
-                                      : _buildCompaniesGrid(
-                                          filteredCompanies,
-                                          student?.skills ?? [],
-                                          isMobile: false,
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              "Browse companies offering jobs at the fair.",
+                                              style: TextStyle(
+                                                color: Theme.of(
+                                                  context,
+                                                ).textTheme.bodySmall?.color,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                ],
+                                        SizedBox(
+                                          width: 300,
+                                          child: _buildSearchBar(),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 30),
+                                    showShimmer
+                                        ? _buildShimmerGrid(isMobile: false)
+                                        : filteredCompanies.isEmpty
+                                        ? const SizedBox(
+                                            height: 200,
+                                            child: Center(
+                                              child: Text(
+                                                "No companies found.",
+                                              ),
+                                            ),
+                                          )
+                                        : _buildCompaniesGrid(
+                                            filteredCompanies,
+                                            student?.skills ?? [],
+                                            isMobile: false,
+                                          ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 40),
-                        const WebFooter(),
-                      ],
+                          const WebFooter(),
+                        ],
+                      ),
                     ),
                   ),
                 ),

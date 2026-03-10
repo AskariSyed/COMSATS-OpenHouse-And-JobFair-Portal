@@ -41,9 +41,18 @@ class WebFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const brandNavy = Color(0xFF0F172A);
+    const brandBlue = Color(0xFF2563EB);
+
     return Container(
       width: double.infinity,
-      color: const Color(0xFF232F3E), // Dark academic blue/grey
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [brandNavy, brandBlue],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
       child: Column(
         children: [
@@ -71,9 +80,9 @@ class WebFooter extends StatelessWidget {
                 child: Text(
                   link['title']!,
                   style: TextStyle(
-                    color: Colors.grey.shade300,
+                    color: Colors.white.withValues(alpha: 0.86),
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               );
@@ -89,7 +98,7 @@ class WebFooter extends StatelessWidget {
                 "Developed by FYP Team"
                     .toUpperCase(), // Fixed: Applied to string
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -103,8 +112,8 @@ class WebFooter extends StatelessWidget {
                 children: _teamMembers.map((member) {
                   return Text(
                     member,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                     ),
@@ -115,20 +124,23 @@ class WebFooter extends StatelessWidget {
           ),
 
           const SizedBox(height: 20),
-          Divider(color: Colors.grey.shade700, thickness: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.28), thickness: 1),
           const SizedBox(height: 15),
 
           // 4. Copyright Section
           Text(
             "© ${DateTime.now().year} Student Job Fair Portal. All rights reserved.",
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             "Version 1.0.0",
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),

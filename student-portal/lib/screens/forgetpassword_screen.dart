@@ -71,165 +71,272 @@ class _ForgotPasswordRequestScreenState
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isWeb = size.width > 800;
-
+    final isWeb = size.width >= 980;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const brandBlue = Color(0xFF2563EB);
+    const brandNavy = Color(0xFF0F172A);
+    final pageBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? Colors.white : brandNavy;
+    final subtitleColor = isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade600;
+    final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final fieldBorder = isDark ? const Color(0xFF475569) : const Color(0xFFD1D9E6);
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-      appBar: AppBar(
-        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: isDark ? Colors.white : Color(0xFF1E3A8A),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      backgroundColor: pageBg,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isWeb ? 60 : 24,
-              vertical: 40,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: isWeb ? 500 : double.infinity,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Icon
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF2563EB).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.lock_reset,
-                        size: 60,
-                        color: Color(0xFF2563EB),
+        child: SizedBox(
+          height: size.height,
+          width: size.width,
+          child: Row(
+            children: [
+              if (isWeb)
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF0B1220), Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Title
-                  Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      fontSize: isWeb ? 32 : 28,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Color(0xFF1E3A8A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Enter your registration number and we'll send an OTP to your registered email address.",
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Registration Number Field
-                  TextField(
-                    controller: _regNoController,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(r'[a-zA-Z0-9-]'),
-                      ),
-                      UpperCaseHyphenFormatter(maxLength: 12),
-                    ],
-                    decoration: InputDecoration(
-                      labelText: "Registration Number",
-                      labelStyle: TextStyle(
-                        color: isDark ? Colors.grey.shade400 : null,
-                      ),
-                      hintText: "FA22-BCS-155",
-                      hintStyle: TextStyle(
-                        color: isDark ? Colors.grey.shade600 : null,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.badge_outlined,
-                        color: Color(0xFF2563EB),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: isDark
-                              ? Colors.grey.shade700
-                              : Colors.grey.shade300,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: isDark
-                              ? Colors.grey.shade700
-                              : Colors.grey.shade300,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Color(0xFF2563EB),
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade50,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _sendOtp,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : const Text(
-                              "Send OTP",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: -80,
+                          left: -60,
+                          child: Container(
+                            height: 260,
+                            width: 260,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              shape: BoxShape.circle,
                             ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: -100,
+                          right: -70,
+                          child: Container(
+                            height: 320,
+                            width: 320,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 42),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    height: 54,
+                                    width: 54,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      color: Colors.white.withOpacity(0.15),
+                                    ),
+                                    child: Image.asset(
+                                      'assets/LogoWithoutBg.png',
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.school, color: Colors.white),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      'COMSATS Wah Job Fair',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              const Text(
+                                'Forgot Password',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 48,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Recover your account quickly by verifying your registration number.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.86),
+                                  fontSize: 17,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Designed for the Open House and Job Fair experience.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.72),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              Expanded(
+                child: Container(
+                  color: pageBg,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(horizontal: isWeb ? 54 : 20, vertical: 30),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: isWeb ? 480 : 500),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: isWeb ? 30 : 22, vertical: isWeb ? 30 : 24),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDark ? const Color(0x22000000) : const Color(0x1A0F172A),
+                                blurRadius: 32,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              IconButton(
+                                onPressed: () => Navigator.pop(context),
+                                icon: Icon(Icons.arrow_back, color: titleColor),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [brandNavy, brandBlue],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(Icons.lock_reset, color: Colors.white),
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                'Forgot Password?',
+                                style: TextStyle(
+                                  fontSize: isWeb ? 34 : 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                "Enter your registration number and we'll send an OTP to your registered email.",
+                                style: TextStyle(fontSize: 15, color: subtitleColor, height: 1.45),
+                              ),
+                              const SizedBox(height: 26),
+                              TextField(
+                                controller: _regNoController,
+                                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                                  UpperCaseHyphenFormatter(maxLength: 12),
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: 'Registration Number',
+                                  hintText: 'FA22-BCS-155',
+                                  labelStyle: TextStyle(color: subtitleColor),
+                                  hintStyle: TextStyle(color: subtitleColor.withOpacity(0.8)),
+                                  prefixIcon: const Icon(Icons.badge_outlined, color: brandBlue),
+                                  filled: true,
+                                  fillColor: fieldFill,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: brandBlue, width: 2),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 26),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _sendOtp,
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    padding: EdgeInsets.zero,
+                                    elevation: 0,
+                                  ).copyWith(
+                                    backgroundColor: WidgetStateProperty.all(Colors.transparent),
+                                  ),
+                                  child: Ink(
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [brandNavy, brandBlue],
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Center(
+                                      child: _isLoading
+                                          ? const SizedBox(
+                                              height: 24,
+                                              width: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2.5,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Send OTP',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

@@ -4,6 +4,23 @@ export const SERVER_URL = CONFIGURED_SERVER_URL;
 const API_BASE_URL = SERVER_URL ? `${SERVER_URL}/api` : '/api';
 const DEFAULT_TIMEOUT_MS = 60000;
 
+const parseApiErrorMessage = (rawText, fallback) => {
+  const text = String(rawText || '').trim();
+  if (!text) return fallback;
+
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === 'string') return parsed;
+    if (parsed && typeof parsed === 'object') {
+      return parsed.message || parsed.Message || parsed.title || parsed.Title || fallback;
+    }
+  } catch {
+    // Keep original text when response is not JSON.
+  }
+
+  return text;
+};
+
 /**
  * Helper to get full file URL
  * Handles relative paths from server and absolute URLs
@@ -39,6 +56,8 @@ async function request(endpoint, method = 'GET', body = null, isFileUpload = fal
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const requestUrl = `${API_BASE_URL}${endpoint}`;
   const startedAt = Date.now();
+  const normalizedEndpoint = String(endpoint || '').toLowerCase();
+  const isLoginRequest = normalizedEndpoint.includes('/auth/') && normalizedEndpoint.includes('/login');
 
   const config = {
     method,
@@ -67,18 +86,28 @@ async function request(endpoint, method = 'GET', body = null, isFileUpload = fal
     });
     
     if (response.status === 401) {
-      console.warn("Unauthorized access");
+      const unauthorizedBody = await response.text();
+      const unauthorizedMessage = parseApiErrorMessage(
+        unauthorizedBody,
+        isLoginRequest ? 'Invalid credentials.' : 'Session expired. Please login again.'
+      );
+
+      if (isLoginRequest) {
+        throw new Error(unauthorizedMessage);
+      }
+
+      console.warn('Unauthorized access');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       }
-      throw new Error('Unauthorized');
+      throw new Error(unauthorizedMessage);
     }
 
     if (!response.ok) {
       const errData = await response.text();
-      throw new Error(errData || `API Error: ${response.status}`);
+      throw new Error(parseApiErrorMessage(errData, `API Error: ${response.status}`));
     }
     
     const text = await response.text();

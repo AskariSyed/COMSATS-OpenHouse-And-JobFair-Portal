@@ -18,6 +18,15 @@ const JobFairSetup = () => {
     isActive: true
   });
 
+  const isPastDay = (dateLike) => {
+    if (!dateLike) return false;
+    const d = new Date(dateLike);
+    const today = new Date();
+    d.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return d < today;
+  };
+
   const fetchJobFairs = async () => {
     setListLoading(true);
     try {
@@ -42,6 +51,11 @@ const JobFairSetup = () => {
     setLoading(true);
 
     try {
+      if (formData.isActive && isPastDay(formData.date)) {
+        toast.error('Only today or future job fairs can be activated.');
+        return;
+      }
+
       await api.post('/admin/jobfairs', {
         semester: formData.semester,
         date: new Date(formData.date).toISOString(),
@@ -60,6 +74,13 @@ const JobFairSetup = () => {
   };
 
   const handleActivate = async (jobFairId) => {
+    const selected = jobFairs.find((jf) => (jf.JobFairId || jf.jobFairId) === jobFairId);
+    const dateValue = selected?.date || selected?.Date;
+    if (isPastDay(dateValue)) {
+      toast.error('You can only activate job fairs scheduled for today or future dates.');
+      return;
+    }
+
     try {
       await activateJobFair(jobFairId);
       toast.success('Job Fair activated');
@@ -246,6 +267,7 @@ const JobFairSetup = () => {
                   const isEditing = editingId === id;
                   const canEdit = new Date(dateValue) > new Date();
                   const isPast = new Date(dateValue) < new Date();
+                  const canActivate = !isActive && !isPastDay(dateValue);
 
                   return (
                     <div key={id} className={`p-4 hover:bg-gray-50 transition ${isActive ? 'bg-green-50' : ''}`}>
@@ -320,7 +342,14 @@ const JobFairSetup = () => {
                             </button>
                             <button
                               onClick={() => handleActivate(id)}
-                              disabled={isActive}
+                              disabled={!canActivate}
+                              title={
+                                isActive
+                                  ? 'Already active'
+                                  : isPastDay(dateValue)
+                                  ? 'Only today or future events can be activated'
+                                  : 'Activate this event'
+                              }
                               className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
                             >
                               <Zap size={16} />

@@ -17,6 +17,7 @@ import 'package:student_job_fair_portal/widgets/interview_status_chart.dart';
 import 'package:student_job_fair_portal/widgets/market_overview_chart.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -29,6 +30,108 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _hasShownCvPrompt = false;
+
+  Future<void> _uploadGeneratedCvFlow({String? cvEmail}) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final student = studentProvider.student;
+    if (student == null || !mounted) return;
+
+    showTopSnackBar(
+      Overlay.of(context),
+      const CustomSnackBar.info(message: 'Preparing generated CV upload...'),
+    );
+
+    try {
+      final pdfBytes = await CVGenerator.generatePdfBytes(
+        student,
+        customEmail: cvEmail,
+      );
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        pdfBytes,
+        fileName:
+            '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
+      );
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'Generated CV uploaded successfully.',
+              )
+            : const CustomSnackBar.error(
+                message: 'Failed to upload generated CV.',
+              ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error uploading generated CV: $e'),
+      );
+    }
+  }
+
+  Future<void> _pickAndUploadOwnCv() async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        if (!mounted) return;
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.error(
+            message: 'Could not read selected PDF file.',
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.info(message: 'Uploading your PDF CV...'),
+      );
+
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        bytes,
+        fileName: file.name,
+      );
+
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'Your CV uploaded successfully.',
+              )
+            : const CustomSnackBar.error(message: 'Failed to upload your CV.'),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error selecting/uploading PDF: $e'),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -50,19 +153,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _promptUploadCv() async {
-    final studentProvider = Provider.of<StudentProvider>(
-      context,
-      listen: false,
-    );
-    final student = studentProvider.student;
-    if (student == null) return;
-
     final shouldUploadNow = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Profile Complete 🎉'),
         content: const Text(
-          'Your profile is complete. Upload your CV now so companies can view it.',
+          'Your profile is complete. Upload your CV now so companies can view it. You can upload generated CV or your own PDF.',
         ),
         actions: [
           TextButton(
@@ -79,46 +175,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (shouldUploadNow != true || !mounted) return;
 
+    final uploadChoice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Choose CV Upload Option'),
+        content: const Text('Select one option to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'generated'),
+            child: const Text('Generate & Upload CV'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'own'),
+            child: const Text('Upload My Own PDF'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || uploadChoice == null) return;
+
+    if (uploadChoice == 'own') {
+      await _pickAndUploadOwnCv();
+      return;
+    }
+
     final String? cvEmail = await showDialog<String>(
       context: context,
       builder: (ctx) => const CVEditorDialog(),
     );
-
     if (!mounted) return;
-
-    showTopSnackBar(
-      Overlay.of(context),
-      const CustomSnackBar.info(message: 'Preparing CV upload...'),
-    );
-
-    try {
-      final pdfBytes = await CVGenerator.generatePdfBytes(
-        student,
-        customEmail: cvEmail,
-      );
-      final uploaded = await studentProvider.uploadGeneratedCv(
-        pdfBytes,
-        fileName:
-            '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
-      );
-
-      if (!mounted) return;
-
-      showTopSnackBar(
-        Overlay.of(context),
-        uploaded
-            ? const CustomSnackBar.success(
-                message: 'CV uploaded successfully. Companies can now view it.',
-              )
-            : const CustomSnackBar.error(message: 'Failed to upload CV.'),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showTopSnackBar(
-        Overlay.of(context),
-        CustomSnackBar.error(message: 'Error uploading CV: $e'),
-      );
-    }
+    await _uploadGeneratedCvFlow(cvEmail: cvEmail);
   }
 
   @override
@@ -285,10 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     style: Theme.of(context)
                                         .textTheme
                                         .headlineSmall
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: primaryColor,
-                                        ),
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 20),
                                   Row(
@@ -550,6 +634,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
     MarketOverview market,
     bool isWide,
   ) {
+    final statsSection = Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            context,
+            'Total Companies',
+            market.totalCompanies.toString(),
+            Icons.business,
+            Colors.blue,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CompaniesScreen()),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatCard(
+            context,
+            'Total Jobs',
+            market.totalJobs.toString(),
+            Icons.work,
+            Colors.green,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const JobsScreen()),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    final chartCard = Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SizedBox(
+          height: isWide ? 280 : 220,
+          child: MarketOverviewChart(overview: market),
+        ),
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -563,49 +694,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Total Companies',
-                market.totalCompanies.toString(),
-                Icons.business,
-                Colors.blue,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CompaniesScreen()),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Total Jobs',
-                market.totalJobs.toString(),
-                Icons.work,
-                Colors.green,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const JobsScreen()),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Card(
-          elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: MarketOverviewChart(overview: market),
+        if (isWide)
+          Column(
+            children: [statsSection, const SizedBox(height: 16), chartCard],
+          )
+        else
+          Column(
+            children: [statsSection, const SizedBox(height: 16), chartCard],
           ),
-        ),
       ],
     );
   }

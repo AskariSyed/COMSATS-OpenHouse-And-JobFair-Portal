@@ -967,6 +967,7 @@ namespace JobFairPortal.Controllers
                     Department = student.Department,
                     CGPA = student.CGPA,
                     ProfilePicUrl = student.ProfilePicUrl,
+                    CvUrl = student.CvUrl,
                     Skills = student.Skills,
                     FcmToken = student.FcmToken,
                     CreatedAt = student.CreatedAt,

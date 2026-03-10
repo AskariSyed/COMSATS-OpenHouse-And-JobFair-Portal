@@ -2468,6 +2468,27 @@ Job Fair Team
                 .OrderByDescending(j => j.CreatedAt)
                 .ToList();
 
+            var roomsDetailed = rooms
+                .Select(r => new
+                {
+                    RoomId = r.RoomId,
+                    RoomName = r.RoomName,
+                    Capacity = r.Capacity,
+                    Status = r.Status.ToString(),
+                    CompanyId = r.CompanyId,
+                    CompanyName = r.CompanyId.HasValue
+                        ? companyParticipations
+                            .Where(p => p.CompanyId == r.CompanyId.Value)
+                            .Select(p => p.Company.Name)
+                            .FirstOrDefault()
+                        : null,
+                    InterviewCount = r.CompanyId.HasValue
+                        ? interviews.Count(i => i.CompanyId == r.CompanyId.Value)
+                        : 0
+                })
+                .OrderBy(r => r.RoomName)
+                .ToList();
+
             var companyRoomLookup = companyParticipations
                 .GroupBy(p => p.CompanyId)
                 .ToDictionary(g => g.Key, g => g.FirstOrDefault()?.Room?.RoomName);
@@ -2570,7 +2591,8 @@ Job Fair Team
                     Students = studentsDetailed,
                     Companies = companyDetailed,
                     JobOpenings = jobsDetailed,
-                    Interviews = interviewsDetailed
+                    Interviews = interviewsDetailed,
+                    Rooms = roomsDetailed
                 }
             };
 

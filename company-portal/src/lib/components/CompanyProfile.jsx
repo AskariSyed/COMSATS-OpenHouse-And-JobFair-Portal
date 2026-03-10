@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
 import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword, getCompanyHistoricalAnalytics, copyJobToCurrentJobFair } from '../api';
 import { allSkillsList } from '../../data/skills';
@@ -9,6 +9,7 @@ const PHONE_11_REGEX = /^\d{11}$/;
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function CompanyProfile({ onError, onSuccess }) {
+  const onErrorRef = useRef(onError);
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +28,10 @@ export default function CompanyProfile({ onError, onSuccess }) {
   const [importingJobId, setImportingJobId] = useState(null);
 
   useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
     setLoading(true);
     Promise.all([
       getCompanyProfile(),
@@ -36,9 +41,9 @@ export default function CompanyProfile({ onError, onSuccess }) {
         setProfile(profileData);
         setAttendance(attendanceData);
       })
-      .catch(err => onError(err.message))
+      .catch(err => onErrorRef.current?.(err.message))
       .finally(() => setLoading(false));
-  }, [refreshKey, onError]);
+  }, [refreshKey]);
 
   if (loading) return <div className="h-96 flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-blue-600" /></div>;
   if (!profile) return <div className="text-center p-12 text-red-500">Profile not found.</div>;
@@ -210,6 +215,11 @@ export default function CompanyProfile({ onError, onSuccess }) {
          <StatCard label="Hired" value={interviewStats.hiredCandidates} icon={CheckCircle} color="green" />
          <StatCard label="Pending Requests" value={interviewStats.pendingRequests} icon={Clock} color="orange" />
       </div>
+      {attendanceModel?.roomAssigned && attendanceModel?.roomDetails?.roomName && (
+        <div className="mb-8 text-xs text-slate-600">
+          Assigned Room: <span className="font-semibold text-slate-800">{attendanceModel.roomDetails.roomName}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -623,6 +633,10 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       onError('Official phone must be exactly 11 digits.');
       return;
     }
+    if (formData.Logo && !(formData.Logo.type || '').startsWith('image/')) {
+      onError('Logo must be an image file (PNG/JPG/JPEG/WEBP).');
+      return;
+    }
     setLoading(true);
     try {
       const data = new FormData();
@@ -715,7 +729,20 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
                           <p className="text-xs text-gray-500">PNG, JPG (MAX. 2MB)</p>
                           {formData.Logo && <p className="mt-2 text-sm text-blue-600 font-bold">{formData.Logo.name}</p>}
                       </div>
-                      <input type="file" className="hidden" onChange={e => setFormData({...formData, Logo: e.target.files[0]})} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const selected = e.target.files?.[0] || null;
+                          if (selected && !(selected.type || '').startsWith('image/')) {
+                            onError('Please select an image file only.');
+                            e.target.value = '';
+                            return;
+                          }
+                          setFormData({...formData, Logo: selected});
+                        }}
+                      />
                   </label>
               </div> 
                    </div>}

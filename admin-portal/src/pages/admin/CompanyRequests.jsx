@@ -1,6 +1,8 @@
 /* eslint-disable no-empty */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import api from '../../lib/api';
 import signalrSvc from '../../services/signalr';
 
 const STATUSES = [
@@ -12,13 +14,21 @@ const STATUSES = [
 ];
 
 const CompanyRequests = () => {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const activeJobFairIdRef = useRef(null);
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5158';
+  const handleSessionExpiry = (error) => {
+    if (error?.response?.status === 401) {
+      toast.error('Session expired. Please login again.');
+      navigate('/');
+      return true;
+    }
+    return false;
+  };
 
   const filteredRequests = useMemo(
     () =>
@@ -104,10 +114,7 @@ const CompanyRequests = () => {
 
   async function fetchActiveJobFairAndList() {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(apiBase + '/api/admin/jobfairs?page=1&pageSize=1000', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/admin/jobfairs?page=1&pageSize=1000');
       const fairs = res.data?.jobFairs || res.data?.JobFairs || res.data || [];
       const active = Array.isArray(fairs)
         ? fairs.find(jf => (jf.isActive ?? jf.IsActive) === true)
@@ -115,7 +122,8 @@ const CompanyRequests = () => {
       const activeId = active ? (active.jobFairId ?? active.JobFairId) : null;
       activeJobFairIdRef.current = activeId;
       await fetchList(activeId);
-    } catch {
+    } catch (e) {
+      if (handleSessionExpiry(e)) return;
       await fetchList(null);
     }
   }
@@ -123,15 +131,11 @@ const CompanyRequests = () => {
   async function fetchList(jobFairId = activeJobFairIdRef.current) {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      let url = apiBase + '/api/admin/companyrequests';
-      const params = [];
-      if (filterStatus) params.push(`status=${filterStatus}`);
-      if (jobFairId) params.push(`jobFairId=${jobFairId}`);
-      if (params.length > 0) url += '?' + params.join('&');
-      
-      console.log('Fetching from:', url);
-      const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      const params = {};
+      if (filterStatus) params.status = filterStatus;
+      if (jobFairId) params.jobFairId = jobFairId;
+
+      const res = await api.get('/admin/companyrequests', { params });
       console.log('Fetched company requests:', res.data);
       console.log('Is array?', Array.isArray(res.data), 'Length:', res.data?.length);
       
@@ -154,9 +158,14 @@ const CompanyRequests = () => {
       
       setRequests(data);
     } catch (e) {
+      if (handleSessionExpiry(e)) {
+        setLoading(false);
+        return;
+      }
       console.error('Error fetching company requests:', e);
       console.error('Error response:', e.response?.data);
       console.error('Error status:', e.response?.status);
+      toast.error('Failed to fetch company requests.');
       setRequests([]);
     } finally { setLoading(false); }
   }
@@ -168,15 +177,16 @@ const CompanyRequests = () => {
 
   async function updateStatus(id, status, adminNote) {
     try {
-      const token = localStorage.getItem('token');
       console.log('Updating request', id, 'to status', status);
-      await axios.put(apiBase + `/api/admin/companyrequests/${id}/status`, { status, adminNote }, { headers: { Authorization: `Bearer ${token}` } });
+      await api.put(`/admin/companyrequests/${id}/status`, { status, adminNote });
       console.log('Status updated successfully');
+      toast.success('Request status updated.');
     } catch (e) {
+      if (handleSessionExpiry(e)) return;
       console.error('Update status error:', e);
       console.error('Error response:', e.response?.data);
       console.error('Error status:', e.response?.status);
-      alert('Failed to update status: ' + (e.response?.data || e.message));
+      toast.error('Failed to update status.');
     }
   }
 

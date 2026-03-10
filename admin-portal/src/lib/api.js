@@ -19,6 +19,26 @@ const api = axios.create({
   },
 });
 
+// 401 handling for idle/expired sessions across admin portal.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    if (status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      localStorage.removeItem('userId');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('admin_session_expired', '1');
+        if (window.location.pathname !== '/') {
+          window.location.replace('/');
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // 3. Interceptor for Token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');

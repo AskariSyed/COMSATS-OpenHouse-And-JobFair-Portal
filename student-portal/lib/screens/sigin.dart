@@ -96,8 +96,10 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             ..setToken(data['token'])
             ..setStudent(loggedInStudent);
 
-          // Fetch extra data for profile cards immediately
-          if (data['profileComplete'] == true) {
+          // Fetch extra data for profile cards immediately.
+          final isProfileComplete =
+              data['profileComplete'] == true || data['ProfileComplete'] == true;
+          if (isProfileComplete) {
             Provider.of<StudentProvider>(context, listen: false).fetchProfile();
           }
 
@@ -153,132 +155,223 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Check if web or mobile layout needed
     final size = MediaQuery.of(context).size;
-    final isWeb = size.width > 800;
+    final isWeb = size.width >= 980;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    const brandBlue = Color(0xFF2563EB);
+    const brandNavy = Color(0xFF0F172A);
+    final pageBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
+    final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? Colors.white : brandNavy;
+    final subtitleColor = isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade600;
+    final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final fieldBorder = isDark ? const Color(0xFF475569) : const Color(0xFFD1D9E6);
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
+      backgroundColor: pageBg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: SizedBox(
-            height: size.height,
-            width: size.width,
-            child: Row(
-              children: [
-                // Left Side - Blue Section (Only on Web)
-                if (isWeb)
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/LogoWithoutBg.png',
-                            height: 120,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.school,
-                              size: 80,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          const Text(
-                            "COMSATS JOB FAIR",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            "Student Portal",
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 18,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
+        child: SizedBox(
+          height: size.height,
+          width: size.width,
+          child: Row(
+            children: [
+              if (isWeb)
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF0B1220),
+                          Color(0xFF1E3A8A),
+                          Color(0xFF2563EB),
                         ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                     ),
-                  ),
-
-                // Right Side - Login Form
-                Expanded(
-                  flex: isWeb ? 1 : 1,
-                  child: Container(
-                    color: isDark ? Colors.grey.shade900 : Colors.white,
-                    child: Center(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isWeb ? 60 : 24,
-                          vertical: 40,
-                        ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: isWeb ? 450 : double.infinity,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: -80,
+                          left: -60,
+                          child: Container(
+                            height: 260,
+                            width: 260,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                          child: AutofillGroup(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // Mobile Logo
-                                if (!isWeb)
-                                  Center(
+                        ),
+                        Positioned(
+                          bottom: -100,
+                          right: -70,
+                          child: Container(
+                            height: 320,
+                            width: 320,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 56,
+                            vertical: 42,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    height: 54,
+                                    width: 54,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      color: Colors.white.withOpacity(0.15),
+                                    ),
                                     child: Image.asset(
                                       'assets/LogoWithoutBg.png',
-                                      height: 70,
+                                      fit: BoxFit.contain,
                                       errorBuilder: (_, __, ___) => const Icon(
                                         Icons.school,
-                                        size: 60,
-                                        color: Color(0xFF2563EB),
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
-                                if (!isWeb) const SizedBox(height: 30),
+                                  const SizedBox(width: 14),
+                                  const Expanded(
+                                    child: Text(
+                                      'COMSATS Wah Job Fair',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              const Text(
+                                'Student Portal',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 48,
+                                  height: 1.08,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Secure sign-in for registrations, profile updates, and interview readiness.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.86),
+                                  fontSize: 17,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Designed for the Open House and Job Fair experience.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.72),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Container(
+                  color: pageBg,
+                  child: Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isWeb ? 54 : 20,
+                        vertical: 30,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isWeb ? 480 : 500,
+                        ),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isWeb ? 30 : 22,
+                            vertical: isWeb ? 30 : 24,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isDark ? const Color(0x22000000) : const Color(0x1A0F172A),
+                                blurRadius: 32,
+                                offset: Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!isWeb)
+                                  Center(
+                                    child: Container(
+                                      height: 74,
+                                      width: 74,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [brandNavy, brandBlue],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      padding: const EdgeInsets.all(12),
+                                      child: Image.asset(
+                                        'assets/LogoWithoutBg.png',
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(
+                                              Icons.school,
+                                              color: Colors.white,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                if (!isWeb) const SizedBox(height: 20),
                                 Text(
-                                  "Welcome Back",
+                                  'Welcome Back',
                                   style: TextStyle(
-                                    fontSize: isWeb ? 32 : 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark
-                                        ? Colors.white
-                                        : Color(0xFF1E3A8A),
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800,
+                                    color: titleColor,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  "Sign in to continue to your account",
+                                  'Sign in to continue to your student dashboard.',
                                   style: TextStyle(
                                     fontSize: 15,
-                                    color: isDark
-                                        ? Colors.grey.shade400
-                                        : Colors.grey.shade600,
+                                    color: subtitleColor,
                                   ),
                                 ),
-                                const SizedBox(height: 32),
-
-                                // Registration Number Field
+                                const SizedBox(height: 28),
                                 TextField(
                                   controller: regNoController,
                                   autofillHints: const [AutofillHints.username],
                                   keyboardType: TextInputType.emailAddress,
                                   textInputAction: TextInputAction.next,
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white : Colors.black,
-                                  ),
                                   inputFormatters: [
                                     FilteringTextInputFormatter.allow(
                                       RegExp(r'[a-zA-Z0-9-]'),
@@ -286,54 +379,32 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     UpperCaseHyphenFormatter(maxLength: 12),
                                   ],
                                   decoration: InputDecoration(
-                                    labelText: "Registration Number",
-                                    labelStyle: TextStyle(
-                                      color: isDark
-                                          ? Colors.grey.shade400
-                                          : null,
-                                    ),
-                                    hintText: "FA22-BCS-155",
-                                    hintStyle: TextStyle(
-                                      color: isDark
-                                          ? Colors.grey.shade600
-                                          : null,
-                                    ),
-                                    prefixIcon: Icon(
+                                    labelText: 'Registration Number',
+                                    hintText: 'FA22-BCS-155',
+                                    prefixIcon: const Icon(
                                       Icons.badge_outlined,
-                                      color: Color(0xFF2563EB),
+                                      color: brandBlue,
                                     ),
+                                    filled: true,
+                                    fillColor: fieldFill,
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: isDark
-                                            ? Colors.grey.shade700
-                                            : Colors.grey.shade300,
-                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide(color: fieldBorder),
                                     ),
                                     enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: isDark
-                                            ? Colors.grey.shade700
-                                            : Colors.grey.shade300,
-                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide(color: fieldBorder),
                                     ),
                                     focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: Color(0xFF2563EB),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: brandBlue,
                                         width: 2,
                                       ),
                                     ),
-                                    filled: true,
-                                    fillColor: isDark
-                                        ? Colors.grey.shade800
-                                        : Colors.grey.shade50,
                                   ),
                                 ),
-                                const SizedBox(height: 20),
-
-                                // Password Field
+                                const SizedBox(height: 16),
                                 TextField(
                                   controller: passController,
                                   obscureText: !_isPasswordVisible,
@@ -345,65 +416,43 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     TextInput.finishAutofillContext();
                                     if (!isLoading) loginStudent();
                                   },
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white : Colors.black,
-                                  ),
                                   decoration: InputDecoration(
-                                    labelText: "Password",
-                                    labelStyle: TextStyle(
-                                      color: isDark
-                                          ? Colors.grey.shade400
-                                          : null,
-                                    ),
-                                    prefixIcon: Icon(
+                                    labelText: 'Password',
+                                    prefixIcon: const Icon(
                                       Icons.lock_outline,
-                                      color: Color(0xFF2563EB),
+                                      color: brandBlue,
                                     ),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         _isPasswordVisible
                                             ? Icons.visibility
                                             : Icons.visibility_off,
-                                        color: isDark
-                                            ? Colors.grey.shade400
-                                            : Colors.grey.shade600,
+                                        color: isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade400,
                                       ),
                                       onPressed: () => setState(
                                         () => _isPasswordVisible =
                                             !_isPasswordVisible,
                                       ),
                                     ),
+                                    filled: true,
+                                    fillColor: fieldFill,
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: isDark
-                                            ? Colors.grey.shade700
-                                            : Colors.grey.shade300,
-                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide(color: fieldBorder),
                                     ),
                                     enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: isDark
-                                            ? Colors.grey.shade700
-                                            : Colors.grey.shade300,
-                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: BorderSide(color: fieldBorder),
                                     ),
                                     focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(
-                                        color: Color(0xFF2563EB),
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: brandBlue,
                                         width: 2,
                                       ),
                                     ),
-                                    filled: true,
-                                    fillColor: isDark
-                                        ? Colors.grey.shade800
-                                        : Colors.grey.shade50,
                                   ),
                                 ),
-
-                                // Forgot Password Link
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
@@ -416,19 +465,16 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                         ),
                                       );
                                     },
-                                    child: Text(
-                                      "Forgot Password?",
+                                    child: const Text(
+                                      'Forgot Password?',
                                       style: TextStyle(
-                                        color: Color(0xFF2563EB),
+                                        color: brandBlue,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
                                 ),
-
-                                const SizedBox(height: 24),
-
-                                // Login Button
+                                const SizedBox(height: 6),
                                 SizedBox(
                                   width: double.infinity,
                                   height: 54,
@@ -439,43 +485,61 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                             TextInput.finishAutofillContext();
                                             loginStudent();
                                           },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF2563EB),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    child: isLoading
-                                        ? const SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2.5,
-                                            ),
-                                          )
-                                        : const Text(
-                                            "Sign In",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
+                                    style:
+                                        ElevatedButton.styleFrom(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
                                             ),
                                           ),
+                                          padding: EdgeInsets.zero,
+                                          elevation: 0,
+                                        ).copyWith(
+                                          backgroundColor:
+                                              WidgetStateProperty.all(
+                                                Colors.transparent,
+                                              ),
+                                        ),
+                                    child: Ink(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [brandNavy, brandBlue],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Center(
+                                        child: isLoading
+                                            ? const SizedBox(
+                                                width: 24,
+                                                height: 24,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2.5,
+                                                    ),
+                                              )
+                                            : const Text(
+                                                'Sign In',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-
-                                const SizedBox(height: 24),
-
-                                // Sign Up Link
+                                const SizedBox(height: 18),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
                                       "Don't have an account? ",
                                       style: TextStyle(
-                                        color: Colors.grey.shade600,
+                                        color: subtitleColor,
                                         fontSize: 15,
                                       ),
                                     ),
@@ -490,11 +554,11 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                         );
                                       },
                                       child: const Text(
-                                        "Sign Up",
+                                        'Sign Up',
                                         style: TextStyle(
                                           fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2563EB),
+                                          fontWeight: FontWeight.w700,
+                                          color: brandBlue,
                                         ),
                                       ),
                                     ),
@@ -508,8 +572,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

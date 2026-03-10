@@ -176,92 +176,92 @@ class _RequestsScreenState extends State<RequestsScreen>
               Padding(
                 padding: const EdgeInsets.only(top: 80.0),
                 child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1000),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 40,
-                              horizontal: 30,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Title & Refresh Row
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Interview Requests",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.blueGrey.shade800,
-                                          ),
-                                    ),
-                                    IconButton(
-                                      onPressed: _refresh,
-                                      icon: const Icon(Icons.refresh),
-                                      tooltip: "Refresh Requests",
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Custom Web Tabs
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.grey.shade800
-                                        : Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.all(4),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - 80,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1000),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 40,
+                                horizontal: 30,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      _buildWebTab(
-                                        "Sent Requests",
-                                        sentRequests.length,
-                                        0,
+                                      Text(
+                                        "Interview Requests",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : Colors.blueGrey.shade800,
+                                            ),
                                       ),
-                                      _buildWebTab(
-                                        "Received Invites",
-                                        receivedRequests.length,
-                                        1,
+                                      IconButton(
+                                        onPressed: _refresh,
+                                        icon: const Icon(Icons.refresh),
+                                        tooltip: "Refresh Requests",
                                       ),
                                     ],
                                   ),
-                                ),
-                                const SizedBox(height: 30),
-
-                                // List Content
-                                _webTabIndex == 0
-                                    ? _buildSentList(
-                                        sentRequests,
-                                        studentProvider,
-                                        isMobile: false,
-                                      )
-                                    : _buildReceivedList(
-                                        receivedRequests,
-                                        studentProvider,
-                                        isMobile: false,
-                                      ),
-                              ],
+                                  const SizedBox(height: 24),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.grey.shade800
+                                          : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildWebTab(
+                                          "Sent Requests",
+                                          sentRequests.length,
+                                          0,
+                                        ),
+                                        _buildWebTab(
+                                          "Received Invites",
+                                          receivedRequests.length,
+                                          1,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 30),
+                                  _webTabIndex == 0
+                                      ? _buildSentList(
+                                          sentRequests,
+                                          studentProvider,
+                                          isMobile: false,
+                                        )
+                                      : _buildReceivedList(
+                                          receivedRequests,
+                                          studentProvider,
+                                          isMobile: false,
+                                        ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 40),
-                      const WebFooter(),
-                    ],
+                        const WebFooter(),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -434,20 +434,46 @@ class _RequestsScreenState extends State<RequestsScreen>
         List<Widget> actions = [];
         if (req.status == RequestStatus.Pending) {
           actions = [
-            OutlinedButton(
+            OutlinedButton.icon(
               onPressed: () => _showRejectDialog(req.requestId, provider),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text("Decline"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red.shade700,
+                side: BorderSide(color: Colors.red.shade200),
+                backgroundColor: Colors.red.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              icon: const Icon(Icons.close_rounded, size: 16),
+              label: const Text(
+                "Decline",
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
-            const SizedBox(width: 10),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: () =>
                   _handleAction(provider.acceptCompanyInvite(req.requestId)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: Colors.green.shade600,
                 foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
-              child: const Text("Accept"),
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text(
+                "Accept",
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ];
         }
@@ -577,11 +603,14 @@ class _RequestsScreenState extends State<RequestsScreen>
                     children: [
                       _buildStatusBadge(req.status),
                       if (actions != null && actions.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        ...actions.map(
-                          (action) => Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: action,
+                        const SizedBox(height: 10),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 240),
+                          child: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: actions,
                           ),
                         ),
                       ],
