@@ -78,7 +78,6 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
     // 🔹 Theme Colors
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
-    final primaryColor = Theme.of(context).primaryColor;
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
 
     final String? profileImageUrl =
@@ -973,7 +972,7 @@ class _CompanyCardState extends State<CompanyCard> {
 
               // Expanded Content
               AnimatedSize(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 600),
                 curve: Curves.easeInOut,
                 alignment: Alignment.topCenter,
                 child: (_isExpanded && hasExpandableContent)

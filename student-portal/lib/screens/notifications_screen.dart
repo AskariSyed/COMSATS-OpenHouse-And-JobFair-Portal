@@ -15,7 +15,20 @@ class NotificationsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: isMobile
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/LogoWithoutBg.png',
+                    height: 24,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Notifications'),
+                ],
+              )
+            : const Text('Notifications'),
         actions: [
           Consumer<NotificationProvider>(
             builder: (context, provider, _) {

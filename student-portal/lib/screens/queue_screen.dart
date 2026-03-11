@@ -7,6 +7,7 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/model/interview.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
+import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 
 // Screens for Navigation (Needed for Sidebar/Logic consistency)
@@ -76,7 +77,13 @@ class _QueueScreenState extends State<QueueScreen> {
             backgroundColor: scaffoldBg,
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Interviews"),
-            body: _buildMessageContent(context, isMobile: true, isDark: isDark),
+            body: AppPageReveal(
+              child: _buildMessageContent(
+                context,
+                isMobile: true,
+                isDark: isDark,
+              ),
+            ),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 4),
           );
         } else {
@@ -97,10 +104,23 @@ class _QueueScreenState extends State<QueueScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildMessageContent(
-                            context,
-                            isMobile: false,
-                            isDark: isDark,
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1200),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 30,
+                                  horizontal: 20,
+                                ),
+                                child: AppPageReveal(
+                                  child: _buildMessageContent(
+                                    context,
+                                    isMobile: false,
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                           const WebFooter(),
                         ],
@@ -236,10 +256,13 @@ class _QueueScreenState extends State<QueueScreen> {
               itemCount: interviews.length,
               itemBuilder: (context, index) {
                 final interview = interviews[index];
-                return _buildInterviewQueueCard(
-                  interview: interview,
-                  isMobile: isMobile,
-                  isDark: isDark,
+                return AppStaggeredReveal(
+                  index: index,
+                  child: _buildInterviewQueueCard(
+                    interview: interview,
+                    isMobile: isMobile,
+                    isDark: isDark,
+                  ),
                 );
               },
             ),

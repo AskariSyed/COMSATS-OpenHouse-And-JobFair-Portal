@@ -101,7 +101,20 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Select Skills"),
+        title: isWeb
+            ? const Text("Select Skills")
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/LogoWithoutBg.png',
+                    height: 24,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text("Select Skills"),
+                ],
+              ),
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black,

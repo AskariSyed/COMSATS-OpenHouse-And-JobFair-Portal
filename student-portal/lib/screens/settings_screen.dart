@@ -10,6 +10,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/provider/notification_provider.dart';
+import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/utils/password_validator.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
 import 'package:student_job_fair_portal/screens/notifications_screen.dart';
@@ -462,36 +463,130 @@ class SettingsScreen extends StatelessWidget {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 80.0),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Center(
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // Hero Section with Job Fair Info
+                _buildWebHeroSection(context, student, isDark, cardColor),
+
+                // Main Settings Content
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 50,
+                  ),
+                  child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1000),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 30,
-                        ),
-                        child: _buildSettingsContent(
-                          context,
-                          isDark,
-                          cardColor,
-                          primaryColor,
-                          textColor,
-                          dividerColor,
-                          iconColor,
-                          isMobile,
-                        ),
+                      constraints: const BoxConstraints(maxWidth: 1200),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Section Title for Settings
+                          Text(
+                            "Manage Your Account",
+                            style: Theme.of(context).textTheme.headlineLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodyLarge?.color,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Customize your preferences and manage your account",
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.color,
+                                ),
+                          ),
+                          const SizedBox(height: 40),
+
+                          // 3-Column Layout for Web
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Column 1
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _buildAppearanceSection(
+                                      context,
+                                      isDark,
+                                      cardColor,
+                                      primaryColor,
+                                      textColor,
+                                    ),
+                                    const SizedBox(height: 30),
+                                    _buildCVSection(
+                                      context,
+                                      cardColor,
+                                      textColor,
+                                      dividerColor,
+                                      isMobile,
+                                    ),
+                                    const SizedBox(height: 30),
+                                    _buildAccountActionsSection(
+                                      context,
+                                      cardColor,
+                                      textColor,
+                                      dividerColor,
+                                      iconColor,
+                                      isDark,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 25),
+
+                              // Column 2
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _buildSupportSection(
+                                      context,
+                                      cardColor,
+                                      textColor,
+                                      dividerColor,
+                                      iconColor,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 25),
+
+                              // Column 3
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _buildQuickActionsSection(
+                                      context,
+                                      cardColor,
+                                      textColor,
+                                      dividerColor,
+                                    ),
+                                    const SizedBox(height: 30),
+                                    _buildJobFairSection(
+                                      context,
+                                      cardColor,
+                                      textColor,
+                                      dividerColor,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const WebFooter(),
-                ],
-              ),
+                ),
+                const SizedBox(height: 40),
+                const WebFooter(),
+              ],
             ),
           ),
           // Web Navigation Bar
@@ -1168,335 +1263,500 @@ class SettingsScreen extends StatelessWidget {
     bool showCurrentPassword = false;
     bool showNewPassword = false;
     bool showConfirmPassword = false;
+    bool isSubmitting = false;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallMobile = screenWidth < 360;
-    final isMidMobile = screenWidth >= 360 && screenWidth < 600;
-    final isLargeMobile = screenWidth >= 600 && screenWidth < 900;
-    final isWeb = screenWidth >= 900;
 
-    // Responsive sizing
-    final dialogWidth = isWeb
-        ? 500.0
-        : isLargeMobile
-        ? screenWidth * 0.85
-        : isMidMobile
-        ? screenWidth * 0.90
-        : screenWidth * 0.95;
+    // Password strength helpers
+    int getStrength(String p) {
+      int score = 0;
+      if (p.length >= 8) score++;
+      if (p.contains(RegExp(r'[A-Z]'))) score++;
+      if (p.contains(RegExp(r'[0-9]'))) score++;
+      if (p.contains(RegExp(r'[!@#\$&*~^%]'))) score++;
+      return score; // 0-4
+    }
 
-    final iconSize = isSmallMobile ? 20.0 : 24.0;
-    final iconPadding = isSmallMobile ? 6.0 : 8.0;
-    final titleFontSize = isSmallMobile ? 16.0 : (isMidMobile ? 18.0 : 20.0);
-    final labelFontSize = isSmallMobile ? 12.0 : (isMidMobile ? 13.0 : 14.0);
-    final fieldSpacing = isSmallMobile ? 12.0 : 16.0;
-    final contentPadding = isSmallMobile
-        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
-        : const EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    Color strengthColor(int s) {
+      if (s <= 1) return Colors.red.shade400;
+      if (s == 2) return Colors.orange.shade400;
+      if (s == 3) return Colors.yellow.shade700;
+      return Colors.green.shade500;
+    }
+
+    String strengthLabel(int s) {
+      if (s <= 1) return 'Weak';
+      if (s == 2) return 'Fair';
+      if (s == 3) return 'Good';
+      return 'Strong';
+    }
+
+    InputDecoration fieldDecoration(
+      String label,
+      IconData icon,
+      bool show,
+      VoidCallback toggle,
+    ) {
+      return InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
+        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+        suffixIcon: IconButton(
+          splashRadius: 18,
+          icon: Icon(
+            show ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            size: 20,
+            color: Colors.grey.shade500,
+          ),
+          onPressed: toggle,
+        ),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : Colors.grey.shade300,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : Colors.grey.shade300,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      );
+    }
 
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
+          final newPass = newPasswordController.text;
+          final strength = getStrength(newPass);
+          final confirmPass = confirmPasswordController.text;
+          final passwordsMatch =
+              confirmPass.isNotEmpty && newPass == confirmPass;
+
           return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(isSmallMobile ? 16 : 20),
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
             ),
-            backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-            child: Container(
-              width: dialogWidth,
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey.shade900 : Colors.white,
-                borderRadius: BorderRadius.circular(isSmallMobile ? 16 : 20),
-              ),
-              constraints: BoxConstraints(
-                maxWidth: isWeb ? 500 : double.infinity,
-                maxHeight: MediaQuery.of(context).size.height * 0.85,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title
-                  Container(
-                    padding: EdgeInsets.all(isSmallMobile ? 16 : 20),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF2563EB),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(isSmallMobile ? 16 : 20),
-                        topRight: Radius.circular(isSmallMobile ? 16 : 20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 40,
+                      offset: const Offset(0, 16),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Gradient Header ──────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.lock_reset_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Change Password',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Keep your account secure',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white70,
+                            ),
+                            splashRadius: 18,
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(iconPadding),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.lock_reset,
-                            color: Colors.white,
-                            size: iconSize,
-                          ),
-                        ),
-                        SizedBox(width: isSmallMobile ? 8 : 12),
-                        Expanded(
-                          child: Text(
-                            'Change Password',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: titleFontSize,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
 
-                  // Content
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.all(isSmallMobile ? 16 : 20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                    // ── Body ─────────────────────────────────────────
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Current password
+                            TextField(
+                              controller: currentPasswordController,
+                              obscureText: !showCurrentPassword,
+                              decoration: fieldDecoration(
+                                'Current Password',
+                                Icons.lock_outline_rounded,
+                                showCurrentPassword,
+                                () => setState(
+                                  () => showCurrentPassword =
+                                      !showCurrentPassword,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // New password
+                            TextField(
+                              controller: newPasswordController,
+                              obscureText: !showNewPassword,
+                              onChanged: (_) => setState(() {}),
+                              decoration: fieldDecoration(
+                                'New Password',
+                                Icons.lock_rounded,
+                                showNewPassword,
+                                () => setState(
+                                  () => showNewPassword = !showNewPassword,
+                                ),
+                              ),
+                            ),
+
+                            // Strength indicator
+                            if (newPass.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  ...List.generate(4, (i) {
+                                    return Expanded(
+                                      child: Container(
+                                        height: 4,
+                                        margin: EdgeInsets.only(
+                                          right: i < 3 ? 4 : 0,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: i < strength
+                                              ? strengthColor(strength)
+                                              : (isDark
+                                                    ? Colors.white12
+                                                    : Colors.grey.shade200),
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    strengthLabel(strength),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: strengthColor(strength),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+
+                            const SizedBox(height: 16),
+
+                            // Confirm password
+                            TextField(
+                              controller: confirmPasswordController,
+                              obscureText: !showConfirmPassword,
+                              onChanged: (_) => setState(() {}),
+                              decoration:
+                                  fieldDecoration(
+                                    'Confirm New Password',
+                                    Icons.lock_clock_outlined,
+                                    showConfirmPassword,
+                                    () => setState(
+                                      () => showConfirmPassword =
+                                          !showConfirmPassword,
+                                    ),
+                                  ).copyWith(
+                                    suffixIcon: confirmPass.isEmpty
+                                        ? IconButton(
+                                            splashRadius: 18,
+                                            icon: Icon(
+                                              showConfirmPassword
+                                                  ? Icons
+                                                        .visibility_off_outlined
+                                                  : Icons.visibility_outlined,
+                                              size: 20,
+                                              color: Colors.grey.shade500,
+                                            ),
+                                            onPressed: () => setState(
+                                              () => showConfirmPassword =
+                                                  !showConfirmPassword,
+                                            ),
+                                          )
+                                        : Icon(
+                                            passwordsMatch
+                                                ? Icons.check_circle_rounded
+                                                : Icons.cancel_rounded,
+                                            size: 20,
+                                            color: passwordsMatch
+                                                ? Colors.green.shade500
+                                                : Colors.red.shade400,
+                                          ),
+                                  ),
+                            ),
+
+                            // Hint text
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.blue.shade900.withValues(
+                                        alpha: 0.3,
+                                      )
+                                    : Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.blue.shade700.withValues(
+                                          alpha: 0.4,
+                                        )
+                                      : Colors.blue.shade100,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 16,
+                                    color: Colors.blue.shade600,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Use 8+ characters with uppercase, numbers & symbols for a strong password.',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: isDark
+                                            ? Colors.blue.shade200
+                                            : Colors.blue.shade700,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ── Footer Buttons ────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: Row(
                         children: [
-                          TextField(
-                            controller: currentPasswordController,
-                            obscureText: !showCurrentPassword,
-                            style: TextStyle(fontSize: labelFontSize),
-                            decoration: InputDecoration(
-                              labelText: 'Current Password',
-                              labelStyle: TextStyle(fontSize: labelFontSize),
-                              prefixIcon: Icon(
-                                Icons.lock_outline,
-                                size: iconSize,
-                                color: Color(0xFF2563EB),
-                              ),
-                              suffixIcon: IconButton(
-                                iconSize: iconSize,
-                                icon: Icon(
-                                  showCurrentPassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: isDark
+                                    ? Colors.grey.shade300
+                                    : Colors.grey.shade700,
+                                side: BorderSide(
+                                  color: isDark
+                                      ? Colors.white24
+                                      : Colors.grey.shade300,
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    showCurrentPassword = !showCurrentPassword;
-                                  });
-                                },
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
                               ),
-                              contentPadding: contentPadding,
                             ),
                           ),
-                          SizedBox(height: fieldSpacing),
-                          TextField(
-                            controller: newPasswordController,
-                            obscureText: !showNewPassword,
-                            style: TextStyle(fontSize: labelFontSize),
-                            decoration: InputDecoration(
-                              labelText: 'New Password',
-                              labelStyle: TextStyle(fontSize: labelFontSize),
-                              prefixIcon: Icon(
-                                Icons.lock,
-                                size: iconSize,
-                                color: Color(0xFF2563EB),
-                              ),
-                              suffixIcon: IconButton(
-                                iconSize: iconSize,
-                                icon: Icon(
-                                  showNewPassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () async {
+                                      final current = currentPasswordController
+                                          .text
+                                          .trim();
+                                      final newP = newPasswordController.text
+                                          .trim();
+                                      final confirm = confirmPasswordController
+                                          .text
+                                          .trim();
+
+                                      if (current.isEmpty ||
+                                          newP.isEmpty ||
+                                          confirm.isEmpty) {
+                                        showTopSnackBar(
+                                          Overlay.of(context),
+                                          const CustomSnackBar.error(
+                                            message: 'All fields are required',
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      final passwordError =
+                                          PasswordValidator.validate(newP);
+                                      if (passwordError != null) {
+                                        showTopSnackBar(
+                                          Overlay.of(context),
+                                          CustomSnackBar.error(
+                                            message: passwordError,
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      if (newP != confirm) {
+                                        showTopSnackBar(
+                                          Overlay.of(context),
+                                          const CustomSnackBar.error(
+                                            message:
+                                                'New passwords do not match',
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      setState(() => isSubmitting = true);
+                                      try {
+                                        await Provider.of<StudentProvider>(
+                                          context,
+                                          listen: false,
+                                        ).changePassword(
+                                          current,
+                                          newP,
+                                          confirm,
+                                        );
+
+                                        if (context.mounted) {
+                                          Navigator.of(ctx).pop();
+                                          showTopSnackBar(
+                                            Overlay.of(context),
+                                            const CustomSnackBar.success(
+                                              message:
+                                                  'Password changed successfully!',
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        setState(() => isSubmitting = false);
+                                        if (context.mounted) {
+                                          String msg = e.toString();
+                                          if (msg.startsWith('Exception: ')) {
+                                            msg = msg.substring(11);
+                                          }
+                                          showTopSnackBar(
+                                            Overlay.of(context),
+                                            CustomSnackBar.error(message: msg),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: isSubmitting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_rounded, size: 18),
+                              label: Text(
+                                isSubmitting ? 'Saving…' : 'Change Password',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    showNewPassword = !showNewPassword;
-                                  });
-                                },
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              contentPadding: contentPadding,
-                            ),
-                          ),
-                          SizedBox(height: fieldSpacing),
-                          TextField(
-                            controller: confirmPasswordController,
-                            obscureText: !showConfirmPassword,
-                            style: TextStyle(fontSize: labelFontSize),
-                            decoration: InputDecoration(
-                              labelText: 'Confirm New Password',
-                              labelStyle: TextStyle(fontSize: labelFontSize),
-                              prefixIcon: Icon(
-                                Icons.lock_clock,
-                                size: iconSize,
-                                color: Color(0xFF2563EB),
-                              ),
-                              suffixIcon: IconButton(
-                                iconSize: iconSize,
-                                icon: Icon(
-                                  showConfirmPassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    showConfirmPassword = !showConfirmPassword;
-                                  });
-                                },
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              contentPadding: contentPadding,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  // Actions
-                  Container(
-                    padding: EdgeInsets.all(isSmallMobile ? 12 : 16),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.grey.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(ctx).pop();
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isSmallMobile ? 12 : 20,
-                              vertical: isSmallMobile ? 8 : 12,
-                            ),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontSize: labelFontSize,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isSmallMobile ? 8 : 12),
-                        ElevatedButton(
-                          onPressed: () async {
-                            final current = currentPasswordController.text
-                                .trim();
-                            final newPass = newPasswordController.text.trim();
-                            final confirm = confirmPasswordController.text
-                                .trim();
-
-                            if (current.isEmpty ||
-                                newPass.isEmpty ||
-                                confirm.isEmpty) {
-                              showTopSnackBar(
-                                Overlay.of(context),
-                                const CustomSnackBar.error(
-                                  message: 'All fields are required',
-                                ),
-                              );
-                              return;
-                            }
-
-                            // Validate new password strength
-                            final passwordError = PasswordValidator.validate(
-                              newPass,
-                            );
-                            if (passwordError != null) {
-                              showTopSnackBar(
-                                Overlay.of(context),
-                                CustomSnackBar.error(message: passwordError),
-                              );
-                              return;
-                            }
-
-                            if (newPass != confirm) {
-                              showTopSnackBar(
-                                Overlay.of(context),
-                                const CustomSnackBar.error(
-                                  message: 'New passwords do not match',
-                                ),
-                              );
-                              return;
-                            }
-
-                            try {
-                              final studentProvider =
-                                  Provider.of<StudentProvider>(
-                                    context,
-                                    listen: false,
-                                  );
-                              await studentProvider.changePassword(
-                                current,
-                                newPass,
-                                confirm,
-                              );
-
-                              if (context.mounted) {
-                                Navigator.of(ctx).pop();
-                                showTopSnackBar(
-                                  Overlay.of(context),
-                                  const CustomSnackBar.success(
-                                    message: 'Password changed successfully!',
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                String errorMessage = e.toString();
-                                // Remove 'Exception: ' prefix if present
-                                if (errorMessage.startsWith('Exception: ')) {
-                                  errorMessage = errorMessage.substring(11);
-                                }
-                                showTopSnackBar(
-                                  Overlay.of(context),
-                                  CustomSnackBar.error(message: errorMessage),
-                                );
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isSmallMobile ? 16 : 24,
-                              vertical: isSmallMobile ? 10 : 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            isSmallMobile ? 'Change' : 'Change Password',
-                            style: TextStyle(fontSize: labelFontSize),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -1645,6 +1905,877 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build appearance section for web
+  Widget _buildAppearanceSection(
+    BuildContext context,
+    bool isDark,
+    Color cardColor,
+    Color primaryColor,
+    Color? textColor,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? LinearGradient(
+                colors: [
+                  Colors.purple.shade900.withValues(alpha: 0.3),
+                  cardColor,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : LinearGradient(
+                colors: [Colors.orange.shade50, cardColor],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "Appearance"),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              value: isDark,
+              onChanged: (value) => Provider.of<ThemeProvider>(
+                context,
+                listen: false,
+              ).toggleTheme(value),
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                "Dark Mode",
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              subtitle: Text(isDark ? "Enabled" : "Disabled"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build CV section for web
+  Widget _buildCVSection(
+    BuildContext context,
+    Color cardColor,
+    Color? textColor,
+    Color dividerColor,
+    bool isMobile,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+          ),
+        ],
+        border: Border.all(color: dividerColor.withValues(alpha: 0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "CV Management"),
+            const SizedBox(height: 4),
+            _buildQuickActionItem(
+              context,
+              Icons.edit_document,
+              "Generate CV",
+              "Auto-build CV from your profile",
+              Colors.blue,
+              onTap: () {},
+            ),
+            Divider(color: dividerColor, height: 20),
+            _buildQuickActionItem(
+              context,
+              Icons.cloud_upload_outlined,
+              "Upload CV",
+              "Upload your own PDF",
+              Colors.teal,
+              onTap: () => _handleUploadGeneratedCv(context),
+            ),
+            Divider(color: dividerColor, height: 20),
+            _buildQuickActionItem(
+              context,
+              Icons.preview_outlined,
+              "Preview CV",
+              "View your generated CV",
+              Colors.orange,
+              onTap: () => _handlePreviewGeneratedCv(context, false),
+            ),
+            Divider(color: dividerColor, height: 20),
+            _buildQuickActionItem(
+              context,
+              Icons.download_outlined,
+              "Download CV",
+              "Save CV to your device",
+              Colors.purple,
+              onTap: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build support section for web
+  Widget _buildSupportSection(
+    BuildContext context,
+    Color cardColor,
+    Color? textColor,
+    Color dividerColor,
+    Color iconColor,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+          ),
+        ],
+        border: Border.all(color: dividerColor.withValues(alpha: 0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "Support & Help"),
+            const SizedBox(height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.email_outlined,
+              "Email Support",
+              "Reach our team directly",
+              Icons.arrow_forward_ios,
+              onTap: () => _launchEmail(),
+            ),
+            Divider(color: dividerColor, height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.language_outlined,
+              "Official Website",
+              "cuiwah.edu.pk",
+              Icons.open_in_new,
+              onTap: () => launchUrl(
+                Uri.parse("https://cuiwah.edu.pk"),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+            Divider(color: dividerColor, height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.school_outlined,
+              "COMSATS Main",
+              "comsats.edu.pk",
+              Icons.open_in_new,
+              onTap: () => launchUrl(
+                Uri.parse("https://comsats.edu.pk"),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+            Divider(color: dividerColor, height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.web_outlined,
+              "Local Portal",
+              "portal.cuiwah.edu.pk",
+              Icons.open_in_new,
+              onTap: () => launchUrl(
+                Uri.parse("https://portal.cuiwah.edu.pk/"),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+            Divider(color: dividerColor, height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.account_circle_outlined,
+              "Student Portal",
+              "cuonline.cuiwah.edu.pk",
+              Icons.open_in_new,
+              onTap: () => launchUrl(
+                Uri.parse("https://cuonline.cuiwah.edu.pk:8095/"),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+            Divider(color: dividerColor, height: 16),
+            _buildSupportLinkItem(
+              context,
+              iconColor,
+              dividerColor,
+              Icons.terminal_outlined,
+              "RMS Console",
+              "FYP Schedule",
+              Icons.open_in_new,
+              onTap: () => launchUrl(
+                Uri.parse(
+                  "http://111.68.98.91/rms/student-console/fyp-schedule",
+                ),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Account Actions section for web (Change Password + Logout)
+  Widget _buildAccountActionsSection(
+    BuildContext context,
+    Color cardColor,
+    Color? textColor,
+    Color dividerColor,
+    Color iconColor,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.grey.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "Account"),
+            const SizedBox(height: 4),
+
+            // Change Password
+            _buildQuickActionItem(
+              context,
+              Icons.lock_reset_rounded,
+              "Change Password",
+              "Update your account password",
+              Colors.orange,
+              onTap: () => _showChangePasswordDialog(context),
+            ),
+
+            Divider(color: dividerColor, height: 20),
+
+            // Logout
+            _buildQuickActionItem(
+              context,
+              Icons.logout_rounded,
+              "Logout",
+              "Sign out of your account",
+              Colors.red,
+              onTap: () => _handleLogout(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Hero Section with Job Fair Information
+  Widget _buildWebHeroSection(
+    BuildContext context,
+    Student? student,
+    bool isDark,
+    Color cardColor,
+  ) {
+    final dashboardProvider = Provider.of<StudentProvider>(context);
+    final marketOverview = dashboardProvider.dashboardData?.marketOverview;
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [Colors.blue.shade900, Colors.purple.shade900]
+              : [Colors.blue.shade50, Colors.purple.shade50],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 50),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Welcome Text
+                Text(
+                  "Welcome, ${student?.user.fullName ?? 'Student'}",
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.blue.shade900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Manage your profile and job fair registrations",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: isDark ? Colors.white70 : Colors.blue.shade700,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // Job Fair Info Cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildJobFairInfoCard(
+                        context,
+                        "Registered Job Fair",
+                        marketOverview?.activeFairSemester ?? "N/A",
+                        "📋",
+                        isDark,
+                        cardColor,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildJobFairInfoCard(
+                        context,
+                        "Participating Companies",
+                        marketOverview != null
+                            ? "${marketOverview.totalCompanies}"
+                            : "—",
+                        "🏢",
+                        isDark,
+                        cardColor,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildJobFairInfoCard(
+                        context,
+                        "Available Positions",
+                        marketOverview != null
+                            ? "${marketOverview.totalJobs}"
+                            : "—",
+                        "💼",
+                        isDark,
+                        cardColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Job Fair Info Card
+  Widget _buildJobFairInfoCard(
+    BuildContext context,
+    String title,
+    String value,
+    String emoji,
+    bool isDark,
+    Color cardColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.grey.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).textTheme.bodySmall?.color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Quick Actions Section
+  Widget _buildQuickActionsSection(
+    BuildContext context,
+    Color cardColor,
+    Color? textColor,
+    Color dividerColor,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: dividerColor.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "Quick Actions"),
+            const SizedBox(height: 20),
+            _buildQuickActionItem(
+              context,
+              Icons.assessment_outlined,
+              "View Dashboard",
+              "Check your profile overview",
+              Colors.blue,
+              onTap: () => Navigator.of(context).pushNamed('/dashboard'),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickActionItem(
+              context,
+              Icons.work_outline,
+              "Browse Jobs",
+              "Find available positions",
+              Colors.green,
+              onTap: () => Navigator.of(context).pushNamed('/jobs'),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickActionItem(
+              context,
+              Icons.people_outline,
+              "Visit Companies",
+              "Explore company profiles",
+              Colors.orange,
+              onTap: () => Navigator.of(context).pushNamed('/companies'),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickActionItem(
+              context,
+              Icons.help_outline,
+              "Get Support",
+              "Contact support team",
+              Colors.purple,
+              onTap: () => _launchEmail(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionItem(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward,
+                size: 16,
+                color: Theme.of(context).iconTheme.color,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupportLinkItem(
+    BuildContext context,
+    Color iconColor,
+    Color dividerColor,
+    IconData icon,
+    String title,
+    String subtitle,
+    IconData trailingIcon, {
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: iconColor, size: 22),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(trailingIcon, size: 14, color: iconColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Job Fair Information Section
+  Widget _buildJobFairSection(
+    BuildContext context,
+    Color cardColor,
+    Color? textColor,
+    Color dividerColor,
+  ) {
+    final dashboardProvider = Provider.of<StudentProvider>(context);
+    final marketOverview = dashboardProvider.dashboardData?.marketOverview;
+    final isRegistered =
+        dashboardProvider.dashboardData?.studentProfile.isRegisteredForFair ??
+        false;
+
+    final fairName = marketOverview?.activeFairSemester ?? "Not Available";
+    final companyCount = marketOverview?.totalCompanies ?? 0;
+    final jobCount = marketOverview?.totalJobs ?? 0;
+    final currentFairDay = marketOverview?.currentFairDay ?? "N/A";
+    final currentFairDaysUntil = marketOverview?.currentFairDaysUntil;
+    final upcomingFair = marketOverview?.upcomingFair;
+
+    String dayLabel(int? daysUntil) {
+      if (daysUntil == null) return "N/A";
+      if (daysUntil > 0) return "$daysUntil days until fair";
+      if (daysUntil == 0) return "Today";
+      return "${daysUntil.abs()} days ago";
+    }
+
+    String formatDate(DateTime? value) {
+      if (value == null) return "Date not announced";
+      final d = value.toLocal();
+      return "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}";
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: dividerColor.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(context, "Job Fair Information"),
+            const SizedBox(height: 20),
+            // Current Fair
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Current Registration",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fairName,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$companyCount Companies • $jobCount Positions",
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      Chip(
+                        label: Text(
+                          isRegistered ? "Registered" : "Not Registered",
+                        ),
+                        backgroundColor: isRegistered
+                            ? Colors.green.withValues(alpha: 0.2)
+                            : Colors.orange.withValues(alpha: 0.2),
+                        labelStyle: TextStyle(
+                          color: isRegistered
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.deepPurple.withValues(alpha: 0.25),
+                  width: 1,
+                ),
+              ),
+              child: upcomingFair == null
+                  ? Row(
+                      children: [
+                        Icon(
+                          Icons.event_busy_outlined,
+                          color: Colors.deepPurple.shade400,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            "No upcoming job fair announced after current fair.",
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Upcoming Job Fair",
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    upcomingFair.semester,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                upcomingFair.isRegistered
+                                    ? "Registered"
+                                    : "Not Registered",
+                              ),
+                              backgroundColor: upcomingFair.isRegistered
+                                  ? Colors.green.withValues(alpha: 0.2)
+                                  : Colors.orange.withValues(alpha: 0.2),
+                              labelStyle: TextStyle(
+                                color: upcomingFair.isRegistered
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!upcomingFair.isRegistered) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.orange.shade700,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "If you want to register for this fair, please contact IT Center.",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Colors.orange.shade800,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
           ],
         ),

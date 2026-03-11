@@ -15,6 +15,7 @@ import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 import 'package:student_job_fair_portal/screens/requestScreen.dart';
 import 'package:student_job_fair_portal/widgets/interview_status_chart.dart';
 import 'package:student_job_fair_portal/widgets/market_overview_chart.dart';
+import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,6 +31,36 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _hasShownCvPrompt = false;
+  bool _hasInitialDashboardFetchCompleted = false;
+
+  Widget _buildDashboardCard(
+    BuildContext context, {
+    required Widget child,
+    EdgeInsetsGeometry? margin,
+    Clip clipBehavior = Clip.none,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      margin: margin,
+      elevation: isDark ? 3 : 6,
+      shadowColor: isDark
+          ? Colors.black.withValues(alpha: 0.32)
+          : Colors.black.withValues(alpha: 0.10),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : const Color(0xFFE5E7EB),
+        ),
+      ),
+      clipBehavior: clipBehavior,
+      child: child,
+    );
+  }
 
   Future<void> _uploadGeneratedCvFlow({String? cvEmail}) async {
     final studentProvider = Provider.of<StudentProvider>(
@@ -133,15 +164,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _loadInitialDashboard() async {
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+    provider.fetchProfile();
+    provider.fetchInterviewRequests();
+    provider.fetchScheduledInterviews();
+    await provider.fetchDashboardData();
+    if (mounted) {
+      setState(() {
+        _hasInitialDashboardFetchCompleted = true;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<StudentProvider>(context, listen: false);
-      provider.fetchProfile();
-      provider.fetchDashboardData();
-      provider.fetchInterviewRequests();
-      provider.fetchScheduledInterviews();
+      _loadInitialDashboard();
     });
   }
 
@@ -234,9 +274,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // 🔹 Theme Colors
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
-    final primaryColor = Theme.of(context).primaryColor;
 
-    if (isLoading && dashboardData == null) {
+    if (dashboardData == null &&
+        (isLoading || !_hasInitialDashboardFetchCompleted)) {
       return Scaffold(
         backgroundColor: scaffoldBg,
         body: const Center(child: CircularProgressIndicator()),
@@ -309,35 +349,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildProfileSection(
-                      context,
-                      dashboardData.studentProfile,
-                      isWide,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildMarketOverview(
-                      context,
-                      dashboardData.marketOverview,
-                      isWide,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildRecommendedJobs(
-                      context,
-                      dashboardData.recommendedJobs,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildActionsRequired(
-                      context,
-                      dashboardData.actionsRequired,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInterviewStats(context, dashboardData.interviewStats),
-                    const SizedBox(height: 24),
-                    _buildNotices(context, dashboardData.notices),
-                  ],
+                child: AppPageReveal(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildProfileSection(
+                        context,
+                        dashboardData.studentProfile,
+                        isWide,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildMarketOverview(
+                        context,
+                        dashboardData.marketOverview,
+                        isWide,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildRecommendedJobs(
+                        context,
+                        dashboardData.recommendedJobs,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildActionsRequired(
+                        context,
+                        dashboardData.actionsRequired,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildInterviewStats(
+                        context,
+                        dashboardData.interviewStats,
+                      ),
+                      const SizedBox(height: 24),
+                      _buildNotices(context, dashboardData.notices),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -364,71 +409,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 vertical: 30,
                                 horizontal: 20,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Dashboard",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Left Column
-                                      Expanded(
-                                        flex: 2,
-                                        child: Column(
-                                          children: [
-                                            _buildProfileSection(
-                                              context,
-                                              dashboardData.studentProfile,
-                                              isWide,
-                                            ),
-                                            const SizedBox(height: 24),
-                                            _buildMarketOverview(
-                                              context,
-                                              dashboardData.marketOverview,
-                                              isWide,
-                                            ),
-                                            const SizedBox(height: 24),
-                                            _buildRecommendedJobs(
-                                              context,
-                                              dashboardData.recommendedJobs,
-                                            ),
-                                            const SizedBox(height: 24),
-                                            _buildActionsRequired(
-                                              context,
-                                              dashboardData.actionsRequired,
-                                            ),
-                                          ],
+                              child: AppPageReveal(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Dashboard",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              _buildProfileSection(
+                                                context,
+                                                dashboardData.studentProfile,
+                                                isWide,
+                                              ),
+                                              const SizedBox(height: 24),
+                                              _buildMarketOverview(
+                                                context,
+                                                dashboardData.marketOverview,
+                                                isWide,
+                                              ),
+                                              const SizedBox(height: 24),
+                                              _buildRecommendedJobs(
+                                                context,
+                                                dashboardData.recommendedJobs,
+                                              ),
+                                              const SizedBox(height: 24),
+                                              _buildActionsRequired(
+                                                context,
+                                                dashboardData.actionsRequired,
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 24),
-                                      // Right Column
-                                      Expanded(
-                                        flex: 1,
-                                        child: Column(
-                                          children: [
-                                            _buildInterviewStats(
-                                              context,
-                                              dashboardData.interviewStats,
-                                            ),
-                                            const SizedBox(height: 24),
-                                            _buildNotices(
-                                              context,
-                                              dashboardData.notices,
-                                            ),
-                                          ],
+                                        const SizedBox(width: 24),
+                                        Expanded(
+                                          flex: 1,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              _buildInterviewStats(
+                                                context,
+                                                dashboardData.interviewStats,
+                                              ),
+                                              const SizedBox(height: 24),
+                                              _buildNotices(
+                                                context,
+                                                dashboardData.notices,
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -468,8 +519,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : "${studentProvider.imageBaseUrl}${profile.profilePicUrl!}")
         : null;
 
-    return Card(
-      elevation: 2,
+    return _buildDashboardCard(
+      context,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -670,13 +722,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
 
-    final chartCard = Card(
-      elevation: 2,
+    final chartCard = _buildDashboardCard(
+      context,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SizedBox(
           height: isWide ? 280 : 220,
-          child: MarketOverviewChart(overview: market),
+          child: AppLoadingFadeIn(child: MarketOverviewChart(overview: market)),
         ),
       ),
     );
@@ -714,8 +766,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color color, {
     VoidCallback? onTap,
   }) {
-    return Card(
-      elevation: 2,
+    return _buildDashboardCard(
+      context,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -751,52 +803,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Text('Actions Required', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        Card(
-          child: Column(
-            children: [
-              if (actions.pendingInterviewRequestsCount > 0)
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.orange,
-                    child: Icon(Icons.calendar_today, color: Colors.white),
+        SizedBox(
+          width: double.infinity,
+          child: _buildDashboardCard(
+            context,
+            child: Column(
+              children: [
+                if (actions.pendingInterviewRequestsCount > 0)
+                  ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.orange,
+                      child: Icon(Icons.calendar_today, color: Colors.white),
+                    ),
+                    title: Text(
+                      '${actions.pendingInterviewRequestsCount} Pending Interview Requests',
+                    ),
+                    subtitle: const Text('Action needed'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const RequestsScreen(initialTabIndex: 1),
+                        ),
+                      );
+                    },
                   ),
-                  title: Text(
-                    '${actions.pendingInterviewRequestsCount} Pending Interview Requests',
+                if (actions.pendingProjectInvitesCount > 0)
+                  ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.purple,
+                      child: Icon(Icons.group_add, color: Colors.white),
+                    ),
+                    title: Text(
+                      '${actions.pendingProjectInvitesCount} Pending Project Invites',
+                    ),
+                    subtitle: const Text('Review invites'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      // Navigate to projects
+                    },
                   ),
-                  subtitle: const Text('Action needed'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const RequestsScreen(initialTabIndex: 1),
-                      ),
-                    );
-                  },
-                ),
-              if (actions.pendingProjectInvitesCount > 0)
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.purple,
-                    child: Icon(Icons.group_add, color: Colors.white),
+                if (actions.pendingInterviewRequestsCount == 0 &&
+                    actions.pendingProjectInvitesCount == 0)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: Text('No pending actions. Good job!')),
                   ),
-                  title: Text(
-                    '${actions.pendingProjectInvitesCount} Pending Project Invites',
-                  ),
-                  subtitle: const Text('Review invites'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    // Navigate to projects
-                  },
-                ),
-              if (actions.pendingInterviewRequestsCount == 0 &&
-                  actions.pendingProjectInvitesCount == 0)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No pending actions. Good job!'),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -812,7 +868,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Text('Recommended Jobs', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        Card(
+        _buildDashboardCard(
+          context,
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: jobs.isEmpty
@@ -872,25 +929,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Text('Interview Stats', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        Card(
-          elevation: 2,
+        _buildDashboardCard(
+          context,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Column(children: [InterviewStatusChart(stats: stats)]),
+            child: Column(
+              children: [
+                AppPieChartReveal(child: InterviewStatusChart(stats: stats)),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
         Text('Next Interview', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (stats.nextInterview == null)
-          const Card(
+          _buildDashboardCard(
+            context,
             child: Padding(
               padding: EdgeInsets.all(16.0),
               child: Center(child: Text('No upcoming interviews')),
             ),
           )
         else
-          Card(
+          _buildDashboardCard(
+            context,
             child: ListTile(
               leading: stats.nextInterview!.companyLogo != null
                   ? CircleAvatar(
@@ -921,7 +984,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text('Recent Notices', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         if (notices.isEmpty)
-          const Card(
+          _buildDashboardCard(
+            context,
             child: Padding(
               padding: EdgeInsets.all(16.0),
               child: Center(child: Text('No recent notices')),
@@ -929,7 +993,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           )
         else
           ...notices.map(
-            (notice) => Card(
+            (notice) => _buildDashboardCard(
+              context,
               margin: const EdgeInsets.only(bottom: 8),
               child: ExpansionTile(
                 title: Text(

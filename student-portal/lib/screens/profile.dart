@@ -19,6 +19,7 @@ import 'package:student_job_fair_portal/screens/settings_screen.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
+import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/widgets/build_profile_content.dart';
 import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
 import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
@@ -508,7 +509,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       listen: false,
     ).student;
-    final urlCtrl = TextEditingController();
 
     const List<String> allPlatforms = [
       'LinkedIn',
@@ -538,96 +538,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    String selectedPlatform = availablePlatforms.first;
-
-    showGenericDialog(
-      context: context,
-      title: "Add Contact Link",
-      content: StatefulBuilder(
-        builder: (context, setState) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: selectedPlatform,
-                items: availablePlatforms
-                    .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                    .toList(),
-                onChanged: (value) => setState(() => selectedPlatform = value!),
-                decoration: const InputDecoration(labelText: "Platform"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: urlCtrl,
-                decoration: const InputDecoration(labelText: "URL"),
-                keyboardType: TextInputType.url,
-              ),
-            ],
-          );
-        },
-      ),
-      onSave: () async {
+    showContactLinkDialog(
+      context,
+      allowedPlatforms: availablePlatforms,
+      onSaveLink: (data) async {
         await Provider.of<StudentProvider>(
           context,
           listen: false,
-        ).addContactLink({
-          "platform": selectedPlatform,
-          "url": urlCtrl.text.trim(),
-        });
+        ).addContactLink(data);
       },
     );
   }
 
   void _onManageProject(dynamic projectDynamic) {
     final Project project = projectDynamic as Project;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Wrap(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark ? Colors.white : Colors.black87;
+    final dividerColor = isDark
+        ? const Color(0xFF3A3A4A)
+        : const Color(0xFFE5E7EB);
+
+    Widget menuTile({
+      required IconData icon,
+      required Color iconColor,
+      required String label,
+      required Color textColor,
+      required VoidCallback onTap,
+    }) {
+      return InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
             children: [
-              ListTile(
-                leading: const Icon(Icons.group, color: Colors.indigo),
-                title: const Text("View Team Members"),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  showProjectMembersSheet(
-                    context,
-                    project.projectId,
-                    project.title,
-                  );
-                },
-              ),
-              if (project.currentStudentIsCreator) ...[
-                ListTile(
-                  leading: const Icon(Icons.edit, color: Colors.blue),
-                  title: const Text("Edit Project"),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    showProjectDialog(context, project: project);
-                  },
+              Icon(icon, size: 18, color: iconColor),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
                 ),
-                ListTile(
-                  leading: const Icon(Icons.person_add, color: Colors.green),
-                  title: const Text("Invite Member"),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    showInviteMemberDialog(project.projectId, context);
-                  },
-                ),
-              ],
-              ListTile(
-                leading: const Icon(Icons.exit_to_app, color: Colors.red),
-                title: const Text("Leave Project"),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  confirmLeaveProject(project.projectId, context);
-                },
               ),
             ],
+          ),
+        ),
+      );
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  menuTile(
+                    icon: Icons.group,
+                    iconColor: Colors.indigo,
+                    label: "View Team Members",
+                    textColor: labelColor,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      showProjectMembersSheet(
+                        context,
+                        project.projectId,
+                        project.title,
+                      );
+                    },
+                  ),
+                  Divider(height: 1, color: dividerColor),
+                  if (project.currentStudentIsCreator) ...[
+                    menuTile(
+                      icon: Icons.edit,
+                      iconColor: Colors.blue,
+                      label: "Edit Project",
+                      textColor: labelColor,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showProjectDialog(context, project: project);
+                      },
+                    ),
+                    Divider(height: 1, color: dividerColor),
+                    menuTile(
+                      icon: Icons.person_add,
+                      iconColor: Colors.green,
+                      label: "Invite Member",
+                      textColor: labelColor,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showInviteMemberDialog(project.projectId, context);
+                      },
+                    ),
+                    Divider(height: 1, color: dividerColor),
+                  ],
+                  menuTile(
+                    icon: Icons.exit_to_app,
+                    iconColor: Colors.red,
+                    label: "Leave Project",
+                    textColor: Colors.red,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      confirmLeaveProject(project.projectId, context);
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -709,7 +739,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // 🔹 Theme Colors
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
-    final primaryColor = Theme.of(context).primaryColor;
 
     if (_isInitLoading) {
       return Scaffold(
@@ -774,23 +803,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                     physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        _buildCvActionsCard(context),
-                        const SizedBox(height: 12),
-                        buildProfileContent(
-                          context,
-                          student,
-                          profileImageUrl,
-                          _onManageProject,
-                          _onEditPicturePressed,
-                          _showAddContactLinkDialog,
-                          onEditLink,
-                          onDeleteLink,
-                          _onUpdateNamePressed,
-                          mounted,
-                        ),
-                      ],
+                    child: AppPageReveal(
+                      child: Column(
+                        children: [
+                          _buildCvActionsCard(context),
+                          const SizedBox(height: 12),
+                          buildProfileContent(
+                            context,
+                            student,
+                            profileImageUrl,
+                            _onManageProject,
+                            _onEditPicturePressed,
+                            _showAddContactLinkDialog,
+                            onEditLink,
+                            onDeleteLink,
+                            _onUpdateNamePressed,
+                            mounted,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -819,32 +850,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 vertical: 30,
                                 horizontal: 20,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Welcome back, ${student.user.fullName}",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  _buildCvActionsCard(context),
-                                  const SizedBox(height: 12),
-                                  buildProfileContent(
-                                    context,
-                                    student,
-                                    profileImageUrl,
-                                    _onManageProject,
-                                    _onEditPicturePressed,
-                                    _showAddContactLinkDialog,
-                                    onEditLink,
-                                    onDeleteLink,
-                                    _onUpdateNamePressed,
-                                    mounted,
-                                  ),
-                                ],
+                              child: AppPageReveal(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Welcome back, ${student.user.fullName}",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    _buildCvActionsCard(context),
+                                    const SizedBox(height: 12),
+                                    buildProfileContent(
+                                      context,
+                                      student,
+                                      profileImageUrl,
+                                      _onManageProject,
+                                      _onEditPicturePressed,
+                                      _showAddContactLinkDialog,
+                                      onEditLink,
+                                      onDeleteLink,
+                                      _onUpdateNamePressed,
+                                      mounted,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

@@ -1,4 +1,5 @@
 class ProjectMember {
+  final int studentId;
   final String fullName;
   final String registrationNo;
   final String role;
@@ -6,6 +7,7 @@ class ProjectMember {
   final bool isCreator;
 
   ProjectMember({
+    required this.studentId,
     required this.fullName,
     required this.registrationNo,
     required this.role,
@@ -15,6 +17,7 @@ class ProjectMember {
 
   factory ProjectMember.fromJson(Map<String, dynamic> json) {
     return ProjectMember(
+      studentId: json['studentId'] ?? 0,
       fullName: json['fullName'] ?? 'Unknown',
       registrationNo: json['registrationNo'] ?? '',
       role: json['role'] ?? 'Member',

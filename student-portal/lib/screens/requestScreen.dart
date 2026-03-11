@@ -14,6 +14,7 @@ import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 // Screens for Navigation
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
+import 'package:student_job_fair_portal/widgets/app_animations.dart';
 
 // Widgets
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
@@ -105,61 +106,63 @@ class _RequestsScreenState extends State<RequestsScreen>
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             appBar: BeautifulAppBar(title: "Interview Requests"),
-            body: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicator: BoxDecoration(
+            body: AppPageReveal(
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(25),
-                      color: Theme.of(context).primaryColor,
-                    ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor: isDark
-                        ? Colors.grey.shade400
-                        : Colors.grey.shade600,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    dividerColor: Colors.transparent,
-                    padding: const EdgeInsets.all(4),
-                    tabs: const [
-                      Tab(text: "Sent Requests"),
-                      Tab(text: "Received Requests"),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildSentList(
-                          sentRequests,
-                          studentProvider,
-                          isMobile: true,
-                        ),
-                        _buildReceivedList(
-                          receivedRequests,
-                          studentProvider,
-                          isMobile: true,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicator: BoxDecoration(
+                        borderRadius: BorderRadius.circular(25),
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      labelColor: Colors.white,
+                      unselectedLabelColor: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      padding: const EdgeInsets.all(4),
+                      tabs: const [
+                        Tab(text: "Sent Requests"),
+                        Tab(text: "Received Requests"),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Container(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildSentList(
+                            sentRequests,
+                            studentProvider,
+                            isMobile: true,
+                          ),
+                          _buildReceivedList(
+                            receivedRequests,
+                            studentProvider,
+                            isMobile: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             bottomNavigationBar: BeautifulMobileNavBar(currentIndex: 5),
           );
@@ -191,70 +194,72 @@ class _RequestsScreenState extends State<RequestsScreen>
                                 vertical: 40,
                                 horizontal: 30,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        "Interview Requests",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .headlineSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: isDark
-                                                  ? Colors.white
-                                                  : Colors.blueGrey.shade800,
-                                            ),
-                                      ),
-                                      IconButton(
-                                        onPressed: _refresh,
-                                        icon: const Icon(Icons.refresh),
-                                        tooltip: "Refresh Requests",
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? Colors.grey.shade800
-                                          : Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.all(4),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
+                              child: AppPageReveal(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
-                                        _buildWebTab(
-                                          "Sent Requests",
-                                          sentRequests.length,
-                                          0,
+                                        Text(
+                                          "Interview Requests",
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .headlineSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : Colors.blueGrey.shade800,
+                                              ),
                                         ),
-                                        _buildWebTab(
-                                          "Received Invites",
-                                          receivedRequests.length,
-                                          1,
+                                        IconButton(
+                                          onPressed: _refresh,
+                                          icon: const Icon(Icons.refresh),
+                                          tooltip: "Refresh Requests",
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(height: 30),
-                                  _webTabIndex == 0
-                                      ? _buildSentList(
-                                          sentRequests,
-                                          studentProvider,
-                                          isMobile: false,
-                                        )
-                                      : _buildReceivedList(
-                                          receivedRequests,
-                                          studentProvider,
-                                          isMobile: false,
-                                        ),
-                                ],
+                                    const SizedBox(height: 24),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? Colors.grey.shade800
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.all(4),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _buildWebTab(
+                                            "Sent Requests",
+                                            sentRequests.length,
+                                            0,
+                                          ),
+                                          _buildWebTab(
+                                            "Received Invites",
+                                            receivedRequests.length,
+                                            1,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 30),
+                                    _webTabIndex == 0
+                                        ? _buildSentList(
+                                            sentRequests,
+                                            studentProvider,
+                                            isMobile: false,
+                                          )
+                                        : _buildReceivedList(
+                                            receivedRequests,
+                                            studentProvider,
+                                            isMobile: false,
+                                          ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

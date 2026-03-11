@@ -85,8 +85,24 @@ class _EditFypScreenState extends State<EditFypScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit FYP Details")),
+      appBar: AppBar(
+        title: isMobile
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/LogoWithoutBg.png',
+                    height: 24,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text("Edit FYP Details"),
+                ],
+              )
+            : const Text("Edit FYP Details"),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: ListView(

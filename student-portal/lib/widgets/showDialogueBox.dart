@@ -5,10 +5,63 @@ import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/model/project.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
 import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/widgets/skill_selection_dialog.dart';
+
+String? _validateSocialUrlByPlatform(String platform, String rawUrl) {
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) return 'URL is required.';
+
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+    return 'Enter a valid absolute URL (e.g. https://...).';
+  }
+  if (uri.scheme != 'http' && uri.scheme != 'https') {
+    return 'URL must start with http:// or https://';
+  }
+
+  final host = uri.host.toLowerCase();
+  final combined = ('$host${uri.path}'.toLowerCase());
+
+  bool containsAny(List<String> keys) =>
+      keys.any((key) => combined.contains(key));
+
+  switch (platform) {
+    case 'LinkedIn':
+      if (!containsAny(['linkedin.com'])) {
+        return 'LinkedIn link must be from linkedin.com';
+      }
+      break;
+    case 'GitHub':
+      if (!containsAny(['github.com'])) {
+        return 'GitHub link must be from github.com';
+      }
+      break;
+    case 'Twitter':
+      if (!containsAny(['twitter.com', 'x.com'])) {
+        return 'Twitter link must be from twitter.com or x.com';
+      }
+      break;
+    case 'Facebook':
+      if (!containsAny(['facebook.com', 'fb.com'])) {
+        return 'Facebook link must be from facebook.com';
+      }
+      break;
+    case 'Instagram':
+      if (!containsAny(['instagram.com'])) {
+        return 'Instagram link must be from instagram.com';
+      }
+      break;
+    case 'Portfolio':
+    case 'Other':
+      break;
+  }
+
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // 🌍 NEW: Searchable Location Picker (World Cities)
@@ -654,6 +707,12 @@ void showAddAchievementDialog(BuildContext context) {
 
 void showInviteMemberDialog(int projectId, BuildContext context) {
   final regNoCtrl = TextEditingController();
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  const brandBlue = Color(0xFF2563EB);
+  final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+  final fieldBorder = isDark
+      ? const Color(0xFF475569)
+      : const Color(0xFFD1D9E6);
   showGenericDialog(
     context: context,
     title: "Invite Student",
@@ -663,20 +722,44 @@ void showInviteMemberDialog(int projectId, BuildContext context) {
         FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
         UpperCaseHyphenFormatter(maxLength: 12),
       ],
-      style: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 1),
-      decoration: const InputDecoration(
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1,
+        color: isDark ? Colors.white : Colors.black,
+      ),
+      decoration: InputDecoration(
         labelText: "Registration Number",
         hintText: "FA22-BCS-155",
-        prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF2563EB)),
-        border: OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.badge_outlined, color: brandBlue),
+        filled: true,
+        fillColor: fieldFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: fieldBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: fieldBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: brandBlue, width: 2),
+        ),
       ),
     ),
     onSave: () async {
-      if (regNoCtrl.text.isEmpty) return;
+      final regNo = regNoCtrl.text.trim();
+      final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
+      if (regNo.isEmpty) {
+        throw Exception("Registration number is required.");
+      }
+      if (!regNoPattern.hasMatch(regNo)) {
+        throw Exception("Use format AA00-AAA-000 (e.g. FA22-BCS-007).");
+      }
       bool success = await Provider.of<StudentProvider>(
         context,
         listen: false,
-      ).inviteStudent(projectId, regNoCtrl.text.trim());
+      ).inviteStudent(projectId, regNo);
 
       if (!success) throw Exception("Failed to invite student.");
     },
@@ -1000,42 +1083,75 @@ void showContactLinkDialog(
   BuildContext context, {
   ContactLink? link,
   required Function(Map<String, dynamic>) onSaveLink,
+  List<String>? allowedPlatforms,
 }) {
   final isEditing = link != null;
-  final platformCtrl = TextEditingController(
-    text: link?.platform.toString() ?? "",
-  );
+  const allPlatforms = [
+    'LinkedIn',
+    'GitHub',
+    'Portfolio',
+    'Twitter',
+    'Facebook',
+    'Instagram',
+    'Other',
+  ];
+  final platforms = (allowedPlatforms != null && allowedPlatforms.isNotEmpty)
+      ? allowedPlatforms
+      : allPlatforms;
+  String selectedPlatform;
+  if (link != null) {
+    selectedPlatform = contactPlatformToString(link.platform);
+  } else {
+    selectedPlatform = platforms.first;
+  }
+  if (!platforms.contains(selectedPlatform)) {
+    selectedPlatform = platforms.first;
+  }
   final urlCtrl = TextEditingController(text: link?.url ?? "");
 
   showGenericDialog(
     context: context,
     title: isEditing ? "Edit Contact Link" : "Add Contact Link",
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: platformCtrl,
-          decoration: const InputDecoration(
-            labelText: "Platform (e.g. GitHub, LinkedIn, Portfolio)",
-            border: OutlineInputBorder(),
+    content: StatefulBuilder(
+      builder: (context, setState) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: selectedPlatform,
+            items: platforms
+                .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => selectedPlatform = v);
+            },
+            decoration: const InputDecoration(
+              labelText: 'Platform',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: urlCtrl,
-          decoration: const InputDecoration(
-            labelText: "URL",
-            hintText: "https://your-profile",
-            border: OutlineInputBorder(),
+          const SizedBox(height: 10),
+          TextField(
+            controller: urlCtrl,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: "URL",
+              hintText: "https://your-profile",
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
     onSave: () async {
-      final data = {
-        "platform": platformCtrl.text.trim(),
-        "url": urlCtrl.text.trim(),
-      };
+      final validationError = _validateSocialUrlByPlatform(
+        selectedPlatform,
+        urlCtrl.text,
+      );
+      if (validationError != null) {
+        throw Exception(validationError);
+      }
+
+      final data = {"platform": selectedPlatform, "url": urlCtrl.text.trim()};
       onSaveLink(data);
     },
   );
@@ -1268,7 +1384,7 @@ void showAddExperienceDialog(BuildContext context) {
   );
 }
 
-// UpperCaseHyphenFormatter for Registration Number
+// UpperCaseHyphenFormatter for strict AA00-AAA-000
 class UpperCaseHyphenFormatter extends TextInputFormatter {
   final int maxLength;
   UpperCaseHyphenFormatter({required this.maxLength});
@@ -1278,58 +1394,40 @@ class UpperCaseHyphenFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Handle deletion - if user is deleting, preserve the operation
-    if (newValue.text.length < oldValue.text.length) {
-      // User is deleting
-      String newText = newValue.text.toUpperCase();
-      int cursorPos = newValue.selection.baseOffset;
+    final rawInput = newValue.text.toUpperCase().replaceAll('-', '');
+    final buffer = StringBuffer();
 
-      // If cursor is right after a hyphen that was auto-added, move it back
-      if (cursorPos > 0 &&
-          cursorPos < newText.length &&
-          newText[cursorPos] == '-') {
-        cursorPos--;
-      }
+    for (final char in rawInput.split('')) {
+      final index = buffer.length;
+      if (index >= 10) break;
 
-      return TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursorPos),
-      );
-    }
+      final isLetter = RegExp(r'[A-Z]').hasMatch(char);
+      final isDigit = RegExp(r'\d').hasMatch(char);
 
-    // Handle addition/typing
-    String text = newValue.text.toUpperCase().replaceAll('-', '');
-    if (text.length > maxLength) text = text.substring(0, maxLength);
+      final shouldBeLetter = index < 2 || (index >= 4 && index <= 6);
+      final shouldBeDigit = (index >= 2 && index <= 3) || index >= 7;
 
-    String formatted = '';
-    if (text.length >= 2) {
-      formatted += text.substring(0, 2);
-      if (text.length >= 4) {
-        formatted += text.substring(2, 4);
-      } else if (text.length > 2) {
-        formatted += text.substring(2);
-      }
-      formatted += '-';
-    } else {
-      formatted = text;
-    }
-
-    if (text.length > 4) {
-      if (text.length >= 7) {
-        formatted += text.substring(4, 7);
-      } else {
-        formatted += text.substring(4);
-      }
-      if (text.length > 7) {
-        formatted += '-';
-        formatted += text.substring(7);
+      if ((shouldBeLetter && isLetter) || (shouldBeDigit && isDigit)) {
+        buffer.write(char);
       }
     }
 
-    int cursorPos = formatted.length;
+    final filtered = buffer.toString();
+    final formatted = StringBuffer();
+
+    for (int i = 0; i < filtered.length; i++) {
+      if (i == 4 || i == 7) formatted.write('-');
+      formatted.write(filtered[i]);
+    }
+
+    String result = formatted.toString();
+    if (result.length > maxLength) {
+      result = result.substring(0, maxLength);
+    }
+
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: cursorPos),
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
     );
   }
 }

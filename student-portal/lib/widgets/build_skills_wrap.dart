@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_popup/flutter_popup.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
@@ -11,55 +12,6 @@ Widget buildSkillsWrap(List<dynamic>? skills, BuildContext context) {
     );
   }
 
-  Future<void> confirmAndDeleteSkill(String skillToDelete) async {
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext ctx) {
-        return AlertDialog(
-          title: const Text("Remove Skill?"),
-          content: Text(
-            "Are you sure you want to remove the skill: '$skillToDelete'?",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text("Cancel"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text("Remove", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      try {
-        bool success = await Provider.of<StudentProvider>(
-          context,
-          listen: false,
-        ).removeSkill(skillToDelete);
-
-        if (success) {
-          showTopSnackBar(
-            Overlay.of(context),
-            const CustomSnackBar.success(
-              message: "Skill removed successfully.",
-            ),
-          );
-        } else {
-          throw Exception("Failed to communicate with the server.");
-        }
-      } catch (e) {
-        showTopSnackBar(
-          Overlay.of(context),
-          const CustomSnackBar.error(message: "Failed to remove skill."),
-        );
-      }
-    }
-  }
-
   final isMobile = MediaQuery.of(context).size.width < 600;
   final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
@@ -69,47 +21,132 @@ Widget buildSkillsWrap(List<dynamic>? skills, BuildContext context) {
       runSpacing: isMobile ? 6 : 10,
       alignment: WrapAlignment.center,
       children: skills.map<Widget>((skill) {
-        final skillString = skill.toString();
-
-        // 🔹 Chip now relies solely on the onTap gesture for deletion
-        return InkWell(
-          borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-          onTap: () => confirmAndDeleteSkill(
-            skillString,
-          ), // Tap/Click opens confirmation
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 16,
-              vertical: isMobile ? 6 : 8,
-            ),
-            decoration: BoxDecoration(
-              color: isDarkMode ? Colors.grey.shade800 : Colors.white,
-              borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-              border: Border.all(
-                color: isDarkMode ? Colors.blue.shade700 : Colors.blue.shade100,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDarkMode
-                      ? Colors.blue.shade900.withValues(alpha: 0.3)
-                      : Colors.blue.shade50,
-                  blurRadius: isMobile ? 2 : 4,
-                  offset: Offset(0, isMobile ? 1 : 2),
-                ),
-              ],
-            ),
-            // 🔹 Only the Text is displayed inside the chip
-            child: Text(
-              skillString,
-              style: TextStyle(
-                color: isDarkMode ? Colors.blue.shade300 : Colors.blue.shade800,
-                fontWeight: FontWeight.w600,
-                fontSize: isMobile ? 12 : 14,
-              ),
-            ),
-          ),
+        return _SkillChipWidget(
+          skill: skill.toString(),
+          isMobile: isMobile,
+          isDarkMode: isDarkMode,
         );
       }).toList(),
     ),
   );
+}
+
+class _SkillChipWidget extends StatefulWidget {
+  final String skill;
+  final bool isMobile;
+  final bool isDarkMode;
+
+  const _SkillChipWidget({
+    required this.skill,
+    required this.isMobile,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<_SkillChipWidget> createState() => _SkillChipWidgetState();
+}
+
+class _SkillChipWidgetState extends State<_SkillChipWidget> {
+  final GlobalKey<CustomPopupState> _popupKey = GlobalKey<CustomPopupState>();
+
+  Future<void> _deleteSkill() async {
+    Navigator.of(context).pop();
+    try {
+      final bool success = await Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      ).removeSkill(widget.skill);
+      if (success) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.success(message: "Skill removed successfully."),
+        );
+      } else {
+        throw Exception("Failed to communicate with the server.");
+      }
+    } catch (e) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(message: "Failed to remove skill."),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDarkMode;
+    return CustomPopup(
+      key: _popupKey,
+      showArrow: true,
+      barrierColor: Colors.black.withValues(alpha: 0.06),
+      contentPadding: EdgeInsets.zero,
+      contentDecoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2D2D3F) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      content: IntrinsicWidth(
+        child: InkWell(
+          onTap: _deleteSkill,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.delete_rounded, size: 18, color: Colors.red),
+                const SizedBox(width: 10),
+                const Text(
+                  'Remove Skill',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      child: GestureDetector(
+        onTap: () => _popupKey.currentState?.show(),
+        onSecondaryTap: () => _popupKey.currentState?.show(),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.isMobile ? 12 : 16,
+            vertical: widget.isMobile ? 6 : 8,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey.shade800 : Colors.white,
+            borderRadius: BorderRadius.circular(widget.isMobile ? 16 : 20),
+            border: Border.all(
+              color: isDark ? Colors.blue.shade700 : Colors.blue.shade100,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.blue.shade900.withValues(alpha: 0.3)
+                    : Colors.blue.shade50,
+                blurRadius: widget.isMobile ? 2 : 4,
+                offset: Offset(0, widget.isMobile ? 1 : 2),
+              ),
+            ],
+          ),
+          child: Text(
+            widget.skill,
+            style: TextStyle(
+              color: isDark ? Colors.blue.shade300 : Colors.blue.shade800,
+              fontWeight: FontWeight.w600,
+              fontSize: widget.isMobile ? 12 : 14,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

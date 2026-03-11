@@ -19,10 +19,13 @@ class WebFooter extends StatelessWidget {
   ];
 
   // FYP Team Data
-  final List<String> _teamMembers = const [
-    "Shumaim Zafar (FA22-BCS-082)",
-    "Hassan Askari (FA22-BCS-155)",
-    "Sulimana Huma (FA22-BCS-073)",
+  final List<Map<String, String>> _teamMembers = const [
+    {"name": "Shumaim Zafar (FA22-BCS-082)", "portfolio": ""},
+    {
+      "name": "Hassan Askari (FA22-BCS-155)",
+      "portfolio": "https://portfolioaskarisyed.vercel.app/",
+    },
+    {"name": "Sulimana Huma (FA22-BCS-073)", "portfolio": ""},
   ];
 
   Future<void> _launchURL(BuildContext context, String urlString) async {
@@ -110,8 +113,28 @@ class WebFooter extends StatelessWidget {
                 spacing: 20,
                 runSpacing: 8,
                 children: _teamMembers.map((member) {
+                  final isClickable = member['portfolio']!.isNotEmpty;
+
+                  if (isClickable) {
+                    return MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => _launchURL(context, member['portfolio']!),
+                        child: Text(
+                          member['name']!,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
                   return Text(
-                    member,
+                    member['name']!,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 13,

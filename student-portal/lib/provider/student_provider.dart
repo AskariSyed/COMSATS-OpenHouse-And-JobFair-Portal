@@ -115,6 +115,11 @@ class StudentProvider with ChangeNotifier {
   Future<void> logout() async {
     _student = null;
     _token = null;
+    _dashboardData = null;
+    _dashboardError = null;
+    _interviewRequests = [];
+    _scheduledInterviews = [];
+    _invitations = [];
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
     notifyListeners();
@@ -763,6 +768,33 @@ class StudentProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _setLoading(false);
+      return false;
+    }
+  }
+
+  // Remove a member from a project (Team Lead only)
+  Future<bool> removeMember(int projectId, int memberStudentId) async {
+    if (_student == null) return false;
+    _setLoading(true);
+
+    try {
+      // Endpoint: DELETE api/projects/{projectId}/members/{memberStudentId}
+      final response = await http.delete(
+        Uri.parse(
+          "$baseUrl/Student/projects/$projectId/members/$memberStudentId",
+        ),
+        headers: _authHeaders,
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        return true;
+      }
+      debugPrint("❌ Remove member failed: ${response.body}");
+      return false;
+    } catch (e) {
+      _setLoading(false);
+      debugPrint("❌ Remove member error: $e");
       return false;
     }
   }

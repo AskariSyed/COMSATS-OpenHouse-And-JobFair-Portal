@@ -31,11 +31,22 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
 
   Future<void> signUpStudent() async {
     final regNo = regNoController.text.trim();
+    final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
 
     if (regNo.isEmpty) {
       showTopSnackBar(
         Overlay.of(context),
         const CustomSnackBar.error(message: "Registration number is required."),
+      );
+      return;
+    }
+
+    if (!regNoPattern.hasMatch(regNo)) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(
+          message: "Use format AA00-AAA-000 (e.g. FA22-BCS-007).",
+        ),
       );
       return;
     }
@@ -95,11 +106,19 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
     const brandNavy = Color(0xFF0F172A);
     final pageBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
     final titleColor = isDark ? Colors.white : brandNavy;
-    final subtitleColor = isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade600;
-    final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final fieldBorder = isDark ? const Color(0xFF475569) : const Color(0xFFD1D9E6);
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : Colors.blueGrey.shade600;
+    final fieldFill = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFF8FAFC);
+    final fieldBorder = isDark
+        ? const Color(0xFF475569)
+        : const Color(0xFFD1D9E6);
 
     return Scaffold(
       backgroundColor: pageBg,
@@ -114,7 +133,11 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                   child: Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Color(0xFF0B1220), Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        colors: [
+                          Color(0xFF0B1220),
+                          Color(0xFF1E3A8A),
+                          Color(0xFF2563EB),
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -146,7 +169,10 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 42),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 56,
+                            vertical: 42,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -240,7 +266,9 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                             border: Border.all(color: borderColor),
                             boxShadow: [
                               BoxShadow(
-                                color: isDark ? const Color(0x22000000) : const Color(0x1A0F172A),
+                                color: isDark
+                                    ? const Color(0x22000000)
+                                    : const Color(0x1A0F172A),
                                 blurRadius: 32,
                                 offset: const Offset(0, 14),
                               ),
@@ -296,7 +324,9 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                               TextField(
                                 controller: regNoController,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[a-zA-Z0-9-]'),
+                                  ),
                                   UpperCaseHyphenFormatter(maxLength: 12),
                                 ],
                                 style: TextStyle(
@@ -323,7 +353,10 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: brandBlue, width: 2),
+                                    borderSide: const BorderSide(
+                                      color: brandBlue,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -335,15 +368,21 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                                 height: 54,
                                 child: ElevatedButton(
                                   onPressed: isLoading ? null : signUpStudent,
-                                  style: ElevatedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    elevation: 0,
-                                  ).copyWith(
-                                    backgroundColor: WidgetStateProperty.all(Colors.transparent),
-                                  ),
+                                  style:
+                                      ElevatedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        elevation: 0,
+                                      ).copyWith(
+                                        backgroundColor:
+                                            WidgetStateProperty.all(
+                                              Colors.transparent,
+                                            ),
+                                      ),
                                   child: Ink(
                                     decoration: BoxDecoration(
                                       gradient: const LinearGradient(
@@ -393,7 +432,8 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                                       Navigator.pushReplacement(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => const StudentLoginScreen(),
+                                          builder: (_) =>
+                                              const StudentLoginScreen(),
                                         ),
                                       );
                                     },
@@ -424,7 +464,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
   }
 }
 
-// Custom formatter to convert to uppercase, insert hyphens, and limit input length
+// Strict formatter for AA00-AAA-000
 class UpperCaseHyphenFormatter extends TextInputFormatter {
   final int maxLength;
   UpperCaseHyphenFormatter({required this.maxLength});
@@ -434,61 +474,40 @@ class UpperCaseHyphenFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Handle deletion - if user is deleting, preserve the operation
-    if (newValue.text.length < oldValue.text.length) {
-      // User is deleting
-      String newText = newValue.text.toUpperCase();
-      int cursorPos = newValue.selection.baseOffset;
+    final rawInput = newValue.text.toUpperCase().replaceAll('-', '');
+    final buffer = StringBuffer();
 
-      // If cursor is right after a hyphen that was auto-added, move it back
-      if (cursorPos > 0 &&
-          cursorPos < newText.length &&
-          newText[cursorPos] == '-') {
-        cursorPos--;
-      }
+    for (final char in rawInput.split('')) {
+      final index = buffer.length;
+      if (index >= 10) break;
 
-      return TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursorPos),
-      );
-    }
+      final isLetter = RegExp(r'[A-Z]').hasMatch(char);
+      final isDigit = RegExp(r'\d').hasMatch(char);
 
-    // Handle addition/typing
-    String text = newValue.text.toUpperCase().replaceAll('-', '');
-    if (text.length > maxLength) text = text.substring(0, maxLength);
+      final shouldBeLetter = index < 2 || (index >= 4 && index <= 6);
+      final shouldBeDigit = (index >= 2 && index <= 3) || index >= 7;
 
-    String formatted = '';
-    if (text.length >= 2) {
-      formatted += text.substring(0, 2);
-      if (text.length >= 4) {
-        formatted += text.substring(2, 4);
-      } else if (text.length > 2) {
-        formatted += text.substring(2);
-      }
-      formatted += '-';
-    } else {
-      formatted = text;
-    }
-
-    if (text.length > 4) {
-      if (text.length >= 7) {
-        formatted += text.substring(4, 7);
-      } else {
-        formatted += text.substring(4);
-      }
-      if (text.length > 7) {
-        formatted += '-';
-        formatted += text.substring(7);
+      if ((shouldBeLetter && isLetter) || (shouldBeDigit && isDigit)) {
+        buffer.write(char);
       }
     }
 
-    if (formatted.length > maxLength) {
-      formatted = formatted.substring(0, maxLength);
+    final filtered = buffer.toString();
+    final formatted = StringBuffer();
+
+    for (int i = 0; i < filtered.length; i++) {
+      if (i == 4 || i == 7) formatted.write('-');
+      formatted.write(filtered[i]);
+    }
+
+    String result = formatted.toString();
+    if (result.length > maxLength) {
+      result = result.substring(0, maxLength);
     }
 
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
     );
   }
 }

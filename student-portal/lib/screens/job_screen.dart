@@ -16,6 +16,7 @@ import 'package:student_job_fair_portal/screens/company_profile_screen.dart';
 // Widgets
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
+import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/widgets/build_shimmer_grid.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 
@@ -106,9 +107,6 @@ class _JobsScreenState extends State<JobsScreen> {
         final double screenWidth = constraints.maxWidth;
 
         if (screenWidth < 800) {
-          // ==================================================================
-          // MOBILE LAYOUT
-          // ==================================================================
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             extendBody: true,
@@ -119,33 +117,32 @@ class _JobsScreenState extends State<JobsScreen> {
                   onRefresh: _loadData,
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      16,
-                      16,
-                      100,
-                    ), // Extra padding for bottom nav
-                    child: Column(
-                      children: [
-                        _buildSearchBar(),
-                        const SizedBox(height: 16),
-                        showShimmer
-                            ? buildShimmerGrid(isMobile: true)
-                            : jobProvider.error != null &&
-                                  jobProvider.displayJobs.isEmpty
-                            ? SizedBox(
-                                height: 100,
-                                child: Center(child: Text(jobProvider.error!)),
-                              )
-                            : filteredJobs.isEmpty
-                            ? const SizedBox(
-                                height: 100,
-                                child: Center(
-                                  child: Text("No jobs match your filters."),
-                                ),
-                              )
-                            : _buildJobsGrid(filteredJobs, isMobile: true),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    child: AppPageReveal(
+                      child: Column(
+                        children: [
+                          _buildSearchBar(),
+                          const SizedBox(height: 16),
+                          showShimmer
+                              ? buildShimmerGrid(isMobile: true)
+                              : jobProvider.error != null &&
+                                    jobProvider.displayJobs.isEmpty
+                              ? SizedBox(
+                                  height: 100,
+                                  child: Center(
+                                    child: Text(jobProvider.error!),
+                                  ),
+                                )
+                              : filteredJobs.isEmpty
+                              ? const SizedBox(
+                                  height: 100,
+                                  child: Center(
+                                    child: Text("No jobs match your filters."),
+                                  ),
+                                )
+                              : _buildJobsGrid(filteredJobs, isMobile: true),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -160,32 +157,31 @@ class _JobsScreenState extends State<JobsScreen> {
             ),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 2),
           );
-        } else {
-          // ==================================================================
-          // WEB LAYOUT
-          // ==================================================================
-          return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 100.0),
-                  child: SingleChildScrollView(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight - 100,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 1200),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 30,
-                                  horizontal: 20,
-                                ),
+        }
+
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 100.0),
+                child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - 100,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1200),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 30,
+                                horizontal: 20,
+                              ),
+                              child: AppPageReveal(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -250,28 +246,28 @@ class _JobsScreenState extends State<JobsScreen> {
                               ),
                             ),
                           ),
-                          const WebFooter(),
-                        ],
-                      ),
+                        ),
+                        const WebFooter(),
+                      ],
                     ),
                   ),
                 ),
-                BeautifulWebNavBar(
-                  currentRoute: 'Jobs',
-                  profileImageUrl: profileImageUrl,
-                  userName: student?.user.fullName ?? "User",
+              ),
+              BeautifulWebNavBar(
+                currentRoute: 'Jobs',
+                profileImageUrl: profileImageUrl,
+                userName: student?.user.fullName ?? "User",
+              ),
+              if (showDataWithLoading)
+                const Positioned(
+                  top: 80,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(minHeight: 3),
                 ),
-                if (showDataWithLoading)
-                  const Positioned(
-                    top: 80,
-                    left: 0,
-                    right: 0,
-                    child: LinearProgressIndicator(minHeight: 3),
-                  ),
-              ],
-            ),
-          );
-        }
+            ],
+          ),
+        );
       },
     );
   }

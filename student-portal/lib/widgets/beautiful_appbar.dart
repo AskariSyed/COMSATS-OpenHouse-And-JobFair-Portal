@@ -23,17 +23,42 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final theme = Theme.of(context);
+    final isMobileLayout = MediaQuery.of(context).size.width < 900;
 
     return AppBar(
-      title: Text(
-        title,
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-          fontSize: 22,
-          letterSpacing: 0.5,
-          color: isDark ? Colors.white : Colors.black87,
-        ),
-      ),
+      title: isMobileLayout
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  'assets/LogoWithoutBg.png',
+                  height: 24,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      letterSpacing: 0.3,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                letterSpacing: 0.5,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
       centerTitle: true,
       backgroundColor: theme.appBarTheme.backgroundColor,
       foregroundColor: theme.appBarTheme.foregroundColor,

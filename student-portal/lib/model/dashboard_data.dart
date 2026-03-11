@@ -103,11 +103,19 @@ class MarketOverview {
   final String? activeFairSemester;
   final int totalCompanies;
   final int totalJobs;
+  final DateTime? currentFairDate;
+  final String? currentFairDay;
+  final int? currentFairDaysUntil;
+  final UpcomingFairOverview? upcomingFair;
 
   MarketOverview({
     this.activeFairSemester,
     required this.totalCompanies,
     required this.totalJobs,
+    this.currentFairDate,
+    this.currentFairDay,
+    this.currentFairDaysUntil,
+    this.upcomingFair,
   });
 
   factory MarketOverview.fromJson(Map<String, dynamic> json) {
@@ -115,6 +123,43 @@ class MarketOverview {
       activeFairSemester: json['activeFairSemester'],
       totalCompanies: json['totalCompanies'] ?? 0,
       totalJobs: json['totalJobs'] ?? 0,
+      currentFairDate: json['currentFairDate'] != null
+          ? DateTime.tryParse(json['currentFairDate'])
+          : null,
+      currentFairDay: json['currentFairDay'],
+      currentFairDaysUntil: json['currentFairDaysUntil'],
+      upcomingFair: json['upcomingFair'] != null
+          ? UpcomingFairOverview.fromJson(json['upcomingFair'])
+          : null,
+    );
+  }
+}
+
+class UpcomingFairOverview {
+  final String semester;
+  final DateTime? date;
+  final int daysUntil;
+  final int totalCompanies;
+  final int totalJobs;
+  final bool isRegistered;
+
+  UpcomingFairOverview({
+    required this.semester,
+    this.date,
+    required this.daysUntil,
+    required this.totalCompanies,
+    required this.totalJobs,
+    required this.isRegistered,
+  });
+
+  factory UpcomingFairOverview.fromJson(Map<String, dynamic> json) {
+    return UpcomingFairOverview(
+      semester: json['semester'] ?? '',
+      date: json['date'] != null ? DateTime.tryParse(json['date']) : null,
+      daysUntil: json['daysUntil'] ?? 0,
+      totalCompanies: json['totalCompanies'] ?? 0,
+      totalJobs: json['totalJobs'] ?? 0,
+      isRegistered: json['isRegistered'] ?? false,
     );
   }
 }

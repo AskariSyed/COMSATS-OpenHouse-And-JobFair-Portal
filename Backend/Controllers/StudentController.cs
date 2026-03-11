@@ -2267,6 +2267,9 @@ namespace JobFairPortal.Controllers
             bool isRegistered = false;
             int totalCompanies = 0;
             int totalJobs = 0;
+            DateTime? currentFairDate = null;
+            string? currentFairDay = null;
+            int? currentFairDaysUntil = null;
 
             if (activeJobFair != null)
             {
@@ -2278,6 +2281,33 @@ namespace JobFairPortal.Controllers
 
                 totalJobs = await _context.Jobs
                     .CountAsync(j => j.JobFairId == activeJobFair.JobFairId);
+
+                currentFairDate = activeJobFair.date;
+                currentFairDay = activeJobFair.date.ToString("dddd");
+                currentFairDaysUntil = (activeJobFair.date.Date - DateTime.UtcNow.Date).Days;
+            }
+
+            var upcomingBaseDate = activeJobFair?.date.Date ?? DateTime.UtcNow.Date;
+            var upcomingJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .Where(j => (!activeJobFairId.HasValue || j.JobFairId != activeJobFairId.Value) && j.date > upcomingBaseDate)
+                .OrderBy(j => j.date)
+                .FirstOrDefaultAsync();
+
+            int upcomingTotalCompanies = 0;
+            int upcomingTotalJobs = 0;
+            bool isRegisteredUpcoming = false;
+
+            if (upcomingJobFair != null)
+            {
+                upcomingTotalCompanies = await _context.CompanyJobFairParticipations
+                    .CountAsync(c => c.JobFairId == upcomingJobFair.JobFairId);
+
+                upcomingTotalJobs = await _context.Jobs
+                    .CountAsync(j => j.JobFairId == upcomingJobFair.JobFairId);
+
+                isRegisteredUpcoming = await _context.StudentJobFairParticipations
+                    .AnyAsync(p => p.StudentId == student.StudentId && p.JobFairId == upcomingJobFair.JobFairId);
             }
 
             int score = 0;
@@ -2406,7 +2436,19 @@ namespace JobFairPortal.Controllers
                 {
                     ActiveFairSemester = activeJobFair?.Semester,
                     TotalCompanies = totalCompanies,
-                    TotalJobs = totalJobs
+                    TotalJobs = totalJobs,
+                    CurrentFairDate = currentFairDate,
+                    CurrentFairDay = currentFairDay,
+                    CurrentFairDaysUntil = currentFairDaysUntil,
+                    UpcomingFair = upcomingJobFair == null ? null : new
+                    {
+                        Semester = upcomingJobFair.Semester,
+                        Date = upcomingJobFair.date,
+                        DaysUntil = (upcomingJobFair.date.Date - DateTime.UtcNow.Date).Days,
+                        TotalCompanies = upcomingTotalCompanies,
+                        TotalJobs = upcomingTotalJobs,
+                        IsRegistered = isRegisteredUpcoming
+                    }
                 },
                 ActionsRequired = new
                 {

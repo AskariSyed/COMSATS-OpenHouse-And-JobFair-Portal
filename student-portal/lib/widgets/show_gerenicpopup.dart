@@ -18,60 +18,85 @@ Future<dynamic> showGenericDialog({
       bool isSaving = false;
       return StatefulBuilder(
         builder: (context, setState) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          final width = MediaQuery.of(context).size.width;
+          final isWebLayout = width >= 900;
+
           return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+            backgroundColor: Colors.transparent,
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: isWebLayout ? 28 : 16,
+              vertical: 24,
             ),
-            elevation: 8,
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 500),
+              constraints: BoxConstraints(
+                maxWidth: isWebLayout ? 680 : 520,
+                maxHeight: MediaQuery.of(context).size.height * 0.88,
+              ),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                color: isDark ? const Color(0xFF121826) : Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 32,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Professional Header
+                  // Header
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWebLayout ? 24 : 20,
+                      vertical: isWebLayout ? 20 : 16,
+                    ),
                     decoration: const BoxDecoration(
-                      color: Color(0xFF2563EB),
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
+                        topLeft: Radius.circular(22),
+                        topRight: Radius.circular(22),
                       ),
                     ),
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
                             Icons.edit_note_rounded,
                             color: Colors.white,
-                            size: 24,
+                            size: 22,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
+                              fontSize: isWebLayout ? 20 : 18,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
                           onPressed: isSaving ? null : () => Navigator.pop(ctx),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                          splashRadius: 20,
                         ),
                       ],
                     ),
@@ -80,113 +105,239 @@ Future<dynamic> showGenericDialog({
                   // Content Area
                   Flexible(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.fromLTRB(
+                        isWebLayout ? 24 : 18,
+                        isWebLayout ? 22 : 16,
+                        isWebLayout ? 24 : 18,
+                        12,
+                      ),
                       child: content,
                     ),
                   ),
 
                   // Action Buttons
                   Container(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: isSaving ? null : () => Navigator.pop(ctx),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: Text(
-                            "Cancel",
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: isSaving
-                              ? null
-                              : () async {
-                                  setState(() => isSaving = true);
-                                  try {
-                                    final result = await onSave();
-                                    if (result is bool && result == false) {
-                                      throw Exception('Save operation failed.');
-                                    }
-                                    // 🔹 Refresh data after saving
-                                    if (mounted) {
-                                      await Provider.of<StudentProvider>(
-                                        context,
-                                        listen: false,
-                                      ).fetchProfile();
-                                    }
-                                    if (context.mounted) Navigator.pop(ctx);
-
-                                    // 🏆 SUCCESS SNACKBAR
-                                    showTopSnackBar(
-                                      Overlay.of(context),
-                                      const CustomSnackBar.success(
-                                        message: "Saved Successfully!",
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    // 🛑 ERROR SNACKBAR
-                                    String errorMessage = e
-                                        .toString()
-                                        .replaceFirst('Exception: ', '');
-
-                                    showTopSnackBar(
-                                      Overlay.of(context),
-                                      CustomSnackBar.error(
-                                        message: "Error: $errorMessage",
-                                      ),
-                                    );
-                                  } finally {
-                                    if (mounted) {
-                                      setState(() => isSaving = false);
-                                    }
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: isSaving
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.5,
+                    padding: EdgeInsets.fromLTRB(
+                      isWebLayout ? 24 : 18,
+                      0,
+                      isWebLayout ? 24 : 18,
+                      isWebLayout ? 22 : 18,
+                    ),
+                    child: isWebLayout
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: isSaving
+                                    ? null
+                                    : () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.2)
+                                        : Colors.grey.shade300,
                                   ),
-                                )
-                              : const Text(
-                                  "Save",
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 13,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Cancel",
                                   style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.grey.shade700,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                        ),
-                      ],
-                    ),
+                              ),
+                              const SizedBox(width: 12),
+                              FilledButton(
+                                onPressed: isSaving
+                                    ? null
+                                    : () async {
+                                        setState(() => isSaving = true);
+                                        try {
+                                          final result = await onSave();
+                                          if (result is bool &&
+                                              result == false) {
+                                            throw Exception(
+                                              'Save operation failed.',
+                                            );
+                                          }
+                                          if (mounted) {
+                                            await Provider.of<StudentProvider>(
+                                              context,
+                                              listen: false,
+                                            ).fetchProfile();
+                                          }
+                                          if (context.mounted)
+                                            Navigator.pop(ctx);
+
+                                          showTopSnackBar(
+                                            Overlay.of(context),
+                                            const CustomSnackBar.success(
+                                              message: "Saved Successfully!",
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          String errorMessage = e
+                                              .toString()
+                                              .replaceFirst('Exception: ', '');
+
+                                          showTopSnackBar(
+                                            Overlay.of(context),
+                                            CustomSnackBar.error(
+                                              message: "Error: $errorMessage",
+                                            ),
+                                          );
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() => isSaving = false);
+                                          }
+                                        }
+                                      },
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 28,
+                                    vertical: 13,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: isSaving
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        "Save",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: isSaving
+                                      ? null
+                                      : () => Navigator.pop(ctx),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    "Cancel",
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: isSaving
+                                      ? null
+                                      : () async {
+                                          setState(() => isSaving = true);
+                                          try {
+                                            final result = await onSave();
+                                            if (result is bool &&
+                                                result == false) {
+                                              throw Exception(
+                                                'Save operation failed.',
+                                              );
+                                            }
+                                            if (mounted) {
+                                              await Provider.of<
+                                                    StudentProvider
+                                                  >(context, listen: false)
+                                                  .fetchProfile();
+                                            }
+                                            if (context.mounted)
+                                              Navigator.pop(ctx);
+                                            showTopSnackBar(
+                                              Overlay.of(context),
+                                              const CustomSnackBar.success(
+                                                message: "Saved Successfully!",
+                                              ),
+                                            );
+                                          } catch (e) {
+                                            String errorMessage = e
+                                                .toString()
+                                                .replaceFirst(
+                                                  'Exception: ',
+                                                  '',
+                                                );
+                                            showTopSnackBar(
+                                              Overlay.of(context),
+                                              CustomSnackBar.error(
+                                                message: "Error: $errorMessage",
+                                              ),
+                                            );
+                                          } finally {
+                                            if (mounted) {
+                                              setState(() => isSaving = false);
+                                            }
+                                          }
+                                        },
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2563EB),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: isSaving
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.2,
+                                          ),
+                                        )
+                                      : const Text(
+                                          "Save",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ],
               ),

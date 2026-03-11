@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_popup/flutter_popup.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/model/project.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/widgets/project_members_sheet.dart';
+import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
@@ -76,6 +79,8 @@ class ProjectCard extends StatefulWidget {
 class _ProjectCardState extends State<ProjectCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
+  final GlobalKey<CustomPopupState> _managePopupKey =
+      GlobalKey<CustomPopupState>();
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +106,7 @@ class _ProjectCardState extends State<ProjectCard>
         "profilePicUrl": myself.profilePicUrl,
         "isCreator": project.currentStudentIsCreator,
         "isMe": true,
+        "status": "Accepted",
       });
     }
     for (var partner in project.partners) {
@@ -110,6 +116,7 @@ class _ProjectCardState extends State<ProjectCard>
         "profilePicUrl": partner.profilePicUrl,
         "isCreator": partner.isCreator,
         "isMe": false,
+        "status": partner.status,
       });
     }
 
@@ -326,6 +333,34 @@ class _ProjectCardState extends State<ProjectCard>
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
+                                      if ((member['status'] ?? '')
+                                              .toString()
+                                              .toLowerCase() ==
+                                          'pending')
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 1,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.orange.shade200,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            "Pending",
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: Colors.orange,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -405,21 +440,135 @@ class _ProjectCardState extends State<ProjectCard>
                   ),
                 ),
 
-                // RIGHT: Manage Button
-                _buildMiniButton(
-                  icon: project.currentStudentIsCreator
-                      ? Icons.settings
-                      : Icons.exit_to_app,
-                  color: project.currentStudentIsCreator
-                      ? Colors.grey.shade700
-                      : Colors.red,
-                  tooltip: project.currentStudentIsCreator ? "Manage" : "Leave",
-                  onTap: () => widget.onManage(project),
+                // RIGHT: Manage Button (flutter_popup)
+                CustomPopup(
+                  key: _managePopupKey,
+                  showArrow: true,
+                  barrierColor: Colors.black.withValues(alpha: 0.08),
+                  contentPadding: EdgeInsets.zero,
+                  contentDecoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF2D2D3F)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.16),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  content: _buildManageMenu(context),
+                  child: _buildMiniButton(
+                    icon: project.currentStudentIsCreator
+                        ? Icons.settings
+                        : Icons.more_vert,
+                    color: Colors.grey.shade700,
+                    tooltip: "Options",
+                    onTap: () => _managePopupKey.currentState?.show(),
+                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // 🔹 Project manage popup menu
+  Widget _buildManageMenu(BuildContext context) {
+    final project = widget.project;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark ? Colors.white : Colors.black87;
+    final dividerColor = isDark
+        ? const Color(0xFF3A3A4A)
+        : const Color(0xFFE5E7EB);
+    return IntrinsicWidth(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildMenuTile(
+            icon: Icons.group,
+            iconColor: Colors.indigo,
+            label: 'View Team',
+            labelColor: labelColor,
+            onTap: () {
+              Navigator.of(context).pop();
+              showProjectMembersSheet(
+                context,
+                project.projectId,
+                project.title,
+              );
+            },
+          ),
+          Divider(height: 1, color: dividerColor),
+          if (project.currentStudentIsCreator) ...[
+            _buildMenuTile(
+              icon: Icons.edit,
+              iconColor: Colors.blue,
+              label: 'Edit Project',
+              labelColor: labelColor,
+              onTap: () {
+                Navigator.of(context).pop();
+                showProjectDialog(context, project: project);
+              },
+            ),
+            Divider(height: 1, color: dividerColor),
+            _buildMenuTile(
+              icon: Icons.person_add,
+              iconColor: Colors.green,
+              label: 'Invite Member',
+              labelColor: labelColor,
+              onTap: () {
+                Navigator.of(context).pop();
+                showInviteMemberDialog(project.projectId, context);
+              },
+            ),
+            Divider(height: 1, color: dividerColor),
+          ],
+          _buildMenuTile(
+            icon: Icons.exit_to_app,
+            iconColor: Colors.red,
+            label: 'Leave Project',
+            labelColor: Colors.red,
+            onTap: () {
+              Navigator.of(context).pop();
+              confirmLeaveProject(project.projectId, context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuTile({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required Color labelColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: labelColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

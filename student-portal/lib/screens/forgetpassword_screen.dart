@@ -23,7 +23,10 @@ class _ForgotPasswordRequestScreenState
   bool _isLoading = false;
 
   Future<void> _sendOtp() async {
-    if (_regNoController.text.trim().isEmpty) {
+    final regNo = _regNoController.text.trim();
+    final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
+
+    if (regNo.isEmpty) {
       showTopSnackBar(
         Overlay.of(context),
         const CustomSnackBar.error(
@@ -33,13 +36,21 @@ class _ForgotPasswordRequestScreenState
       return;
     }
 
+    if (!regNoPattern.hasMatch(regNo)) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(
+          message: "Use format AA00-AAA-000 (e.g. FA22-BCS-007).",
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     final provider = Provider.of<StudentProvider>(context, listen: false);
 
     try {
-      final int userId = await provider.sendPasswordResetOtp(
-        _regNoController.text.trim(),
-      );
+      final int userId = await provider.sendPasswordResetOtp(regNo);
 
       if (!mounted) return;
 
@@ -77,11 +88,19 @@ class _ForgotPasswordRequestScreenState
     const brandNavy = Color(0xFF0F172A);
     final pageBg = isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC);
     final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE2E8F0);
     final titleColor = isDark ? Colors.white : brandNavy;
-    final subtitleColor = isDark ? const Color(0xFF94A3B8) : Colors.blueGrey.shade600;
-    final fieldFill = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final fieldBorder = isDark ? const Color(0xFF475569) : const Color(0xFFD1D9E6);
+    final subtitleColor = isDark
+        ? const Color(0xFF94A3B8)
+        : Colors.blueGrey.shade600;
+    final fieldFill = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFF8FAFC);
+    final fieldBorder = isDark
+        ? const Color(0xFF475569)
+        : const Color(0xFFD1D9E6);
 
     return Scaffold(
       backgroundColor: pageBg,
@@ -96,7 +115,11 @@ class _ForgotPasswordRequestScreenState
                   child: Container(
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Color(0xFF0B1220), Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        colors: [
+                          Color(0xFF0B1220),
+                          Color(0xFF1E3A8A),
+                          Color(0xFF2563EB),
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -128,7 +151,10 @@ class _ForgotPasswordRequestScreenState
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 56, vertical: 42),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 56,
+                            vertical: 42,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -144,7 +170,10 @@ class _ForgotPasswordRequestScreenState
                                     child: Image.asset(
                                       'assets/LogoWithoutBg.png',
                                       fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(Icons.school, color: Colors.white),
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.school,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 14),
@@ -200,18 +229,28 @@ class _ForgotPasswordRequestScreenState
                   color: pageBg,
                   child: Center(
                     child: SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(horizontal: isWeb ? 54 : 20, vertical: 30),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isWeb ? 54 : 20,
+                        vertical: 30,
+                      ),
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: isWeb ? 480 : 500),
+                        constraints: BoxConstraints(
+                          maxWidth: isWeb ? 480 : 500,
+                        ),
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: isWeb ? 30 : 22, vertical: isWeb ? 30 : 24),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isWeb ? 30 : 22,
+                            vertical: isWeb ? 30 : 24,
+                          ),
                           decoration: BoxDecoration(
                             color: cardBg,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(color: borderColor),
                             boxShadow: [
                               BoxShadow(
-                                color: isDark ? const Color(0x22000000) : const Color(0x1A0F172A),
+                                color: isDark
+                                    ? const Color(0x22000000)
+                                    : const Color(0x1A0F172A),
                                 blurRadius: 32,
                                 offset: const Offset(0, 14),
                               ),
@@ -238,7 +277,10 @@ class _ForgotPasswordRequestScreenState
                                   ),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: const Icon(Icons.lock_reset, color: Colors.white),
+                                child: const Icon(
+                                  Icons.lock_reset,
+                                  color: Colors.white,
+                                ),
                               ),
                               const SizedBox(height: 18),
                               Text(
@@ -252,22 +294,35 @@ class _ForgotPasswordRequestScreenState
                               const SizedBox(height: 8),
                               Text(
                                 "Enter your registration number and we'll send an OTP to your registered email.",
-                                style: TextStyle(fontSize: 15, color: subtitleColor, height: 1.45),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: subtitleColor,
+                                  height: 1.45,
+                                ),
                               ),
                               const SizedBox(height: 26),
                               TextField(
                                 controller: _regNoController,
-                                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black,
+                                ),
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[a-zA-Z0-9-]'),
+                                  ),
                                   UpperCaseHyphenFormatter(maxLength: 12),
                                 ],
                                 decoration: InputDecoration(
                                   labelText: 'Registration Number',
                                   hintText: 'FA22-BCS-155',
                                   labelStyle: TextStyle(color: subtitleColor),
-                                  hintStyle: TextStyle(color: subtitleColor.withOpacity(0.8)),
-                                  prefixIcon: const Icon(Icons.badge_outlined, color: brandBlue),
+                                  hintStyle: TextStyle(
+                                    color: subtitleColor.withOpacity(0.8),
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.badge_outlined,
+                                    color: brandBlue,
+                                  ),
                                   filled: true,
                                   fillColor: fieldFill,
                                   border: OutlineInputBorder(
@@ -280,7 +335,10 @@ class _ForgotPasswordRequestScreenState
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: brandBlue, width: 2),
+                                    borderSide: const BorderSide(
+                                      color: brandBlue,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -290,13 +348,21 @@ class _ForgotPasswordRequestScreenState
                                 height: 54,
                                 child: ElevatedButton(
                                   onPressed: _isLoading ? null : _sendOtp,
-                                  style: ElevatedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    padding: EdgeInsets.zero,
-                                    elevation: 0,
-                                  ).copyWith(
-                                    backgroundColor: WidgetStateProperty.all(Colors.transparent),
-                                  ),
+                                  style:
+                                      ElevatedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        elevation: 0,
+                                      ).copyWith(
+                                        backgroundColor:
+                                            WidgetStateProperty.all(
+                                              Colors.transparent,
+                                            ),
+                                      ),
                                   child: Ink(
                                     decoration: BoxDecoration(
                                       gradient: const LinearGradient(
@@ -697,7 +763,7 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
   }
 }
 
-// 🔹 HELPER: Formatter for Registration Number (Duplicated for Safety)
+// 🔹 HELPER: Strict formatter for AA00-AAA-000
 class UpperCaseHyphenFormatter extends TextInputFormatter {
   final int maxLength;
   UpperCaseHyphenFormatter({required this.maxLength});
@@ -707,41 +773,40 @@ class UpperCaseHyphenFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    String text = newValue.text.toUpperCase().replaceAll('-', '');
-    if (text.length > maxLength) text = text.substring(0, maxLength);
+    final rawInput = newValue.text.toUpperCase().replaceAll('-', '');
+    final buffer = StringBuffer();
 
-    String formatted = '';
-    if (text.length >= 2) {
-      formatted += text.substring(0, 2);
-      if (text.length >= 4) {
-        formatted += text.substring(2, 4);
-      } else if (text.length > 2) {
-        formatted += text.substring(2);
-      }
-      formatted += '-';
-    } else {
-      formatted = text;
-    }
+    for (final char in rawInput.split('')) {
+      final index = buffer.length;
+      if (index >= 10) break;
 
-    if (text.length > 4) {
-      if (text.length >= 7) {
-        formatted += text.substring(4, 7);
-      } else {
-        formatted += text.substring(4);
-      }
-      if (text.length > 7) {
-        formatted += '-';
-        formatted += text.substring(7);
+      final isLetter = RegExp(r'[A-Z]').hasMatch(char);
+      final isDigit = RegExp(r'\d').hasMatch(char);
+
+      final shouldBeLetter = index < 2 || (index >= 4 && index <= 6);
+      final shouldBeDigit = (index >= 2 && index <= 3) || index >= 7;
+
+      if ((shouldBeLetter && isLetter) || (shouldBeDigit && isDigit)) {
+        buffer.write(char);
       }
     }
 
-    if (formatted.length > maxLength) {
-      formatted = formatted.substring(0, maxLength);
+    final filtered = buffer.toString();
+    final formatted = StringBuffer();
+
+    for (int i = 0; i < filtered.length; i++) {
+      if (i == 4 || i == 7) formatted.write('-');
+      formatted.write(filtered[i]);
+    }
+
+    String result = formatted.toString();
+    if (result.length > maxLength) {
+      result = result.substring(0, maxLength);
     }
 
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
     );
   }
 }

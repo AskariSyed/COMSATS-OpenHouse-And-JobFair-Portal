@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For Clipboard
+import 'package:flutter_popup/flutter_popup.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
-import 'package:student_job_fair_portal/helper/showLinkActions.dart';
 
 // 1. Convert to a Widget to handle Hover State easily
 class _InteractiveButtonWrapper extends StatefulWidget {
@@ -33,6 +33,7 @@ class _InteractiveButtonWrapper extends StatefulWidget {
 
 class _InteractiveButtonWrapperState extends State<_InteractiveButtonWrapper> {
   bool _isHovered = false;
+  final GlobalKey<CustomPopupState> _popupKey = GlobalKey<CustomPopupState>();
 
   // Helper to safely extract URL or Email from Model, Map, or String
   String get _contentToCopy {
@@ -81,9 +82,81 @@ class _InteractiveButtonWrapperState extends State<_InteractiveButtonWrapper> {
     }
   }
 
+  void _showActionsPopup() {
+    _popupKey.currentState?.show();
+  }
+
+  Widget _buildPopupMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark ? Colors.white : Colors.black87;
+    final dividerColor = isDark
+        ? const Color(0xFF3A3A4A)
+        : const Color(0xFFE5E7EB);
+    return IntrinsicWidth(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.of(context).pop();
+              widget.onEditLink(widget.link);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.edit_rounded,
+                    size: 18,
+                    color: Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Edit Link',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: labelColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 1, color: dividerColor),
+          InkWell(
+            onTap: () {
+              Navigator.of(context).pop();
+              widget.onDeleteLink(widget.link);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.delete_rounded, size: 18, color: Colors.red),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Remove Link',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final content = _contentToCopy;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Tooltip(
       message: content, // FEATURE 1: Tooltip showing URL or Email
@@ -96,31 +169,37 @@ class _InteractiveButtonWrapperState extends State<_InteractiveButtonWrapper> {
           clipBehavior: Clip.none,
           children: [
             // The Original Social Button
-            Listener(
-              onPointerDown: (event) {
-                // Web/Desktop Right-Click
-                if (event.kind == PointerDeviceKind.mouse &&
-                    event.buttons == kSecondaryMouseButton) {
-                  showLinkActions(
-                    widget.context,
-                    widget.link,
-                    widget.onEditLink,
-                    widget.onDeleteLink,
-                  );
-                }
-              },
+            CustomPopup(
+              key: _popupKey,
+              showArrow: true,
+              barrierColor: Colors.black.withValues(alpha: 0.08),
+              contentPadding: EdgeInsets.zero,
+              contentDecoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2D2D3F) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              content: _buildPopupMenu(),
               child: GestureDetector(
                 onTap: widget.onTap,
-                onLongPress: () {
-                  // Mobile Long Press
-                  showLinkActions(
-                    widget.context,
-                    widget.link,
-                    widget.onEditLink,
-                    widget.onDeleteLink,
-                  );
-                },
-                child: widget.child,
+                onLongPress: _showActionsPopup,
+                onSecondaryTapDown: (_) => _showActionsPopup(),
+                onSecondaryTapUp: (_) => _showActionsPopup(),
+                child: Listener(
+                  onPointerDown: (event) {
+                    if (event.kind == PointerDeviceKind.mouse &&
+                        event.buttons == kSecondaryMouseButton) {
+                      _showActionsPopup();
+                    }
+                  },
+                  child: widget.child,
+                ),
               ),
             ),
 
