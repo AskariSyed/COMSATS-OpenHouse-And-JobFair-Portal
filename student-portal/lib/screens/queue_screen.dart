@@ -9,6 +9,7 @@ import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart'; // 🔹 
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart'; // 🔹 NEW
 import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 // Screens for Navigation (Needed for Sidebar/Logic consistency)
 import 'package:student_job_fair_portal/screens/companies_screen.dart';
@@ -22,7 +23,7 @@ class QueueScreen extends StatefulWidget {
 }
 
 class _QueueScreenState extends State<QueueScreen> {
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
+  final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   Timer? _timer;
 
   @override

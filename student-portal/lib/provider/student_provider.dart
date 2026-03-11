@@ -16,6 +16,7 @@ import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/model/dashboard_data.dart';
 import 'package:student_job_fair_portal/model/interview.dart';
 import 'package:student_job_fair_portal/mixins/enums.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 class StudentProvider with ChangeNotifier {
   Student? _student;
@@ -62,8 +63,8 @@ class StudentProvider with ChangeNotifier {
   String? get scheduledInterviewsError => _scheduledInterviewsError;
 
   // Base URL for your API
-  final String baseUrl = "http://192.168.137.1:5158/api";
-  final String imageBaseUrl = "http://192.168.137.1:5158";
+  final String baseUrl = BackendConfig.apiBaseUrl;
+  final String imageBaseUrl = BackendConfig.serverBaseUrl;
   // Helper to get auth headers
   Map<String, String> get _authHeaders => {
     'Content-Type': 'application/json',

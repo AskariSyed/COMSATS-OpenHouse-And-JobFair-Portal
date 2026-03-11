@@ -19,6 +19,7 @@ import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:student_job_fair_portal/widgets/app_animations.dart';
 import 'package:student_job_fair_portal/widgets/build_shimmer_grid.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 class JobsScreen extends StatefulWidget {
   const JobsScreen({super.key});
@@ -28,7 +29,7 @@ class JobsScreen extends StatefulWidget {
 }
 
 class _JobsScreenState extends State<JobsScreen> {
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
+  final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   final TextEditingController _searchController = TextEditingController();
   final Set<JobType> _selectedJobTypes = {};
   String _selectedSortOption = 'Newest'; // Default sort

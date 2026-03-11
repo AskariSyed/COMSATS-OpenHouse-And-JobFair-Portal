@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 class EditFypScreen extends StatefulWidget {
   const EditFypScreen({super.key});
@@ -38,7 +39,7 @@ class _EditFypScreenState extends State<EditFypScreen> {
 
     if (provider.token == null) return;
 
-    final uri = Uri.parse("http://192.168.137.1:5158/api/Student/fyp");
+    final uri = Uri.parse("${BackendConfig.apiBaseUrl}/Student/fyp");
 
     final body = {
       "fypTitle": titleController.text.trim(),

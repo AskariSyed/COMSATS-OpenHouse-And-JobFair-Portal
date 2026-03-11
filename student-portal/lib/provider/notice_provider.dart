@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/model/notice.dart';
 
 class NoticeProvider with ChangeNotifier {
@@ -13,8 +14,7 @@ class NoticeProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // Note: Update this URL to match your backend
-  static const String baseUrl = "http://192.168.137.1:5158/api";
+  static String get baseUrl => BackendConfig.apiBaseUrl;
 
   Future<void> fetchNotices() async {
     _isLoading = true;

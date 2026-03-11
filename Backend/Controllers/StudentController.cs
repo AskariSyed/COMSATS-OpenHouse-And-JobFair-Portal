@@ -808,6 +808,7 @@ namespace JobFairPortal.Controllers
 
             var members = project.StudentProjects.Select(sp => new
             {
+                sp.StudentId,
                 // Now User is loaded, so this won't crash
                 FullName = sp.Student.User?.FullName ?? "Unknown",
                 sp.Student.RegistrationNo,

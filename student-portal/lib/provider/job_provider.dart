@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/model/job.dart';
 
 class JobProvider with ChangeNotifier {
@@ -13,7 +14,7 @@ class JobProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  final String baseUrl = "http://192.168.137.1:5158/api";
+  final String baseUrl = BackendConfig.apiBaseUrl;
 
   Future<void> fetchJobs(String token) async {
     _setLoading(true);

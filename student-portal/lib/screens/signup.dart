@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
 
 class StudentSignUpScreen extends StatefulWidget {
@@ -17,8 +18,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
   final TextEditingController regNoController = TextEditingController();
   bool isLoading = false;
 
-  // Note: For Android Emulator use 10.0.2.2, for Real Device/Web use your PC IP
-  final String apiUrl = "http://192.168.137.1:5158/api/Auth/student/register";
+  final String apiUrl = "${BackendConfig.apiBaseUrl}/Auth/student/register";
 
   // Parse response safely
   Map<String, dynamic> parseResponse(String body) {

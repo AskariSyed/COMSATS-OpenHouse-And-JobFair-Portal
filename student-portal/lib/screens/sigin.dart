@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:student_job_fair_portal/model/student.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/screens/forgetpassword_screen.dart';
 import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
@@ -28,7 +29,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   bool _isPasswordVisible = false;
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final String apiUrl = "http://192.168.137.1:5158/api/Auth/student/login";
+  final String apiUrl = "${BackendConfig.apiBaseUrl}/Auth/student/login";
 
   Future<void> loginStudent() async {
     final regNo = regNoController.text.trim();

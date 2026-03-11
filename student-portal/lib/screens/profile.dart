@@ -27,6 +27,7 @@ import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
@@ -38,7 +39,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
+  final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   bool _isInitLoading = true;
   AnimationController? _persistentSnackBarController;
 

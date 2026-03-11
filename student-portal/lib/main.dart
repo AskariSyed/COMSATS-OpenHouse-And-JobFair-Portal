@@ -16,6 +16,7 @@ import 'package:student_job_fair_portal/provider/theme_provider.dart';
 import 'package:student_job_fair_portal/provider/notification_provider.dart';
 import 'package:student_job_fair_portal/provider/notice_provider.dart';
 import 'package:student_job_fair_portal/model/notification_model.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_job_fair_portal/utils/page_transitions.dart';
 import 'screens/sigin.dart';
@@ -205,7 +206,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  static const String _studentApiBase = 'http://192.168.137.1:5158/api';
+  static String get _studentApiBase => BackendConfig.apiBaseUrl;
   Timer? _interviewReminderTimer;
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/model/company.dart';
 
 class CompanyProvider with ChangeNotifier {
@@ -28,7 +29,7 @@ class CompanyProvider with ChangeNotifier {
   String? get error => _error;
 
   // Base URL
-  final String baseUrl = "http://192.168.137.1:5158/api";
+  final String baseUrl = BackendConfig.apiBaseUrl;
 
   /// Fetches the list of companies from the API
   Future<void> fetchCompanies(String token) async {

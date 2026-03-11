@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 // Mixins & Models
 import 'package:student_job_fair_portal/mixins/enums.dart';
 import 'package:student_job_fair_portal/model/InterviewRequest.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 // Providers
 import 'package:student_job_fair_portal/provider/student_provider.dart';
@@ -38,7 +39,7 @@ class _RequestsScreenState extends State<RequestsScreen>
 
   // Web State
   int _webTabIndex = 0; // 0 = Sent, 1 = Received
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
+  final String _serverBaseUrl = BackendConfig.serverBaseUrl;
 
   @override
   void initState() {
