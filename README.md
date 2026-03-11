@@ -84,8 +84,8 @@ The platform supports complete job fair operations:
 - SignalR JS client
 
 ### Company Portal
-- React 18
-- Vite 5
+- React 19
+- Vite 7
 - Tailwind CSS
 - Firebase JS SDK
 
@@ -125,7 +125,7 @@ jobfair-portal/
 Install the following before running locally:
 
 - **.NET SDK 8.x**
-- **Node.js 18+** and npm
+- **Node.js 20.19+ (or 22.12+)** and npm
 - **Flutter SDK** (compatible with Dart `^3.8.1`)
 - **PostgreSQL 14+** (or compatible)
 - **Git**
@@ -254,6 +254,10 @@ npm run preview
 
 ### API configuration
 
+Versions:
+- React `19.x`
+- Vite `7.x`
+
 Admin portal API helper supports:
 - `VITE_BACKEND_URL` (optional)
 	- If unset, API requests use relative `/api` and rely on Vite proxy.
@@ -277,6 +281,10 @@ npm run preview
 ```
 
 ### API configuration
+
+Versions:
+- React `19.x`
+- Vite `7.x`
 
 Company portal API helper supports:
 - `VITE_SERVER_URL` (optional)
