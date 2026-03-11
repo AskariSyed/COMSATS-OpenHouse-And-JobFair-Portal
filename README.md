@@ -60,7 +60,7 @@ The platform supports complete job fair operations:
 								│
 			    ┌───────────────┴───────────────┐
 				▼                               ▼
-			PostgreSQL (primary DB)        Firebase Cloud Messaging
+    PostgreSQL (primary DB)          Firebase Cloud Messaging
 ```
 
 ---
