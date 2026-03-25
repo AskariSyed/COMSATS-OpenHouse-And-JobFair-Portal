@@ -16,9 +16,9 @@ namespace JobFairPortal.DTOs
     public class NoticeResponseDto
     {
         public int NoticeId { get; set; }
-        public string Title { get; set; }
-        public string Content { get; set; }
-        public string Audience { get; set; }
+        public string Title { get; set; } = null!;
+        public string Content { get; set; } = null!;
+        public string Audience { get; set; } = null!;
         public bool IsHidden { get; set; } // NEW field
         public DateTime CreatedAt { get; set; }
     }

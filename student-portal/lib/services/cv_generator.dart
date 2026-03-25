@@ -1,3 +1,4 @@
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -54,7 +55,7 @@ class CVGenerator {
         if (!imageUrl.startsWith('http')) {
           // If relative URL, assume it's from the backend server
           imageUrl =
-              'http://192.168.137.1:5158$imageUrl'; // Update with your actual server
+              '${BackendConfig.serverBaseUrl}$imageUrl'; // Update with your actual server
         }
 
         final response = await http
@@ -673,7 +674,7 @@ class CVGenerator {
       try {
         String imageUrl = student.profilePicUrl!;
         if (!imageUrl.startsWith('http')) {
-          imageUrl = 'http://192.168.137.1:5158$imageUrl';
+          imageUrl = '${BackendConfig.serverBaseUrl}$imageUrl';
         }
         final response = await http
             .get(Uri.parse(imageUrl))

@@ -17,3 +17,24 @@ firebase.initializeApp(firebaseConfig);
 
 // Retrieve an instance of Firebase Messaging
 const messaging = firebase.messaging();
+
+// Handle background messages (app is minimised or tab is not active)
+messaging.onBackgroundMessage(function(payload) {
+  console.log('[firebase-messaging-sw.js] Received background message:', payload);
+
+  const title = (payload.notification && payload.notification.title)
+    ? payload.notification.title
+    : 'Job Fair Portal';
+  const body = (payload.notification && payload.notification.body)
+    ? payload.notification.body
+    : '';
+
+  const options = {
+    body: body,
+    icon: '/icons/Icon-192.png',
+    badge: '/icons/Icon-192.png',
+    data: payload.data || {},
+  };
+
+  return self.registration.showNotification(title, options);
+});

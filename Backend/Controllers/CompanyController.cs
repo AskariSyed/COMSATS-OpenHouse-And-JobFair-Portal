@@ -2070,6 +2070,23 @@ public async Task<IActionResult> GetAllInterviewRequests(
                     var message = new Message
                     {
                         Token = student.FcmToken,
+                        Android = new AndroidConfig
+                        {
+                            Priority = Priority.High,
+                            Notification = new AndroidNotification
+                            {
+                                ChannelId = "fcm_channel",
+                                Sound = "default"
+                            }
+                        },
+                        Apns = new ApnsConfig
+                        {
+                            Aps = new Aps
+                            {
+                                Sound = "default",
+                                ContentAvailable = true
+                            }
+                        },
                         Notification = new FirebaseAdmin.Messaging.Notification
                         {
                             Title = "Interview Request",
@@ -2078,24 +2095,50 @@ public async Task<IActionResult> GetAllInterviewRequests(
                         Data = new Dictionary<string, string>
                 {
                     { "RequestId", interviewRequest.RequestId.ToString() },
+                    { "requestId", interviewRequest.RequestId.ToString() },
                     { "CompanyId", company.CompanyId.ToString() },
+                    { "companyId", company.CompanyId.ToString() },
                     { "CompanyName", company.Name },
-                    { "Type", "InterviewRequest" }
+                    { "companyName", company.Name },
+                    { "Type", "InterviewRequest" },
+                    { "type", "InterviewRequest" },
+                    { "screen", "requests" },
+                    { "tab", "received" }
                 }
                     };
 
-                    await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                    var fcmResponse = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                    _logger.LogInformation(
+                        "Interview request FCM sent. RequestId={RequestId}, StudentId={StudentId}, MessageId={MessageId}",
+                        interviewRequest.RequestId,
+                        student.StudentId,
+                        fcmResponse
+                    );
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Failed to send FCM notification: {ex.Message}");
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to send interview request FCM. RequestId={RequestId}, StudentId={StudentId}",
+                        interviewRequest.RequestId,
+                        student.StudentId
+                    );
                 }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Student has no FCM token; interview request push not sent. RequestId={RequestId}, StudentId={StudentId}",
+                    interviewRequest.RequestId,
+                    student.StudentId
+                );
             }
 
             if (!string.IsNullOrWhiteSpace(student.User?.Email))
             {
                 try
                 {
+                    var studentEmail = student.User.Email;
                     var requestEmailBody = $@"
 <p>Dear {student.User.FullName},</p>
 <p><strong>{company.Name}</strong> has sent you an interview request for the ongoing job fair.</p>
@@ -2108,7 +2151,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
 
 <p>Best wishes,<br/>Job Fair Team</p>";
 
-                    await _mailService.SendMailAsync(student.User.Email, "New Interview Request", requestEmailBody);
+                    await _mailService.SendMailAsync(studentEmail!, "New Interview Request", requestEmailBody);
                 }
                 catch (Exception ex)
                 {
@@ -2120,8 +2163,8 @@ public async Task<IActionResult> GetAllInterviewRequests(
             {
                 Message = "Interview request sent successfully.",
                 RequestId = interviewRequest.RequestId,
-                StudentName = student.User.FullName,
-                StudentEmail = student.User.Email,
+                StudentName = student.User?.FullName ?? "Unknown Student",
+                StudentEmail = student.User?.Email,
                 Status = interviewRequest.Status.ToString()
             });
         }/// <summary>
@@ -3276,11 +3319,14 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 if (activeJobFair == null)
                     return BadRequest(new { Message = "No active job fair found." });
 
+                var activeFair = activeJobFair;
+
                 // Get participation for current/active job fair
-                var targetJobFairId = activeJobFair?.JobFairId ?? company.CurrentJobFairId;
-                var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == targetJobFairId);
+                var targetJobFairId = activeFair.JobFairId;
+                var participation = (company.JobFairParticipations ?? new List<CompanyJobFairParticipation>())
+                    .FirstOrDefault(p => p.JobFairId == targetJobFairId);
                 var today = DateTime.UtcNow.Date;
-                var jobFairDate = activeJobFair.date.Date;
+                var jobFairDate = activeFair.date.Date;
                 var daysUntilJobFair = (jobFairDate - today).Days;
                 var isConfirmed = participation?.ArrivalStatus == ArrivalStatus.PreRegistered;
 
@@ -3288,9 +3334,9 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 {
                     CompanyId = company.CompanyId,
                     CompanyName = company.Name,
-                    JobFairId = activeJobFair.JobFairId,
-                    JobFairSemester = activeJobFair.Semester,
-                    JobFairDate = activeJobFair.date,
+                    JobFairId = activeFair.JobFairId,
+                    JobFairSemester = activeFair.Semester,
+                    JobFairDate = activeFair.date,
                     IsPresent = participation?.IsPresent ?? false,
                     IsConfirmed = isConfirmed,
                     DaysUntilJobFair = daysUntilJobFair,
@@ -4472,6 +4518,10 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             // Reload company data for SignalR broadcast
             req = await _context.CompanyRequests.Include(r => r.Company).FirstOrDefaultAsync(r => r.CompanyRequestId == req.CompanyRequestId);
+            if (req == null)
+            {
+                return StatusCode(500, new { Message = "Request submitted but failed to reload saved request." });
+            }
 
             // Notify admins in real-time
             try

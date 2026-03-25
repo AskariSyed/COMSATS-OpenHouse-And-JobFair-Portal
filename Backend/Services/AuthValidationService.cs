@@ -191,13 +191,14 @@ namespace JobFairPortal.Services
         {
             error = null;
 
-            if (dto?.UserId <= 0 || string.IsNullOrWhiteSpace(dto.Otp))
+            if (dto is null || dto.UserId <= 0 || string.IsNullOrWhiteSpace(dto.Otp))
             {
                 error = "UserId and OTP are required.";
                 return false;
             }
 
-            if (dto.Otp.Length != 6 || !dto.Otp.All(char.IsDigit))
+            var otp = dto.Otp;
+            if (otp.Length != 6 || !otp.All(char.IsDigit))
             {
                 error = "OTP must be 6 digits.";
                 return false;

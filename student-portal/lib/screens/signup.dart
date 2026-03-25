@@ -63,11 +63,17 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
       final data = parseResponse(response.body);
 
       if (response.statusCode == 200) {
+        final sentToEmail = (data['Email'] ?? data['email'] ?? '')
+            .toString()
+            .trim();
+        final successMessage = sentToEmail.isNotEmpty
+            ? "Email sent to:\n$sentToEmail\n\nPlease check your inbox."
+            : "Email sent successfully!\nPlease check your inbox.";
+
         showTopSnackBar(
           Overlay.of(context),
-          const CustomSnackBar.success(
-            message: "Email Sent Successfully! Please check your email.",
-          ),
+          CustomSnackBar.success(message: successMessage),
+          displayDuration: const Duration(seconds: 4),
         );
 
         // Delay slightly to let user read message, then go to login
@@ -174,7 +180,9 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                             vertical: 42,
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: isWeb
+                                ? CrossAxisAlignment.start
+                                : CrossAxisAlignment.center,
                             children: [
                               Row(
                                 children: [
@@ -275,7 +283,9 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                             ],
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: isWeb
+                                ? CrossAxisAlignment.start
+                                : CrossAxisAlignment.center,
                             children: [
                               if (!isWeb)
                                 Center(
@@ -302,21 +312,33 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
                                   ),
                                 ),
                               if (!isWeb) const SizedBox(height: 20),
-                              Text(
-                                'Create Account',
-                                style: TextStyle(
-                                  fontSize: isWeb ? 34 : 28,
-                                  fontWeight: FontWeight.w800,
-                                  color: titleColor,
+                              SizedBox(
+                                width: double.infinity,
+                                child: Text(
+                                  'Create Account',
+                                  textAlign: isWeb
+                                      ? TextAlign.start
+                                      : TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: isWeb ? 34 : 28,
+                                    fontWeight: FontWeight.w800,
+                                    color: titleColor,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                "Enter your registration number and we'll send your account credentials by email.",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: subtitleColor,
-                                  height: 1.45,
+                              SizedBox(
+                                width: double.infinity,
+                                child: Text(
+                                  "Enter your registration number and we'll send your account credentials by email.",
+                                  textAlign: isWeb
+                                      ? TextAlign.start
+                                      : TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: subtitleColor,
+                                    height: 1.45,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 28),

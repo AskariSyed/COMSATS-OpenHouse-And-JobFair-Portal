@@ -25,8 +25,13 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class RequestsScreen extends StatefulWidget {
   final int initialTabIndex; // 0 = Sent, 1 = Received
+  final int? highlightedRequestId;
 
-  const RequestsScreen({super.key, this.initialTabIndex = 0});
+  const RequestsScreen({
+    super.key,
+    this.initialTabIndex = 0,
+    this.highlightedRequestId,
+  });
 
   @override
   State<RequestsScreen> createState() => _RequestsScreenState();
@@ -87,6 +92,15 @@ class _RequestsScreenState extends State<RequestsScreen>
         .where((r) => r.requestedBy == RequestedBy.Company)
         .toList();
 
+    if (widget.highlightedRequestId != null) {
+      receivedRequests.sort((a, b) {
+        final aHighlighted = a.requestId == widget.highlightedRequestId;
+        final bHighlighted = b.requestId == widget.highlightedRequestId;
+        if (aHighlighted == bHighlighted) return 0;
+        return aHighlighted ? -1 : 1;
+      });
+    }
+
     final String? profileImageUrl =
         (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
@@ -107,62 +121,66 @@ class _RequestsScreenState extends State<RequestsScreen>
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             appBar: BeautifulAppBar(title: "Interview Requests"),
-            body: AppPageReveal(
-              child: Column(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 5,
+              child: AppPageReveal(
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(25),
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      labelColor: Colors.white,
-                      unselectedLabelColor: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      dividerColor: Colors.transparent,
-                      padding: const EdgeInsets.all(4),
-                      tabs: const [
-                        Tab(text: "Sent Requests"),
-                        Tab(text: "Received Requests"),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildSentList(
-                            sentRequests,
-                            studentProvider,
-                            isMobile: true,
-                          ),
-                          _buildReceivedList(
-                            receivedRequests,
-                            studentProvider,
-                            isMobile: true,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicator: BoxDecoration(
+                          borderRadius: BorderRadius.circular(25),
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        labelColor: Colors.white,
+                        unselectedLabelColor: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        dividerColor: Colors.transparent,
+                        padding: const EdgeInsets.all(4),
+                        tabs: const [
+                          Tab(text: "Sent Requests"),
+                          Tab(text: "Received Requests"),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Container(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildSentList(
+                              sentRequests,
+                              studentProvider,
+                              isMobile: true,
+                            ),
+                            _buildReceivedList(
+                              receivedRequests,
+                              studentProvider,
+                              isMobile: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             bottomNavigationBar: BeautifulMobileNavBar(currentIndex: 5),
@@ -449,15 +467,20 @@ class _RequestsScreenState extends State<RequestsScreen>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8 : 12,
+                  vertical: isMobile ? 8 : 10,
                 ),
+                minimumSize: Size(0, isMobile ? 34 : 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              icon: const Icon(Icons.close_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.close_rounded, size: isMobile ? 14 : 16),
+              label: Text(
                 "Decline",
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: isMobile ? 12 : 14,
+                ),
               ),
             ),
             ElevatedButton.icon(
@@ -470,20 +493,30 @@ class _RequestsScreenState extends State<RequestsScreen>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8 : 12,
+                  vertical: isMobile ? 8 : 10,
                 ),
+                minimumSize: Size(0, isMobile ? 34 : 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              icon: const Icon(Icons.check_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.check_rounded, size: isMobile ? 14 : 16),
+              label: Text(
                 "Accept",
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: isMobile ? 12 : 14,
+                ),
               ),
             ),
           ];
         }
-        return _buildRequestCard(req, actions: actions, isReceived: true);
+        return _buildRequestCard(
+          req,
+          actions: actions,
+          isReceived: true,
+          isHighlighted: req.requestId == widget.highlightedRequestId,
+        );
       },
     );
 
@@ -496,6 +529,7 @@ class _RequestsScreenState extends State<RequestsScreen>
     InterviewRequest req, {
     List<Widget>? actions,
     bool isReceived = false,
+    bool isHighlighted = false,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = MediaQuery.of(context).size.width < 700;
@@ -511,6 +545,9 @@ class _RequestsScreenState extends State<RequestsScreen>
       shadowColor: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Theme.of(context).cardColor,
+      surfaceTintColor: isHighlighted
+          ? Colors.amber.withValues(alpha: 0.2)
+          : null,
       margin: EdgeInsets.symmetric(
         horizontal: isMobile ? 0 : 0,
         vertical: isMobile ? 6 : 8,
@@ -564,6 +601,29 @@ class _RequestsScreenState extends State<RequestsScreen>
                           : _buildFallbackIcon(),
                     ),
                   ),
+                  if (isHighlighted)
+                    Positioned(
+                      top: -6,
+                      right: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade600,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          'New',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(width: 16),
                   // Text Info
                   Expanded(
@@ -611,11 +671,13 @@ class _RequestsScreenState extends State<RequestsScreen>
                       if (actions != null && actions.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 240),
+                          constraints: BoxConstraints(
+                            maxWidth: isMobile ? 200 : 240,
+                          ),
                           child: Wrap(
                             alignment: WrapAlignment.end,
-                            spacing: 8,
-                            runSpacing: 8,
+                            spacing: isMobile ? 6 : 8,
+                            runSpacing: isMobile ? 6 : 8,
                             children: actions,
                           ),
                         ),

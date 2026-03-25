@@ -10,8 +10,10 @@ import 'package:student_job_fair_portal/widgets/showDialogueBox.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
-// ⚠️ Ensure this matches your actual API URL
-const String _serverBaseUrl = "http://192.168.137.1:5158";
+import 'package:student_job_fair_portal/config/backend_config.dart';
+
+// Server base URL is now sourced from BackendConfig (set via --dart-define=BACKEND_BASE_URL=...)
+final String _serverBaseUrl = BackendConfig.serverBaseUrl;
 
 Widget buildProjectsList(
   List<Project>? projects,

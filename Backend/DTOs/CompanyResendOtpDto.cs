@@ -2,7 +2,7 @@ namespace JobFairPortal.DTOs
 {
     public class CompanyResendOtpDto
     {
-        public string RepEmail { get; set; }
-        public string UserEmail { get; set; }
+        public string RepEmail { get; set; } = null!;
+        public string UserEmail { get; set; } = null!;
     }
 }

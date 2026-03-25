@@ -78,11 +78,15 @@ class _QueueScreenState extends State<QueueScreen> {
             backgroundColor: scaffoldBg,
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Interviews"),
-            body: AppPageReveal(
-              child: _buildMessageContent(
-                context,
-                isMobile: true,
-                isDark: isDark,
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 4,
+              child: AppPageReveal(
+                child: _buildMessageContent(
+                  context,
+                  isMobile: true,
+                  isDark: isDark,
+                ),
               ),
             ),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 4),

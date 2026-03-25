@@ -796,32 +796,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // BeautifulAppBar adds logout automatically if hideLogout is false (default)
               ],
             ),
-            body: RefreshIndicator(
-              onRefresh: _loadProfileData,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: AppPageReveal(
-                      child: Column(
-                        children: [
-                          _buildCvActionsCard(context),
-                          const SizedBox(height: 12),
-                          buildProfileContent(
-                            context,
-                            student,
-                            profileImageUrl,
-                            _onManageProject,
-                            _onEditPicturePressed,
-                            _showAddContactLinkDialog,
-                            onEditLink,
-                            onDeleteLink,
-                            _onUpdateNamePressed,
-                            mounted,
-                          ),
-                        ],
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 1,
+              child: RefreshIndicator(
+                onRefresh: _loadProfileData,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: AppPageReveal(
+                        child: Column(
+                          children: [
+                            _buildCvActionsCard(context),
+                            const SizedBox(height: 12),
+                            buildProfileContent(
+                              context,
+                              student,
+                              profileImageUrl,
+                              _onManageProject,
+                              _onEditPicturePressed,
+                              _showAddContactLinkDialog,
+                              onEditLink,
+                              onDeleteLink,
+                              _onUpdateNamePressed,
+                              mounted,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

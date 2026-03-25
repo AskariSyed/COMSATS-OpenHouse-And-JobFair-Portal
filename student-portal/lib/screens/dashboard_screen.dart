@@ -344,44 +344,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            body: RefreshIndicator(
-              onRefresh: _refresh,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                child: AppPageReveal(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildProfileSection(
-                        context,
-                        dashboardData.studentProfile,
-                        isWide,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildMarketOverview(
-                        context,
-                        dashboardData.marketOverview,
-                        isWide,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildRecommendedJobs(
-                        context,
-                        dashboardData.recommendedJobs,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildActionsRequired(
-                        context,
-                        dashboardData.actionsRequired,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildInterviewStats(
-                        context,
-                        dashboardData.interviewStats,
-                      ),
-                      const SizedBox(height: 24),
-                      _buildNotices(context, dashboardData.notices),
-                    ],
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 0,
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  child: AppPageReveal(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProfileSection(
+                          context,
+                          dashboardData.studentProfile,
+                          isWide,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildMarketOverview(
+                          context,
+                          dashboardData.marketOverview,
+                          isWide,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildRecommendedJobs(
+                          context,
+                          dashboardData.recommendedJobs,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildActionsRequired(
+                          context,
+                          dashboardData.actionsRequired,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildInterviewStats(
+                          context,
+                          dashboardData.interviewStats,
+                        ),
+                        const SizedBox(height: 24),
+                        _buildNotices(context, dashboardData.notices),
+                      ],
+                    ),
                   ),
                 ),
               ),

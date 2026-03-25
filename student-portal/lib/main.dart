@@ -23,39 +23,75 @@ import 'screens/sigin.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/company_profile_screen.dart';
+import 'screens/requestScreen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void _openCompanyProfileByData(Map<String, dynamic> data) {
+void _pushWhenReady(WidgetBuilder builder) {
+  final nav = navigatorKey.currentState;
+  if (nav != null) {
+    nav.push(MaterialPageRoute(builder: builder));
+    return;
+  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    navigatorKey.currentState?.push(MaterialPageRoute(builder: builder));
+  });
+}
+
+void _openNotificationTargetByData(Map<String, dynamic> data) {
   final type = (data['Type'] ?? data['type'] ?? '').toString().toLowerCase();
+  final screen = (data['screen'] ?? data['Screen'] ?? '').toString().toLowerCase();
+  final tab = (data['tab'] ?? data['Tab'] ?? '').toString().toLowerCase();
+  final requestIdRaw = (data['requestId'] ?? data['RequestId'] ?? '').toString();
+  final requestId = int.tryParse(requestIdRaw);
   final companyIdRaw = (data['CompanyId'] ?? data['companyId'] ?? '')
       .toString();
   final companyName = (data['CompanyName'] ?? data['companyName'] ?? 'Company')
       .toString();
   final companyId = int.tryParse(companyIdRaw);
 
+  if (type == 'interviewrequest' ||
+      screen == 'requests' ||
+      tab == 'received') {
+    _pushWhenReady(
+      (_) => RequestsScreen(
+        initialTabIndex: 1,
+        highlightedRequestId: requestId,
+      ),
+    );
+    return;
+  }
+
   if ((type == 'interviewscheduled' || type == 'interviewreminder') &&
       companyId != null &&
       companyId > 0) {
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (_) => CompanyProfileScreen(
-          companyId: companyId,
-          companyName: companyName,
-        ),
+    _pushWhenReady(
+      (_) => CompanyProfileScreen(
+        companyId: companyId,
+        companyName: companyName,
       ),
     );
   }
 }
 
+void _openCompanyProfileByData([Map<String, dynamic>? data]) {
+  if (data != null && data.isNotEmpty) {
+    _openNotificationTargetByData(data);
+  }
+}
+
 void _openCompanyProfileFromPayload(String? payload) {
+  _openNotificationTargetFromPayload(payload);
+}
+
+void _openNotificationTargetFromPayload(String? payload) {
   if (payload == null || payload.isEmpty) return;
   try {
     final decoded = json.decode(payload);
     if (decoded is Map<String, dynamic>) {
-      _openCompanyProfileByData(decoded);
+      _openNotificationTargetByData(decoded);
     }
   } catch (_) {
     // Ignore malformed payload.
@@ -74,6 +110,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Show notification when app is closed/background
   RemoteNotification? notification = message.notification;
   if (notification != null) {
+    final payload = jsonEncode(message.data.isNotEmpty ? message.data : {});
     await flutterLocalNotificationsPlugin.show(
       notification.hashCode,
       notification.title ?? "Notification",
@@ -90,6 +127,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           styleInformation: BigTextStyleInformation(notification.body ?? ""),
         ),
       ),
+      payload: payload,
     );
 
     // Store notification using static method (works in background)
@@ -154,32 +192,15 @@ void main() async {
     });
   }
 
-  // Initialize web notifications
+  // Initialize web notifications (stub init only)
+  // Permission request and token retrieval are deferred to sign-in (sigin.dart)
+  // so they run after user interaction and on a secure context (HTTPS/localhost).
   if (kIsWeb) {
     const InitializationSettings initSettings = InitializationSettings();
     await flutterLocalNotificationsPlugin.initialize(initSettings);
-
-    // Request permission for web notifications
-    try {
-      NotificationSettings settings = await FirebaseMessaging.instance
-          .requestPermission(alert: true, badge: true, sound: true);
-
-      if (kDebugMode) {
-        print(
-          '🔔 Web notification permission: ${settings.authorizationStatus}',
-        );
-      }
-
-      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional) {
-        // Get FCM token for web (works on Chrome, Firefox, Safari, etc.)
-        String? token = await FirebaseMessaging.instance.getToken();
-        if (kDebugMode) print("🔑 Web FCM token: $token");
-      } else {
-        if (kDebugMode) print('⚠️ Notification permission denied');
-      }
-    } catch (e) {
-      if (kDebugMode) print('❌ Error getting web FCM token: $e');
+    if (kDebugMode) {
+      print('🌐 Web: FCM permission will be requested at login');
+      print('⚠️  Web push notifications require HTTPS or localhost');
     }
   }
 

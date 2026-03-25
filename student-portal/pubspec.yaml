@@ -123,6 +123,6 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/StudentJobFairPortalLogo.png"
+  image_path: "assets/LogoWithoutBg.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/StudentJobFairPortalLogo.png"
+  adaptive_icon_foreground: "assets/LogoWithoutBg.png"

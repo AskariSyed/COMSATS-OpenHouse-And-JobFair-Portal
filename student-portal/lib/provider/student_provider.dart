@@ -1284,32 +1284,44 @@ class StudentProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         return null; // Success
       } else {
-        // Parse error response
+        String message = '';
         try {
           final data = json.decode(response.body);
-          final message = data['message'] ?? data['Message'] ?? '';
-
-          if (response.statusCode == 400) {
-            if (message.contains("expired") || message.contains("not found")) {
-              return "OTP expired or not found. Please request a new one.";
-            } else if (message.contains("already been used")) {
-              return "This OTP has already been used. Please request a new one.";
-            } else if (message.contains("Invalid OTP")) {
-              return "Invalid OTP. Please check and try again.";
-            } else {
-              return message.isNotEmpty
-                  ? message
-                  : "Invalid request. Please try again.";
-            }
-          } else if (response.statusCode == 404) {
-            return "User not found. Please restart the password reset process.";
-          } else if (response.statusCode == 500) {
-            return "Server error. Please try again later.";
-          } else {
-            return message.isNotEmpty ? message : "Failed to reset password.";
+          if (data is Map<String, dynamic>) {
+            message = (data['message'] ?? data['Message'] ?? '').toString();
           }
-        } catch (e) {
-          return "Failed to reset password. Please try again.";
+        } catch (_) {
+          message = response.body;
+        }
+
+        if (message.trim().isEmpty) {
+          message = response.body;
+        }
+
+        final normalizedMessage = message.toLowerCase();
+
+        if (response.statusCode == 400) {
+          if (normalizedMessage.contains("expired")) {
+            return "OTP expired. Please request a new OTP.";
+          } else if (normalizedMessage.contains("not found")) {
+            return "OTP not found. Please request a new OTP.";
+          } else if (normalizedMessage.contains("already been used")) {
+            return "This OTP has already been used. Please request a new one.";
+          } else if (normalizedMessage.contains("invalid otp")) {
+            return "Invalid OTP. Please check and try again.";
+          } else {
+            return message.trim().isNotEmpty
+                ? message.trim()
+                : "Invalid request. Please try again.";
+          }
+        } else if (response.statusCode == 404) {
+          return "User not found. Please restart the password reset process.";
+        } else if (response.statusCode == 500) {
+          return "Server error. Please try again later.";
+        } else {
+          return message.trim().isNotEmpty
+              ? message.trim()
+              : "Failed to reset password.";
         }
       }
     } catch (e) {

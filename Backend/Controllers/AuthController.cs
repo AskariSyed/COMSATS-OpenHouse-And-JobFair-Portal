@@ -102,18 +102,18 @@ namespace JobFairPortal.Controllers
             {
                 user = await _context.Users
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.ContactLinks)
+                        .ThenInclude(s => s!.ContactLinks)
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.StudentProjects)
+                        .ThenInclude(s => s!.StudentProjects)
                             .ThenInclude(sp => sp.Project)
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.Experiences)
+                        .ThenInclude(s => s!.Experiences)
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.Educations)
+                        .ThenInclude(s => s!.Educations)
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.Achievements)
+                        .ThenInclude(s => s!.Achievements)
                     .Include(u => u.Student)
-                        .ThenInclude(s => s.Certifications)
+                        .ThenInclude(s => s!.Certifications)
                     .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == UserRole.Student);
                 student = user?.Student;
             }
@@ -459,7 +459,7 @@ namespace JobFairPortal.Controllers
                 return BadRequest(validationError);
 
             var cacheKey = $"company-otp:{dto.RepEmail.ToLower()}";
-            if (!_cache.TryGetValue(cacheKey, out string cachedOtp))
+            if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || string.IsNullOrWhiteSpace(cachedOtp))
             {
                 _logger.LogWarning("OTP verification failed - OTP not found for: {Email}", dto.RepEmail);
                 return BadRequest("OTP expired or not found.");
@@ -614,7 +614,7 @@ namespace JobFairPortal.Controllers
             }
 
             var cacheKey = $"password-reset:{user.UserId}";
-            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken cachedToken))
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken? cachedToken) || cachedToken == null)
             {
                 _logger.LogWarning("Token verification failed - token not found for user: {UserId}", dto.UserId);
                 return BadRequest("Reset token expired or not found. Please request a new one.");
@@ -661,7 +661,7 @@ namespace JobFairPortal.Controllers
             }
 
             var cacheKey = $"password-reset:{user.UserId}";
-            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken cachedToken))
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetToken? cachedToken) || cachedToken == null)
             {
                 _logger.LogWarning("Password reset failed - token not found for user: {UserId}", dto.UserId);
                 return BadRequest("Reset token expired or not found. Please request a new one.");
@@ -716,12 +716,10 @@ namespace JobFairPortal.Controllers
 
             var input = dto.EmailOrRegNo.Trim();
             User? user = null;
-            bool isRegistrationNo = false;
 
             // Check if input is Registration No or Email
             if (Regex.IsMatch(input, REGISTRATION_NO_PATTERN, RegexOptions.IgnoreCase))
             {
-                isRegistrationNo = true;
                 var student = await _context.Students
                     .Include(s => s.User)
                     .FirstOrDefaultAsync(s => s.RegistrationNo.ToUpper() == input.ToUpper());
@@ -812,7 +810,7 @@ namespace JobFairPortal.Controllers
             }
 
             var cacheKey = $"password-reset-otp:{user.UserId}";
-            if (!_cache.TryGetValue(cacheKey, out PasswordResetOtpToken otpToken))
+            if (!_cache.TryGetValue(cacheKey, out PasswordResetOtpToken? otpToken) || otpToken == null)
             {
                 _logger.LogWarning("OTP verification failed - OTP not found for user: {UserId}", dto.UserId);
                 return BadRequest("OTP expired or not found. Please request a new one.");

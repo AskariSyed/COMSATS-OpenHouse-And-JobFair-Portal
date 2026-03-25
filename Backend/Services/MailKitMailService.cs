@@ -22,6 +22,10 @@ namespace JobFairPortal.Services
 
             // ✅ From must match Gmail account
             var gmailUser = _config["Smtp:User"];
+            if (string.IsNullOrWhiteSpace(gmailUser))
+            {
+                throw new InvalidOperationException("SMTP user is not configured (Smtp:User).");
+            }
             message.From.Add(new MailboxAddress("Job Fair Portal", gmailUser));
 
             //// ✅ Optional: set Reply-To to CUI email
@@ -50,7 +54,21 @@ namespace JobFairPortal.Services
             using var client = new SmtpClient();
 
             var host = _config["Smtp:Host"];
-            var port = int.Parse(_config["Smtp:Port"]);
+            if (string.IsNullOrWhiteSpace(host))
+            {
+                throw new InvalidOperationException("SMTP host is not configured (Smtp:Host).");
+            }
+
+            if (!int.TryParse(_config["Smtp:Port"], out var port))
+            {
+                throw new InvalidOperationException("SMTP port is invalid or missing (Smtp:Port).");
+            }
+
+            var smtpPass = _config["Smtp:Pass"];
+            if (string.IsNullOrWhiteSpace(smtpPass))
+            {
+                throw new InvalidOperationException("SMTP password is not configured (Smtp:Pass).");
+            }
 
             var socketOptions = port == 465
                 ? SecureSocketOptions.SslOnConnect
@@ -59,7 +77,7 @@ namespace JobFairPortal.Services
             await client.ConnectAsync(host, port, socketOptions);
 
             // ✅ Authenticate with App Password
-            await client.AuthenticateAsync(gmailUser, _config["Smtp:Pass"]);
+            await client.AuthenticateAsync(gmailUser, smtpPass);
 
             await client.SendAsync(message);
             await client.DisconnectAsync(true);

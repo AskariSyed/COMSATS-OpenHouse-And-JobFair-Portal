@@ -6,21 +6,12 @@ import {
   Briefcase, CheckCircle, XCircle, Clock, Calendar, 
   Users, Layout, Link as LinkIcon, FileText, Eye, Edit2, Save, X
 } from 'lucide-react';
-import api from '../../lib/api';
+import api, { getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import LogoWithoutBg from '../../assets/LogoWithoutBg.png';
-
-// 🔧 CONFIGURATION
-const BACKEND_URL = "https://localhost:7050"; 
-
-const getImageUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http')) return path; 
-  return `${BACKEND_URL}${path}`; 
-};
 
 const getApiErrorMessage = (error, fallback) => {
   const payload = error?.response?.data;
@@ -523,7 +514,7 @@ const CompanyDetail = () => {
             <div className="px-6 pb-6 relative">
               <div className="w-24 h-24 rounded-xl border-4 border-white shadow-lg bg-white -mt-12 flex items-center justify-center overflow-hidden">
                 {data.logoUrl ? (
-                  <img src={getImageUrl(data.logoUrl)} alt={data.name} className="w-full h-full object-contain p-1" />
+                  <img src={getFileUrl(data.logoUrl)} alt={data.name} className="w-full h-full object-contain p-1" />
                 ) : (
                   <Building2 size={40} className="text-gray-300" />
                 )}

@@ -130,60 +130,64 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
             backgroundColor: scaffoldBg, // 🔹 Theme
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Participating Companies"),
-            body: Stack(
-              children: [
-                RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                    child: Column(
-                      children: [
-                        _buildSearchBar(),
-                        const SizedBox(height: 16),
-                        showShimmer
-                            ? _buildShimmerGrid(isMobile: true)
-                            : companyProvider.error != null &&
-                                  companyProvider.companies.isEmpty
-                            ? SizedBox(
-                                height: constraints.maxHeight * 0.7,
-                                child: Center(
-                                  child: Text(
-                                    companyProvider.error!,
-                                    style: TextStyle(
-                                      color: textColor,
-                                    ), // 🔹 Theme
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 3,
+              child: Stack(
+                children: [
+                  RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      child: Column(
+                        children: [
+                          _buildSearchBar(),
+                          const SizedBox(height: 16),
+                          showShimmer
+                              ? _buildShimmerGrid(isMobile: true)
+                              : companyProvider.error != null &&
+                                    companyProvider.companies.isEmpty
+                              ? SizedBox(
+                                  height: constraints.maxHeight * 0.7,
+                                  child: Center(
+                                    child: Text(
+                                      companyProvider.error!,
+                                      style: TextStyle(
+                                        color: textColor,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              )
-                            : filteredCompanies.isEmpty
-                            ? SizedBox(
-                                height: constraints.maxHeight * 0.7,
-                                child: Center(
-                                  child: Text(
-                                    "No companies match your filters.",
-                                    style: TextStyle(color: textColor),
+                                )
+                              : filteredCompanies.isEmpty
+                              ? SizedBox(
+                                  height: constraints.maxHeight * 0.7,
+                                  child: Center(
+                                    child: Text(
+                                      "No companies match your filters.",
+                                      style: TextStyle(color: textColor),
+                                    ),
                                   ),
+                                )
+                              : _buildCompaniesGrid(
+                                  filteredCompanies,
+                                  student?.skills ?? [],
+                                  isMobile: true,
                                 ),
-                              )
-                            : _buildCompaniesGrid(
-                                filteredCompanies,
-                                student?.skills ?? [],
-                                isMobile: true,
-                              ),
-                        const SizedBox(height: 20),
-                      ],
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (showDataWithLoading)
-                  const Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: LinearProgressIndicator(minHeight: 3),
-                  ),
-              ],
+                  if (showDataWithLoading)
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(minHeight: 3),
+                    ),
+                ],
+              ),
             ),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 3),
           );

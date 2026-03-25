@@ -78,7 +78,7 @@ namespace JobFairPortal.Controllers
                         {
                             { "RequestId", interviewRequest.RequestId.ToString() },
                             { "StudentId", student.StudentId.ToString() },
-                            { "StudentName", student.User.FullName },
+                            { "StudentName", student.User.FullName ?? "Unknown Student" },
                             { "Type", "RequestWithdrawn" }
                         }
                     };
@@ -97,7 +97,7 @@ namespace JobFairPortal.Controllers
             {
                 Message = "Interview request removed successfully.",
                 RequestId = interviewRequest.RequestId,
-                CompanyName = interviewRequest.Company.Name
+                CompanyName = interviewRequest.Company?.Name
             });
         }
         [HttpPost("interview-requests/{requestId}/accept")]
@@ -232,7 +232,7 @@ namespace JobFairPortal.Controllers
                         {
                             { "RequestId", interviewRequest.RequestId.ToString() },
                             { "StudentId", student.StudentId.ToString() },
-                            { "StudentName", student.User.FullName },
+                            { "StudentName", student.User.FullName ?? "Unknown Student" },
                             { "Reason", dto.Reason ?? "No reason provided" },
                             { "Type", "RequestRejected" }
                         }
@@ -252,7 +252,7 @@ namespace JobFairPortal.Controllers
             {
                 Message = "Interview request rejected successfully.",
                 RequestId = interviewRequest.RequestId,
-                CompanyName = interviewRequest.Company.Name,
+                CompanyName = interviewRequest.Company?.Name,
                 Status = interviewRequest.Status.ToString(),
                 RejectionReason = dto.Reason,
                 RejectedAt = interviewRequest.UpdatedAt
@@ -403,6 +403,9 @@ namespace JobFairPortal.Controllers
             var student = await _context.Students
                 .Include(s => s.Experiences)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null)
+                return NotFound("Student not found.");
+
             var Response = student.Experiences.Select(ex => new
             {
                 ex.ExperienceId,
@@ -470,7 +473,7 @@ namespace JobFairPortal.Controllers
                 return Unauthorized();
             var experience = await _context.Experiences
                 .Include(e => e.Student)
-                .FirstOrDefaultAsync(e => e.ExperienceId == experienceId && e.Student.UserId == userId);
+                .FirstOrDefaultAsync(e => e.ExperienceId == experienceId && e.Student != null && e.Student.UserId == userId);
 
             if (experience == null)
                 return NotFound("Experience not found or does not belong to this student.");
@@ -553,7 +556,7 @@ namespace JobFairPortal.Controllers
 
             var certification = await _context.Certifications
                 .Include(c => c.Student)
-                .FirstOrDefaultAsync(c => c.CertificationId == certificationId && c.Student.UserId == userId);
+                .FirstOrDefaultAsync(c => c.CertificationId == certificationId && c.Student != null && c.Student.UserId == userId);
 
             if (certification == null)
                 return NotFound("Certification not found or does not belong to this student.");
@@ -592,7 +595,7 @@ namespace JobFairPortal.Controllers
 
             var certification = await _context.Certifications
                 .Include(c => c.Student)
-                .FirstOrDefaultAsync(c => c.CertificationId == certificationId && c.Student.UserId == userId);
+                .FirstOrDefaultAsync(c => c.CertificationId == certificationId && c.Student != null && c.Student.UserId == userId);
 
             if (certification == null)
                 return NotFound("Certification not found or does not belong to this student.");
@@ -1418,7 +1421,7 @@ namespace JobFairPortal.Controllers
 
             var achievement = await _context.Achievements
                 .Include(a => a.Student)
-                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student.UserId == userId);
+                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student != null && a.Student.UserId == userId);
 
             if (achievement == null)
                 return NotFound("Achievement not found or does not belong to this student.");
@@ -1456,7 +1459,7 @@ namespace JobFairPortal.Controllers
 
             var achievement = await _context.Achievements
                 .Include(a => a.Student)
-                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student.UserId == userId);
+                .FirstOrDefaultAsync(a => a.AchievementId == achievementId && a.Student != null && a.Student.UserId == userId);
 
             if (achievement == null)
                 return NotFound("Achievement not found or does not belong to this student.");
@@ -2352,7 +2355,7 @@ namespace JobFairPortal.Controllers
             // Next Interview
             var nextInterview = interviews
                 .Where(i => i.ScheduledTime.HasValue && i.ScheduledTime.Value > DateTime.UtcNow)
-                .OrderBy(i => i.ScheduledTime.Value)
+                .OrderBy(i => i.ScheduledTime!.Value)
                 .Select(i => new
                 {
                     i.InterviewId,

@@ -7,7 +7,7 @@ namespace JobFairPortal.DTOs
         public int SurveyId { get; set; }
         public SurveyType Type { get; set; }
         public int CompanyId { get; set; }
-        public string CompanyName { get; set; }
+        public string CompanyName { get; set; } = null!;
     }
     // DTO
     public class SurveyResponseDto

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For input formatters
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/utils/password_validator.dart';
+import 'package:student_job_fair_portal/screens/sigin.dart';
 
 // ============================================================================
 // SCREEN 1: REQUEST OTP (Registration Number Only)
@@ -64,7 +66,8 @@ class _ForgotPasswordRequestScreenState
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ForgotPasswordResetScreen(userId: userId),
+          builder: (_) =>
+              ForgotPasswordResetScreen(userId: userId, emailOrRegNo: regNo),
         ),
       );
     } catch (e) {
@@ -257,34 +260,26 @@ class _ForgotPasswordRequestScreenState
                             ],
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: isWeb
+                                ? CrossAxisAlignment.start
+                                : CrossAxisAlignment.center,
                             children: [
-                              IconButton(
-                                onPressed: () => Navigator.pop(context),
-                                icon: Icon(Icons.arrow_back, color: titleColor),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                              const SizedBox(height: 16),
-                              Container(
+                              SizedBox(
                                 width: 64,
                                 height: 64,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [brandNavy, brandBlue],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.lock_reset,
-                                  color: Colors.white,
+                                child: Image.asset(
+                                  'assets/LogoWithoutBg.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) =>
+                                      Icon(Icons.lock_reset, color: titleColor),
                                 ),
                               ),
                               const SizedBox(height: 18),
                               Text(
                                 'Forgot Password?',
+                                textAlign: isWeb
+                                    ? TextAlign.start
+                                    : TextAlign.center,
                                 style: TextStyle(
                                   fontSize: isWeb ? 34 : 28,
                                   fontWeight: FontWeight.w800,
@@ -294,6 +289,9 @@ class _ForgotPasswordRequestScreenState
                               const SizedBox(height: 8),
                               Text(
                                 "Enter your registration number and we'll send an OTP to your registered email.",
+                                textAlign: isWeb
+                                    ? TextAlign.start
+                                    : TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 15,
                                   color: subtitleColor,
@@ -394,6 +392,39 @@ class _ForgotPasswordRequestScreenState
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 18),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Already have an account? ',
+                                    style: TextStyle(
+                                      color: subtitleColor,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const StudentLoginScreen(),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Sign In',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: brandBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -415,7 +446,12 @@ class _ForgotPasswordRequestScreenState
 // ============================================================================
 class ForgotPasswordResetScreen extends StatefulWidget {
   final int userId;
-  const ForgotPasswordResetScreen({super.key, required this.userId});
+  final String emailOrRegNo;
+  const ForgotPasswordResetScreen({
+    super.key,
+    required this.userId,
+    required this.emailOrRegNo,
+  });
 
   @override
   State<ForgotPasswordResetScreen> createState() =>
@@ -423,12 +459,92 @@ class ForgotPasswordResetScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
+  static const int _resendCooldownSeconds = 120;
   final _otpController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmPassController = TextEditingController();
   bool _isLoading = false;
+  bool _isResending = false;
   bool _isPassVisible = false;
   bool _isConfirmVisible = false;
+  int _resendSecondsLeft = _resendCooldownSeconds;
+  Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendTimer();
+  }
+
+  @override
+  void dispose() {
+    _resendTimer?.cancel();
+    _otpController.dispose();
+    _passController.dispose();
+    _confirmPassController.dispose();
+    super.dispose();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() {
+      _resendSecondsLeft = _resendCooldownSeconds;
+    });
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_resendSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() {
+          _resendSecondsLeft = 0;
+        });
+      } else {
+        setState(() {
+          _resendSecondsLeft--;
+        });
+      }
+    });
+  }
+
+  String get _resendTimeFormatted {
+    final minutes = (_resendSecondsLeft ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_resendSecondsLeft % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendSecondsLeft > 0 || _isResending || _isLoading) return;
+
+    setState(() => _isResending = true);
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+
+    try {
+      await provider.sendPasswordResetOtp(widget.emailOrRegNo);
+      if (!mounted) return;
+
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.success(
+          message: "A new OTP has been sent to your registered email.",
+        ),
+      );
+      _startResendTimer();
+    } catch (e) {
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(
+          message: e.toString().replaceAll('Exception: ', ''),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isResending = false);
+    }
+  }
 
   Future<void> _resetPassword() async {
     final otp = _otpController.text.trim();
@@ -558,13 +674,32 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
               ),
             ),
 
-            // 2. Back Button
+            // 2. Sign In Button
             Positioned(
               top: 40,
               left: 20,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StudentLoginScreen(),
+                    ),
+                    (route) => false,
+                  );
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                ),
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text(
+                  'Sign In',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
 
@@ -613,6 +748,59 @@ class _ForgotPasswordResetScreenState extends State<ForgotPasswordResetScreen> {
                           fontSize: 14,
                           height: 1.5,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "OTP expires in 10 minutes",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? Colors.blue.shade200
+                              : const Color(0xFF1E3C72),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _resendSecondsLeft > 0
+                                ? "Resend OTP in $_resendTimeFormatted"
+                                : "Didn't receive code?",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed: _resendSecondsLeft == 0 && !_isResending
+                                ? _resendOtp
+                                : null,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 28),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: _isResending
+                                ? const SizedBox(
+                                    height: 14,
+                                    width: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Resend OTP",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 25),
 

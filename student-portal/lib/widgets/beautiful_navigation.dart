@@ -383,100 +383,156 @@ class BeautifulMobileNavBar extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = Theme.of(context).cardColor;
-    final primaryColor = Theme.of(context).primaryColor;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bottomSpacing = (screenWidth * 0.01).clamp(6.0, 10.0);
+    final navHorizontalMargin = (screenWidth * 0.04).clamp(12.0, 20.0);
+    final navVerticalPadding = (screenWidth * 0.005).clamp(0.0, 2.0);
+    final navRadius = (screenWidth * 0.065).clamp(20.0, 26.0);
+    final navBarHeight = (screenWidth * 0.135).clamp(54.0, 60.0);
+    final iconSize = (screenWidth * 0.06).clamp(20.0, 24.0);
+    final iconPadding = (screenWidth * 0.016).clamp(4.0, 6.0);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20), // Float it
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(25),
-        border: isDark
-            ? Border.all(color: Colors.grey.shade800, width: 0.5)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
-        child: BottomNavigationBar(
-          currentIndex: currentIndex,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: cardColor,
-          selectedItemColor: primaryColor,
-          unselectedItemColor: Colors.grey.shade400,
-          showSelectedLabels: false, // Cleaner look
-          showUnselectedLabels: false,
-          elevation: 0,
-          onTap: (index) => _handleNavigation(context, index),
-          items: [
-            _buildItem(
-              context,
-              Icons.dashboard,
-              Icons.dashboard_outlined,
-              "Dashboard",
-              0,
-            ),
-            _buildItem(
-              context,
-              Icons.person,
-              Icons.person_outline,
-              "Profile",
-              1,
-            ),
-            _buildItem(context, Icons.work, Icons.work_outline, "Jobs", 2),
-            _buildItem(
-              context,
-              Icons.business,
-              Icons.business_outlined,
-              "Companies",
-              3,
-            ),
-            _buildItem(
-              context,
-              Icons.list_alt,
-              Icons.list_alt_outlined,
-              "Interviews",
-              4,
-            ),
-            _buildItem(
-              context,
-              Icons.inbox,
-              Icons.inbox_outlined,
-              "Requests",
-              5,
-              badgeCount: reminderCount,
+    return SafeArea(
+      top: false,
+      left: false,
+      right: false,
+      minimum: EdgeInsets.only(bottom: bottomSpacing),
+      child: Container(
+        margin: EdgeInsets.fromLTRB(navHorizontalMargin, 0, navHorizontalMargin, 0),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(navRadius),
+          border: isDark
+              ? Border.all(color: Colors.grey.shade800, width: 0.5)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(navRadius),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: navVerticalPadding),
+            child: SizedBox(
+              height: navBarHeight,
+              child: Row(
+                children: [
+                  _buildItem(
+                    context,
+                    Icons.dashboard,
+                    Icons.dashboard_outlined,
+                    "Dashboard",
+                    0,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                  _buildItem(
+                    context,
+                    Icons.person,
+                    Icons.person_outline,
+                    "Profile",
+                    1,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                  _buildItem(
+                    context,
+                    Icons.work,
+                    Icons.work_outline,
+                    "Jobs",
+                    2,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                  _buildItem(
+                    context,
+                    Icons.business,
+                    Icons.business_outlined,
+                    "Companies",
+                    3,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                  _buildItem(
+                    context,
+                    Icons.list_alt,
+                    Icons.list_alt_outlined,
+                    "Interviews",
+                    4,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                  _buildItem(
+                    context,
+                    Icons.inbox,
+                    Icons.inbox_outlined,
+                    "Requests",
+                    5,
+                    badgeCount: reminderCount,
+                    iconSize: iconSize,
+                    iconPadding: iconPadding,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  BottomNavigationBarItem _buildItem(
+  static Widget withSwipeNavigation({
+    required BuildContext context,
+    required int currentIndex,
+    required Widget child,
+  }) {
+    return _SwipeNavigationContainer(
+      context: context,
+      currentIndex: currentIndex,
+      child: child,
+    );
+  }
+
+  Widget _buildItem(
     BuildContext context,
     IconData active,
     IconData inactive,
     String label,
     int index, {
     int badgeCount = 0,
+    required double iconSize,
+    required double iconPadding,
   }) {
-    return BottomNavigationBarItem(
-      icon: _AnimatedIcon(
-        activeIcon: active,
-        inactiveIcon: inactive,
-        isSelected: currentIndex == index,
-        badgeCount: badgeCount,
+    return Expanded(
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: () => _handleNavigation(context, index),
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: _AnimatedIcon(
+              activeIcon: active,
+              inactiveIcon: inactive,
+              isSelected: currentIndex == index,
+              badgeCount: badgeCount,
+              iconSize: iconSize,
+              iconPadding: iconPadding,
+            ),
+          ),
+        ),
       ),
-      label: label,
     );
   }
 
   void _handleNavigation(BuildContext context, int index) {
+    _navigateToIndex(context, currentIndex, index);
+  }
+
+  static void _navigateToIndex(BuildContext context, int currentIndex, int index) {
     if (index == currentIndex) return;
 
     Widget nextScreen;
@@ -506,17 +562,82 @@ class BeautifulMobileNavBar extends StatelessWidget {
   }
 }
 
+class _SwipeNavigationContainer extends StatefulWidget {
+  final BuildContext context;
+  final int currentIndex;
+  final Widget child;
+
+  const _SwipeNavigationContainer({
+    required this.context,
+    required this.currentIndex,
+    required this.child,
+  });
+
+  @override
+  State<_SwipeNavigationContainer> createState() =>
+      _SwipeNavigationContainerState();
+}
+
+class _SwipeNavigationContainerState extends State<_SwipeNavigationContainer> {
+  double _deltaX = 0;
+  bool _handled = false;
+
+  void _handleSwipeEnd() {
+    if (_handled) return;
+    final dx = _deltaX;
+    if (dx.abs() < 42) return;
+
+    final targetIndex = dx > 0
+        ? widget.currentIndex - 1
+        : widget.currentIndex + 1;
+    if (targetIndex < 0 || targetIndex > 5) return;
+
+    _handled = true;
+    BeautifulMobileNavBar._navigateToIndex(
+      widget.context,
+      widget.currentIndex,
+      targetIndex,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) {
+        _deltaX = 0;
+        _handled = false;
+      },
+      onHorizontalDragUpdate: (details) {
+        _deltaX += details.delta.dx;
+      },
+      onHorizontalDragEnd: (_) {
+        _handleSwipeEnd();
+        _deltaX = 0;
+      },
+      onHorizontalDragCancel: () {
+        _deltaX = 0;
+      },
+      child: widget.child,
+    );
+  }
+}
+
 class _AnimatedIcon extends StatelessWidget {
   final IconData activeIcon;
   final IconData inactiveIcon;
   final bool isSelected;
   final int badgeCount;
+  final double iconSize;
+  final double iconPadding;
 
   const _AnimatedIcon({
     required this.activeIcon,
     required this.inactiveIcon,
     required this.isSelected,
     this.badgeCount = 0,
+    required this.iconSize,
+    required this.iconPadding,
   });
 
   @override
@@ -531,7 +652,7 @@ class _AnimatedIcon extends StatelessWidget {
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(iconPadding),
           decoration: BoxDecoration(
             color: isSelected
                 ? primaryColor.withValues(alpha: 0.1)
@@ -540,7 +661,7 @@ class _AnimatedIcon extends StatelessWidget {
           ),
           child: Icon(
             isSelected ? activeIcon : inactiveIcon,
-            size: 24,
+            size: iconSize,
             color: isSelected ? primaryColor : iconColor,
           ),
         ),

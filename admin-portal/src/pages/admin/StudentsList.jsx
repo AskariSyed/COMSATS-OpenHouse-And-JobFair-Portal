@@ -5,17 +5,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
-import api, { BACKEND_URL, updateStudentCredentials } from '../../lib/api';
+import api, { getFileUrl, updateStudentCredentials } from '../../lib/api';
 import { getAllJobFairs } from '../../lib/api';
 
 // 🔧 CONFIGURATION
-
-const getImageUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http')) return path; 
-  // Now it uses the central configuration
-  return `${BACKEND_URL}${path}`; 
-};
 
 const StudentsList = () => {
   const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -234,7 +227,7 @@ const StudentsList = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden">
                           {s.profilePicUrl ? (
-                            <img src={getImageUrl(s.profilePicUrl)} className="w-full h-full object-cover" alt={s.name} />
+                            <img src={getFileUrl(s.profilePicUrl)} className="w-full h-full object-cover" alt={s.name} />
                           ) : (
                             s.name?.charAt(0)
                           )}

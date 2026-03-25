@@ -12,6 +12,19 @@ const isInsecureBackendOnSecurePage =
 // 2. Define the API URL
 const API_URL = (BACKEND_URL && !isInsecureBackendOnSecurePage) ? `${BACKEND_URL}/api` : '/api';
 
+/**
+ * Safe URL builder for uploaded files (images, CVs, logos).
+ * Falls back to a relative URL (goes through Vite proxy) when running an HTTPS
+ * dev server against an HTTP backend to avoid mixed-content blocking.
+ */
+export const getFileUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (isInsecureBackendOnSecurePage || !BACKEND_URL) return cleanPath;
+  return `${BACKEND_URL}${cleanPath}`;
+};
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {

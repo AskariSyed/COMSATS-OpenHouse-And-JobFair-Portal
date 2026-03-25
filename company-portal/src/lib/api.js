@@ -1,7 +1,14 @@
 // --- CONFIGURATION ---
 const CONFIGURED_SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
 export const SERVER_URL = CONFIGURED_SERVER_URL;
-const API_BASE_URL = SERVER_URL ? `${SERVER_URL}/api` : '/api';
+
+const isInsecureBackendOnSecurePage =
+  typeof window !== 'undefined' &&
+  window.location.protocol === 'https:' &&
+  CONFIGURED_SERVER_URL.startsWith('http://');
+
+// Falls back to Vite proxy ('/api') when running HTTPS dev server against HTTP backend
+const API_BASE_URL = (SERVER_URL && !isInsecureBackendOnSecurePage) ? `${SERVER_URL}/api` : '/api';
 const DEFAULT_TIMEOUT_MS = 60000;
 
 const parseApiErrorMessage = (rawText, fallback) => {
@@ -23,15 +30,15 @@ const parseApiErrorMessage = (rawText, fallback) => {
 
 /**
  * Helper to get full file URL
- * Handles relative paths from server and absolute URLs
+ * Falls back to a relative URL (Vite proxy) when running HTTPS dev server
+ * against an HTTP backend to avoid mixed-content blocking.
  */
 export const getFileUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('http') || path.startsWith('https')) return path;
-  // Remove leading slash if present to avoid double slashes if SERVER_URL ends with one
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  if (!SERVER_URL) return `/${cleanPath}`;
-  return `${SERVER_URL}/${cleanPath}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (isInsecureBackendOnSecurePage || !SERVER_URL) return cleanPath;
+  return `${SERVER_URL}${cleanPath}`;
 };
 
 /**

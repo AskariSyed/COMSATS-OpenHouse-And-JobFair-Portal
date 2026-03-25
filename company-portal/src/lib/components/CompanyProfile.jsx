@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
 import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword, getCompanyHistoricalAnalytics, copyJobToCurrentJobFair } from '../api';
 import { allSkillsList } from '../../data/skills';
@@ -133,6 +134,7 @@ export default function CompanyProfile({ onError, onSuccess }) {
     ? {
         isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
         arrivalStatus: attendance.arrivalStatus ?? attendance.ArrivalStatus,
+        jobFairDate: attendance.jobFairDate ?? attendance.JobFairDate,
         roomAssigned: attendance.roomAssigned ?? attendance.RoomAssigned,
         roomDetails: (() => {
           const room = attendance.roomDetails ?? attendance.RoomDetails;
@@ -147,6 +149,19 @@ export default function CompanyProfile({ onError, onSuccess }) {
         daysUntilJobFair: attendance.daysUntilJobFair ?? attendance.DaysUntilJobFair,
       }
     : null;
+
+  const formattedJobFairDate = attendanceModel?.jobFairDate
+    ? new Date(attendanceModel.jobFairDate).toLocaleDateString()
+    : 'Date not announced';
+
+  const daysUntilLabel =
+    typeof attendanceModel?.daysUntilJobFair === 'number'
+      ? attendanceModel.daysUntilJobFair === 0
+        ? 'Today'
+        : attendanceModel.daysUntilJobFair > 0
+        ? `${attendanceModel.daysUntilJobFair} day${attendanceModel.daysUntilJobFair === 1 ? '' : 's'} until job fair`
+        : 'Job fair date passed'
+      : 'Days remaining unavailable';
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-10">
@@ -179,6 +194,11 @@ export default function CompanyProfile({ onError, onSuccess }) {
           <div className="ml-36 pt-3 min-h-[60px] flex flex-col justify-center">
              <div className="flex flex-wrap items-center gap-3">
                <h1 className="text-3xl font-bold text-gray-900">{profile.name}</h1>
+               {attendanceModel?.isConfirmed && (
+                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                   <CheckCircle className="w-3.5 h-3.5" /> Participation Confirmed
+                 </span>
+               )}
                <button
                  onClick={() => setProfileEditSection('details')}
                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
@@ -215,18 +235,12 @@ export default function CompanyProfile({ onError, onSuccess }) {
          <StatCard label="Hired" value={interviewStats.hiredCandidates} icon={CheckCircle} color="green" />
          <StatCard label="Pending Requests" value={interviewStats.pendingRequests} icon={Clock} color="orange" />
       </div>
-      {attendanceModel?.roomAssigned && attendanceModel?.roomDetails?.roomName && (
-        <div className="mb-8 text-xs text-slate-600">
-          Assigned Room: <span className="font-semibold text-slate-800">{attendanceModel.roomDetails.roomName}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* --- LEFT COLUMN: DETAILS --- */}
         <div className="space-y-6">
             {/* Attendance Card */}
-            {attendanceModel && (
+            {attendanceModel && !attendanceModel.isConfirmed && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
                   <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -234,24 +248,17 @@ export default function CompanyProfile({ onError, onSuccess }) {
                 </h3>
                 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Status</span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      attendanceModel.isConfirmed 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {attendanceModel.arrivalStatus}
-                    </span>
-                  </div>
-
-                  {attendanceModel.roomAssigned && (
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <div className="text-sm text-blue-800 font-medium">Assigned Room</div>
-                      <div className="text-lg font-bold text-blue-900">{attendanceModel.roomDetails?.roomName}</div>
-                      <div className="text-xs text-blue-600">Capacity: {attendanceModel.roomDetails?.capacity}</div>
+                  {!attendanceModel.isConfirmed && (
+                    <div className="text-sm text-slate-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                      Do you confirm you will attend the job fair?
                     </div>
                   )}
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Job Fair Date</div>
+                    <div className="text-base font-bold text-slate-900 mt-1">{formattedJobFairDate}</div>
+                    <div className="text-xs text-slate-600 mt-1">{daysUntilLabel}</div>
+                  </div>
 
                   {!attendanceModel.isConfirmed && (
                     <button
@@ -268,12 +275,20 @@ export default function CompanyProfile({ onError, onSuccess }) {
                       Attendance confirmation is available one or more days before the job fair.
                     </div>
                   )}
-                  
-                  {attendanceModel.isConfirmed && (
-                     <div className="text-center text-sm text-gray-500">
-                        Confirmed on {new Date(attendanceModel.confirmedAt).toLocaleDateString()}
-                     </div>
-                  )}
+                </div>
+              </div>
+            )}
+
+            {attendanceModel?.roomAssigned && attendanceModel?.roomDetails?.roomName && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                  Room Allocation
+                </h3>
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <div className="text-xs uppercase tracking-wide text-blue-700 font-semibold">Room</div>
+                  <div className="text-lg font-bold text-blue-900 mt-1">{attendanceModel.roomDetails.roomName}</div>
+                  <div className="text-xs text-blue-700 mt-1">Capacity: {attendanceModel.roomDetails.capacity}</div>
                 </div>
               </div>
             )}
@@ -486,6 +501,11 @@ function StatCard({ label, value, icon: Icon, color }) {
   );
 }
 
+function ModalPortal({ children }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+}
+
 function ImportJobsModal({ loading, data, selectedJobFairId, onSelectJobFair, importingJobId, onImportJob, onClose }) {
   const fairs = (data?.jobFairs || data?.JobFairs || []).map((fair) => ({
     jobFairId: fair.jobFairId || fair.JobFairId,
@@ -498,8 +518,9 @@ function ImportJobsModal({ loading, data, selectedJobFairId, onSelectJobFair, im
   const jobs = selectedFair?.jobs || [];
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
           <h3 className="text-lg font-bold text-gray-900">Import Jobs From Previous Job Fair</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
@@ -559,8 +580,9 @@ function ImportJobsModal({ loading, data, selectedJobFairId, onSelectJobFair, im
             </>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
@@ -655,8 +677,9 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
            <h3 className="text-lg font-bold text-gray-900">{modalTitleMap[section] || 'Edit Company Profile'}</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
@@ -754,8 +777,9 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
               </button>
            </div>
         </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
@@ -802,8 +826,9 @@ function PasswordModal({ onClose, onError }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-down">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
            <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
@@ -828,8 +853,9 @@ function PasswordModal({ onClose, onError }) {
             </button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
@@ -875,8 +901,9 @@ function JobModal({ job, onClose, onSave, onError }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
            <h3 className="text-lg font-bold text-gray-900">{job ? 'Edit Job Posting' : 'Create New Job'}</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
@@ -939,8 +966,9 @@ function JobModal({ job, onClose, onSave, onError }) {
               </button>
            </div>
         </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

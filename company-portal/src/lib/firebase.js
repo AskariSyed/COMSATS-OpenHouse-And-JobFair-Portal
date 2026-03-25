@@ -1,22 +1,22 @@
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 
-// 1. Replace with your actual Firebase Config from Console
+// 1. Firebase config is loaded from environment variables (see .env.example)
 const firebaseConfig = {
-  apiKey: "AIzaSyDdKCuYdaY3FuIajayBz-16uJVFDjiDEUM",
-  authDomain: "hirebridge-c28e9.firebaseapp.com",
-  projectId: "hirebridge-c28e9",
-  storageBucket: "hirebridge-c28e9.firebasestorage.app",
-  messagingSenderId: "82967259176",
-  appId: "1:82967259176:web:adf61b7db83b21cdc6ed1d"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 let messagingInstance = null;
 
-// 2. Replace with your Key Pair from Project Settings > Cloud Messaging > Web configuration
-const VAPID_KEY = "BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s"; 
+// 2. VAPID key from environment variables
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 export const requestFcmToken = async () => {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
     return null;

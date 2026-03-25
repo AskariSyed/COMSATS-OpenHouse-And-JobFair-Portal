@@ -1,12 +1,40 @@
+import 'package:flutter/foundation.dart';
+import 'package:universal_html/html.dart' as html;
+
 class BackendConfig {
   const BackendConfig._();
 
-  static const String serverBaseUrl = String.fromEnvironment(
+  static const String configuredServerBaseUrl = String.fromEnvironment(
     'BACKEND_BASE_URL',
     defaultValue: 'http://192.168.137.1:5158',
   );
 
-  static String get apiBaseUrl => '$serverBaseUrl/api';
+  static bool get _isInsecureBackendOnSecurePage {
+    if (!kIsWeb) return false;
+    try {
+      final pageUri = Uri.base;
+      final backendUri = Uri.parse(configuredServerBaseUrl);
+      return pageUri.scheme == 'https' && backendUri.scheme == 'http';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static String get serverBaseUrl {
+    if (_isInsecureBackendOnSecurePage) {
+      final origin = html.window.location.origin;
+      if (origin != null && origin.isNotEmpty) {
+        return origin;
+      }
+      return configuredServerBaseUrl;
+    }
+    return configuredServerBaseUrl;
+  }
+
+  static String get apiBaseUrl {
+    if (_isInsecureBackendOnSecurePage) return '/api';
+    return '$configuredServerBaseUrl/api';
+  }
 
   static Uri apiUri(String path) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';

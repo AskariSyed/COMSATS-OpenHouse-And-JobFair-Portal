@@ -3,7 +3,7 @@
     public class InterviewStatsDto
     {
         public int CompanyId { get; set; }
-        public string CompanyName { get; set; }
+        public string CompanyName { get; set; } = null!;
         public int TotalInterviews { get; set; }
         public int HiredCount { get; set; }
         public int ShortlistedCount { get; set; }

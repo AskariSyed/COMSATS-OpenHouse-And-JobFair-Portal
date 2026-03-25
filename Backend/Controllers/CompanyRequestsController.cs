@@ -114,7 +114,7 @@ namespace JobFairPortal.Controllers.Admin
             // Notify company via FCM if token available
             try
             {
-                var token = req.Company.FcmToken;
+                var token = req.Company?.FcmToken;
                 if (!string.IsNullOrWhiteSpace(token))
                 {
                     var title = dto.Status.Equals(CompanyRequestStatus.Fulfilled) ? "Request Fulfilled" : $"Request {dto.Status}";

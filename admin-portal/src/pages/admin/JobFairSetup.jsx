@@ -148,20 +148,20 @@ const JobFairSetup = () => {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-full min-h-0 flex flex-col bg-gray-50">
       {/* Header Section */}
-      <div className="bg-white border-b border-gray-200 px-6 py-5">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <Calendar className="text-indigo-600" size={24} />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">Job Fair Management</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Job Fair Management</h1>
             </div>
             <p className="text-sm text-gray-500">Create and manage job fair events</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3 sm:gap-4">
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold text-gray-900">{jobFairs.length}</p>
               <p className="text-xs text-gray-500 mt-1">Total Events</p>
@@ -175,9 +175,10 @@ const JobFairSetup = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden flex gap-6 p-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+        <div className="h-full min-h-0 flex flex-col lg:flex-row gap-6">
         {/* Create New Event Section */}
-        <div className="w-96 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+        <div className="w-full lg:w-96 lg:shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
             <Plus className="text-indigo-600" size={20} />
             <div>
@@ -231,7 +232,7 @@ const JobFairSetup = () => {
         </div>
 
         {/* Events List Section */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle className="text-indigo-600" size={20} />
@@ -245,7 +246,7 @@ const JobFairSetup = () => {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {jobFairs.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center">
                 <Calendar className="text-gray-300 mb-3" size={40} />
@@ -304,9 +305,9 @@ const JobFairSetup = () => {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-start justify-between gap-3 mb-3">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
                                 <h3 className="text-base font-semibold text-gray-900">{jf.Semester || jf.semester || 'Untitled'}</h3>
                                 {isActive && (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-600 text-white">
@@ -324,17 +325,17 @@ const JobFairSetup = () => {
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => handleViewAnalytics(id)}
-                              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
+                              className="w-full sm:flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
                             >
                               <BarChart3 size={16} /> Analytics
                             </button>
                             <button
                               onClick={() => handleEditClick(jf)}
                               disabled={!canEdit}
-                              className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                              className={`flex flex-1 sm:flex-none items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
                                 canEdit ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                               }`}
                             >
@@ -350,13 +351,13 @@ const JobFairSetup = () => {
                                   ? 'Only today or future events can be activated'
                                   : 'Activate this event'
                               }
-                              className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                              className="flex flex-1 sm:flex-none items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
                             >
                               <Zap size={16} />
                             </button>
                             <button
                               onClick={() => handleDelete(id)}
-                              className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition"
+                              className="flex flex-1 sm:flex-none items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -369,6 +370,7 @@ const JobFairSetup = () => {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

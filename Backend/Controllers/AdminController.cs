@@ -111,9 +111,9 @@ namespace JobFairPortal.Controllers
             {
                 var searchLower = search.ToLower();
                 query = query.Where(s =>
-                    s.User.FullName.ToLower().Contains(searchLower) ||
+                    (s.User != null && (s.User.FullName ?? string.Empty).ToLower().Contains(searchLower)) ||
                     s.RegistrationNo.ToLower().Contains(searchLower) ||
-                    s.User.Email.ToLower().Contains(searchLower));
+                    (s.User != null && (s.User.Email ?? string.Empty).ToLower().Contains(searchLower)));
             }
 
             // Department filter
@@ -131,8 +131,8 @@ namespace JobFairPortal.Controllers
                 .Select(s => new
                 {
                     StudentId = s.StudentId,
-                    Name = s.User.FullName,
-                    Email = s.User.Email,
+                    Name = s.User != null ? s.User.FullName : null,
+                    Email = s.User != null ? s.User.Email : null,
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
                     CGPA = s.CGPA,
@@ -677,7 +677,7 @@ namespace JobFairPortal.Controllers
 
             // Filter by industry (on Company)
             if (!string.IsNullOrWhiteSpace(industry))
-                query = query.Where(p => p.Company.Industry.ToLower().Contains(industry.ToLower()));
+                query = query.Where(p => !string.IsNullOrWhiteSpace(p.Company.Industry) && p.Company.Industry.ToLower().Contains(industry.ToLower()));
 
             // Filter by arrival status (on Participation)
             if (!string.IsNullOrWhiteSpace(arrivalStatus))
@@ -949,7 +949,7 @@ Job Fair Team
                 {
                     AuditLogId = a.LogId,
                     Action = a.Action,
-                    ActorName = a.Actor.FullName,
+                    ActorName = a.Actor != null ? (a.Actor.FullName ?? "System") : "System",
                     CreatedAt = a.CreatedAt
                 })
                 .ToListAsync();
@@ -990,7 +990,7 @@ Job Fair Team
 
             var room = await _context.Rooms
                 .Include(r => r.Company)
-                    .ThenInclude(c => c.User)
+                    .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(r => r.RoomId == roomId);
 
             if (room == null)
@@ -1042,7 +1042,7 @@ Job Fair Team
             string cacheKey = $"dashboard_stats_{activeJobFairId.Value}";
 
             // 2. Check if data is already in cache
-            if (!_cache.TryGetValue(cacheKey, out DashboardOverviewDto dashboard))
+            if (!_cache.TryGetValue(cacheKey, out DashboardOverviewDto? dashboard) || dashboard == null)
             {
                 // ⚠️ CACHE MISS: Data not found, fetch from Database
                 _logger.LogInformation("Fetching dashboard stats from DB...");
@@ -1055,7 +1055,7 @@ Job Fair Team
                         StudentId = g.Key,
                         CandidateName = _context.Students
                             .Where(s => s.StudentId == g.Key)
-                            .Select(s => s.User.FullName)
+                            .Select(s => s.User != null ? (s.User.FullName ?? "Unknown") : null)
                             .FirstOrDefault() ?? "Unknown",
                         Count = g.Count()
                     })
@@ -1594,9 +1594,9 @@ Job Fair Team
             {
                 var searchLower = search.ToLower();
                 query = query.Where(p =>
-                    p.Student.User.FullName.ToLower().Contains(searchLower) ||
+                    (p.Student.User != null && (p.Student.User.FullName ?? string.Empty).ToLower().Contains(searchLower)) ||
                     p.Student.RegistrationNo.ToLower().Contains(searchLower) ||
-                    p.Student.User.Email.ToLower().Contains(searchLower));
+                    (p.Student.User != null && (p.Student.User.Email ?? string.Empty).ToLower().Contains(searchLower)));
             }
 
             var totalCount = await query.CountAsync();
@@ -2371,7 +2371,7 @@ Job Fair Team
             _logger.LogInformation("GetJobFairAnalytics called for jobFairId: {JobFairId}", jobFairId);
 
             string cacheKey = $"jobfair_analytics_{jobFairId}";
-            if (_cache.TryGetValue(cacheKey, out object cachedData))
+            if (_cache.TryGetValue(cacheKey, out object? cachedData) && cachedData != null)
             {
                 return Ok(cachedData);
             }
@@ -2551,8 +2551,7 @@ Job Fair Team
                         Department = g.Key,
                         Count = g.Count(),
                         AverageCGPA = g.Any() ? Math.Round(g.Average(p => p.Student.CGPA), 2) : 0,
-                        Hired = interviews.Count(i => i.StudentId != null &&
-                                                    studentParticipations.Any(sp => sp.StudentId == i.StudentId && sp.Student.Department == g.Key) &&
+                        Hired = interviews.Count(i => studentParticipations.Any(sp => sp.StudentId == i.StudentId && sp.Student.Department == g.Key) &&
                                                     i.Status == InterviewStatus.Hired)
                     })
                     .ToList(),
@@ -2561,12 +2560,12 @@ Job Fair Team
                     .Select(p => new
                     {
                         CompanyId = p.CompanyId,
-                        CompanyName = p.Company.Name,
+                        CompanyName = p.Company.Name ?? "Unknown",
                         Industry = p.Company.Industry,
                         LogoUrl = p.Company.LogoUrl,
                         IsPresent = p.IsPresent,
                         ArrivalStatus = p.ArrivalStatus.ToString(),
-                        TotalJobs = p.Company.Jobs.Count(j => j.JobFairId == jobFairId),
+                        TotalJobs = (p.Company.Jobs ?? new List<Job>()).Count(j => j.JobFairId == jobFairId),
                         TotalInterviews = interviews.Count(i => i.CompanyId == p.CompanyId),
                         HiredCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Hired),
                         ShortlistedCount = interviews.Count(i => i.CompanyId == p.CompanyId && i.Status == InterviewStatus.Shortlisted),
@@ -2627,12 +2626,12 @@ Job Fair Team
                     Semester = jf.Semester,
                     Date = jf.date,
                     IsActive = jf.IsActive,
-                    TotalStudents = jf.Students.Count,
-                    TotalCompanies = jf.Companies.Count,
-                    TotalRooms = jf.Rooms.Count,
-                    TotalInterviews = jf.Interviews.Count,
-                    StudentsHired = jf.Interviews.Count(i => i.Status == InterviewStatus.Hired),
-                    StudentsShortlisted = jf.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
+                    TotalStudents = jf.Students != null ? jf.Students.Count : 0,
+                    TotalCompanies = jf.Companies != null ? jf.Companies.Count : 0,
+                    TotalRooms = jf.Rooms != null ? jf.Rooms.Count : 0,
+                    TotalInterviews = jf.Interviews != null ? jf.Interviews.Count : 0,
+                    StudentsHired = jf.Interviews != null ? jf.Interviews.Count(i => i.Status == InterviewStatus.Hired) : 0,
+                    StudentsShortlisted = jf.Interviews != null ? jf.Interviews.Count(i => i.Status == InterviewStatus.Shortlisted) : 0,
                     CreatedAt = jf.date
                 })
                 .ToListAsync();
@@ -3198,7 +3197,7 @@ Job Fair Team
                 RoomName = requestedRoom.RoomName,
                 Capacity = requestedRoom.Capacity,
                 Status = requestedRoom.Status,
-                CompanyName = company.Name
+                CompanyName = company.Name ?? "Unknown"
             });
         }
 
@@ -3210,7 +3209,7 @@ Job Fair Team
         {
             var room = await _context.Rooms
                 .Include(r => r.Company)
-                    .ThenInclude(c => c.User)
+                    .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(r => r.RoomId == roomId);
             if (room == null) return NotFound("Room not found.");
 

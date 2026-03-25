@@ -16,19 +16,10 @@ import {
   Users,
   Edit2
 } from 'lucide-react';
-import api from '../../lib/api';
+import api, { getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import SendNotificationModal from '../../lib/components/SendNotificationModal'; // Added
-
-// 🔧 CONFIGURATION: Backend Base URL
-const BACKEND_URL = "https://localhost:7050"; 
-
-const getLogoUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http')) return path; 
-  return `${BACKEND_URL}${path}`; 
-};
 
 const getApiErrorMessage = (error, fallback) => {
   const payload = error?.response?.data;
@@ -456,7 +447,7 @@ const CompaniesList = () => {
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-gray-50 rounded-lg border border-gray-100 group-hover:bg-indigo-100 transition-colors">
                             {company.logoUrl ? (
-                              <img src={getLogoUrl(company.logoUrl)} alt="Logo" className="w-6 h-6 object-contain" />
+                              <img src={getFileUrl(company.logoUrl)} alt="Logo" className="w-6 h-6 object-contain" />
                             ) : (
                               <Building2 className="text-gray-400 group-hover:text-indigo-600" size={20} />
                             )}

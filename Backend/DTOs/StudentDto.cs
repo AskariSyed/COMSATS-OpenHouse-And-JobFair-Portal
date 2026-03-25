@@ -22,10 +22,10 @@ namespace JobFairPortal.DTOs
     {
         public int StudentId { get; set; }
         public string? Name { get; set; }
-        public string RegistrationNo { get; set; }
-        public string Department { get; set; }
+        public string RegistrationNo { get; set; } = null!;
+        public string Department { get; set; } = null!;
         public float CGPA { get; set; }
-        public List<string> Skills { get; set; }
+        public List<string> Skills { get; set; } = new();
         public string? ProfilePicUrl { get; set; }
     }
     

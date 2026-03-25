@@ -6,7 +6,7 @@ namespace JobFairPortal.DTOs
     public class CompanyDto
     {
         public int CompanyId { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         public string? Email { get; set; }
         public bool IsPresent { get; set; }
         public string? RoomName { get; set; }

@@ -112,49 +112,55 @@ class _JobsScreenState extends State<JobsScreen> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Available Jobs"),
-            body: Stack(
-              children: [
-                RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                    child: AppPageReveal(
-                      child: Column(
-                        children: [
-                          _buildSearchBar(),
-                          const SizedBox(height: 16),
-                          showShimmer
-                              ? buildShimmerGrid(isMobile: true)
-                              : jobProvider.error != null &&
-                                    jobProvider.displayJobs.isEmpty
-                              ? SizedBox(
-                                  height: 100,
-                                  child: Center(
-                                    child: Text(jobProvider.error!),
-                                  ),
-                                )
-                              : filteredJobs.isEmpty
-                              ? const SizedBox(
-                                  height: 100,
-                                  child: Center(
-                                    child: Text("No jobs match your filters."),
-                                  ),
-                                )
-                              : _buildJobsGrid(filteredJobs, isMobile: true),
-                        ],
+            body: BeautifulMobileNavBar.withSwipeNavigation(
+              context: context,
+              currentIndex: 2,
+              child: Stack(
+                children: [
+                  RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      child: AppPageReveal(
+                        child: Column(
+                          children: [
+                            _buildSearchBar(),
+                            const SizedBox(height: 16),
+                            showShimmer
+                                ? buildShimmerGrid(isMobile: true)
+                                : jobProvider.error != null &&
+                                      jobProvider.displayJobs.isEmpty
+                                ? SizedBox(
+                                    height: 100,
+                                    child: Center(
+                                      child: Text(jobProvider.error!),
+                                    ),
+                                  )
+                                : filteredJobs.isEmpty
+                                ? const SizedBox(
+                                    height: 100,
+                                    child: Center(
+                                      child: Text(
+                                        "No jobs match your filters.",
+                                      ),
+                                    ),
+                                  )
+                                : _buildJobsGrid(filteredJobs, isMobile: true),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (showDataWithLoading)
-                  const Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: LinearProgressIndicator(minHeight: 3),
-                  ),
-              ],
+                  if (showDataWithLoading)
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(minHeight: 3),
+                    ),
+                ],
+              ),
             ),
             bottomNavigationBar: const BeautifulMobileNavBar(currentIndex: 2),
           );

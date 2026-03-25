@@ -6,16 +6,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
-import api, { BACKEND_URL, getAllStudentsGlobal, registerStudentForFair } from '../../lib/api';
+import api, { getFileUrl, getAllStudentsGlobal, registerStudentForFair } from '../../lib/api';
 
 // 🔧 CONFIGURATION
-
-const getImageUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http')) return path; 
-  // Now it uses the central configuration
-  return `${BACKEND_URL}${path}`; 
-};
 
 const AllStudentsList = () => {
   const navigate = useNavigate();
@@ -228,7 +221,7 @@ const AllStudentsList = () => {
                         <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden border border-indigo-200">
                           {(s.profilePicUrl || s.profilePic) ? (
                             <img 
-                              src={getImageUrl(s.profilePicUrl || s.profilePic)} 
+                              src={getFileUrl(s.profilePicUrl || s.profilePic)} 
                               className="w-full h-full object-cover" 
                               alt={s.name}
                               onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerText = s.name?.charAt(0); }} 

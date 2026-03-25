@@ -66,8 +66,13 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
           if (settings.authorizationStatus == AuthorizationStatus.authorized ||
               settings.authorizationStatus == AuthorizationStatus.provisional) {
-            // Get token for web browsers (Chrome, Firefox, Safari, etc.)
-            fcmToken = await _firebaseMessaging.getToken();
+            // Get token for web browsers — VAPID key is required for web push
+            const vapidKey = String.fromEnvironment(
+              'FIREBASE_VAPID_KEY',
+              defaultValue:
+                  'BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s',
+            );
+            fcmToken = await _firebaseMessaging.getToken(vapidKey: vapidKey);
             if (kDebugMode) {
               print("🔑 Web FCM Token: ${fcmToken?.substring(0, 20)}...");
             }
@@ -345,36 +350,31 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                           ),
                           child: AutofillGroup(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: isWeb
+                                  ? CrossAxisAlignment.start
+                                  : CrossAxisAlignment.center,
                               children: [
                                 if (!isWeb)
                                   Center(
-                                    child: Container(
+                                    child: SizedBox(
                                       height: 74,
                                       width: 74,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [brandNavy, brandBlue],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(18),
-                                      ),
-                                      padding: const EdgeInsets.all(12),
                                       child: Image.asset(
                                         'assets/LogoWithoutBg.png',
                                         fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(
-                                              Icons.school,
-                                              color: Colors.white,
-                                            ),
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.school,
+                                          color: titleColor,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 if (!isWeb) const SizedBox(height: 20),
                                 Text(
                                   'Welcome Back',
+                                  textAlign: isWeb
+                                      ? TextAlign.start
+                                      : TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 34,
                                     fontWeight: FontWeight.w800,
@@ -384,6 +384,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Sign in to continue to your student dashboard.',
+                                  textAlign: isWeb
+                                      ? TextAlign.start
+                                      : TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 15,
                                     color: subtitleColor,

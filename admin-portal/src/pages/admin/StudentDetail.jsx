@@ -8,17 +8,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
-import api, { BACKEND_URL, updateStudentCredentials } from '../../lib/api';
+import api, { getFileUrl, updateStudentCredentials } from '../../lib/api';
 
 
-const getImageUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http')) return path; 
-  // Now it uses the central configuration
-  return `${BACKEND_URL}${path}`; 
-};
-
-// Helper: Extract YouTube ID
 const getYouTubeId = (url) => {
   if (!url) return null;
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -252,7 +244,7 @@ const StudentDetail = () => {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col items-center text-center">
             <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden mb-6 bg-indigo-50 flex items-center justify-center">
               {data.profilePicUrl ? (
-                <img src={getImageUrl(data.profilePicUrl)} alt={data.name} className="w-full h-full object-cover" />
+                <img src={getFileUrl(data.profilePicUrl)} alt={data.name} className="w-full h-full object-cover" />
               ) : (
                 <span className="text-4xl font-bold text-indigo-300">{data.name?.charAt(0)}</span>
               )}
@@ -308,7 +300,7 @@ const StudentDetail = () => {
 
               {(data.cvUrl || data.CvUrl) && (
                 <a
-                  href={getImageUrl(data.cvUrl || data.CvUrl)}
+                  href={getFileUrl(data.cvUrl || data.CvUrl)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"

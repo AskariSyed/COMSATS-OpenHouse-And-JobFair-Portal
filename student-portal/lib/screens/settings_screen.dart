@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
@@ -89,7 +90,7 @@ class SettingsScreen extends StatelessWidget {
     if (cvUrl.startsWith('http://') || cvUrl.startsWith('https://')) {
       return cvUrl;
     }
-    return 'http://192.168.137.1:5158$cvUrl';
+    return '${BackendConfig.serverBaseUrl}$cvUrl';
   }
 
   Future<void> _handleSaveProfileAsPdf(BuildContext context) async {
@@ -420,7 +421,7 @@ class SettingsScreen extends StatelessWidget {
         (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
               ? student.profilePicUrl
-              : "http://192.168.137.1:5158${student.profilePicUrl}")
+              : "${BackendConfig.serverBaseUrl}${student.profilePicUrl}")
         : null;
 
     // 🔹 Dynamic Colors from Theme

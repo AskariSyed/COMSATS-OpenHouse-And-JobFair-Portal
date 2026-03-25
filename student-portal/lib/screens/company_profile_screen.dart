@@ -16,6 +16,8 @@ import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
+import 'package:student_job_fair_portal/config/backend_config.dart';
+
 class CompanyProfileScreen extends StatefulWidget {
   final int companyId;
   final String companyName;
@@ -31,7 +33,7 @@ class CompanyProfileScreen extends StatefulWidget {
 }
 
 class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
+  final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   bool _isSendingRequest = false; // Loading state for request button
   bool _isDescriptionExpanded = false;
 
