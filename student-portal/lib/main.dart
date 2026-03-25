@@ -42,9 +42,12 @@ void _pushWhenReady(WidgetBuilder builder) {
 
 void _openNotificationTargetByData(Map<String, dynamic> data) {
   final type = (data['Type'] ?? data['type'] ?? '').toString().toLowerCase();
-  final screen = (data['screen'] ?? data['Screen'] ?? '').toString().toLowerCase();
+  final screen = (data['screen'] ?? data['Screen'] ?? '')
+      .toString()
+      .toLowerCase();
   final tab = (data['tab'] ?? data['Tab'] ?? '').toString().toLowerCase();
-  final requestIdRaw = (data['requestId'] ?? data['RequestId'] ?? '').toString();
+  final requestIdRaw = (data['requestId'] ?? data['RequestId'] ?? '')
+      .toString();
   final requestId = int.tryParse(requestIdRaw);
   final companyIdRaw = (data['CompanyId'] ?? data['companyId'] ?? '')
       .toString();
@@ -52,14 +55,10 @@ void _openNotificationTargetByData(Map<String, dynamic> data) {
       .toString();
   final companyId = int.tryParse(companyIdRaw);
 
-  if (type == 'interviewrequest' ||
-      screen == 'requests' ||
-      tab == 'received') {
+  if (type == 'interviewrequest' || screen == 'requests' || tab == 'received') {
     _pushWhenReady(
-      (_) => RequestsScreen(
-        initialTabIndex: 1,
-        highlightedRequestId: requestId,
-      ),
+      (_) =>
+          RequestsScreen(initialTabIndex: 1, highlightedRequestId: requestId),
     );
     return;
   }
@@ -68,10 +67,8 @@ void _openNotificationTargetByData(Map<String, dynamic> data) {
       companyId != null &&
       companyId > 0) {
     _pushWhenReady(
-      (_) => CompanyProfileScreen(
-        companyId: companyId,
-        companyName: companyName,
-      ),
+      (_) =>
+          CompanyProfileScreen(companyId: companyId, companyName: companyName),
     );
   }
 }

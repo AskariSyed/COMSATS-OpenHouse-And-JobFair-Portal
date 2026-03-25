@@ -153,9 +153,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                   child: Center(
                                     child: Text(
                                       companyProvider.error!,
-                                      style: TextStyle(
-                                        color: textColor,
-                                      ),
+                                      style: TextStyle(color: textColor),
                                     ),
                                   ),
                                 )

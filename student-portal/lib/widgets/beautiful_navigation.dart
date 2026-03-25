@@ -398,7 +398,12 @@ class BeautifulMobileNavBar extends StatelessWidget {
       right: false,
       minimum: EdgeInsets.only(bottom: bottomSpacing),
       child: Container(
-        margin: EdgeInsets.fromLTRB(navHorizontalMargin, 0, navHorizontalMargin, 0),
+        margin: EdgeInsets.fromLTRB(
+          navHorizontalMargin,
+          0,
+          navHorizontalMargin,
+          0,
+        ),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(navRadius),
@@ -532,7 +537,11 @@ class BeautifulMobileNavBar extends StatelessWidget {
     _navigateToIndex(context, currentIndex, index);
   }
 
-  static void _navigateToIndex(BuildContext context, int currentIndex, int index) {
+  static void _navigateToIndex(
+    BuildContext context,
+    int currentIndex,
+    int index,
+  ) {
     if (index == currentIndex) return;
 
     Widget nextScreen;
