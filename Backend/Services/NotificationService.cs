@@ -245,7 +245,7 @@ namespace JobFairPortal.Services
                             <p><strong>Important Instructions:</strong></p>
                             <ul>
                                 <li>Please arrive 15 minutes before the scheduled time</li>
-                                <li>Your representatives should check in at the registration desk</li>
+                                <li>Mark attendance from the Company Portal on job fair day</li>
                                 <li>Ensure all necessary materials and equipment are brought</li>
                                 <li>If you need any assistance, please contact the organizing committee</li>
                             </ul>
@@ -295,7 +295,7 @@ namespace JobFairPortal.Services
                             <p><strong>What to Do:</strong></p>
                             <ul>
                                 <li>Arrive at the job fair venue on time</li>
-                                <li>Proceed to the registration desk</li>
+                                <li>Mark attendance from the Company Portal on job fair day</li>
                                 <li>Our team will assign you to an appropriate room</li>
                                 <li>Check in with your representatives</li>
                             </ul>

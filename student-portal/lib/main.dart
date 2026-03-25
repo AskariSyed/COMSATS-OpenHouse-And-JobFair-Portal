@@ -104,30 +104,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     print("📦 Background data: ${message.data}");
   }
 
-  // Show notification when app is closed/background
-  RemoteNotification? notification = message.notification;
-  if (notification != null) {
-    final payload = jsonEncode(message.data.isNotEmpty ? message.data : {});
-    await flutterLocalNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title ?? "Notification",
-      notification.body ?? "",
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'fcm_channel',
-          'FCM Notifications',
-          channelDescription:
-              'This channel is used for important notifications',
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          styleInformation: BigTextStyleInformation(notification.body ?? ""),
-        ),
-      ),
-      payload: payload,
-    );
+  // Android already displays FCM notifications with `notification` payload
+  // in background/terminated states. Showing them again locally causes duplicates.
+  final notification = message.notification;
+  final payload = jsonEncode(message.data.isNotEmpty ? message.data : {});
 
-    // Store notification using static method (works in background)
+  if (notification != null) {
     await NotificationProvider.saveNotificationStatic(
       NotificationModel(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -137,7 +119,41 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         data: message.data,
       ),
     );
+    return;
   }
+
+  // For data-only background messages, show a local notification manually.
+  final title =
+      (message.data['title'] ?? message.data['Title'] ?? 'Notification')
+          .toString();
+  final body = (message.data['body'] ?? message.data['Body'] ?? '').toString();
+
+  await flutterLocalNotificationsPlugin.show(
+    message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+    title,
+    body,
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'fcm_channel',
+        'FCM Notifications',
+        channelDescription: 'This channel is used for important notifications',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+    ),
+    payload: payload,
+  );
+
+  await NotificationProvider.saveNotificationStatic(
+    NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title,
+      body: body,
+      timestamp: DateTime.now(),
+      data: message.data,
+    ),
+  );
 }
 
 void main() async {

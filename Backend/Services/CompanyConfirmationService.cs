@@ -2,7 +2,6 @@ using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Net;
 using System.Security.Cryptography;
 using static Org.BouncyCastle.Math.EC.ECCurve;
 
@@ -19,20 +18,17 @@ namespace JobFairPortal.Services
         private readonly MailKitMailService _mailService;
         private readonly ILogger<CompanyConfirmationService> _logger;
         private readonly IParticipationService _participationService;
-        private readonly IConfiguration _config;
 
         public CompanyConfirmationService(
             JobFairRecruitmentDbContext context,
             MailKitMailService mailService,
             ILogger<CompanyConfirmationService> logger,
-            IParticipationService participationService,
-            IConfiguration config)
+            IParticipationService participationService)
         {
             _context = context;
             _mailService = mailService;
             _logger = logger;
             _participationService = participationService;
-            _config = config;
         }
 
         /// <summary>
@@ -136,11 +132,6 @@ namespace JobFairPortal.Services
                 company.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
-                // Build attendance link using configured base url
-                var baseUrl = _config["App:BaseUrl"] ?? _config["AppBaseUrl"] ?? "https://your-domain.example";
-                var attendanceLink = $"{baseUrl.TrimEnd('/')}/attendance/scan?token={WebUtility.UrlEncode(token)}";
-
-
                 // Build response
                 var response = new RoomAllocationResponseDto
                 {
@@ -160,13 +151,13 @@ namespace JobFairPortal.Services
                 // Send emails
                 if (allocatedRoom != null)
                 {
-                    await SendRoomAllocationEmailAsync(company.User.Email, company.Name, allocatedRoom.RoomName, allocatedRoom.Capacity, activeJobFair, attendanceLink);
-                    response.Message = $"Room {allocatedRoom.RoomName} ... Your attendance link: {attendanceLink}";
+                    await SendRoomAllocationEmailAsync(company.User.Email, company.Name, allocatedRoom.RoomName, allocatedRoom.Capacity, activeJobFair);
+                    response.Message = $"Room {allocatedRoom.RoomName} allocated successfully.";
                 }
                 else
                 {
-                    await SendPendingRoomAllocationEmailAsync(company.User.Email, company.Name, company.RepsCount, activeJobFair, attendanceLink);
-                    response.Message = $"Room pending. Your attendance link: {attendanceLink}";
+                    await SendPendingRoomAllocationEmailAsync(company.User.Email, company.Name, company.RepsCount, activeJobFair);
+                    response.Message = "Room pending. Please check your company portal for updates.";
                 }
 
                 _logger.LogInformation(
@@ -234,7 +225,7 @@ namespace JobFairPortal.Services
         /// <summary>
         /// Sends welcome email when room is allocated
         /// </summary>
-        private async Task SendRoomAllocationEmailAsync(string email, string companyName, string roomName, int capacity, JobFair jobFair, string attendanceLink)
+        private async Task SendRoomAllocationEmailAsync(string email, string companyName, string roomName, int capacity, JobFair jobFair)
         {
             try
             {
@@ -247,11 +238,6 @@ namespace JobFairPortal.Services
                 - Capacity: {capacity}
                 - Job Fair: {jobFair.Semester}
                 - Date: {jobFair.date:MMMM dd, yyyy}
-
-                To mark physical attendance on job fair day, use this link (only valid on the Job Fair date):
-                {attendanceLink}
-
-                Open the link on a smartphone/laptop with camera access. The page will let you scan the QR code at the registration desk to mark your attendance.
 
                 Best regards,
                 Job Fair Management Team
@@ -270,7 +256,7 @@ namespace JobFairPortal.Services
         /// <summary>
         /// Sends email when no room is available at confirmation time
         /// </summary>
-        private async Task SendPendingRoomAllocationEmailAsync(string email, string companyName, int representativeCount, JobFair jobFair, string attendanceLink)
+        private async Task SendPendingRoomAllocationEmailAsync(string email, string companyName, int representativeCount, JobFair jobFair)
         {
             try
             {
@@ -279,9 +265,6 @@ namespace JobFairPortal.Services
                 Dear {companyName},
 
                 Thank you for confirming. We will allocate a room on arrival.
-
-                To mark physical attendance on job fair day, use this link (only valid on the Job Fair date):
-                {attendanceLink}
 
                 Best regards,
                 Job Fair Management Team
