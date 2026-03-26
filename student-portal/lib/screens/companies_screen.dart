@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:student_job_fair_portal/provider/company_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart'; // 🔹 Theme
 import 'package:student_job_fair_portal/model/company.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 // Screens
 
@@ -25,7 +26,6 @@ class CompaniesScreen extends StatefulWidget {
 }
 
 class _CompaniesScreenState extends State<CompaniesScreen> {
-  final String _serverBaseUrl = "http://192.168.137.1:5158";
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIndustries = {};
   bool _showOnlyHiring = false;
@@ -84,7 +84,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
               ? student.profilePicUrl
-              : _serverBaseUrl + student.profilePicUrl!)
+          : BackendConfig.absoluteUrl(student.profilePicUrl))
         : null;
 
     final bool showShimmer =
@@ -596,7 +596,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
               child: CompanyCard(
                 company: company,
                 studentSkills: studentSkills,
-                serverBaseUrl: _serverBaseUrl,
+                serverBaseUrl: BackendConfig.serverBaseUrl,
               ),
             );
           }).toList(),

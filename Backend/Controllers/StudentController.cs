@@ -889,7 +889,14 @@ namespace JobFairPortal.Controllers
             if (student == null)
                 return NotFound("Student not found.");
 
-            return Ok(student.ContactLinks);
+            var links = student.ContactLinks.Select(cl => new
+            {
+                cl.LinkId,
+                Platform = cl.Platform.ToString(),
+                cl.Url
+            });
+
+            return Ok(links);
         }
 
 
@@ -924,7 +931,16 @@ namespace JobFairPortal.Controllers
             _context.ContactLinks.Add(contactLink);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Contact link added successfully", ContactLink = contactLink });
+            return Ok(new
+            {
+                Message = "Contact link added successfully",
+                ContactLink = new
+                {
+                    contactLink.LinkId,
+                    Platform = contactLink.Platform.ToString(),
+                    contactLink.Url
+                }
+            });
         }
 
         [HttpPut("{linkId}")]
@@ -965,7 +981,12 @@ namespace JobFairPortal.Controllers
             return Ok(new
             {
                 Message = "Contact link updated successfully",
-                ContactLink = contactLink
+                ContactLink = new
+                {
+                    contactLink.LinkId,
+                    Platform = contactLink.Platform.ToString(),
+                    contactLink.Url
+                }
             });
         }
 

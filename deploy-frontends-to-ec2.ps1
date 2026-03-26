@@ -1,0 +1,203 @@
+param(
+    [string]$PemKeyPath = "C:\Users\HP\.ssh\jobfair-key.pem",
+
+    [string]$Ec2Host = "54.254.84.101",
+    [string]$Ec2User = "ubuntu",
+    [string]$BackendUrl = "http://54.254.84.101:5158",
+    [switch]$UseRelativeApi,
+
+    [string]$FirebaseEnvFilePath,
+    [string]$FirebaseApiKey,
+    [string]$FirebaseAuthDomain,
+    [string]$FirebaseProjectId,
+    [string]$FirebaseStorageBucket,
+    [string]$FirebaseMessagingSenderId,
+    [string]$FirebaseAppId,
+    [string]$FirebaseVapidKey
+)
+
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$workDir = Join-Path $repoRoot ".deploy-artifacts"
+
+$adminZip = Join-Path $workDir "admin.zip"
+$companyZip = Join-Path $workDir "company.zip"
+$studentZip = Join-Path $workDir "student.zip"
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "`n==> $Message" -ForegroundColor Cyan
+}
+
+function Assert-Command {
+    param([string]$Name)
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Required command '$Name' not found in PATH."
+    }
+}
+
+function Run-OrThrow {
+    param(
+        [string]$Command,
+        [string]$WorkingDirectory
+    )
+
+    Push-Location $WorkingDirectory
+    try {
+        Invoke-Expression $Command
+        if ($LASTEXITCODE -ne 0) {
+            throw "Command failed ($LASTEXITCODE): $Command"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Get-EnvValueFromFile {
+    param(
+        [string]$Path,
+        [string]$Key
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $line = Get-Content $Path | Where-Object { $_ -match "^\s*$([regex]::Escape($Key))\s*=" } | Select-Object -First 1
+    if (-not $line) {
+        return $null
+    }
+
+    $value = ($line -split "=", 2)[1].Trim()
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+        $value = $value.Substring(1, $value.Length - 2)
+    }
+
+    return $value
+}
+
+Write-Step "Checking prerequisites"
+Assert-Command "node"
+Assert-Command "npm"
+Assert-Command "scp"
+Assert-Command "ssh"
+Assert-Command "flutter"
+
+if (-not (Test-Path $PemKeyPath)) {
+    throw "PEM key not found at: $PemKeyPath"
+}
+
+if (Test-Path $workDir) {
+    Remove-Item -Recurse -Force $workDir
+}
+New-Item -ItemType Directory -Path $workDir | Out-Null
+
+$adminDir = Join-Path $repoRoot "admin-portal"
+$companyDir = Join-Path $repoRoot "company-portal"
+$studentDir = Join-Path $repoRoot "student-portal"
+
+if ($UseRelativeApi) {
+    $BackendUrl = ""
+}
+
+if (-not $FirebaseEnvFilePath) {
+    $FirebaseEnvFilePath = Join-Path $companyDir ".env"
+}
+
+if ($FirebaseEnvFilePath.ToLower().EndsWith('.json')) {
+    throw "Service-account JSON is for backend Firebase Admin SDK and cannot be used for frontend web Firebase config. Use company-portal/.env (or .env.production) with VITE_FIREBASE_* values."
+}
+
+if (-not $FirebaseApiKey) { $FirebaseApiKey = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_API_KEY" }
+if (-not $FirebaseAuthDomain) { $FirebaseAuthDomain = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_AUTH_DOMAIN" }
+if (-not $FirebaseProjectId) { $FirebaseProjectId = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_PROJECT_ID" }
+if (-not $FirebaseStorageBucket) { $FirebaseStorageBucket = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_STORAGE_BUCKET" }
+if (-not $FirebaseMessagingSenderId) { $FirebaseMessagingSenderId = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_MESSAGING_SENDER_ID" }
+if (-not $FirebaseAppId) { $FirebaseAppId = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_APP_ID" }
+if (-not $FirebaseVapidKey) { $FirebaseVapidKey = Get-EnvValueFromFile -Path $FirebaseEnvFilePath -Key "VITE_FIREBASE_VAPID_KEY" }
+
+$missingFirebaseVars = @()
+if (-not $FirebaseApiKey) { $missingFirebaseVars += "VITE_FIREBASE_API_KEY" }
+if (-not $FirebaseAuthDomain) { $missingFirebaseVars += "VITE_FIREBASE_AUTH_DOMAIN" }
+if (-not $FirebaseProjectId) { $missingFirebaseVars += "VITE_FIREBASE_PROJECT_ID" }
+if (-not $FirebaseStorageBucket) { $missingFirebaseVars += "VITE_FIREBASE_STORAGE_BUCKET" }
+if (-not $FirebaseMessagingSenderId) { $missingFirebaseVars += "VITE_FIREBASE_MESSAGING_SENDER_ID" }
+if (-not $FirebaseAppId) { $missingFirebaseVars += "VITE_FIREBASE_APP_ID" }
+if (-not $FirebaseVapidKey) { $missingFirebaseVars += "VITE_FIREBASE_VAPID_KEY" }
+
+if ($missingFirebaseVars.Count -gt 0) {
+    throw "Missing Firebase web config values: $($missingFirebaseVars -join ', '). Provide them via parameters or in $FirebaseEnvFilePath"
+}
+
+Write-Step "Building Admin portal"
+$env:VITE_BACKEND_URL = $BackendUrl
+$env:VITE_API_BASE_URL = $BackendUrl
+Run-OrThrow "npm install" $adminDir
+Run-OrThrow "npm run build" $adminDir
+if (-not (Test-Path (Join-Path $adminDir "dist"))) {
+    throw "Admin build output missing: admin-portal/dist"
+}
+Compress-Archive -Path (Join-Path $adminDir "dist\*") -DestinationPath $adminZip -Force
+
+Write-Step "Building Company portal"
+$env:VITE_SERVER_URL = $BackendUrl
+$env:VITE_FIREBASE_API_KEY = $FirebaseApiKey
+$env:VITE_FIREBASE_AUTH_DOMAIN = $FirebaseAuthDomain
+$env:VITE_FIREBASE_PROJECT_ID = $FirebaseProjectId
+$env:VITE_FIREBASE_STORAGE_BUCKET = $FirebaseStorageBucket
+$env:VITE_FIREBASE_MESSAGING_SENDER_ID = $FirebaseMessagingSenderId
+$env:VITE_FIREBASE_APP_ID = $FirebaseAppId
+$env:VITE_FIREBASE_VAPID_KEY = $FirebaseVapidKey
+Run-OrThrow "npm install" $companyDir
+Run-OrThrow "npm run build" $companyDir
+if (-not (Test-Path (Join-Path $companyDir "dist"))) {
+    throw "Company build output missing: company-portal/dist"
+}
+Compress-Archive -Path (Join-Path $companyDir "dist\*") -DestinationPath $companyZip -Force
+
+Write-Step "Building Student portal (Flutter Web)"
+Run-OrThrow "flutter pub get" $studentDir
+Run-OrThrow "flutter build web --release --dart-define=BACKEND_BASE_URL=$BackendUrl" $studentDir
+if (-not (Test-Path (Join-Path $studentDir "build\web"))) {
+    throw "Student build output missing: student-portal/build/web"
+}
+Compress-Archive -Path (Join-Path $studentDir "build\web\*") -DestinationPath $studentZip -Force
+
+Write-Step "Uploading artifacts to EC2"
+$sshOptions = @("-o", "StrictHostKeyChecking=no")
+& scp @sshOptions -i $PemKeyPath $adminZip "${Ec2User}@${Ec2Host}:/tmp/admin.zip"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: admin.zip" }
+& scp @sshOptions -i $PemKeyPath $companyZip "${Ec2User}@${Ec2Host}:/tmp/company.zip"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: company.zip" }
+& scp @sshOptions -i $PemKeyPath $studentZip "${Ec2User}@${Ec2Host}:/tmp/student.zip"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: student.zip" }
+
+Write-Step "Deploying static files on EC2"
+$remoteDeployScript = @'
+set -e
+sudo mkdir -p /var/www/admin /var/www/company /var/www/student
+sudo apt-get update -y
+sudo apt-get install -y unzip
+sudo rm -rf /var/www/admin/* /var/www/company/* /var/www/student/*
+sudo unzip -o /tmp/admin.zip -d /var/www/admin
+sudo unzip -o /tmp/company.zip -d /var/www/company
+sudo unzip -o /tmp/student.zip -d /var/www/student
+sudo chown -R www-data:www-data /var/www/admin /var/www/company /var/www/student
+sudo find /var/www/admin /var/www/company /var/www/student -type d -exec chmod 755 {} \;
+sudo find /var/www/admin /var/www/company /var/www/student -type f -exec chmod 644 {} \;
+sudo nginx -t
+sudo systemctl reload nginx
+'@
+
+& ssh @sshOptions -i $PemKeyPath "${Ec2User}@${Ec2Host}" $remoteDeployScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Remote deployment failed."
+}
+
+Write-Step "Deployment completed"
+Write-Host "Admin:   http://$Ec2Host (or your admin domain)" -ForegroundColor Green
+Write-Host "Company: http://$Ec2Host (or your company domain)" -ForegroundColor Green
+Write-Host "Student: http://$Ec2Host (or your student domain)" -ForegroundColor Green
+Write-Host "API:     $BackendUrl" -ForegroundColor Green

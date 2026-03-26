@@ -1,11 +1,15 @@
 // --- CONFIGURATION ---
 const CONFIGURED_SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
-export const SERVER_URL = CONFIGURED_SERVER_URL;
+const isLocalhostPage =
+  typeof window !== 'undefined' &&
+  ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+export const SERVER_URL = isLocalhostPage ? CONFIGURED_SERVER_URL : '';
 
 const isInsecureBackendOnSecurePage =
   typeof window !== 'undefined' &&
   window.location.protocol === 'https:' &&
-  CONFIGURED_SERVER_URL.startsWith('http://');
+  SERVER_URL.startsWith('http://');
 
 // Falls back to Vite proxy ('/api') when running HTTPS dev server against HTTP backend
 const API_BASE_URL = (SERVER_URL && !isInsecureBackendOnSecurePage) ? `${SERVER_URL}/api` : '/api';

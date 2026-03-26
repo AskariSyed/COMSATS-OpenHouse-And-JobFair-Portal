@@ -4,7 +4,8 @@ let connection = null;
 
 export function createCompanyRequestsConnection() {
   if (connection) return connection;
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5158';
+  const configuredApiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_BACKEND_URL || '';
+  const apiBase = configuredApiBase || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5158');
 
   connection = new HubConnectionBuilder()
     .withUrl(apiBase + '/hubs/companyRequests', {

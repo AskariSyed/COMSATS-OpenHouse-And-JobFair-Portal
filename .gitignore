@@ -6,3 +6,5 @@ obj/
 /uploads/student
 /Backend/uploads
 /Backend/wwwroot/uploads/companies\logo
+.deploy-artifacts/admin.zip
+.deploy-artifacts/company.zip
