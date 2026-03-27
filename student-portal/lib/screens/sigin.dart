@@ -43,7 +43,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     if (!opened && mounted) {
       showTopSnackBar(
         Overlay.of(context),
-        const CustomSnackBar.error(message: 'Unable to open APK download link.'),
+        const CustomSnackBar.error(
+          message: 'Unable to open APK download link.',
+        ),
       );
     }
   }

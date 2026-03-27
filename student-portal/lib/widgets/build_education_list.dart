@@ -33,7 +33,9 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
         ? (edu.gradeValue ?? ((edu.cgpa != null) ? edu.cgpa! * 25.0 : null))
         : (edu.gradeValue ?? edu.cgpa);
     final gradeValueCtrl = TextEditingController(
-      text: initialGradeValue != null ? initialGradeValue.toStringAsFixed(2) : '',
+      text: initialGradeValue != null
+          ? initialGradeValue.toStringAsFixed(2)
+          : '',
     );
     final marksObtainedCtrl = TextEditingController(
       text: edu.marksObtained != null ? edu.marksObtained!.toString() : '',

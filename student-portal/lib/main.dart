@@ -482,8 +482,8 @@ class _MyAppState extends State<MyApp> {
         final title =
             (message.data['title'] ?? message.data['Title'] ?? 'Notification')
                 .toString();
-        final body =
-            (message.data['body'] ?? message.data['Body'] ?? '').toString();
+        final body = (message.data['body'] ?? message.data['Body'] ?? '')
+            .toString();
 
         final ctx = navigatorKey.currentContext;
         if (ctx != null) {
