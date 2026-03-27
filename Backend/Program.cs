@@ -85,7 +85,7 @@ builder.Services.AddCors(options =>
                   // Use configured origins in production; fall back to local hosts for development
                   if (allowedOrigins is { Length: > 0 })
                       return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
-                  return uri.Host is "localhost" or "127.0.0.1" or "192.168.137.1";
+                  return uri.Host is "localhost" or "127.0.0.1" or "192.168.137.1" or "54.254.84.101";
               })
               .AllowAnyHeader()
               .AllowAnyMethod()

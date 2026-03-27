@@ -32,7 +32,12 @@ import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool focusProjectInvitations;
+
+  const ProfileScreen({
+    super.key,
+    this.focusProjectInvitations = false,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -42,6 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   bool _isInitLoading = true;
   AnimationController? _persistentSnackBarController;
+  final GlobalKey _invitationsSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -70,7 +76,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isInitLoading = false;
       });
       _checkMissingDetails();
+      _focusInvitationsSectionIfRequested();
     }
+  }
+
+  void _focusInvitationsSectionIfRequested() {
+    if (!widget.focusProjectInvitations) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final invitationContext = _invitationsSectionKey.currentContext;
+      if (invitationContext != null) {
+        Scrollable.ensureVisible(
+          invitationContext,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          alignment: 0.0,
+        );
+      }
+    });
   }
 
   Future<void> _checkMissingDetails() async {
@@ -823,6 +846,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onDeleteLink,
                               _onUpdateNamePressed,
                               mounted,
+                              _invitationsSectionKey,
                             ),
                           ],
                         ),
@@ -882,6 +906,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       onDeleteLink,
                                       _onUpdateNamePressed,
                                       mounted,
+                                      _invitationsSectionKey,
                                     ),
                                   ],
                                 ),

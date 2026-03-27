@@ -402,6 +402,7 @@ function InputGroup({ label, name, value, onChange, type = "text", placeholder, 
 
 function SkillSelector({ selectedSkills, onAdd, onRemove }) {
   const [query, setQuery] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const wrapperRef = useRef(null);
@@ -419,6 +420,27 @@ function SkillSelector({ selectedSkills, onAdd, onRemove }) {
   return (
     <div className="relative" ref={wrapperRef}>
       <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Required Skills</label>
+      <div className="flex gap-2 mb-2">
+        <select
+          className="flex-1 p-2 border border-gray-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          value={selectedSkill}
+          onChange={(e) => {
+            const value = e.target.value;
+            setSelectedSkill(value);
+            if (value) {
+              onAdd(value);
+              setSelectedSkill('');
+            }
+          }}
+        >
+          <option value="">Select skill from list...</option>
+          {allSkillsList
+            .filter((s) => !selectedSkills.includes(s))
+            .map((s, i) => (
+              <option key={`${s}-${i}`} value={s}>{s}</option>
+            ))}
+        </select>
+      </div>
       <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 border border-gray-100 rounded-lg min-h-[40px]">
         {selectedSkills.map((s, i) => (
           <span key={i} className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">

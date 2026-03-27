@@ -31,6 +31,15 @@ namespace JobFairPortal.Models
 
         public bool IsCurrent { get; set; } = false;
 
+        [MaxLength(20)]
+        public string? GradeType { get; set; }
+
+        public double? GradeValue { get; set; }
+
+        public double? MarksObtained { get; set; }
+
+        public double? TotalMarks { get; set; }
+
         [Range(0, 4.0)]
         public double? CGPA { get; set; }
 

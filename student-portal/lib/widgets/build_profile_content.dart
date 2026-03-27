@@ -21,6 +21,7 @@ Widget buildProfileContent(
   Function(dynamic) onDeleteLink,
   VoidCallback onNamePressed,
   dynamic mounted,
+  Key? invitationsSectionKey,
 ) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -40,7 +41,7 @@ Widget buildProfileContent(
       const SizedBox(height: 20),
 
       // ⭐ Invitations (Auto-hidden if empty)
-      const InvitationsList(),
+      Container(key: invitationsSectionKey, child: const InvitationsList()),
 
       // ⭐ Skills
       buildSectionHeader(

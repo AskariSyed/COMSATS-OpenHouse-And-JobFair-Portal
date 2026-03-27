@@ -846,7 +846,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     subtitle: const Text('Review invites'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      // Navigate to projects
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(
+                            focusProjectInvitations: true,
+                          ),
+                        ),
+                      );
                     },
                   ),
                 if (actions.pendingInterviewRequestsCount == 0 &&
@@ -928,6 +935,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildInterviewStats(BuildContext context, InterviewStats stats) {
+    final pendingCount = stats.pendingRequests.length;
+    final acceptedCount = stats.acceptedRequests.length;
+    final scheduledCount = stats.allInterviews
+        .where((i) => i.scheduledTime != null)
+        .length;
+    final hasInterviewChartData =
+        pendingCount > 0 || acceptedCount > 0 || scheduledCount > 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -939,7 +954,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                AppPieChartReveal(child: InterviewStatusChart(stats: stats)),
+                hasInterviewChartData
+                    ? AppPieChartReveal(child: InterviewStatusChart(stats: stats))
+                    : InterviewStatusChart(stats: stats),
               ],
             ),
           ),

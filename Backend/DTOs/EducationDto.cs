@@ -24,6 +24,15 @@ namespace JobFairPortal.DTOs
 
         public bool IsCurrent { get; set; } = false;
 
+        [MaxLength(20)]
+        public string? GradeType { get; set; }
+
+        public double? GradeValue { get; set; }
+
+        public double? MarksObtained { get; set; }
+
+        public double? TotalMarks { get; set; }
+
         [Range(0, 4.0)]
         public double? CGPA { get; set; }
 
@@ -40,6 +49,10 @@ namespace JobFairPortal.DTOs
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public bool IsCurrent { get; set; }
+        public string? GradeType { get; set; }
+        public double? GradeValue { get; set; }
+        public double? MarksObtained { get; set; }
+        public double? TotalMarks { get; set; }
         public double? CGPA { get; set; }
         public string? Location { get; set; }
     }
@@ -59,6 +72,15 @@ namespace JobFairPortal.DTOs
         public DateTime? EndDate { get; set; }
 
         public bool? IsCurrent { get; set; }
+
+        [MaxLength(20)]
+        public string? GradeType { get; set; }
+
+        public double? GradeValue { get; set; }
+
+        public double? MarksObtained { get; set; }
+
+        public double? TotalMarks { get; set; }
 
         [Range(0, 4.0)]
         public double? CGPA { get; set; }

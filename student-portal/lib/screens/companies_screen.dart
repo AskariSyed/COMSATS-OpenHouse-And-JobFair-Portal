@@ -84,7 +84,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
         ? (student.profilePicUrl!.startsWith('http')
               ? student.profilePicUrl
-          : BackendConfig.absoluteUrl(student.profilePicUrl))
+              : BackendConfig.absoluteUrl(student.profilePicUrl))
         : null;
 
     final bool showShimmer =

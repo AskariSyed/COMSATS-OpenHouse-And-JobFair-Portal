@@ -183,6 +183,11 @@ void main() async {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(channel);
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
 
     const AndroidInitializationSettings initSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -472,6 +477,48 @@ class _MyAppState extends State<MyApp> {
             },
           );
         }
+      } else {
+        // Foreground data-only push: surface it as a local notification.
+        final title =
+            (message.data['title'] ?? message.data['Title'] ?? 'Notification')
+                .toString();
+        final body =
+            (message.data['body'] ?? message.data['Body'] ?? '').toString();
+
+        final ctx = navigatorKey.currentContext;
+        if (ctx != null) {
+          final notificationProvider = Provider.of<NotificationProvider>(
+            ctx,
+            listen: false,
+          );
+          notificationProvider.addNotification(
+            NotificationModel(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              title: title,
+              body: body,
+              timestamp: DateTime.now(),
+              data: message.data,
+            ),
+          );
+        }
+
+        flutterLocalNotificationsPlugin.show(
+          message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+          title,
+          body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'fcm_channel',
+              'FCM Notifications',
+              channelDescription:
+                  'This channel is used for important notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+          ),
+          payload: formattedData,
+        );
       }
     });
 

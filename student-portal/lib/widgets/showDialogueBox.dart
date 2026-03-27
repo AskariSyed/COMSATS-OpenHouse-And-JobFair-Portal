@@ -587,6 +587,15 @@ void showAddEducationDialog(BuildContext context) {
       }
 
       final cgpa = resolveCgpaValue();
+      final gradeValue = gradingType == 'CGPA' || gradingType == 'Percentage'
+          ? double.tryParse(percentageCtrl.text.trim())
+          : null;
+      final marksObtained = gradingType == 'Marks'
+          ? double.tryParse(marksObtainedCtrl.text.trim())
+          : null;
+      final totalMarks = gradingType == 'Marks'
+          ? double.tryParse(totalMarksCtrl.text.trim())
+          : null;
 
       await Provider.of<StudentProvider>(context, listen: false).addEducation({
         "institutionName": institutionCtrl.text.trim(),
@@ -595,6 +604,10 @@ void showAddEducationDialog(BuildContext context) {
         "startDate": "${startCtrl.text}T00:00:00Z",
         "endDate": endCtrl.text.isNotEmpty ? "${endCtrl.text}T00:00:00Z" : null,
         "isCurrent": endCtrl.text.isEmpty,
+        "gradeType": gradingType,
+        "gradeValue": gradeValue,
+        "marksObtained": marksObtained,
+        "totalMarks": totalMarks,
         "cgpa": cgpa,
       });
     },

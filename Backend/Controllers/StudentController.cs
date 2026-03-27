@@ -1153,6 +1153,10 @@ namespace JobFairPortal.Controllers
                     ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc)
                     : null,
                 IsCurrent = dto.IsCurrent,
+                GradeType = string.IsNullOrWhiteSpace(dto.GradeType) ? "CGPA" : dto.GradeType.Trim(),
+                GradeValue = dto.GradeValue,
+                MarksObtained = dto.MarksObtained,
+                TotalMarks = dto.TotalMarks,
                 CGPA = dto.CGPA,
                 Location = dto.Location
             };
@@ -1168,6 +1172,10 @@ namespace JobFairPortal.Controllers
                 StartDate = education.StartDate,
                 EndDate = education.EndDate,
                 IsCurrent = education.IsCurrent,
+                GradeType = education.GradeType,
+                GradeValue = education.GradeValue,
+                MarksObtained = education.MarksObtained,
+                TotalMarks = education.TotalMarks,
                 CGPA = education.CGPA,
                 Location = education.Location
             };
@@ -1209,6 +1217,18 @@ namespace JobFairPortal.Controllers
 
             if (dto.IsCurrent.HasValue)
                 education.IsCurrent = dto.IsCurrent.Value;
+
+            if (!string.IsNullOrWhiteSpace(dto.GradeType))
+                education.GradeType = dto.GradeType.Trim();
+
+            if (dto.GradeValue.HasValue)
+                education.GradeValue = dto.GradeValue.Value;
+
+            if (dto.MarksObtained.HasValue)
+                education.MarksObtained = dto.MarksObtained.Value;
+
+            if (dto.TotalMarks.HasValue)
+                education.TotalMarks = dto.TotalMarks.Value;
 
             if (dto.CGPA.HasValue)
                 education.CGPA = dto.CGPA.Value;

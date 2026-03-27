@@ -17,6 +17,11 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
   void showEditEducationDialog(Education edu) {
     final institutionCtrl = TextEditingController(text: edu.institutionName);
     final degreeCtrl = TextEditingController(text: edu.degree);
+    final normalizedGradeType = (edu.gradeType ?? '').trim().toLowerCase();
+    final initialGradeType = normalizedGradeType == 'percentage'
+        ? 'Percentage'
+        : (normalizedGradeType == 'marks' ? 'Marks' : 'CGPA');
+    String gradingType = initialGradeType;
 
     // Helpers to format date for text field (YYYY-MM-DD)
     String toDateString(DateTime? date) =>
@@ -24,17 +29,23 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
 
     final startCtrl = TextEditingController(text: toDateString(edu.startDate));
     final endCtrl = TextEditingController(text: toDateString(edu.endDate));
+    final double? initialGradeValue = initialGradeType == 'Percentage'
+        ? (edu.gradeValue ?? ((edu.cgpa != null) ? edu.cgpa! * 25.0 : null))
+        : (edu.gradeValue ?? edu.cgpa);
     final gradeValueCtrl = TextEditingController(
-      text: edu.cgpa != null ? edu.cgpa!.toStringAsFixed(2) : '',
+      text: initialGradeValue != null ? initialGradeValue.toStringAsFixed(2) : '',
     );
-    final marksObtainedCtrl = TextEditingController();
-    final totalMarksCtrl = TextEditingController();
+    final marksObtainedCtrl = TextEditingController(
+      text: edu.marksObtained != null ? edu.marksObtained!.toString() : '',
+    );
+    final totalMarksCtrl = TextEditingController(
+      text: edu.totalMarks != null ? edu.totalMarks!.toString() : '',
+    );
 
     showDialog(
       context: context,
       builder: (ctx) {
         bool isSaving = false;
-        String gradingType = 'CGPA';
 
         double resolveCgpa() {
           if (gradingType == 'CGPA') {
@@ -189,6 +200,16 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                       : () async {
                           setState(() => isSaving = true);
                           try {
+                            final gradeValue = gradingType == 'Marks'
+                                ? null
+                                : double.tryParse(gradeValueCtrl.text.trim());
+                            final marksObtained = gradingType == 'Marks'
+                                ? double.tryParse(marksObtainedCtrl.text.trim())
+                                : null;
+                            final totalMarks = gradingType == 'Marks'
+                                ? double.tryParse(totalMarksCtrl.text.trim())
+                                : null;
+
                             final Map<String, dynamic> updateData = {
                               "institutionName": institutionCtrl.text,
                               "degree": degreeCtrl.text,
@@ -197,6 +218,10 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
                                   ? "${endCtrl.text}T00:00:00Z"
                                   : null,
                               "isCurrent": endCtrl.text.isEmpty,
+                              "gradeType": gradingType,
+                              "gradeValue": gradeValue,
+                              "marksObtained": marksObtained,
+                              "totalMarks": totalMarks,
                               "cgpa": resolveCgpa(),
                             };
 
@@ -388,9 +413,40 @@ class EducationCard extends StatefulWidget {
 }
 
 class _EducationCardState extends State<EducationCard> {
+  String _formatNumber(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
+
+  String? _buildGradeText(Education edu) {
+    final gradeType = (edu.gradeType ?? '').trim().toLowerCase();
+
+    if (gradeType == 'percentage') {
+      final value = edu.gradeValue ?? ((edu.cgpa ?? 0) * 25.0);
+      if (value > 0) {
+        return 'Percentage: ${_formatNumber(value)}%';
+      }
+    }
+
+    if (gradeType == 'marks') {
+      if (edu.marksObtained != null &&
+          edu.totalMarks != null &&
+          edu.totalMarks! > 0) {
+        return 'Marks: ${_formatNumber(edu.marksObtained!)}/${_formatNumber(edu.totalMarks!)}';
+      }
+    }
+
+    final cgpa = edu.cgpa ?? edu.gradeValue;
+    if (cgpa != null && cgpa > 0) {
+      return 'CGPA: ${_formatNumber(cgpa)}';
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final edu = widget.education;
+    final gradeText = _buildGradeText(edu);
     final dateRange =
         "${formatDate(edu.startDate)} - ${edu.isCurrent ? 'Present' : formatDate(edu.endDate)}";
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -491,11 +547,11 @@ class _EducationCardState extends State<EducationCard> {
                   overflow: TextOverflow.ellipsis,
                 ),
 
-                // --- 4. CGPA (Optional) ---
-                if (edu.cgpa != null && edu.cgpa! > 0) ...[
+                // --- 4. Grade (Optional) ---
+                if (gradeText != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    "CGPA: ${edu.cgpa}",
+                    gradeText,
                     style: TextStyle(
                       fontSize: 11,
                       color: isDark

@@ -14,6 +14,7 @@ import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:student_job_fair_portal/screens/signup.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({super.key});
@@ -30,6 +31,22 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final String apiUrl = "${BackendConfig.apiBaseUrl}/Auth/student/login";
+  static const String _apkDownloadUrl = String.fromEnvironment(
+    'STUDENT_APK_URL',
+    defaultValue: 'https://54.254.84.101/downloads/student-portal.apk',
+  );
+
+  Future<void> _openApkDownload() async {
+    final uri = Uri.tryParse(_apkDownloadUrl);
+    if (uri == null) return;
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(message: 'Unable to open APK download link.'),
+      );
+    }
+  }
 
   Future<void> loginStudent() async {
     final regNo = regNoController.text.trim();
@@ -569,6 +586,23 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 18),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openApkDownload,
+                                    icon: const Icon(Icons.android),
+                                    label: const Text('Download Android APK'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(48),
+                                      side: BorderSide(color: fieldBorder),
+                                      foregroundColor: titleColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [

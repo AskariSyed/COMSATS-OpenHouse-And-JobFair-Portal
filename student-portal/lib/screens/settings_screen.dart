@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:file_picker/file_picker.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
@@ -15,6 +16,9 @@ import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/utils/password_validator.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
 import 'package:student_job_fair_portal/screens/notifications_screen.dart';
+import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
+import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:student_job_fair_portal/screens/companies_screen.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
 import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
@@ -359,6 +363,101 @@ class SettingsScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  Future<void> _handleUploadOwnCv(BuildContext context) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.single;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        if (!context.mounted) return;
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.error(
+            message: 'Could not read selected PDF file.',
+          ),
+        );
+        return;
+      }
+
+      if (!context.mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.info(message: 'Uploading your PDF CV...'),
+      );
+
+      final uploaded = await studentProvider.uploadGeneratedCv(
+        bytes,
+        fileName: file.name,
+      );
+
+      if (!context.mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        uploaded
+            ? const CustomSnackBar.success(
+                message: 'Your CV uploaded successfully.',
+              )
+            : const CustomSnackBar.error(message: 'Failed to upload your CV.'),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: 'Error selecting/uploading PDF: $e'),
+      );
+    }
+  }
+
+  Future<void> _handleDownloadUploadedCv(BuildContext context) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
+    await studentProvider.fetchProfile();
+    final currentCvUrl = _resolveCvUrl(studentProvider.student?.cvUrl);
+
+    if (!context.mounted) return;
+
+    if (currentCvUrl == null || currentCvUrl.isEmpty) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.error(
+          message: 'No uploaded CV found. Upload your CV first.',
+        ),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(
+      Uri.parse(currentCvUrl),
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!context.mounted) return;
+    showTopSnackBar(
+      Overlay.of(context),
+      launched
+          ? const CustomSnackBar.success(message: 'Opening your uploaded CV...')
+          : const CustomSnackBar.error(
+              message: 'Could not open uploaded CV URL.',
+            ),
+    );
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -1212,10 +1311,10 @@ class SettingsScreen extends StatelessWidget {
               _buildCircleActionButton(
                 context: context,
                 icon: Icons.cloud_upload_rounded,
-                tooltip: 'Upload Generated CV',
+                tooltip: 'Upload My PDF CV',
                 colors: [Colors.teal.shade600, Colors.teal.shade800],
                 isMobile: isMobile,
-                onTap: () => _handleUploadGeneratedCv(context),
+                onTap: () => _handleUploadOwnCv(context),
               ),
               _buildCircleActionButton(
                 context: context,
@@ -2005,7 +2104,7 @@ class SettingsScreen extends StatelessWidget {
               "Generate CV",
               "Auto-build CV from your profile",
               Colors.blue,
-              onTap: () {},
+              onTap: () => _handleUploadGeneratedCv(context),
             ),
             Divider(color: dividerColor, height: 20),
             _buildQuickActionItem(
@@ -2014,7 +2113,7 @@ class SettingsScreen extends StatelessWidget {
               "Upload CV",
               "Upload your own PDF",
               Colors.teal,
-              onTap: () => _handleUploadGeneratedCv(context),
+              onTap: () => _handleUploadOwnCv(context),
             ),
             Divider(color: dividerColor, height: 20),
             _buildQuickActionItem(
@@ -2032,7 +2131,7 @@ class SettingsScreen extends StatelessWidget {
               "Download CV",
               "Save CV to your device",
               Colors.purple,
-              onTap: () {},
+              onTap: () => _handleDownloadUploadedCv(context),
             ),
           ],
         ),
@@ -2399,7 +2498,9 @@ class SettingsScreen extends StatelessWidget {
               "View Dashboard",
               "Check your profile overview",
               Colors.blue,
-              onTap: () => Navigator.of(context).pushNamed('/dashboard'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              ),
             ),
             const SizedBox(height: 12),
             _buildQuickActionItem(
@@ -2408,7 +2509,9 @@ class SettingsScreen extends StatelessWidget {
               "Browse Jobs",
               "Find available positions",
               Colors.green,
-              onTap: () => Navigator.of(context).pushNamed('/jobs'),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const JobsScreen())),
             ),
             const SizedBox(height: 12),
             _buildQuickActionItem(
@@ -2417,7 +2520,9 @@ class SettingsScreen extends StatelessWidget {
               "Visit Companies",
               "Explore company profiles",
               Colors.orange,
-              onTap: () => Navigator.of(context).pushNamed('/companies'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CompaniesScreen()),
+              ),
             ),
             const SizedBox(height: 12),
             _buildQuickActionItem(

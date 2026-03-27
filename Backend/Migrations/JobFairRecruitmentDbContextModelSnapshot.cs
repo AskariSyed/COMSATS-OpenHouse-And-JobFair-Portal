@@ -469,6 +469,13 @@ namespace JobFairPortal.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("GradeType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double?>("GradeValue")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("InstitutionName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -481,11 +488,17 @@ namespace JobFairPortal.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<double?>("MarksObtained")
+                        .HasColumnType("double precision");
+
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("StudentId")
                         .HasColumnType("integer");
+
+                    b.Property<double?>("TotalMarks")
+                        .HasColumnType("double precision");
 
                     b.HasKey("EducationId");
 

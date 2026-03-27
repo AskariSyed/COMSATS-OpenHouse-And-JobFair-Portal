@@ -2,7 +2,8 @@ import axios from 'axios';
 
 // 1. Define the Base URL (Root of your .NET Backend)
 // In HTTPS dev mode prefer same-origin + Vite proxy to avoid mixed-content.
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+const configuredBackendUrl = import.meta.env.VITE_BACKEND_URL || '';
+export const BACKEND_URL = import.meta.env.DEV ? configuredBackendUrl : '';
 
 const isInsecureBackendOnSecurePage =
   typeof window !== 'undefined' &&
