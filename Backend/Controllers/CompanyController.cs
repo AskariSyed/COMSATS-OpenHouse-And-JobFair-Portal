@@ -883,6 +883,10 @@ namespace JobFairPortal.Controllers
                     e.StartDate,
                     e.EndDate,
                     e.IsCurrent,
+                    e.GradeType,
+                    e.GradeValue,
+                    e.MarksObtained,
+                    e.TotalMarks,
                     e.CGPA,
                     e.Location
                 }).ToList(),
@@ -926,7 +930,7 @@ namespace JobFairPortal.Controllers
 
                 // --- Projects ---
                 Projects = student.StudentProjects
-                    .Where(sp => sp.Project != null)
+                    .Where(sp => sp.Project != null && sp.Status == ProjectInviteStatus.Accepted)
                     .Select(sp => new
                     {
                         sp.Project.ProjectId,
@@ -1456,7 +1460,7 @@ namespace JobFairPortal.Controllers
                 return NotFound(new { Message = "Student not found." });
 
             var fyp = student.StudentProjects
-                .FirstOrDefault(sp => sp.Project?.Type == ProjectType.FinalYear)?
+                .FirstOrDefault(sp => sp.Project?.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)?
                 .Project;
 
             var detail = new
@@ -1568,6 +1572,10 @@ namespace JobFairPortal.Controllers
                     e.StartDate,
                     e.EndDate,
                     e.IsCurrent,
+                    e.GradeType,
+                    e.GradeValue,
+                    e.MarksObtained,
+                    e.TotalMarks,
                     e.CGPA,
                     e.Location
                 }).ToList(),

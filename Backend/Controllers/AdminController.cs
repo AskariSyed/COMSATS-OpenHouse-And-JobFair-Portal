@@ -1843,7 +1843,7 @@ Job Fair Team
                 return NotFound(new { Message = "Student not found." });
 
             var fyp = student.StudentProjects
-                .FirstOrDefault(sp => sp.Project?.Type == ProjectType.FinalYear)?
+                .FirstOrDefault(sp => sp.Project?.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)?
                 .Project;
 
             var detail = new
@@ -1923,6 +1923,10 @@ Job Fair Team
                     e.StartDate,
                     e.EndDate,
                     e.IsCurrent,
+                    e.GradeType,
+                    e.GradeValue,
+                    e.MarksObtained,
+                    e.TotalMarks,
                     e.CGPA,
                     e.Location
                 }).ToList(),
