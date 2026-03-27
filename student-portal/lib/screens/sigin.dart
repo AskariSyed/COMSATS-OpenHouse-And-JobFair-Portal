@@ -637,28 +637,29 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     ),
                                   ],
                                 ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    onPressed: _openApkDownload,
-                                    icon: const Icon(Icons.android, size: 16),
-                                    label: const Text(
-                                      'APK',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                      foregroundColor: subtitleColor,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
+                                if (kIsWeb)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: _openApkDownload,
+                                      icon: const Icon(Icons.android, size: 16),
+                                      label: const Text(
+                                        'APK',
+                                        style: TextStyle(fontSize: 12),
                                       ),
-                                      minimumSize: const Size(0, 30),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: subtitleColor,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        minimumSize: const Size(0, 30),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
