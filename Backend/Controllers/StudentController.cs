@@ -314,6 +314,10 @@ namespace JobFairPortal.Controllers
                     e.StartDate,
                     e.EndDate,
                     e.IsCurrent,
+                    e.GradeType,
+                    e.GradeValue,
+                    e.MarksObtained,
+                    e.TotalMarks,
                     e.CGPA,
                     e.Location
                 }).ToList(),

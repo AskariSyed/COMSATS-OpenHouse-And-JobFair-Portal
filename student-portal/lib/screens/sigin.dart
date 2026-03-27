@@ -33,7 +33,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   final String apiUrl = "${BackendConfig.apiBaseUrl}/Auth/student/login";
   static const String _apkDownloadUrl = String.fromEnvironment(
     'STUDENT_APK_URL',
-    defaultValue: 'https://13.229.91.74/downloads/student-portal.apk',
+    defaultValue: 'https://student.jfair.tech/downloads/student-portal.apk',
   );
 
   Future<void> _openApkDownload() async {

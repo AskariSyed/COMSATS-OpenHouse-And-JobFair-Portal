@@ -990,6 +990,10 @@ namespace JobFairPortal.Controllers
                         StartDate = e.StartDate,
                         EndDate = e.EndDate,
                         IsCurrent = e.IsCurrent,
+                        GradeType = e.GradeType,
+                        GradeValue = e.GradeValue,
+                        MarksObtained = e.MarksObtained,
+                        TotalMarks = e.TotalMarks,
                         CGPA = e.CGPA,
                         Location = e.Location
                     }).ToList() ?? new List<EducationDto>(),
