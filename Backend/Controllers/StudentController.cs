@@ -1146,6 +1146,16 @@ namespace JobFairPortal.Controllers
             if (student == null)
                 return NotFound("Student not found.");
 
+            var normalizedGradeType = string.IsNullOrWhiteSpace(dto.GradeType)
+                ? "CGPA"
+                : dto.GradeType.Trim();
+
+            var gradeTypeLower = normalizedGradeType.ToLowerInvariant();
+            var cgpaValue = gradeTypeLower == "cgpa" ? dto.CGPA : null;
+            var gradeValue = gradeTypeLower == "marks" ? null : dto.GradeValue;
+            var marksObtained = gradeTypeLower == "marks" ? dto.MarksObtained : null;
+            var totalMarks = gradeTypeLower == "marks" ? dto.TotalMarks : null;
+
             var education = new Education
             {
                 StudentId = student.StudentId,
@@ -1157,11 +1167,11 @@ namespace JobFairPortal.Controllers
                     ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc)
                     : null,
                 IsCurrent = dto.IsCurrent,
-                GradeType = string.IsNullOrWhiteSpace(dto.GradeType) ? "CGPA" : dto.GradeType.Trim(),
-                GradeValue = dto.GradeValue,
-                MarksObtained = dto.MarksObtained,
-                TotalMarks = dto.TotalMarks,
-                CGPA = dto.CGPA,
+                GradeType = normalizedGradeType,
+                GradeValue = gradeValue,
+                MarksObtained = marksObtained,
+                TotalMarks = totalMarks,
+                CGPA = cgpaValue,
                 Location = dto.Location
             };
 
@@ -1225,6 +1235,8 @@ namespace JobFairPortal.Controllers
             if (!string.IsNullOrWhiteSpace(dto.GradeType))
                 education.GradeType = dto.GradeType.Trim();
 
+            var effectiveGradeType = (education.GradeType ?? "CGPA").Trim().ToLowerInvariant();
+
             if (dto.GradeValue.HasValue)
                 education.GradeValue = dto.GradeValue.Value;
 
@@ -1237,12 +1249,47 @@ namespace JobFairPortal.Controllers
             if (dto.CGPA.HasValue)
                 education.CGPA = dto.CGPA.Value;
 
+            // Keep only fields relevant to current grade type.
+            if (effectiveGradeType == "percentage")
+            {
+                education.CGPA = null;
+                education.MarksObtained = null;
+                education.TotalMarks = null;
+            }
+            else if (effectiveGradeType == "marks")
+            {
+                education.CGPA = null;
+                education.GradeValue = null;
+            }
+            else
+            {
+                education.MarksObtained = null;
+                education.TotalMarks = null;
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Location))
                 education.Location = dto.Location;
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Education updated successfully", Education = education });
+            var responseDto = new EducationDto
+            {
+                EducationId = education.EducationId,
+                InstitutionName = education.InstitutionName,
+                Degree = education.Degree,
+                FieldOfStudy = education.FieldOfStudy,
+                StartDate = education.StartDate,
+                EndDate = education.EndDate,
+                IsCurrent = education.IsCurrent,
+                GradeType = education.GradeType,
+                GradeValue = education.GradeValue,
+                MarksObtained = education.MarksObtained,
+                TotalMarks = education.TotalMarks,
+                CGPA = education.CGPA,
+                Location = education.Location
+            };
+
+            return Ok(new { Message = "Education updated successfully", Education = responseDto });
         }
 
 

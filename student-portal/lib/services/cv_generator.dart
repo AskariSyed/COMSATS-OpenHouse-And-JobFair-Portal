@@ -309,6 +309,14 @@ class CVGenerator {
                                 font: regularFont,
                               ),
                             ),
+                          if (_buildEducationGradeText(edu) != null)
+                            pw.Text(
+                              _buildEducationGradeText(edu)!,
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                font: regularFont,
+                              ),
+                            ),
                           pw.SizedBox(height: 8),
                         ],
                       );
@@ -925,6 +933,14 @@ class CVGenerator {
                                 font: regularFont,
                               ),
                             ),
+                          if (_buildEducationGradeText(edu) != null)
+                            pw.Text(
+                              _buildEducationGradeText(edu)!,
+                              style: pw.TextStyle(
+                                fontSize: 9,
+                                font: regularFont,
+                              ),
+                            ),
                           pw.SizedBox(height: 8),
                         ],
                       );
@@ -1224,5 +1240,36 @@ class CVGenerator {
         ),
       ],
     );
+  }
+
+  static String _formatGradeNumber(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
+
+  static String? _buildEducationGradeText(dynamic edu) {
+    final gradeType = (edu.gradeType ?? '').toString().trim().toLowerCase();
+
+    if (gradeType == 'percentage') {
+      final value = edu.gradeValue ?? ((edu.cgpa ?? 0) * 25.0);
+      if (value is num && value > 0) {
+        return 'Percentage: ${_formatGradeNumber(value.toDouble())}%';
+      }
+    }
+
+    if (gradeType == 'marks') {
+      final obtained = edu.marksObtained;
+      final total = edu.totalMarks;
+      if (obtained is num && total is num && total > 0) {
+        final percentage = (obtained / total) * 100;
+        return 'Marks: ${_formatGradeNumber(obtained.toDouble())}/${_formatGradeNumber(total.toDouble())} (${_formatGradeNumber(percentage.toDouble())}%)';
+      }
+    }
+
+    final cgpa = edu.cgpa ?? edu.gradeValue;
+    if (cgpa is num && cgpa > 0) {
+      return 'CGPA: ${_formatGradeNumber(cgpa.toDouble())}';
+    }
+
+    return null;
   }
 }

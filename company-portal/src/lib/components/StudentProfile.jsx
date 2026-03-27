@@ -3,6 +3,41 @@ import { ChevronRight, Mail, Loader2, MapPin, GraduationCap, Briefcase, Award, G
 import { getStudentProfile, getFileUrl, sendInterviewRequest, acceptInterviewRequest, rejectInterviewRequest, startInterview, startWalkInInterview, completeInterview } from '../api';
 import { getThumbnailUrl, getYoutubeId } from '../utils/videoUtils';
 
+const formatGradeValue = (value, digits = 2) => {
+   const num = Number(value);
+   if (!Number.isFinite(num)) return null;
+   return Number.isInteger(num) ? String(num) : num.toFixed(digits);
+};
+
+const getEducationGradeLabel = (edu) => {
+   if (!edu) return null;
+
+   const type = String(edu.gradeType || '').trim().toLowerCase();
+   const gradeValue = Number(edu.gradeValue);
+   const cgpa = Number(edu.cgpa);
+   const marksObtained = Number(edu.marksObtained);
+   const totalMarks = Number(edu.totalMarks);
+
+   if (type === 'percentage') {
+      const raw = Number.isFinite(gradeValue)
+         ? gradeValue
+         : (Number.isFinite(cgpa) ? cgpa * 25 : NaN);
+      const value = formatGradeValue(raw);
+      return value ? `Percentage: ${value}%` : null;
+   }
+
+   if (type === 'marks') {
+      if (Number.isFinite(marksObtained) && Number.isFinite(totalMarks) && totalMarks > 0) {
+         return `Marks: ${formatGradeValue(marksObtained)}/${formatGradeValue(totalMarks)}`;
+      }
+      return null;
+   }
+
+   const cgpaValue = Number.isFinite(cgpa) ? cgpa : gradeValue;
+   const value = formatGradeValue(cgpaValue);
+   return value ? `CGPA: ${value}` : null;
+};
+
 export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews, readOnly = false }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -355,7 +390,16 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
   if (loading) return <div className="h-96 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600 w-8 h-8" /></div>;
   if (!profile) return <div className="text-center text-red-500 p-8">Failed to load profile.</div>;
 
-  const { user, educations, experiences, projects, skills, contactLinks, certifications, achievements } = profile;
+   const { user, educations, experiences, projects, skills, contactLinks, certifications, achievements } = profile;
+   const acceptedProjects = (projects || []).filter((p) => {
+      const status = String(p.status || '').toLowerCase();
+      return !status || status === 'accepted';
+   });
+   const latestEducation = [...(educations || [])]
+      .sort((a, b) => new Date(b.endDate || b.startDate || 0) - new Date(a.endDate || a.startDate || 0))[0];
+   const academicGradeLabel =
+      getEducationGradeLabel(latestEducation) ||
+      (Number.isFinite(Number(profile.cgpa)) ? `CGPA: ${Number(profile.cgpa).toFixed(2)}` : 'N/A');
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-10">
@@ -396,8 +440,8 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
               {/* Right Side Actions */}
               <div className="flex items-center gap-4">
                  <div className="hidden md:block text-right mr-4">
-                    <div className="text-3xl font-bold text-gray-900 leading-none">{profile.cgpa?.toFixed(2)}</div>
-                    <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">CGPA</div>
+                    <div className="text-base font-bold text-gray-900 leading-none">{academicGradeLabel}</div>
+                    <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Academic Grade</div>
                  </div>
                  {renderHeaderAction()}
               </div>
@@ -532,7 +576,11 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                         </div>
                         <p className="text-sm text-gray-600">{edu.degree} in {edu.fieldOfStudy}</p>
                         {edu.location && <p className="text-xs text-gray-500">{edu.location}</p>}
-                        {edu.cgpa && <p className="text-xs text-gray-500">CGPA: <span className="font-semibold text-blue-600">{edu.cgpa.toFixed(2)}</span></p>}
+                                    {getEducationGradeLabel(edu) && (
+                                       <p className="text-xs text-gray-500">
+                                          <span className="font-semibold text-blue-600">{getEducationGradeLabel(edu)}</span>
+                                       </p>
+                                    )}
                      </div>
                   )) : <div className="text-gray-400 italic">No education details.</div>}
                </div>
@@ -598,7 +646,7 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-4 mb-6">Projects</h3>
                <div className="space-y-4">
-                  {projects?.length > 0 ? projects.map(p => {
+                  {acceptedProjects.length > 0 ? acceptedProjects.map(p => {
                      const isFYP = p.type?.toLowerCase() === 'finalyear';
                      const youtubeId = p.demoUrl ? getYoutubeId(p.demoUrl) : null;
                      const thumbnail = youtubeId ? getThumbnailUrl(p.demoUrl) : null;

@@ -469,7 +469,7 @@ void showAddEducationDialog(BuildContext context) {
       if (percentage == null || percentage < 0 || percentage > 100) {
         throw Exception('Percentage must be between 0 and 100.');
       }
-      return (percentage / 25.0).clamp(0.0, 4.0);
+      return null;
     }
 
     final obtained = double.tryParse(marksObtainedCtrl.text.trim());
@@ -480,7 +480,7 @@ void showAddEducationDialog(BuildContext context) {
     if (obtained < 0 || obtained > total) {
       throw Exception('Obtained marks must be between 0 and total marks.');
     }
-    return ((obtained / total) * 4.0).clamp(0.0, 4.0);
+    return null;
   }
 
   showGenericDialog(

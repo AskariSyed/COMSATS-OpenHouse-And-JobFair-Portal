@@ -4,6 +4,41 @@ import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, 
 import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews } from '../api';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
+const formatGradeValue = (value, digits = 2) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Number.isInteger(num) ? String(num) : num.toFixed(digits);
+};
+
+const getEducationGradeLabel = (edu) => {
+  if (!edu) return null;
+
+  const type = String(edu.gradeType || '').trim().toLowerCase();
+  const gradeValue = Number(edu.gradeValue);
+  const cgpa = Number(edu.cgpa);
+  const marksObtained = Number(edu.marksObtained);
+  const totalMarks = Number(edu.totalMarks);
+
+  if (type === 'percentage') {
+    const raw = Number.isFinite(gradeValue)
+      ? gradeValue
+      : (Number.isFinite(cgpa) ? cgpa * 25 : NaN);
+    const value = formatGradeValue(raw);
+    return value ? `Percentage: ${value}%` : null;
+  }
+
+  if (type === 'marks') {
+    if (Number.isFinite(marksObtained) && Number.isFinite(totalMarks) && totalMarks > 0) {
+      return `Marks: ${formatGradeValue(marksObtained)}/${formatGradeValue(totalMarks)}`;
+    }
+    return null;
+  }
+
+  const cgpaValue = Number.isFinite(cgpa) ? cgpa : gradeValue;
+  const value = formatGradeValue(cgpaValue);
+  return value ? `CGPA: ${value}` : null;
+};
+
 export default function InterviewManager({ onError, onSuccess, onSelectStudent, navigationTarget }) {
   const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled | completed
   const [pendingView, setPendingView] = useState('all'); // all | inbox | sent
@@ -778,8 +813,19 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                     <p className="font-medium text-gray-800">{selectedStudentProfile.department || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">CGPA</p>
-                    <p className="font-medium text-blue-700">{selectedStudentProfile.cgpa?.toFixed ? selectedStudentProfile.cgpa.toFixed(2) : selectedStudentProfile.cgpa || 'N/A'}</p>
+                    <p className="text-xs text-gray-500">Academic Grade</p>
+                    <p className="font-medium text-blue-700">
+                      {(() => {
+                        const latestEducation = [...(selectedStudentProfile.educations || [])]
+                          .sort((a, b) => new Date(b.endDate || b.startDate || 0) - new Date(a.endDate || a.startDate || 0))[0];
+                        return (
+                          getEducationGradeLabel(latestEducation) ||
+                          (selectedStudentProfile.cgpa?.toFixed
+                            ? `CGPA: ${selectedStudentProfile.cgpa.toFixed(2)}`
+                            : (selectedStudentProfile.cgpa ? `CGPA: ${selectedStudentProfile.cgpa}` : 'N/A'))
+                        );
+                      })()}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Email</p>
@@ -825,6 +871,9 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                           <div key={idx} className="p-2 rounded border border-gray-100 bg-gray-50">
                             <p className="font-medium text-gray-800">{edu.degree || 'Degree'} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ''}</p>
                             <p className="text-xs text-gray-600">{edu.institutionName || 'Institution'}</p>
+                            {getEducationGradeLabel(edu) && (
+                              <p className="text-xs text-blue-700 mt-1">{getEducationGradeLabel(edu)}</p>
+                            )}
                           </div>
                         ))}
                       </div>

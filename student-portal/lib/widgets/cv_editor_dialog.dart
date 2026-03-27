@@ -9,6 +9,7 @@ import 'package:student_job_fair_portal/model/certification.dart';
 import 'package:student_job_fair_portal/model/achievement.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
+import 'package:student_job_fair_portal/mixins/date_picker.dart';
 
 class CVEditorDialog extends StatefulWidget {
   const CVEditorDialog({super.key});
@@ -25,6 +26,44 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
   final _phoneController = TextEditingController();
   final _skillController = TextEditingController();
   String? cvEmail; // CV-specific email that doesn't update backend
+
+  String _formatNumber(double value) {
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
+
+  double? _calculatePercentage(double? obtained, double? total) {
+    if (obtained == null || total == null || total <= 0) return null;
+    return (obtained / total) * 100;
+  }
+
+  String? _buildEducationGradeText(Education edu) {
+    final gradeType = (edu.gradeType ?? '').trim().toLowerCase();
+
+    if (gradeType == 'percentage') {
+      final value = edu.gradeValue ?? ((edu.cgpa ?? 0) * 25.0);
+      if (value > 0) return 'Percentage: ${_formatNumber(value)}%';
+    }
+
+    if (gradeType == 'marks') {
+      if (edu.marksObtained != null &&
+          edu.totalMarks != null &&
+          edu.totalMarks! > 0) {
+        final percentage = _calculatePercentage(
+          edu.marksObtained,
+          edu.totalMarks,
+        );
+        final percentageText = percentage != null
+            ? ' (${_formatNumber(percentage)}%)'
+            : '';
+        return 'Marks: ${_formatNumber(edu.marksObtained!)}/${_formatNumber(edu.totalMarks!)}$percentageText';
+      }
+    }
+
+    final cgpa = edu.cgpa ?? edu.gradeValue;
+    if (cgpa != null && cgpa > 0) return 'CGPA: ${_formatNumber(cgpa)}';
+
+    return null;
+  }
 
   @override
   void dispose() {
@@ -305,69 +344,264 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
     final inst = TextEditingController(text: education?.institutionName ?? '');
     final degree = TextEditingController(text: education?.degree ?? '');
     final field = TextEditingController(text: education?.fieldOfStudy ?? '');
+    String toDateString(DateTime? date) =>
+        date?.toIso8601String().split('T').first ?? '';
+    final startDate = TextEditingController(
+      text: toDateString(education?.startDate),
+    );
+    final endDate = TextEditingController(
+      text: toDateString(education?.endDate),
+    );
+
+    final normalizedGradeType = (education?.gradeType ?? '')
+        .trim()
+        .toLowerCase();
+    String gradingType = normalizedGradeType == 'percentage'
+        ? 'Percentage'
+        : (normalizedGradeType == 'marks' ? 'Marks' : 'CGPA');
+    final cgpaValue = education?.cgpa;
+
+    final initialGradeValue = gradingType == 'Percentage'
+        ? (education?.gradeValue ??
+              (cgpaValue != null ? cgpaValue * 25.0 : null))
+        : (education?.gradeValue ?? education?.cgpa);
+
+    final gradeValue = TextEditingController(
+      text: initialGradeValue != null
+          ? initialGradeValue.toStringAsFixed(2)
+          : '',
+    );
+    final marksObtained = TextEditingController(
+      text: education?.marksObtained != null
+          ? education?.marksObtained?.toString() ?? ''
+          : '',
+    );
+    final totalMarks = TextEditingController(
+      text: education?.totalMarks != null
+          ? education?.totalMarks?.toString() ?? ''
+          : '',
+    );
     final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(education == null ? 'Add Education' : 'Edit Education'),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: inst,
-                  decoration: const InputDecoration(labelText: 'Institution'),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter institution'
-                      : null,
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: degree,
-                  decoration: const InputDecoration(labelText: 'Degree'),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Enter degree' : null,
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: field,
-                  decoration: const InputDecoration(
-                    labelText: 'Field of study',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() != true) return;
-              Navigator.pop(ctx);
-              setState(() => loading = true);
-              final data = {
-                'institutionName': inst.text.trim(),
-                'degree': degree.text.trim(),
-                'fieldOfStudy': field.text.trim(),
-              };
-              if (education == null) {
-                await provider.addEducation(data);
-              } else {
-                await provider.updateEducation(education.educationId, data);
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          double? resolveCgpaValue() {
+            if (gradingType == 'CGPA') {
+              final cgpa = double.tryParse(gradeValue.text.trim());
+              if (cgpa == null || cgpa < 0 || cgpa > 4.0) {
+                throw Exception('CGPA must be between 0.00 and 4.00.');
               }
-              await provider.fetchProfile();
-              setState(() => loading = false);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+              return cgpa;
+            }
+
+            if (gradingType == 'Percentage') {
+              final percentage = double.tryParse(gradeValue.text.trim());
+              if (percentage == null || percentage < 0 || percentage > 100) {
+                throw Exception('Percentage must be between 0 and 100.');
+              }
+              return null;
+            }
+
+            final obtained = double.tryParse(marksObtained.text.trim());
+            final total = double.tryParse(totalMarks.text.trim());
+            if (obtained == null || total == null || total <= 0) {
+              throw Exception('Provide valid obtained and total marks.');
+            }
+            if (obtained < 0 || obtained > total) {
+              throw Exception(
+                'Obtained marks must be between 0 and total marks.',
+              );
+            }
+            return null;
+          }
+
+          return AlertDialog(
+            title: Text(education == null ? 'Add Education' : 'Edit Education'),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: inst,
+                      decoration: const InputDecoration(
+                        labelText: 'Institution',
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Enter institution'
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: degree,
+                      decoration: const InputDecoration(labelText: 'Degree'),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Enter degree'
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: field,
+                      decoration: const InputDecoration(
+                        labelText: 'Field of study',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: startDate,
+                      readOnly: true,
+                      onTap: () => selectDate(context, startDate),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Start date is required'
+                          : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Start Date',
+                        hintText: 'YYYY-MM-DD',
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: endDate,
+                      readOnly: true,
+                      onTap: () => selectDate(context, endDate),
+                      decoration: const InputDecoration(
+                        labelText: 'End Date',
+                        hintText: 'Leave empty if current',
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: gradingType,
+                      decoration: const InputDecoration(
+                        labelText: 'Grading Type',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'CGPA',
+                          child: Text('CGPA (0 - 4.0)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Percentage',
+                          child: Text('Percentage (0 - 100)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Marks',
+                          child: Text('Marks Obtained / Total Marks'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setStateDialog(() => gradingType = val);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    if (gradingType == 'Marks') ...[
+                      TextFormField(
+                        controller: marksObtained,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Marks Obtained',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: totalMarks,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Total Marks',
+                        ),
+                      ),
+                    ] else ...[
+                      TextFormField(
+                        controller: gradeValue,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: gradingType == 'CGPA'
+                              ? 'CGPA'
+                              : 'Percentage',
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (formKey.currentState?.validate() != true) return;
+                  double? cgpaValue;
+                  try {
+                    cgpaValue = resolveCgpaValue();
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            e.toString().replaceFirst('Exception: ', ''),
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
+                  final parsedGradeValue = gradingType == 'Marks'
+                      ? null
+                      : double.tryParse(gradeValue.text.trim());
+                  final parsedMarksObtained = gradingType == 'Marks'
+                      ? double.tryParse(marksObtained.text.trim())
+                      : null;
+                  final parsedTotalMarks = gradingType == 'Marks'
+                      ? double.tryParse(totalMarks.text.trim())
+                      : null;
+
+                  final data = {
+                    'institutionName': inst.text.trim(),
+                    'degree': degree.text.trim(),
+                    'fieldOfStudy': field.text.trim(),
+                    'startDate': '${startDate.text}T00:00:00Z',
+                    'endDate': endDate.text.trim().isNotEmpty
+                        ? '${endDate.text}T00:00:00Z'
+                        : null,
+                    'isCurrent': endDate.text.trim().isEmpty,
+                    'gradeType': gradingType,
+                    'gradeValue': parsedGradeValue,
+                    'marksObtained': parsedMarksObtained,
+                    'totalMarks': parsedTotalMarks,
+                    'cgpa': cgpaValue,
+                  };
+
+                  Navigator.pop(ctx);
+                  setState(() => loading = true);
+                  if (education == null) {
+                    await provider.addEducation(data);
+                  } else {
+                    await provider.updateEducation(education.educationId, data);
+                  }
+                  await provider.fetchProfile();
+                  setState(() => loading = false);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1419,17 +1653,87 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      student.user.fullName ?? '',
+                                      _nameController.text.trim(),
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    Text(student.user.email),
-                                    if (student.user.phone != null)
-                                      Text(student.user.phone!),
+                                    Text((cvEmail ?? '').trim()),
+                                    if (_phoneController.text.trim().isNotEmpty)
+                                      Text(_phoneController.text.trim()),
                                     const Divider(),
+                                    if (student.experiences.isNotEmpty) ...[
+                                      const Text(
+                                        'Experience',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      ...student.experiences.map(
+                                        (e) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Text(
+                                            '${e.role} at ${e.companyName}',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ],
+                                    if (student.educations.isNotEmpty) ...[
+                                      const Text(
+                                        'Education',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      ...student.educations.map(
+                                        (ed) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${ed.degree} - ${ed.institutionName}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              if ((ed.fieldOfStudy ?? '')
+                                                  .isNotEmpty)
+                                                Text(
+                                                  ed.fieldOfStudy!,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              if (_buildEducationGradeText(
+                                                    ed,
+                                                  ) !=
+                                                  null)
+                                                Text(
+                                                  _buildEducationGradeText(ed)!,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                    ],
                                     const Text(
                                       'Skills',
                                       style: TextStyle(
@@ -1444,6 +1748,58 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                           .toList(),
                                     ),
                                     const SizedBox(height: 12),
+                                    if (student.certifications.isNotEmpty) ...[
+                                      const Text(
+                                        'Certifications',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      ...student.certifications.map(
+                                        (c) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Text(
+                                            c.issuer != null &&
+                                                    c.issuer!.isNotEmpty
+                                                ? '${c.title} - ${c.issuer}'
+                                                : c.title,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
+                                    if (student.achievements.isNotEmpty) ...[
+                                      const Text(
+                                        'Awards & Achievements',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      ...student.achievements.map(
+                                        (a) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Text(
+                                            a.description != null &&
+                                                    a.description!.isNotEmpty
+                                                ? '${a.title} - ${a.description}'
+                                                : a.title,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                    ],
                                     const Text(
                                       'Projects',
                                       style: TextStyle(

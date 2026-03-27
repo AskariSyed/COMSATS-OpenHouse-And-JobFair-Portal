@@ -49,7 +49,7 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
       builder: (ctx) {
         bool isSaving = false;
 
-        double resolveCgpa() {
+        double? resolveCgpa() {
           if (gradingType == 'CGPA') {
             final cgpa = double.tryParse(gradeValueCtrl.text.trim());
             if (cgpa == null || cgpa < 0 || cgpa > 4.0) {
@@ -63,7 +63,7 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
             if (percentage == null || percentage < 0 || percentage > 100) {
               throw Exception('Percentage must be between 0 and 100.');
             }
-            return (percentage / 25.0).clamp(0.0, 4.0);
+            return null;
           }
 
           final obtained = double.tryParse(marksObtainedCtrl.text.trim());
@@ -76,7 +76,7 @@ Widget buildEducationList(List<dynamic>? educations, BuildContext context) {
               'Obtained marks must be between 0 and total marks.',
             );
           }
-          return ((obtained / total) * 4.0).clamp(0.0, 4.0);
+          return null;
         }
 
         return StatefulBuilder(
@@ -433,7 +433,8 @@ class _EducationCardState extends State<EducationCard> {
       if (edu.marksObtained != null &&
           edu.totalMarks != null &&
           edu.totalMarks! > 0) {
-        return 'Marks: ${_formatNumber(edu.marksObtained!)}/${_formatNumber(edu.totalMarks!)}';
+        final percentage = (edu.marksObtained! / edu.totalMarks!) * 100;
+        return 'Marks: ${_formatNumber(edu.marksObtained!)}/${_formatNumber(edu.totalMarks!)} (${_formatNumber(percentage)}%)';
       }
     }
 

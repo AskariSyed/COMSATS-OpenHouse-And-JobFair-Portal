@@ -938,7 +938,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pendingCount = stats.pendingRequests.length;
     final acceptedCount = stats.acceptedRequests.length;
     final scheduledCount = stats.allInterviews
-        .where((i) => i.scheduledTime != null)
+        .where(
+          (i) => i.status.toLowerCase() != 'pending' && i.scheduledTime != null,
+        )
         .length;
     final hasInterviewChartData =
         pendingCount > 0 || acceptedCount > 0 || scheduledCount > 0;
@@ -955,7 +957,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               children: [
                 hasInterviewChartData
-                    ? AppPieChartReveal(child: InterviewStatusChart(stats: stats))
+                    ? AppPieChartReveal(
+                        child: InterviewStatusChart(stats: stats),
+                      )
                     : InterviewStatusChart(stats: stats),
               ],
             ),

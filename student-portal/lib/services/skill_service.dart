@@ -9,6 +9,22 @@ class SkillCategory {
 }
 
 class SkillService {
+  List<String> _uniqueSkills(List<dynamic> rawSkills) {
+    final seen = <String>{};
+    final unique = <String>[];
+
+    for (final raw in rawSkills) {
+      final skill = raw.toString().trim();
+      if (skill.isEmpty) continue;
+      final key = skill.toLowerCase();
+      if (seen.add(key)) {
+        unique.add(skill);
+      }
+    }
+
+    return unique;
+  }
+
   Future<List<SkillCategory>> loadSkills() async {
     try {
       // Prefer the declared asset key; keep a fallback for older bundles.
@@ -32,7 +48,9 @@ class SkillService {
             categories.add(
               SkillCategory(
                 name: "$deptName - Technical",
-                skills: List<String>.from(dept['technical_skills']),
+                skills: _uniqueSkills(
+                  List<dynamic>.from(dept['technical_skills']),
+                ),
               ),
             );
           }
@@ -42,7 +60,7 @@ class SkillService {
             categories.add(
               SkillCategory(
                 name: "$deptName - Tools",
-                skills: List<String>.from(dept['tools']),
+                skills: _uniqueSkills(List<dynamic>.from(dept['tools'])),
               ),
             );
           }
@@ -51,7 +69,9 @@ class SkillService {
             categories.add(
               SkillCategory(
                 name: "$deptName - Certifications",
-                skills: List<String>.from(dept['certifications']),
+                skills: _uniqueSkills(
+                  List<dynamic>.from(dept['certifications']),
+                ),
               ),
             );
           }
@@ -64,7 +84,7 @@ class SkillService {
           categories.add(
             SkillCategory(
               name: "Soft Skills - ${soft['category']}",
-              skills: List<String>.from(soft['skills']),
+              skills: _uniqueSkills(List<dynamic>.from(soft['skills'])),
             ),
           );
         }

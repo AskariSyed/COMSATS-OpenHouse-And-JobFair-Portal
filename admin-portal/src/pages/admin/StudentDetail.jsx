@@ -18,6 +18,41 @@ const getYouTubeId = (url) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+const formatGradeValue = (value, digits = 2) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Number.isInteger(num) ? String(num) : num.toFixed(digits);
+};
+
+const getEducationGradeLabel = (edu) => {
+  if (!edu) return null;
+
+  const type = String(edu.gradeType || '').trim().toLowerCase();
+  const gradeValue = Number(edu.gradeValue);
+  const cgpa = Number(edu.cgpa);
+  const marksObtained = Number(edu.marksObtained);
+  const totalMarks = Number(edu.totalMarks);
+
+  if (type === 'percentage') {
+    const raw = Number.isFinite(gradeValue)
+      ? gradeValue
+      : (Number.isFinite(cgpa) ? cgpa * 25 : NaN);
+    const value = formatGradeValue(raw);
+    return value ? `Percentage: ${value}%` : null;
+  }
+
+  if (type === 'marks') {
+    if (Number.isFinite(marksObtained) && Number.isFinite(totalMarks) && totalMarks > 0) {
+      return `Marks: ${formatGradeValue(marksObtained)}/${formatGradeValue(totalMarks)}`;
+    }
+    return null;
+  }
+
+  const cgpaValue = Number.isFinite(cgpa) ? cgpa : gradeValue;
+  const value = formatGradeValue(cgpaValue);
+  return value ? `CGPA: ${value}` : null;
+};
+
 // Helper: YouTube Thumbnail Component
 const YouTubeThumbnail = ({ url, alt }) => {
   const videoId = getYouTubeId(url);
@@ -219,8 +254,13 @@ const StudentDetail = () => {
 
   if (!data) return null;
 
-  // Filter out FYP from "Other Projects"
-  const otherProjects = data.allProjects?.filter(p => p.type !== 'FinalYear') || [];
+  // Filter out FYP and any non-accepted/pending/rejected memberships from "Other Projects"
+  const otherProjects = (data.allProjects || []).filter((p) => {
+    const type = String(p.type || '').toLowerCase();
+    const status = String(p.status || '').toLowerCase();
+    const isAccepted = !status || status === 'accepted';
+    return type !== 'finalyear' && isAccepted;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-10 px-4 sm:px-6 lg:px-8">
@@ -624,9 +664,11 @@ const StudentDetail = () => {
                   <div key={idx} className="pb-4 border-b border-gray-100 last:border-0">
                     <h5 className="font-bold text-gray-900 text-sm">{edu.degree}</h5>
                     <p className="text-xs text-gray-600 mb-1">{edu.institutionName}</p>
+                    {getEducationGradeLabel(edu) && (
+                      <p className="text-xs font-semibold text-indigo-600 mb-1">{getEducationGradeLabel(edu)}</p>
+                    )}
                     <div className="flex justify-between items-center text-xs">
-                       <span className="text-gray-400">{new Date(edu.startDate).getFullYear()} - {new Date(edu.endDate).getFullYear()}</span>
-                       {edu.cgpa > 0 && <span className="font-bold text-indigo-600">CGPA: {edu.cgpa}</span>}
+                       <span className="text-gray-400">{new Date(edu.startDate).getFullYear()} - {edu.isCurrent ? 'Present' : new Date(edu.endDate).getFullYear()}</span>
                     </div>
                   </div>
                 )) : <p className="text-gray-400 italic text-sm text-center">No education listed.</p>}

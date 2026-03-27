@@ -15,6 +15,7 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:student_job_fair_portal/screens/signup.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:universal_html/html.dart' as html;
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({super.key});
@@ -39,6 +40,23 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   Future<void> _openApkDownload() async {
     final uri = Uri.tryParse(_apkDownloadUrl);
     if (uri == null) return;
+
+    if (kIsWeb) {
+      try {
+        final anchor = html.AnchorElement(href: _apkDownloadUrl)
+          ..setAttribute('download', 'student-portal.apk')
+          ..style.display = 'none';
+
+        html.document.body?.append(anchor);
+        anchor.click();
+        anchor.remove();
+
+        return;
+      } catch (_) {
+        // Fallback to default launch behavior below.
+      }
+    }
+
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
       showTopSnackBar(
@@ -587,24 +605,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 18),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    onPressed: _openApkDownload,
-                                    icon: const Icon(Icons.android),
-                                    label: const Text('Download Android APK'),
-                                    style: OutlinedButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(48),
-                                      side: BorderSide(color: fieldBorder),
-                                      foregroundColor: titleColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 14),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -635,6 +636,28 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                       ),
                                     ),
                                   ],
+                                ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: _openApkDownload,
+                                    icon: const Icon(Icons.android, size: 16),
+                                    label: const Text(
+                                      'APK',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      foregroundColor: subtitleColor,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      minimumSize: const Size(0, 30),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),

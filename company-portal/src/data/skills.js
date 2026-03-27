@@ -77,6 +77,41 @@ export const skillsData = {
         "Geotechnical Analysis", "Urban Planning", "Concrete Technology", 
         "Earthquake Engineering", "Site Supervision", "Contract Management"
       ]
+    },
+    {
+      name: "General Technology & Productivity",
+      skills: [
+        "HTML", "CSS", "JavaScript", "Bootstrap", "Tailwind CSS", "SASS", "SCSS",
+        "jQuery", "Responsive Web Design", "Web Accessibility (WCAG)", "SEO Fundamentals",
+        "Web Performance Optimization", "Progressive Web Apps (PWA)", "RESTful APIs",
+        "JSON", "XML", "AJAX", "Authentication & Authorization", "OAuth 2.0", "JWT",
+        "Unit Testing", "Integration Testing", "End-to-End Testing", "Test Automation",
+        "Debugging", "Error Handling", "Logging", "Code Review", "Refactoring",
+        "Object-Oriented Programming", "Functional Programming", "Data Structures",
+        "Algorithms", "Design Patterns", "Version Control", "Git", "GitHub Actions",
+        "CI/CD", "DevOps Basics", "Agile", "Scrum", "Kanban", "Jira", "Confluence",
+        "Notion", "Slack", "Microsoft Teams", "Google Workspace", "Microsoft Office",
+        "Word", "Excel", "PowerPoint", "Data Entry", "Report Writing",
+        "Technical Documentation", "API Documentation", "Problem Solving",
+        "Critical Thinking", "Analytical Thinking", "Communication Skills",
+        "Presentation Skills", "Team Collaboration", "Time Management", "Leadership",
+        "Research Skills", "Attention to Detail", "Customer Support", "Client Communication",
+        "UI Design Basics", "UX Design Basics", "Wireframing", "Prototyping",
+        "Figma", "Canva", "Adobe Photoshop", "Adobe Illustrator", "Video Editing",
+        "Content Creation", "Social Media Management", "Digital Marketing",
+        "Email Marketing", "Copywriting", "WordPress", "Shopify", "E-commerce Management",
+        "CRM", "ERP Basics", "Business Analysis", "Requirements Gathering",
+        "Stakeholder Management", "Project Coordination", "Product Management",
+        "Prompt Engineering", "AI-Assisted Development", "Data Analysis",
+        "Data Visualization", "SQL", "NoSQL", "Firebase", "Supabase", "Postman",
+        "Linux", "Windows Administration", "Networking Fundamentals", "Cyber Hygiene",
+        "Information Security Basics", "Cloud Fundamentals", "AWS Basics", "Azure Basics",
+        "Google Cloud Basics", "Virtualization", "Containerization", "Docker Basics",
+        "Kubernetes Basics", "Shell Scripting", "Bash", "PowerShell", "Python Scripting",
+        "Automation", "ETL Basics", "Business Process Improvement", "Lean Basics",
+        "Quality Assurance", "Risk Assessment", "Decision Making", "Negotiation",
+        "Public Speaking", "Conflict Resolution", "Mentoring", "Continuous Learning"
+      ]
     }
   ],
   softSkills: [
