@@ -13,6 +13,7 @@ import Dashboard from './pages/admin/dashboard';
 import StudentsList from './pages/admin/StudentsList';
 import AllStudentsList from './pages/admin/AllStudentsList';
 import CompaniesList from './pages/admin/CompaniesList';
+import AllCompaniesList from './pages/admin/AllCompaniesList';
 import CompanyRequests from './pages/admin/CompanyRequests';
 import RoomsManagement from './pages/admin/RoomsManagement';
 import JobFairSetup from './pages/admin/JobFairSetup';
@@ -24,6 +25,7 @@ import CompanyDetail from './pages/admin/CompanyDetail';
 import AttendanceManagement from './pages/admin/AttendanceManagement';
 import SurveyResponses from './pages/admin/SurveyResponses';
 import CompanySurveyDetail from './pages/admin/CompanySurveyDetail';
+import AdminManagement from './pages/admin/AdminManagement';
 
 
 // ----------------------------------------------------------------------
@@ -81,6 +83,7 @@ function App() {
           <Route path="all-students" element={<AllStudentsList />} />
           {/* 2. Add this line: */}
           <Route path="companies" element={<CompaniesList />} />
+          <Route path="companies/all" element={<AllCompaniesList />} />
           <Route path="company-requests" element={<CompanyRequests />} />
           <Route path="rooms" element={<RoomsManagement />} />
           <Route path="setup" element={<JobFairSetup />} />
@@ -89,6 +92,7 @@ function App() {
           <Route path="feedback" element={<FeedbackStats />} />
           <Route path="companies/:companyId" element={<CompanyDetail />} />
           <Route path="notices" element={<NoticeBoard />} />
+          <Route path="admin-management" element={<AdminManagement />} />
           <Route path="attendance" element={<AttendanceManagement />} />
           <Route path="surveys" element={<SurveyResponses />} />
           <Route path="surveys/company/:companyId" element={<CompanySurveyDetail />} />

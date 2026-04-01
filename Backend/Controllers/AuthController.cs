@@ -26,6 +26,7 @@ namespace JobFairPortal.Controllers
         private readonly ILogger<AuthController> _logger;
         private readonly AuthValidationService _validationService;
         private readonly AuthTokenService _tokenService;
+        private readonly IParticipationService _participationService;
 
         // Constants
         private const int PASSWORD_MIN_LENGTH = 8;
@@ -42,7 +43,8 @@ namespace JobFairPortal.Controllers
             IMemoryCache cache,
             ILogger<AuthController> logger,
             AuthValidationService validationService,
-            AuthTokenService tokenService)
+            AuthTokenService tokenService,
+            IParticipationService participationService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -51,6 +53,7 @@ namespace JobFairPortal.Controllers
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
             _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
+            _participationService = participationService ?? throw new ArgumentNullException(nameof(participationService));
         }
 
         // ========================================
@@ -186,15 +189,24 @@ namespace JobFairPortal.Controllers
                 return Unauthorized("Account not verified. Please complete the OTP verification process.");
             }
 
-            if (role == UserRole.Company && !string.IsNullOrWhiteSpace(loginDto.FcmToken))
+
+            if (role == UserRole.Company)
             {
                 var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == user.UserId);
                 if (company != null)
                 {
-                    company.FcmToken = loginDto.FcmToken;
-                    company.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("FCM token updated for company: {CompanyId}", company.CompanyId);
+                    if (company.IsBlocked)
+                    {
+                        _logger.LogWarning("Blocked company login attempt: {CompanyId}", company.CompanyId);
+                        return Unauthorized("Your account is on hold/blocked. Contact administration for further information.");
+                    }
+                    if (!string.IsNullOrWhiteSpace(loginDto.FcmToken))
+                    {
+                        company.FcmToken = loginDto.FcmToken;
+                        company.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                        _logger.LogInformation("FCM token updated for company: {CompanyId}", company.CompanyId);
+                    }
                 }
             }
 
@@ -284,6 +296,9 @@ namespace JobFairPortal.Controllers
                 };
                 _context.Students.Add(student);
                 await _context.SaveChangesAsync();
+
+                // Auto-register student for the active job fair
+                await _participationService.RegisterStudentForJobFairAsync(student.StudentId, activeJobFair.JobFairId);
 
                 // Send credentials via email
                 await SendStudentRegistrationEmail(email, tempPassword, activeJobFair);

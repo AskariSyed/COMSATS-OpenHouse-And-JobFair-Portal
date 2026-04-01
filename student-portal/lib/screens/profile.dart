@@ -12,6 +12,9 @@ import 'package:student_job_fair_portal/model/project.dart';
 // Mixins
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
 
+// Utils
+import 'package:student_job_fair_portal/utils/image_utils.dart';
+
 // Screens
 import 'package:student_job_fair_portal/screens/settings_screen.dart';
 
@@ -34,10 +37,7 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 class ProfileScreen extends StatefulWidget {
   final bool focusProjectInvitations;
 
-  const ProfileScreen({
-    super.key,
-    this.focusProjectInvitations = false,
-  });
+  const ProfileScreen({super.key, this.focusProjectInvitations = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -203,27 +203,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // 4. Check Profile Picture
     if (student != null &&
         (student.profilePicUrl == null || student.profilePicUrl!.isEmpty)) {
-      await showGenericDialog(
+      await showDialog(
         context: context,
-        title: "Upload Profile Picture",
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "A profile picture helps recruiters recognize you. Please upload a professional photo.",
-              textAlign: TextAlign.center,
+        barrierDismissible: false,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text("Upload Profile Picture"),
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "A profile picture helps recruiters recognize you. Please upload a professional photo.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13),
+                ),
+                SizedBox(height: 15),
+                Icon(Icons.account_circle, size: 80, color: Colors.grey),
+              ],
             ),
-            const SizedBox(height: 20),
-            const Icon(Icons.account_circle, size: 80, color: Colors.grey),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text("Skip for Now"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                await _onEditPicturePressed();
+              },
+              child: const Text("Upload Picture"),
+            ),
           ],
         ),
-        onSave: () async {
-          // Trigger the existing image picker logic
-          // We need to close this dialog first? No, onSave closes it after success.
-          // But _onEditPicturePressed shows snackbars and might take time.
-          // Let's just call it.
-          await _onEditPicturePressed();
-        },
       );
     }
   }
@@ -262,20 +275,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    final lowerName = image.name.toLowerCase();
-    final allowedImage =
-        lowerName.endsWith('.jpg') ||
-        lowerName.endsWith('.jpeg') ||
-        lowerName.endsWith('.png') ||
-        lowerName.endsWith('.webp');
-    if (!allowedImage) {
+    // ✅ Show crop option
+    if (mounted) {
+      final shouldCrop = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text("Crop Image"),
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Would you like to crop or adjust your profile picture?",
+                  style: TextStyle(fontSize: 13),
+                ),
+                SizedBox(height: 15),
+                Text(
+                  "✂️ Crop to perfect size\n📐 Choose aspect ratio\n✨ Frame your photo",
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text("Skip"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text("Crop Image"),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldCrop == true && mounted) {
+        final croppedImage = await ImageUtils.cropImage(image);
+        if (croppedImage != null && mounted) {
+          _validateAndUploadImage(croppedImage);
+        }
+      } else {
+        // Skip crop and validate directly
+        if (mounted) {
+          _validateAndUploadImage(image);
+        }
+      }
+    }
+  }
+
+  /// Helper method to validate and upload image
+  Future<void> _validateAndUploadImage(XFile image) async {
+    // ✅ Validate image
+    final validation = await ImageUtils.validateImage(image);
+    if (!validation.isValid) {
       if (!mounted) return;
       showTopSnackBar(
         Overlay.of(context),
-        const CustomSnackBar.error(
-          message: 'Please select a valid image file (JPG, JPEG, PNG, WEBP).',
+        CustomSnackBar.error(
+          message: validation.errorMessage ?? 'Invalid image.',
         ),
       );
+
+      // ✅ If file is too large, ask for resize option
+      if (validation.errorCode == 'FILE_TOO_LARGE') {
+        if (!mounted) return;
+        final shouldResize = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text("Image Too Large"),
+            content: const SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Your image size exceeded the maximum limit of 1 MB.",
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  SizedBox(height: 15),
+                  Text(
+                    "We can automatically resize it for you:\n\n✅ Compress to fit\n✅ Maintain quality\n✅ Process instantly",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text("Choose Another"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text("Auto-Resize"),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldResize == true && mounted) {
+          await _uploadWithResize(image);
+        }
+      }
       return;
     }
 
@@ -294,22 +397,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final provider = Provider.of<StudentProvider>(context, listen: false);
     try {
-      await provider.uploadProfilePic(image);
+      final result = await provider.uploadProfilePic(image);
       _persistentSnackBarController?.reverse();
 
       if (mounted) {
-        showTopSnackBar(
-          Overlay.of(context),
-          const CustomSnackBar.success(message: "Profile picture updated!"),
-        );
-        await _loadProfileData();
+        if (result.success) {
+          showTopSnackBar(
+            Overlay.of(context),
+            const CustomSnackBar.success(message: "Profile picture updated!"),
+          );
+          await _loadProfileData();
+        } else {
+          showTopSnackBar(
+            Overlay.of(context),
+            CustomSnackBar.error(message: result.getFormattedErrorMessage()),
+          );
+
+          // If file is too large, offer resize
+          if (mounted && result.errorCode == 'FILE_TOO_LARGE') {
+            final shouldResize = await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text("Image Too Large"),
+                content: const SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Your image size exceeded the maximum limit of 1 MB.",
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      SizedBox(height: 15),
+                      Text(
+                        "We can automatically resize it for you:\n\n✅ Compress to fit\n✅ Maintain quality\n✅ Process instantly",
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text("Choose Another"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text("Auto-Resize"),
+                  ),
+                ],
+              ),
+            );
+
+            if (shouldResize == true) {
+              await _uploadWithResize(image);
+            }
+          }
+        }
       }
     } catch (e) {
       _persistentSnackBarController?.reverse();
       if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
-          const CustomSnackBar.error(message: "Failed to upload picture."),
+          CustomSnackBar.error(message: "Error uploading picture: $e"),
+        );
+      }
+    }
+  }
+
+  /// Helper method to resize and upload image
+  Future<void> _uploadWithResize(XFile image) async {
+    try {
+      // Show progress
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.info(
+            message: "⏳ Resizing image... Please wait.",
+          ),
+          persistent: true,
+          onAnimationControllerInit: (controller) {
+            _persistentSnackBarController = controller;
+          },
+        );
+      }
+
+      // Perform compression
+      final imageBytes = await image.readAsBytes();
+      final compressed = await ImageUtils.compressImage(imageBytes);
+
+      // Upload compressed image
+      final provider = Provider.of<StudentProvider>(context, listen: false);
+      final result = await provider.uploadProfilePic(
+        compressed,
+        fileName: '${image.name}.jpg',
+      );
+
+      _persistentSnackBarController?.reverse();
+
+      if (mounted) {
+        if (result.success) {
+          showTopSnackBar(
+            Overlay.of(context),
+            const CustomSnackBar.success(
+              message: "✨ Image resized and uploaded successfully!",
+            ),
+          );
+          await _loadProfileData();
+        } else {
+          showTopSnackBar(
+            Overlay.of(context),
+            CustomSnackBar.error(message: result.getFormattedErrorMessage()),
+          );
+        }
+      }
+    } catch (e) {
+      _persistentSnackBarController?.reverse();
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(message: "Error resizing image: $e"),
         );
       }
     }

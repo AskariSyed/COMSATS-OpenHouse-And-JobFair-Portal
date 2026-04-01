@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, Eye, BookOpen, Award, XCircle, Bell, Edit2, X, Save
@@ -27,7 +27,7 @@ const StudentsList = () => {
   const [notifyModal, setNotifyModal] = useState({ open: false, student: null });
 
   // Fetch Students (Accepts page AND search query)
-  const fetchStudents = async (page = 1, search = '', jobFairId = selectedJobFairId) => {
+  const fetchStudents = useCallback(async (page = 1, search = '', jobFairId = selectedJobFairId) => {
     setLoading(true);
     try {
       // Append search param if it exists
@@ -47,9 +47,9 @@ const StudentsList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedJobFairId]);
 
-  const fetchJobFairs = async () => {
+  const fetchJobFairs = useCallback(async () => {
     try {
       const response = await getAllJobFairs();
       const jobFairsList = response.data?.jobFairs || response.data?.JobFairs || response.data || [];
@@ -65,12 +65,12 @@ const StudentsList = () => {
       toast.error('Failed to fetch job fairs');
       await fetchStudents(1, '', '');
     }
-  };
+  }, [fetchStudents]);
 
   // Initial Load
   useEffect(() => {
     fetchJobFairs();
-  }, []);
+  }, [fetchJobFairs]);
 
   // Handler: When user types
   const handleSearch = (e) => {
@@ -221,19 +221,28 @@ const StudentsList = () => {
                  ))
               ) : students.length > 0 ? (
                 students.map((s) => (
-                  <tr key={s.studentId} className="hover:bg-gray-50 transition-colors">
-                    {/* Name & Pic */}
+                  <tr
+                    key={s.studentId}
+                    className="hover:bg-indigo-50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                    title="View Profile"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden">
-                          {s.profilePicUrl ? (
-                            <img src={getFileUrl(s.profilePicUrl)} className="w-full h-full object-cover" alt={s.name} />
+                          {(s.profilePicUrl || s.profilePic || s.profilePicPath) ? (
+                            <img
+                              src={getFileUrl(s.profilePicUrl || s.profilePic || s.profilePicPath)}
+                              className="w-full h-full object-cover"
+                              alt={s.name}
+                              onError={e => { e.target.onerror = null; e.target.src = '/default-profile.png'; }}
+                            />
                           ) : (
                             s.name?.charAt(0)
                           )}
                         </div>
                         <div>
-                           <p className="font-medium text-gray-900">{s.name}</p>
+                           <p className="font-medium text-indigo-700 underline underline-offset-2">{s.name}</p>
                            <p className="text-xs text-gray-500 truncate max-w-[150px]">{s.email}</p>
                         </div>
                       </div>
@@ -261,14 +270,14 @@ const StudentsList = () => {
                           />
                           <div className="flex gap-2">
                             <button
-                              onClick={() => handleEditSave(s.studentId)}
+                              onClick={e => { e.stopPropagation(); handleEditSave(s.studentId); }}
                               disabled={editLoading}
                               className="flex-1 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 disabled:opacity-60"
                             >
                               Save
                             </button>
                             <button
-                              onClick={() => setEditingId(null)}
+                              onClick={e => { e.stopPropagation(); setEditingId(null); }}
                               className="flex-1 text-xs bg-gray-400 text-white px-2 py-1 rounded hover:bg-gray-500"
                             >
                               Cancel
@@ -277,34 +286,50 @@ const StudentsList = () => {
                         </div>
                       ) : (
                         <div className="flex justify-end gap-2">
-                          <button 
-                            onClick={() => navigate(`/admin/students/${s.studentId}?edit=profile`)}
+                          <button
+                            onClick={e => { e.stopPropagation(); navigate(`/admin/students/${s.studentId}?edit=profile`); }}
                             className="text-emerald-600 hover:text-emerald-900 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100 transition"
                             title="Edit Full Profile"
                           >
                             <BookOpen size={16} />
                           </button>
-                          <button 
-                            onClick={() => handleEditClick(s)}
+                          <button
+                            onClick={e => { e.stopPropagation(); handleEditClick(s); }}
                             className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition"
                             title="Edit Credentials"
                           >
                             <Edit2 size={16} />
                           </button>
-                          <button 
-                            onClick={() => setNotifyModal({ open: true, student: s })}
+                          <button
+                            onClick={e => { e.stopPropagation(); setNotifyModal({ open: true, student: s }); }}
                             className="text-amber-600 hover:text-amber-900 bg-amber-50 p-2 rounded-lg hover:bg-amber-100 transition"
                             title="Notify Student"
                           >
                             <Bell size={16} />
                           </button>
-                          <button 
-                            onClick={() => navigate(`/admin/students/${s.studentId}`)} 
-                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-lg hover:bg-indigo-100 transition"
-                            title="View Details"
-                          >
-                            <Eye size={16} />
-                          </button>
+                          {s.cvUrl && (
+                            <>
+                              <a
+                                href={getFileUrl(s.cvUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-fuchsia-600 hover:text-fuchsia-900 bg-fuchsia-50 p-2 rounded-lg hover:bg-fuchsia-100 transition"
+                                title="View CV"
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <Eye size={16} />
+                              </a>
+                              <a
+                                href={getFileUrl(s.cvUrl)}
+                                download
+                                className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-lg hover:bg-green-100 transition"
+                                title="Download CV"
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <BookOpen size={16} />
+                              </a>
+                            </>
+                          )}
                         </div>
                       )}
                     </td>

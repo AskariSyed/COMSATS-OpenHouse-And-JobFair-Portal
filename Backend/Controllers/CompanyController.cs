@@ -1390,25 +1390,31 @@ namespace JobFairPortal.Controllers
                 .Where(n => n.JobFairId == activeJobFair.JobFairId)
                 .AsQueryable();
 
-            // 4. Filter based on Audience
+            // 4. Filter based on Visibility & Audience
             if (isAdmin)
             {
-                // Admins see everything
-            }
-            else if (isStudent)
-            {
-                // Students see "Student" AND "All"
-                query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
-            }
-            else if (isCompany)
-            {
-                // Companies see "Company" AND "All"
-                query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+                // Admins see everything (both hidden and visible)
             }
             else
             {
-                // Fallback for unknown roles
-                return Forbid();
+                // Everyone else only sees NOT HIDDEN items
+                query = query.Where(n => n.IsHidden == false);
+
+                if (isStudent)
+                {
+                    // Students see "Student" AND "All"
+                    query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
+                }
+                else if (isCompany)
+                {
+                    // Companies see "Company" AND "All"
+                    query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+                }
+                else
+                {
+                    // Fallback for unknown roles
+                    return Forbid();
+                }
             }
 
             // 5. Execute and Return

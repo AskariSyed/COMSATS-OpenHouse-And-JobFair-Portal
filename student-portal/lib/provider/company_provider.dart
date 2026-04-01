@@ -9,11 +9,13 @@ class CompanyProvider with ChangeNotifier {
   List<Company> _companies = [];
   List<Company> _filteredCompanies = [];
   CompanyDetail? _selectedCompany;
+  List<dynamic> _recommendedCompanies = []; // Store recommended companies
 
   // 🔹 NEW: Cache map to store visited company profiles
   final Map<int, CompanyDetail> _detailsCache = {};
 
   bool _isLoading = false;
+  bool _isLoadingRecommended = false;
   String? _error;
 
   // Getters
@@ -23,9 +25,11 @@ class CompanyProvider with ChangeNotifier {
       : _filteredCompanies;
 
   List<Company> get displayCompanies => _filteredCompanies;
+  List<dynamic> get recommendedCompanies => _recommendedCompanies;
   CompanyDetail? get selectedCompany => _selectedCompany;
 
   bool get isLoading => _isLoading;
+  bool get isLoadingRecommended => _isLoadingRecommended;
   String? get error => _error;
 
   // Base URL
@@ -190,6 +194,41 @@ class CompanyProvider with ChangeNotifier {
 
     sortCompaniesBySkillMatch(studentSkills);
     notifyListeners();
+  }
+
+  // ✅ NEW: Fetch recommended companies based on student skills
+  Future<void> fetchRecommendedCompanies(String token) async {
+    _isLoadingRecommended = true;
+    notifyListeners();
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/companies/recommended"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _recommendedCompanies = data is List ? data : [];
+        _error = null;
+      } else if (response.statusCode == 400) {
+        // User doesn't have skills yet
+        _recommendedCompanies = [];
+        _error = null; // Don't show error for missing skills
+      } else {
+        _recommendedCompanies = [];
+        _error = "Failed to load recommendations.";
+      }
+    } catch (e) {
+      _recommendedCompanies = [];
+      _error = null; // Don't show error in recommendations
+    } finally {
+      _isLoadingRecommended = false;
+      notifyListeners();
+    }
   }
 
   void _setLoading(bool value) {

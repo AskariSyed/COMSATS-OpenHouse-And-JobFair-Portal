@@ -17,6 +17,7 @@ import 'package:student_job_fair_portal/model/dashboard_data.dart';
 import 'package:student_job_fair_portal/model/interview.dart';
 import 'package:student_job_fair_portal/mixins/enums.dart';
 import 'package:student_job_fair_portal/config/backend_config.dart';
+import 'package:student_job_fair_portal/utils/image_utils.dart';
 
 class StudentProvider with ChangeNotifier {
   Student? _student;
@@ -144,55 +145,119 @@ class StudentProvider with ChangeNotifier {
 
   // --- 2. CORE PROFILE UPDATES ---
 
-  /// ✅ UPDATED FOR WEB & MOBILE
-  /// Accepts an XFile directly from image_picker
-  Future<bool> uploadProfilePic(XFile xFile) async {
-    final lower = xFile.name.toLowerCase();
-    final isImage =
-        lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.png') ||
-        lower.endsWith('.webp');
-    if (!isImage) {
-      debugPrint("❌ Invalid profile image type: ${xFile.name}");
-      return false;
-    }
+  /// ✅ UPDATED FOR WEB & MOBILE WITH ERROR HANDLING
+  /// Accepts an XFile directly from image_picker or Uint8List for resized images
+  /// Returns ProfilePicUploadResult with success status and error details if failed
+  Future<ProfilePicUploadResult> uploadProfilePic(
+    dynamic imageInput, { // Can be XFile or Uint8List
+    String? fileName,
+  }) async {
+    try {
+      // Get bytes based on input type
+      Uint8List bytes;
+      String uploadFileName;
 
-    if (_student == null) return false;
-    _setLoading(true);
+      if (imageInput is XFile) {
+        final lower = imageInput.name.toLowerCase();
+        final isImage =
+            lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.png') ||
+            lower.endsWith('.webp');
+        if (!isImage) {
+          debugPrint("❌ Invalid profile image type: ${imageInput.name}");
+          return ProfilePicUploadResult(
+            success: false,
+            errorCode: 'INVALID_FILE_TYPE',
+            errorMessage: 'Only JPG, JPEG, PNG, and WEBP files are allowed.',
+          );
+        }
+        bytes = await imageInput.readAsBytes();
+        uploadFileName = imageInput.name;
+      } else if (imageInput is Uint8List) {
+        bytes = imageInput;
+        uploadFileName =
+            fileName ?? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      } else {
+        return ProfilePicUploadResult(
+          success: false,
+          errorCode: 'INVALID_INPUT',
+          errorMessage: 'Invalid image input type.',
+        );
+      }
 
-    final request = http.MultipartRequest(
-      "POST",
-      Uri.parse("$baseUrl/Student/profile-pic"),
-    )..headers.addAll({"Authorization": "Bearer $_token"});
+      if (_student == null) {
+        return ProfilePicUploadResult(
+          success: false,
+          errorCode: 'NO_STUDENT',
+          errorMessage: 'Student not found.',
+        );
+      }
 
-    // Platform-agnostic way to read bytes and create a multipart file
-    final bytes = await xFile.readAsBytes();
-    final multipartFile = http.MultipartFile.fromBytes(
-      'file',
-      bytes,
-      filename: xFile.name,
-    );
+      _setLoading(true);
 
-    request.files.add(multipartFile);
+      final request = http.MultipartRequest(
+        "POST",
+        Uri.parse("$baseUrl/Student/profile-pic"),
+      )..headers.addAll({"Authorization": "Bearer $_token"});
 
-    debugPrint("📤 Uploading Profile Pic => ${xFile.name}");
-
-    final response = await request.send();
-    final resBody = await response.stream.bytesToString();
-    _setLoading(false);
-
-    if (response.statusCode == 200) {
-      final data = json.decode(resBody);
-      _student = _student!.copyWith(
-        profilePicUrl: data["profilePicUrl"],
-        updatedAt: DateTime.now(),
+      final multipartFile = http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: uploadFileName,
       );
-      notifyListeners();
-      return true;
+
+      request.files.add(multipartFile);
+
+      debugPrint(
+        "📤 Uploading Profile Pic => $uploadFileName (${ImageUtils.getFileSizeDisplay(bytes.length)})",
+      );
+
+      final response = await request.send();
+      final resBody = await response.stream.bytesToString();
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(resBody);
+        _student = _student!.copyWith(
+          profilePicUrl: data["profilePicUrl"],
+          updatedAt: DateTime.now(),
+        );
+        notifyListeners();
+        return ProfilePicUploadResult(
+          success: true,
+          profilePicUrl: data["profilePicUrl"],
+          message: data["message"] ?? "Profile picture uploaded successfully.",
+        );
+      } else if (response.statusCode == 400) {
+        // Parse error response
+        final errorData = json.decode(resBody);
+        return ProfilePicUploadResult(
+          success: false,
+          errorCode: errorData["code"] ?? 'UPLOAD_ERROR',
+          errorMessage:
+              errorData["message"] ?? 'Failed to upload profile picture.',
+          suggestion: errorData["suggestion"],
+          fileSizeInMB: errorData["fileSizeInMB"],
+          allowedSizeInMB: errorData["allowedSizeInMB"],
+        );
+      } else {
+        return ProfilePicUploadResult(
+          success: false,
+          errorCode: 'HTTP_ERROR',
+          errorMessage:
+              'Server error (${response.statusCode}): Failed to upload picture.',
+        );
+      }
+    } catch (e) {
+      _setLoading(false);
+      debugPrint("❌ Exception during profile pic upload: $e");
+      return ProfilePicUploadResult(
+        success: false,
+        errorCode: 'EXCEPTION',
+        errorMessage: 'Error uploading image: $e',
+      );
     }
-    debugPrint("❌ Profile Pic upload failed: $resBody");
-    return false;
   }
 
   Future<bool> uploadGeneratedCv(Uint8List pdfBytes, {String? fileName}) async {
@@ -1452,5 +1517,47 @@ class StudentProvider with ChangeNotifier {
       _setLoading(false);
       return false;
     }
+  }
+}
+
+/// Result of profile picture upload operation
+class ProfilePicUploadResult {
+  final bool success;
+  final String? profilePicUrl;
+  final String? message;
+  final String? errorCode;
+  final String? errorMessage;
+  final String? suggestion;
+  final double? fileSizeInMB;
+  final int? allowedSizeInMB;
+
+  ProfilePicUploadResult({
+    required this.success,
+    this.profilePicUrl,
+    this.message,
+    this.errorCode,
+    this.errorMessage,
+    this.suggestion,
+    this.fileSizeInMB,
+    this.allowedSizeInMB,
+  });
+
+  /// Check if error is FILE_TOO_LARGE
+  bool get isFileTooLarge => errorCode == 'FILE_TOO_LARGE';
+
+  /// Get formatted error message for UI
+  String getFormattedErrorMessage() {
+    if (isFileTooLarge) {
+      return '$errorMessage\n\n📊 Your file: ${fileSizeInMB?.toStringAsFixed(2)} MB\n⬇️ Maximum allowed: ${allowedSizeInMB}MB\n\n$suggestion';
+    }
+    return '$errorMessage${suggestion != null ? '\n\n💡 $suggestion' : ''}';
+  }
+
+  @override
+  String toString() {
+    if (success) {
+      return 'ProfilePicUploadResult(success: true, url: $profilePicUrl)';
+    }
+    return 'ProfilePicUploadResult(success: false, error: $errorCode - $errorMessage)';
   }
 }

@@ -152,4 +152,14 @@ export const updateJobFair = (jobFairId, data) => api.put(`/admin/jobfairs/${job
 // --- Student credentials ---
 export const updateStudentCredentials = (studentId, data) => api.put(`/admin/students/${studentId}/edit-credentials`, data);
 
+export const unregisterStudentFromFair = (studentId, jobFairId) => {
+  const query = jobFairId ? `?jobFairId=${jobFairId}` : '';
+  return api.delete(`/admin/students/${studentId}/unregister-from-fair${query}`);
+};
+
+export const blockCompany = (companyId) => api.put(`/admin/companies/${companyId}/block`);
+export const unblockCompany = (companyId) => api.put(`/admin/companies/${companyId}/unblock`);
+
+api.blockCompany = blockCompany;
+api.unblockCompany = unblockCompany;
 export default api;

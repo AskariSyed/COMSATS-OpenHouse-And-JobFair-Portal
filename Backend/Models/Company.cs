@@ -12,6 +12,7 @@ namespace JobFairPortal.Models
 
     public class Company
     {
+        public bool IsBlocked { get; set; } = false;
         [Key]
         public int CompanyId { get; set; }
 

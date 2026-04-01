@@ -27,6 +27,7 @@ namespace JobFairPortal.DTOs
         public float CGPA { get; set; }
         public List<string> Skills { get; set; } = new();
         public string? ProfilePicUrl { get; set; }
+        public string? CvUrl { get; set; } // Added for CV download/view
     }
     
         public class NameDto

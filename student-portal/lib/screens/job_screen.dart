@@ -57,6 +57,7 @@ class _JobsScreenState extends State<JobsScreen> {
 
     if (studentProvider.token != null) {
       await jobProvider.fetchJobs(studentProvider.token!);
+      await jobProvider.fetchRecommendedJobs(studentProvider.token!);
     }
   }
 
@@ -126,7 +127,25 @@ class _JobsScreenState extends State<JobsScreen> {
                         child: Column(
                           children: [
                             _buildSearchBar(),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
+                            // ✅ RECOMMENDED JOBS SECTION (MOBILE)
+                            if (jobProvider.recommendedJobs.isNotEmpty)
+                              _buildRecommendedJobsSection(isMobile: true),
+                            // Show divider if recommended jobs exist
+                            if (jobProvider.recommendedJobs.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  "All Available Jobs",
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             showShimmer
                                 ? buildShimmerGrid(isMobile: true)
                                 : jobProvider.error != null &&
@@ -235,6 +254,31 @@ class _JobsScreenState extends State<JobsScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 30),
+                                    // ✅ RECOMMENDED JOBS SECTION (WEB)
+                                    if (jobProvider
+                                        .recommendedJobs
+                                        .isNotEmpty) ...[
+                                      _buildRecommendedJobsSection(
+                                        isMobile: false,
+                                      ),
+                                      const SizedBox(height: 40),
+                                      Divider(
+                                        color: Theme.of(
+                                          context,
+                                        ).dividerColor.withOpacity(0.2),
+                                      ),
+                                      const SizedBox(height: 30),
+                                      Text(
+                                        "All Available Jobs",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                    ],
                                     showShimmer
                                         ? buildShimmerGrid(isMobile: false)
                                         : filteredJobs.isEmpty
@@ -525,6 +569,220 @@ class _JobsScreenState extends State<JobsScreen> {
     if (jobs.isEmpty) return const SizedBox.shrink();
 
     return CompanyJobCard(jobs: jobs, serverBaseUrl: _serverBaseUrl);
+  }
+
+  Widget _buildRecommendedJobsSection({required bool isMobile}) {
+    final jobProvider = Provider.of<JobProvider>(context);
+    final recommendedJobs = jobProvider.recommendedJobs;
+
+    if (recommendedJobs.isEmpty || jobProvider.isLoadingRecommended) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.lightbulb, color: Colors.amber, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              "Recommended For You",
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final double availableWidth = constraints.maxWidth;
+            int columns = 1;
+            if (!isMobile) {
+              if (availableWidth > 1350) {
+                columns = 3;
+              } else if (availableWidth > 900) {
+                columns = 2;
+              }
+            }
+
+            final double spacing = 12.0;
+            final double totalSpacing = (columns - 1) * spacing;
+            final double cardWidth = columns > 1
+                ? (availableWidth - totalSpacing) / columns
+                : availableWidth;
+
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: recommendedJobs.map((job) {
+                return SizedBox(
+                  width: columns > 1 ? cardWidth : double.infinity,
+                  child: _buildRecommendedJobCard(job),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedJobCard(dynamic jobData) {
+    final jobTitle = jobData['jobTitle'] ?? 'Unknown Job';
+    final companyName = jobData['companyName'] ?? 'Unknown Company';
+    final companyLogo = jobData['companyLogo'];
+    final matchCount = jobData['matchCount'] ?? 0;
+    final matchedSkills = jobData['matchedSkills'] as List<dynamic>? ?? [];
+    final jobType = jobData['jobType'] ?? 'FullTime';
+
+    final logoUrl = companyLogo != null && companyLogo.isNotEmpty
+        ? (companyLogo.startsWith('http')
+              ? companyLogo
+              : BackendConfig.absoluteUrl(companyLogo))
+        : null;
+
+    return Card(
+      elevation: 4,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).cardColor,
+              Theme.of(context).cardColor.withOpacity(0.8),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (logoUrl != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: logoUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.business),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          companyName,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey[600]),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$matchCount/${matchedSkills.length} skills match',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                jobTitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  jobType,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: matchedSkills.take(3).map((skill) {
+                  return Chip(
+                    label: Text(
+                      skill.toString(),
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    backgroundColor: Colors.green[100],
+                    labelStyle: TextStyle(color: Colors.green[800]),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                  );
+                }).toList(),
+              ),
+              if (matchedSkills.length > 3)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '+${matchedSkills.length - 3} more skills',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

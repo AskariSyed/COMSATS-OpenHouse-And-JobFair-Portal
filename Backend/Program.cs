@@ -2,6 +2,7 @@
 using Google.Apis.Auth.OAuth2;
 using JobFairPortal.Data;
 using JobFairPortal.Services;
+using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -230,6 +231,50 @@ app.MapControllers();
 
 // Map SignalR hubs
 app.MapHub<CompanyRequestsHub>("/hubs/companyRequests");
+
+// ---------------------------
+// Initialize Admin User
+// ---------------------------
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<JobFairRecruitmentDbContext>();
+    try
+    {
+        // Check if any admin exists
+        var adminExists = await context.Users.AnyAsync(u => u.Role == UserRole.Admin);
+        if (!adminExists)
+        {
+            var defaultAdminEmail = "admin@a.com";
+            var defaultAdminPassword = "Admin@123";
+            var defaultAdminName = "System Administrator";
+            
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(defaultAdminPassword);
+            
+            var adminUser = new User
+            {
+                Email = defaultAdminEmail,
+                PasswordHash = hashedPassword,
+                FullName = defaultAdminName,
+                Role = UserRole.Admin,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            
+            context.Users.Add(adminUser);
+            await context.SaveChangesAsync();
+            Console.WriteLine($"✅ Default admin user created: {defaultAdminEmail}");
+        }
+        else
+        {
+            Console.WriteLine("✅ Admin user already exists.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error initializing admin: {ex.Message}");
+    }
+}
 
 // ---------------------------
 // 4. Run App

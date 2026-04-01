@@ -13,6 +13,16 @@ namespace JobFairPortal.DTOs
         public NoticeAudience Audience { get; set; }
     }
 
+    public class NoticeUpdateDto
+    {
+        [Required]
+        public string Title { get; set; } = string.Empty;
+        [Required]
+        public string Content { get; set; } = string.Empty;
+        [Required]
+        public NoticeAudience Audience { get; set; }
+    }
+
     public class NoticeResponseDto
     {
         public int NoticeId { get; set; }

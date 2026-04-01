@@ -7,11 +7,15 @@ import 'package:student_job_fair_portal/model/job.dart';
 class JobProvider with ChangeNotifier {
   List<Job> _jobs = [];
   List<Job> _filteredJobs = [];
+  List<dynamic> _recommendedJobs = []; // Store recommended jobs
   bool _isLoading = false;
+  bool _isLoadingRecommended = false;
   String? _error;
 
   List<Job> get displayJobs => _filteredJobs;
+  List<dynamic> get recommendedJobs => _recommendedJobs;
   bool get isLoading => _isLoading;
+  bool get isLoadingRecommended => _isLoadingRecommended;
   String? get error => _error;
 
   final String baseUrl = BackendConfig.apiBaseUrl;
@@ -62,6 +66,41 @@ class JobProvider with ChangeNotifier {
       }).toList();
     }
     notifyListeners();
+  }
+
+  // ✅ NEW: Fetch recommended jobs based on student skills
+  Future<void> fetchRecommendedJobs(String token) async {
+    _isLoadingRecommended = true;
+    notifyListeners();
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/jobs/recommended"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _recommendedJobs = data is List ? data : [];
+        _error = null;
+      } else if (response.statusCode == 400) {
+        // User doesn't have skills yet
+        _recommendedJobs = [];
+        _error = null; // Don't show error for missing skills
+      } else {
+        _recommendedJobs = [];
+        _error = "Failed to load recommendations.";
+      }
+    } catch (e) {
+      _recommendedJobs = [];
+      _error = null; // Don't show error in recommendations
+    } finally {
+      _isLoadingRecommended = false;
+      notifyListeners();
+    }
   }
 
   void _setLoading(bool value) {

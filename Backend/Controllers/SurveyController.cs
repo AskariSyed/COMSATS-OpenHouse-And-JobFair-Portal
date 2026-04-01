@@ -513,9 +513,11 @@ namespace JobFairPortal.Controllers
             var surveyList = surveys.Select(s => new
             {
                 SurveyId = s.SurveyId,
+                JobFairId = s.JobFairId,
                 Type = s.Type.ToString(),
                 Responses = DeserializeResponses(s.Responses),
                 CompanyName = s.Company?.Name,
+                JobFairSemester = s.JobFair != null ? s.JobFair.Semester : null,
                 SubmittedAt = s.SubmittedAt
             }).ToList();
 

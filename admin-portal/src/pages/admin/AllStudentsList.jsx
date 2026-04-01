@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
-import api, { getFileUrl, getAllStudentsGlobal, registerStudentForFair } from '../../lib/api';
+import api, { getFileUrl, getAllStudentsGlobal, registerStudentForFair, unregisterStudentFromFair } from '../../lib/api';
 
 // 🔧 CONFIGURATION
 
@@ -59,10 +59,21 @@ const AllStudentsList = () => {
     }
   };
 
+  const handleUnregister = async (studentId) => {
+    try {
+      await unregisterStudentFromFair(studentId);
+      toast.success("Student unregistered from Job Fair");
+      fetchStudents(meta.page, searchTerm, departmentFilter); // Refresh
+    } catch (error) {
+      toast.error("Failed to unregister student");
+    }
+  };
+
+
   // Initial Load
   useEffect(() => {
     fetchStudents(1, searchTerm, departmentFilter);
-  }, [departmentFilter]); // Refetch when department changes
+  }, [departmentFilter, searchTerm]); // Refetch when department or search changes
 
   // Handler: When user types
   const handleSearch = (e) => {
@@ -214,24 +225,29 @@ const AllStudentsList = () => {
                  ))
               ) : sortedStudents.length > 0 ? (
                 sortedStudents.map((s) => (
-                  <tr key={s.studentId} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={s.studentId}
+                    className="hover:bg-indigo-50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                    title="View Profile"
+                  >
                     {/* Name & Pic */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden border border-indigo-200">
                           {(s.profilePicUrl || s.profilePic) ? (
-                            <img 
-                              src={getFileUrl(s.profilePicUrl || s.profilePic)} 
-                              className="w-full h-full object-cover" 
+                            <img
+                              src={getFileUrl(s.profilePicUrl || s.profilePic)}
+                              className="w-full h-full object-cover"
                               alt={s.name}
-                              onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerText = s.name?.charAt(0); }} 
+                              onError={e => { e.target.onerror = null; e.target.src = '/default-profile.png'; }}
                             />
                           ) : (
                             s.name?.charAt(0)
                           )}
                         </div>
                         <div>
-                           <p className="font-medium text-gray-900">{s.name}</p>
+                           <p className="font-medium text-indigo-700 underline underline-offset-2">{s.name}</p>
                            <p className="text-xs text-gray-500 truncate max-w-[150px]">{s.email}</p>
                         </div>
                       </div>
@@ -239,7 +255,6 @@ const AllStudentsList = () => {
                     <td className="px-6 py-4 text-sm font-mono text-gray-600">{s.registrationNo}</td>
                     <td className="px-6 py-4"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{s.department}</span></td>
                     <td className="px-6 py-4"><span className={`font-bold ${s.cgpa >= 3.0 ? 'text-emerald-600' : 'text-gray-600'}`}>{s.cgpa?.toFixed(2)}</span></td>
-                    
                     {/* Status Column */}
                     <td className="px-6 py-4">
                       {s.isRegistered ? (
@@ -247,31 +262,54 @@ const AllStudentsList = () => {
                           <CheckCircle size={12} /> Registered
                         </span>
                       ) : (
-                        <button 
-                          onClick={() => handleRegister(s.studentId)}
+                        <button
+                          onClick={e => { e.stopPropagation(); handleRegister(s.studentId); }}
                           className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
                         >
                           <UserPlus size={12} /> Register
                         </button>
                       )}
+                      {s.isRegistered && (
+                        <button
+                          onClick={e => { e.stopPropagation(); handleUnregister(s.studentId); }}
+                          className="ml-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
+                        >
+                          <XCircle size={12} /> Unregister
+                        </button>
+                      )}
                     </td>
-
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => setNotifyModal({ open: true, student: s })}
+                        <button
+                          onClick={e => { e.stopPropagation(); setNotifyModal({ open: true, student: s }); }}
                           className="text-amber-600 hover:text-amber-900 bg-amber-50 p-2 rounded-lg hover:bg-amber-100 transition"
                           title="Notify Student"
                         >
                           <Bell size={16} />
                         </button>
-                        <button 
-                          onClick={() => navigate(`/admin/students/${s.studentId}`)} 
-                          className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-lg hover:bg-indigo-100 transition"
-                          title="View Details"
-                        >
-                          <Eye size={16} />
-                        </button>
+                        {s.cvUrl && (
+                          <>
+                            <a
+                              href={getFileUrl(s.cvUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-fuchsia-600 hover:text-fuchsia-900 bg-fuchsia-50 p-2 rounded-lg hover:bg-fuchsia-100 transition"
+                              title="View CV"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Eye size={16} />
+                            </a>
+                            <a
+                              href={getFileUrl(s.cvUrl)}
+                              download
+                              className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-lg hover:bg-green-100 transition"
+                              title="Download CV"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <BookOpen size={16} />
+                            </a>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -290,7 +328,7 @@ const AllStudentsList = () => {
                       </p>
                       {searchTerm && (
                         <button 
-                          onClick={clearSearch}
+                          onClick={clearFilters}
                           className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1"
                         >
                           <XCircle size={14} /> Clear Search

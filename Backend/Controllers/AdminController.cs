@@ -32,6 +32,7 @@ namespace JobFairPortal.Controllers
     [Route("api/[controller]")]
     [Authorize(Roles = "Admin")]
     public class AdminController : ControllerBase
+
     {
         private readonly JobFairRecruitmentDbContext _context;
 
@@ -85,6 +86,77 @@ namespace JobFairPortal.Controllers
                 Email = adminUser.Email
             });
         }
+        
+            // -----------------------------
+            // Get All Companies (Global List, regardless of participation)
+            // -----------------------------
+            [HttpGet("companies/all")]
+            public async Task<IActionResult> GetAllCompaniesGlobal(
+                [FromQuery] int page = 1,
+                [FromQuery] int pageSize = 20,
+                [FromQuery] string? search = null)
+            {
+                _logger.LogInformation("GetAllCompaniesGlobal called.");
+
+                if (page < 1) page = 1;
+                if (pageSize < 1) pageSize = 20;
+
+                var query = _context.Companies
+                    .Include(c => c.User)
+                    .Include(c => c.Room)
+                    .Include(c => c.Jobs)
+                    .Include(c => c.Interviews)
+                    .AsQueryable();
+
+                // Search filter
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var searchLower = search.ToLower();
+                    query = query.Where(c =>
+                        (c.Name ?? string.Empty).ToLower().Contains(searchLower) ||
+                        (c.Industry ?? string.Empty).ToLower().Contains(searchLower) ||
+                        (c.CompanyEmail ?? string.Empty).ToLower().Contains(searchLower)
+                    );
+                }
+
+                var totalCount = await query.CountAsync();
+                var companies = await query
+                    .OrderBy(c => c.Name)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(c => new {
+                        CompanyId = c.CompanyId,
+                        Name = c.Name,
+                        Industry = c.Industry,
+                        LogoUrl = c.LogoUrl,
+                        ProfilePicUrl = c.LogoUrl,
+                        Website = c.Website,
+                        UserEmail = c.User != null ? c.User.Email : null,
+                        UserPhone = c.User != null ? c.User.Phone : null,
+                        CompanyEmail = c.CompanyEmail,
+                        CompanyPhone = c.CompanyPhone,
+                        FocalPersonName = c.FocalPersonName,
+                        FocalPersonEmail = c.FocalPersonEmail,
+                        FocalPersonPhone = c.FocalPersonPhone,
+                        RoomName = c.Room != null ? c.Room.RoomName : null,
+                        IsBlocked = c.IsBlocked,
+                        RepsCount = c.RepsCount,
+                        TotalJobs = c.Jobs.Count(),
+                        TotalInterviews = c.Interviews.Count(),
+                        CreatedAt = c.CreatedAt,
+                        UpdatedAt = c.UpdatedAt
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                    Companies = companies
+                });
+            }
         // -----------------------------
         // 24. Get All Students (Global List with Participation Status)
         // -----------------------------
@@ -136,6 +208,7 @@ namespace JobFairPortal.Controllers
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
                     CGPA = s.CGPA,
+                    CvUrl = s.CvUrl,
                     // Check if they have a participation record for the active job fair
                     Participation = activeJobFairId.HasValue
                         ? s.JobFairParticipations
@@ -155,6 +228,7 @@ namespace JobFairPortal.Controllers
                 s.RegistrationNo,
                 s.Department,
                 s.CGPA,
+                s.CvUrl,
                 IsRegistered = s.Participation != null,
                 ParticipationId = s.Participation?.ParticipationId,
                 RegisteredAt = s.Participation?.RegisteredAt
@@ -346,6 +420,49 @@ namespace JobFairPortal.Controllers
         // -----------------------------
         // 4. Get All Companies
         // -----------------------------
+            // -----------------------------
+            // Block/Unblock Company for Current Job Fair
+            // -----------------------------
+
+            [HttpPut("companies/{companyId}/block")]
+            public async Task<IActionResult> BlockCompany(int companyId)
+            {
+                var company = await _context.Companies.Include(c => c.JobFairParticipations).FirstOrDefaultAsync(c => c.CompanyId == companyId);
+                if (company == null)
+                    return NotFound(new { Message = "Company not found." });
+
+                // Set IsBlocked true (blocks login)
+                company.IsBlocked = true;
+                company.UpdatedAt = DateTime.UtcNow;
+
+                // Remove participation for active job fair
+                var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+                if (activeJobFair != null)
+                {
+                    var participation = company.JobFairParticipations.FirstOrDefault(p => p.JobFairId == activeJobFair.JobFairId);
+                    if (participation != null)
+                    {
+                        _context.CompanyJobFairParticipations.Remove(participation);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Ok(new { Message = "Company blocked and participation cancelled for current job fair." });
+            }
+
+            [HttpPut("companies/{companyId}/unblock")]
+            public async Task<IActionResult> UnblockCompany(int companyId)
+            {
+                var company = await _context.Companies.FirstOrDefaultAsync(c => c.CompanyId == companyId);
+                if (company == null)
+                    return NotFound(new { Message = "Company not found." });
+
+                company.IsBlocked = false;
+                company.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return Ok(new { Message = "Company unblocked. They can now log in and register for future job fairs." });
+            }
+
         [HttpGet("companies")]
         public async Task<IActionResult> GetCompanies([FromQuery] int? jobFairId = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
@@ -380,6 +497,7 @@ namespace JobFairPortal.Controllers
                 Name = p.Company.Name,
                 Industry = p.Company.Industry,
                 LogoUrl = p.Company.LogoUrl,
+                ProfilePicUrl = p.Company.LogoUrl,
                 Website = p.Company.Website,
                 UserEmail = p.Company.User != null ? p.Company.User.Email : null,
                 UserPhone = p.Company.User != null ? p.Company.User.Phone : null,
@@ -430,6 +548,9 @@ namespace JobFairPortal.Controllers
                 .Include(c => c.Jobs)
                 .Include(c => c.CompanyContactLinks)
                 .Include(c => c.JobFairParticipations)
+                    .ThenInclude(p => p.JobFair)
+                .Include(c => c.JobFairParticipations)
+                    .ThenInclude(p => p.Room)
                 .FirstOrDefaultAsync(c => c.CompanyId == companyId);
 
             if (company == null)
@@ -479,6 +600,51 @@ namespace JobFairPortal.Controllers
                 IsPresent = company.IsPresent,
                 RepsCount = company.RepsCount,
                 InterviewDurationMinutes = company.InterviewDurationMinutes,
+                CurrentParticipation = participation != null ? new
+                {
+                    ParticipationId = participation.ParticipationId,
+                    JobFairId = participation.JobFairId,
+                    JobFairSemester = participation.JobFair?.Semester,
+                    JobFairDate = participation.JobFair?.date,
+                    IsActiveJobFair = participation.JobFair?.IsActive ?? false,
+                    ArrivalStatus = participation.ArrivalStatus.ToString(),
+                    IsPresent = participation.IsPresent,
+                    RepsCount = participation.RepsCount,
+                    InterviewDurationMinutes = participation.InterviewDurationMinutes,
+                    Room = participation.Room != null ? new
+                    {
+                        participation.Room.RoomId,
+                        participation.Room.RoomName,
+                        participation.Room.Capacity,
+                        Status = participation.Room.Status.ToString()
+                    } : null,
+                    RegisteredAt = participation.RegisteredAt,
+                    UpdatedAt = participation.UpdatedAt
+                } : null,
+
+                ParticipationHistory = company.JobFairParticipations
+                    .OrderByDescending(p => p.RegisteredAt)
+                    .Select(p => new
+                    {
+                        ParticipationId = p.ParticipationId,
+                        JobFairId = p.JobFairId,
+                        JobFairSemester = p.JobFair != null ? p.JobFair.Semester : null,
+                        JobFairDate = p.JobFair != null ? p.JobFair.date : (DateTime?)null,
+                        IsActiveJobFair = p.JobFair != null && p.JobFair.IsActive,
+                        ArrivalStatus = p.ArrivalStatus.ToString(),
+                        IsPresent = p.IsPresent,
+                        RepsCount = p.RepsCount,
+                        InterviewDurationMinutes = p.InterviewDurationMinutes,
+                        Room = p.Room != null ? new
+                        {
+                            p.Room.RoomId,
+                            p.Room.RoomName,
+                            p.Room.Capacity,
+                            Status = p.Room.Status.ToString()
+                        } : null,
+                        RegisteredAt = p.RegisteredAt,
+                        UpdatedAt = p.UpdatedAt
+                    }).ToList(),
 
                 // --- Social Media & Contact Links ---
                 ContactLinks = company.CompanyContactLinks.Select(cl => new
@@ -493,6 +659,7 @@ namespace JobFairPortal.Controllers
                 Jobs = company.Jobs.Select(j => new
                 {
                     j.JobId,
+                    j.JobFairId,
                     j.JobTitle,
                     j.JobDescription,
                     j.RequiredSkills,
@@ -518,6 +685,7 @@ namespace JobFairPortal.Controllers
                     .Select(i => new
                     {
                         i.InterviewId,
+                        i.JobFairId,
                         StudentName = i.Student.User.FullName,
                         StudentRegistration = i.Student.RegistrationNo,
                         StudentEmail = i.Student.User.Email,
@@ -533,6 +701,7 @@ namespace JobFairPortal.Controllers
                     .Select(i => new
                     {
                         i.InterviewId,
+                        i.JobFairId,
                         StudentId = i.Student.StudentId,
                         StudentName = i.Student.User.FullName,
                         StudentRegistration = i.Student.RegistrationNo,
@@ -549,6 +718,7 @@ namespace JobFairPortal.Controllers
                     .Select(i => new
                     {
                         i.InterviewId,
+                        i.JobFairId,
                         StudentId = i.Student.StudentId,
                         StudentName = i.Student.User.FullName,
                         StudentRegistration = i.Student.RegistrationNo,
@@ -565,6 +735,7 @@ namespace JobFairPortal.Controllers
                     .Select(i => new
                     {
                         i.InterviewId,
+                        i.JobFairId,
                         StudentId = i.Student.StudentId,
                         StudentName = i.Student.User.FullName,
                         StudentRegistration = i.Student.RegistrationNo,
@@ -579,6 +750,7 @@ namespace JobFairPortal.Controllers
                     .Select(ir => new
                     {
                         ir.RequestId,
+                        ir.JobFairId,
                         StudentId = ir.Student.StudentId,
                         StudentName = ir.Student.User.FullName,
                         StudentRegistration = ir.Student.RegistrationNo,
@@ -1140,6 +1312,29 @@ Job Fair Team
 
             return Ok(dashboard);
         }
+                // -----------------------------
+        // 25. Unregister Student from Current Job Fair
+        // -----------------------------
+        [HttpDelete("students/{studentId}/unregister-from-fair")]
+        public async Task<IActionResult> UnregisterStudentFromCurrentJobFair(int studentId)
+        {
+            // Get the active job fair
+            var activeJobFairId = await GetActiveJobFairIdAsync();
+            if (activeJobFairId == null)
+                return NotFound(new { Message = "No active job fair found." });
+
+            // Find the participation record
+            var participation = await _context.StudentJobFairParticipations
+                .FirstOrDefaultAsync(p => p.StudentId == studentId && p.JobFairId == activeJobFairId.Value);
+
+            if (participation == null)
+                return NotFound(new { Message = "Student is not registered for the current job fair." });
+
+            _context.StudentJobFairParticipations.Remove(participation);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Student unregistered from the current job fair successfully." });
+        }
         // ========================================
         // Send FCM Notification to a Specific Company
         // ========================================
@@ -1616,6 +1811,7 @@ Job Fair Team
                 Department = p.Student.Department,
                 CGPA = p.Student.CGPA,
                 ProfilePicUrl = p.Student.ProfilePicUrl,
+                ProfilePic = p.Student.ProfilePicUrl,
                 Skills = p.Student.Skills ?? new List<string>(),
                 FypTitle = p.Student.StudentProjects
                     .Where(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)
@@ -1855,6 +2051,7 @@ Job Fair Team
                 Department = student.Department,
                 CGPA = student.CGPA,
                 ProfilePicUrl = student.ProfilePicUrl,
+                CVUrl=student.CvUrl,
                 Skills = student.Skills ?? new List<string>(),
 
                 // --- Contact Details ---
@@ -3039,6 +3236,8 @@ Job Fair Team
                     {
                         id = p.Company.CompanyId,
                         companyName = p.Company.Name,
+                        logoUrl = p.Company.LogoUrl,
+                        profilePicUrl = p.Company.LogoUrl,
                         contactEmail = p.Company.FocalPersonEmail,
                         contactNumber = p.Company.FocalPersonPhone,
                         isPresent = p.IsPresent
@@ -3087,7 +3286,104 @@ Job Fair Team
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }
+[HttpDelete("notice/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteNotice(int id)
+        {
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound("Notice not found.");
 
+            // SOFT DELETE: Just hide it
+            notice.IsHidden = true;
+            notice.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Notice has been hidden (Soft Deleted)." });
+        }
+    
+        [HttpPost("notices")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateNotice([FromBody] NoticeCreateDto dto)
+        {
+            var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null)
+                return BadRequest("No active Job Fair found. Cannot create notice.");
+
+            var notice = new Notice
+            {
+                Title = dto.Title,
+                Content = dto.Content,
+                Audience = dto.Audience,
+                JobFairId = activeJobFair.JobFairId,
+                IsHidden = false, // Default is visible
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Notices.Add(notice);
+            await _context.SaveChangesAsync();
+
+            return Ok(new NoticeResponseDto
+            {
+                NoticeId = notice.NoticeId,
+                Title = notice.Title,
+                Content = notice.Content,
+                Audience = notice.Audience.ToString(),
+                IsHidden = notice.IsHidden,
+                CreatedAt = notice.CreatedAt
+            });
+        }
+
+        [HttpPut("notices/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateNotice(int id, [FromBody] NoticeUpdateDto dto)
+        {
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound("Notice not found.");
+
+            // Update notice fields
+            notice.Title = dto.Title;
+            notice.Content = dto.Content;
+            notice.Audience = dto.Audience;
+            notice.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new NoticeResponseDto
+            {
+                NoticeId = notice.NoticeId,
+                Title = notice.Title,
+                Content = notice.Content,
+                Audience = notice.Audience.ToString(),
+                IsHidden = notice.IsHidden,
+                CreatedAt = notice.CreatedAt
+            });
+        }
+        
+        [HttpPut("Notice/{id}/toggle-visibility")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ToggleVisibility(int id)
+        {
+            var notice = await _context.Notices.FindAsync(id);
+            if (notice == null)
+                return NotFound("Notice not found.");
+
+            // Flip the status
+            notice.IsHidden = !notice.IsHidden;
+            notice.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = notice.IsHidden ? "Notice hidden." : "Notice is now visible.",
+                IsHidden = notice.IsHidden
+            });
+        }
+ 
         // ======================================
         // END ATTENDANCE MANAGEMENT ENDPOINTS
         // ======================================
@@ -3526,6 +3822,230 @@ Job Fair Team
                     _logger.LogWarning(ex, "Failed to send manual room allotment notifications for company {CompanyId}", company.CompanyId);
                 }
             });
+        }
+
+        // ✅ NEW: Admin management endpoints
+        // ========================================
+        // Create Admin User (Admin can create other admins)
+        // ========================================
+        [HttpPost("admins/create")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateAdminUser([FromBody] AdminCreateDto dto)
+        {
+            _logger.LogInformation("Admin creating new admin user with email: {Email}", dto.Email);
+
+            // Validate input
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password) || string.IsNullOrWhiteSpace(dto.Name))
+            {
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Email, password, and name are required." });
+            }
+
+            // Check if admin already exists
+            var existingAdmin = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email && u.Role == UserRole.Admin);
+            if (existingAdmin != null)
+            {
+                _logger.LogWarning("Admin creation failed. Admin with email {Email} already exists.", dto.Email);
+                return BadRequest(new { Code = "DUPLICATE_ADMIN", Message = "An admin with this email already exists." });
+            }
+
+            try
+            {
+                // Hash password
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+                var adminUser = new User
+                {
+                    FullName = dto.Name,
+                    Email = dto.Email,
+                    PasswordHash = hashedPassword,
+                    Role = UserRole.Admin,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Users.Add(adminUser);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("✅ Admin user created successfully: {Email}", dto.Email);
+
+                return Ok(new
+                {
+                    Code = "SUCCESS",
+                    Message = "Admin user created successfully.",
+                    AdminId = adminUser.UserId,
+                    Email = adminUser.Email,
+                    Name = adminUser.FullName
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating admin user");
+                return StatusCode(500, new { Code = "ERROR", Message = "Error creating admin user: " + ex.Message });
+            }
+        }
+
+        // ========================================
+        // Change Admin Password
+        // ========================================
+        [HttpPut("admins/change-password")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ChangeAdminPassword([FromBody] ChangeAdminPasswordDto dto)
+        {
+            _logger.LogInformation("Admin changing password");
+
+            // Validate input
+            if (string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.NewPassword))
+            {
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Current password and new password are required." });
+            }
+
+            try
+            {
+                // Get current admin user from token claims
+                var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (!int.TryParse(userIdClaim?.Value, out int userId))
+                {
+                    return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
+                }
+
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.Role == UserRole.Admin);
+                if (admin == null)
+                {
+                    return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Admin user not found." });
+                }
+
+                // Verify current password
+                if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, admin.PasswordHash))
+                {
+                    _logger.LogWarning("Password change failed: incorrect current password for admin {AdminId}", userId);
+                    return BadRequest(new { Code = "INVALID_PASSWORD", Message = "Current password is incorrect." });
+                }
+
+                // Hash new password
+                string hashedNewPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+                admin.PasswordHash = hashedNewPassword;
+                admin.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("✅ Admin {AdminId} changed password successfully", userId);
+
+                return Ok(new
+                {
+                    Code = "SUCCESS",
+                    Message = "Password changed successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing admin password");
+                return StatusCode(500, new { Code = "ERROR", Message = "Error changing password: " + ex.Message });
+            }
+        }
+
+        // ========================================
+        // Change Admin Email
+        // ========================================
+        [HttpPut("admins/change-email")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ChangeAdminEmail([FromBody] ChangeAdminEmailDto dto)
+        {
+            _logger.LogInformation("Admin changing email");
+
+            // Validate input
+            if (string.IsNullOrWhiteSpace(dto.NewEmail) || string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "New email and password are required." });
+            }
+
+            try
+            {
+                // Get current admin user from token claims
+                var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (!int.TryParse(userIdClaim?.Value, out int userId))
+                {
+                    return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
+                }
+
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.Role == UserRole.Admin);
+                if (admin == null)
+                {
+                    return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Admin user not found." });
+                }
+
+                // Verify password
+                if (!BCrypt.Net.BCrypt.Verify(dto.Password, admin.PasswordHash))
+                {
+                    _logger.LogWarning("Email change failed: incorrect password for admin {AdminId}", userId);
+                    return BadRequest(new { Code = "INVALID_PASSWORD", Message = "Password is incorrect." });
+                }
+
+                // Check if new email already exists
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.NewEmail && u.UserId != userId);
+                if (existingUser != null)
+                {
+                    return BadRequest(new { Code = "DUPLICATE_EMAIL", Message = "This email is already in use." });
+                }
+
+                // Update email
+                admin.Email = dto.NewEmail;
+                admin.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("✅ Admin {AdminId} changed email to {NewEmail}", userId, dto.NewEmail);
+
+                return Ok(new
+                {
+                    Code = "SUCCESS",
+                    Message = "Email changed successfully.",
+                    NewEmail = admin.Email
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing admin email");
+                return StatusCode(500, new { Code = "ERROR", Message = "Error changing email: " + ex.Message });
+            }
+        }
+
+        // ========================================
+        // Get All Admins
+        // ========================================
+        [HttpGet("admins")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAllAdmins()
+        {
+            _logger.LogInformation("Fetching all admin users");
+
+            try
+            {
+                var admins = await _context.Users
+                    .Where(u => u.Role == UserRole.Admin)
+                    .Select(u => new
+                    {
+                        u.UserId,
+                        u.Email,
+                        u.FullName,
+                        u.IsActive,
+                        u.CreatedAt
+                    })
+                    .OrderByDescending(u => u.CreatedAt)
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    Code = "SUCCESS",
+                    Count = admins.Count,
+                    Admins = admins
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching admins");
+                return StatusCode(500, new { Code = "ERROR", Message = "Error fetching admins: " + ex.Message });
+            }
         }
     }
 }

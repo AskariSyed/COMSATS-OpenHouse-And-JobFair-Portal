@@ -4,7 +4,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Building2, MapPin, Mail, Phone, Globe, User, 
   Briefcase, CheckCircle, XCircle, Clock, Calendar, 
-  Users, Layout, Link as LinkIcon, FileText, Eye, Edit2, Save, X
+  Users, Layout, Link as LinkIcon, FileText, Eye, Edit2, Save, X, Download
 } from 'lucide-react';
 import api, { getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -223,6 +223,7 @@ const CompanyDetail = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [surveysData, setSurveysData] = useState(null);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [dossierJobFairScope, setDossierJobFairScope] = useState('all');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileFormData, setProfileFormData] = useState({
@@ -246,7 +247,43 @@ const CompanyDetail = () => {
       navigate('/admin/analytics', { state: fromAnalytics });
       return;
     }
-    navigate(-1);
+
+    const fromRoute = location?.state?.from;
+    if (typeof fromRoute === 'string' && fromRoute.startsWith('/admin/')) {
+      navigate(fromRoute);
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/admin/companies');
+  };
+
+  const getImageDataUrl = async (imageUrl) => {
+    if (!imageUrl) return null;
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = imageUrl;
+    });
   };
 
   const fetchDetails = async () => {
@@ -341,7 +378,21 @@ const CompanyDetail = () => {
   const scheduledInterviews = data.scheduledInterviews || data.ScheduledInterviews || [];
   const hiredStudents = data.hiredStudents || data.HiredStudents || [];
   const shortlistedStudents = data.shortlistedStudents || data.ShortlistedStudents || [];
+  const rejectedStudents = data.rejectedStudents || data.RejectedStudents || [];
   const totalJobs = Number(data.totalJobs ?? data.TotalJobs ?? jobs.length);
+  const contactLinks = data.contactLinks || data.ContactLinks || [];
+  const currentParticipation = data.currentParticipation || data.CurrentParticipation || null;
+  const participationHistory = data.participationHistory || data.ParticipationHistory || [];
+  const jobFairOptions = [
+    { value: 'all', label: 'All Job Fairs' },
+    ...participationHistory.map((participation) => ({
+      value: String(participation.jobFairId || participation.JobFairId),
+      label:
+        participation.jobFairSemester ||
+        participation.JobFairSemester ||
+        `Job Fair ${participation.jobFairId || participation.JobFairId}`,
+    })),
+  ].filter((option, index, self) => self.findIndex((item) => item.value === option.value) === index);
   const surveySummary = surveysData
     ? {
         totalSurveys: Number(surveysData.totalSurveys ?? surveysData.TotalSurveys ?? 0),
@@ -392,6 +443,39 @@ const CompanyDetail = () => {
     });
 
     return { jobFairLabel, logoDataUrl };
+  };
+
+  const normalizeJobFairId = (value) => (value === null || value === undefined ? null : String(value));
+
+  const getSelectedScopeParticipations = () => {
+    if (dossierJobFairScope === 'all') {
+      return participationHistory;
+    }
+
+    return participationHistory.filter((participation) =>
+      normalizeJobFairId(participation.jobFairId || participation.JobFairId) === normalizeJobFairId(dossierJobFairScope)
+    );
+  };
+
+  const getSelectedScopeSurveys = (fairId, allSurveys = []) => {
+    if (fairId === null) return allSurveys;
+    return allSurveys.filter((survey) => normalizeJobFairId(survey.jobFairId || survey.JobFairId) === normalizeJobFairId(fairId));
+  };
+
+  const getSelectedScopeJobs = (fairId) => {
+    if (fairId === null) return jobs;
+    return jobs.filter((job) => normalizeJobFairId(job.jobFairId || job.JobFairId) === normalizeJobFairId(fairId));
+  };
+
+  const getSelectedScopeInterviews = (fairId) => {
+    const selectByFair = (items) => (fairId === null ? items : items.filter((item) => normalizeJobFairId(item.jobFairId || item.JobFairId) === normalizeJobFairId(fairId)));
+
+    return {
+      scheduled: selectByFair(scheduledInterviews),
+      hired: selectByFair(hiredStudents),
+      shortlisted: selectByFair(shortlistedStudents),
+      rejected: selectByFair(rejectedStudents),
+    };
   };
 
   const handleDownloadSurveyPdf = async (mode) => {
@@ -482,6 +566,350 @@ const CompanyDetail = () => {
     }
   };
 
+  const handleDownloadCompanyDossier = async () => {
+    const loadingToastId = toast.loading('Preparing full company dossier...');
+
+    try {
+      const surveyRes = await api.get(`/survey/company/${companyId}`);
+      const surveyData = surveyRes.data || {};
+      const surveyItems = surveyData.surveys || surveyData.Surveys || [];
+      const companyName = data?.name || surveyData.companyName || 'Company';
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const { jobFairLabel, logoDataUrl } = await getPdfBrandingAssets();
+      const companyLogoDataUrl = await getImageDataUrl(data.logoUrl ? getFileUrl(data.logoUrl) : null);
+      const selectedParticipations = getSelectedScopeParticipations();
+
+      const selectedSections = dossierJobFairScope === 'all'
+        ? (selectedParticipations.length > 0 ? selectedParticipations : [null])
+        : (selectedParticipations.length > 0 ? selectedParticipations : [null]);
+
+      const drawHeader = (title, subtitle) => {
+        const titleLines = doc.splitTextToSize(title, pageWidth - 28);
+        if (logoDataUrl) {
+          doc.addImage(logoDataUrl, 'PNG', 14, 8, 18, 18);
+        }
+        if (companyLogoDataUrl) {
+          try {
+            doc.addImage(companyLogoDataUrl, 'PNG', pageWidth - 32, 8, 18, 18);
+          } catch {
+            // Ignore logo rendering failures.
+          }
+        }
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Job Fair/Open House (${jobFairLabel})`, pageWidth / 2, 14, { align: 'center' });
+        doc.text('CDC CUI, Wah Campus (cdc@ciitwah.edu.pk)', pageWidth / 2, 20, { align: 'center' });
+        doc.setFontSize(15);
+        doc.setTextColor(37, 99, 235);
+        doc.text(titleLines, 14, 30);
+        if (subtitle) {
+          doc.setFontSize(9);
+          doc.setTextColor(90);
+          doc.setFont(undefined, 'normal');
+          const subtitleLines = doc.splitTextToSize(subtitle, pageWidth - 28);
+          const titleHeight = titleLines.length * 6;
+          const subtitleY = 30 + titleHeight + 4;
+          doc.text(subtitleLines, 14, subtitleY);
+          return subtitleY + (subtitleLines.length * 4) + 10;
+        }
+
+        return 30 + (titleLines.length * 6) + 10;
+      };
+
+      const addSectionTitle = (title, y) => {
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'bold');
+        doc.text(title, 14, y);
+      };
+
+      const ensureSpace = (currentY, requiredHeight = 40) => {
+        if (currentY + requiredHeight > pageHeight - 18) {
+          doc.addPage();
+          return 24;
+        }
+        return currentY;
+      };
+
+      const dossierHeaderBottom = drawHeader(
+        `${companyName} - Full Company Dossier`,
+        `Scope: ${dossierJobFairScope === 'all' ? 'All Job Fairs' : (jobFairOptions.find((option) => option.value === dossierJobFairScope)?.label || dossierJobFairScope)} | Generated: ${new Date().toLocaleString()}`
+      );
+
+      autoTable(doc, {
+        startY: dossierHeaderBottom + 4,
+        head: [['Field', 'Value']],
+        body: [
+          ['Company Name', data?.name || 'N/A'],
+          ['Industry', data?.industry || 'N/A'],
+          ['Description', data?.description || 'N/A'],
+          ['Website', data?.website || 'N/A'],
+          ['Address', data?.address || 'N/A'],
+          ['Company Email', contactDetails.email || contactDetails.Email || 'N/A'],
+          ['Company Phone', contactDetails.phone || contactDetails.Phone || 'N/A'],
+          ['Focal Person', focalPerson.name || focalPerson.Name || 'N/A'],
+          ['Focal Person Email', focalPerson.email || focalPerson.Email || 'N/A'],
+          ['Focal Person Phone', focalPerson.phone || focalPerson.Phone || 'N/A'],
+          ['Reps Count', String(data?.repsCount ?? 'N/A')],
+          ['Interview Duration (mins)', String(data?.interviewDurationMinutes ?? 'N/A')],
+          ['Current Arrival Status', data?.arrivalStatus || data?.ArrivalStatus || 'Pending'],
+          ['Current Present Status', data?.isPresent ? 'Present' : 'Not Present'],
+          ['Allocated Room', data?.room?.roomName || data?.Room?.roomName || 'Not Allocated'],
+          ['Logo URL', data?.logoUrl || data?.LogoUrl || 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        columnStyles: {
+          0: { cellWidth: 55 },
+          1: { cellWidth: 120 }
+        }
+      });
+
+      let nextY = (doc.lastAutoTable?.finalY || dossierHeaderBottom + 4) + 10;
+
+      if (contactLinks.length > 0) {
+        nextY = ensureSpace(nextY, 30);
+        addSectionTitle('Contact Links', nextY);
+        autoTable(doc, {
+          startY: nextY + 4,
+          head: [['Platform', 'URL']],
+          body: contactLinks.map((link) => [link.platform || link.Platform || 'N/A', link.url || link.Url || 'N/A']),
+          theme: 'striped',
+          headStyles: { fillColor: [14, 165, 233] },
+          styles: { fontSize: 8 }
+        });
+        nextY = (doc.lastAutoTable?.finalY || nextY) + 10;
+      }
+
+      nextY = ensureSpace(nextY, 30);
+      addSectionTitle('Job Fair Participation History', nextY);
+      autoTable(doc, {
+        startY: nextY + 4,
+        head: [['Scope', 'Job Fair', 'Date', 'Status', 'Present', 'Room', 'Registered']],
+        body: participationHistory.length > 0
+          ? participationHistory.map((participation) => [
+              currentParticipation && Number(currentParticipation.participationId) === Number(participation.participationId) ? 'Current' : 'Previous',
+              participation.jobFairSemester || participation.JobFairSemester || `#${participation.jobFairId || participation.JobFairId}`,
+              participation.jobFairDate ? new Date(participation.jobFairDate).toLocaleDateString() : 'N/A',
+              participation.arrivalStatus || participation.ArrivalStatus || 'Pending',
+              participation.isPresent ? 'Yes' : 'No',
+              participation.room?.roomName || participation.Room?.roomName || 'Not Allocated',
+              participation.registeredAt ? new Date(participation.registeredAt).toLocaleString() : 'N/A'
+            ])
+          : [['N/A', 'No participation history available', '-', '-', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: [22, 163, 74] },
+        styles: { fontSize: 8 },
+      });
+
+      doc.addPage();
+
+      const renderFairSection = async (fairParticipation, index) => {
+        const fairId = fairParticipation ? fairParticipation.jobFairId || fairParticipation.JobFairId : null;
+        const fairLabel = fairParticipation
+          ? fairParticipation.jobFairSemester || fairParticipation.JobFairSemester || `Job Fair ${fairId}`
+          : 'No Job Fair Selected';
+        const fairDate = fairParticipation?.jobFairDate || fairParticipation?.JobFairDate || null;
+        const fairJobs = getSelectedScopeJobs(fairId);
+        const fairInterviews = getSelectedScopeInterviews(fairId);
+        const fairSurveys = getSelectedScopeSurveys(fairId, surveyItems);
+
+        if (index > 0) {
+          doc.addPage();
+        }
+
+        const fairHeaderBottom = drawHeader(
+          `${companyName} - ${fairLabel}`,
+          `Job Fair Date: ${fairDate ? new Date(fairDate).toLocaleDateString() : 'N/A'} | Present: ${fairParticipation?.isPresent ? 'Yes' : 'No'} | Room: ${fairParticipation?.room?.roomName || fairParticipation?.Room?.roomName || 'Not Allocated'}`
+        );
+
+        let sectionY = Math.max(fairHeaderBottom + 12, 64);
+
+        sectionY = ensureSpace(sectionY, 42);
+        autoTable(doc, {
+          startY: sectionY,
+          head: [['Field', 'Value']],
+          body: [
+            ['Job Fair', fairLabel],
+            ['Arrival Status', fairParticipation?.arrivalStatus || fairParticipation?.ArrivalStatus || 'Pending'],
+            ['Present', fairParticipation?.isPresent ? 'Yes' : 'No'],
+            ['Reps Count', String(fairParticipation?.repsCount ?? fairParticipation?.RepsCount ?? data?.repsCount ?? 'N/A')],
+            ['Interview Duration (mins)', String(fairParticipation?.interviewDurationMinutes ?? fairParticipation?.InterviewDurationMinutes ?? data?.interviewDurationMinutes ?? 'N/A')],
+            ['Allocated Room', fairParticipation?.room?.roomName || fairParticipation?.Room?.roomName || 'Not Allocated'],
+            ['Room Capacity', String(fairParticipation?.room?.capacity ?? fairParticipation?.Room?.Capacity ?? 'N/A')],
+            ['Total Jobs', String(fairJobs.length)],
+            ['Total Interviews', String(fairInterviews.scheduled.length + fairInterviews.hired.length + fairInterviews.shortlisted.length + fairInterviews.rejected.length)],
+            ['Hired', String(fairInterviews.hired.length)],
+            ['Shortlisted', String(fairInterviews.shortlisted.length)],
+            ['Rejected', String(fairInterviews.rejected.length)],
+            ['Survey Count', String(fairSurveys.length)],
+          ],
+          theme: 'grid',
+          headStyles: { fillColor: [37, 99, 235] },
+          styles: { fontSize: 8, cellPadding: 2.5 },
+          columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: 120 } }
+        });
+
+        sectionY = (doc.lastAutoTable?.finalY || sectionY) + 10;
+
+        autoTable(doc, {
+          startY: sectionY,
+          head: [['Job Title', 'Type', 'Positions', 'Skills', 'Description']],
+          body: fairJobs.length > 0
+            ? fairJobs.map((job) => [
+                job.jobTitle || job.JobTitle || 'N/A',
+                job.jobType || job.JobType || 'N/A',
+                String(job.numberOfJobs ?? job.NumberOfJobs ?? 'N/A'),
+                Array.isArray(job.requiredSkills || job.RequiredSkills)
+                  ? (job.requiredSkills || job.RequiredSkills).join(', ')
+                  : (job.allSkillsRequired || job.AllSkillsRequired || 'N/A'),
+                job.jobDescription || job.JobDescription || 'N/A'
+              ])
+            : [['N/A', 'No jobs available for this job fair', '-', '-', '-']],
+          theme: 'grid',
+          headStyles: { fillColor: [79, 70, 229] },
+          styles: { fontSize: 7 },
+          columnStyles: { 0: { cellWidth: 35 }, 1: { cellWidth: 22 }, 2: { cellWidth: 18 }, 3: { cellWidth: 45 } }
+        });
+
+        sectionY = (doc.lastAutoTable?.finalY || sectionY) + 10;
+          sectionY = ensureSpace(sectionY, 28);
+
+        autoTable(doc, {
+          startY: sectionY,
+          head: [['Metric', 'Value']],
+          body: [
+            ['Total Interviews', String(fairInterviews.scheduled.length + fairInterviews.hired.length + fairInterviews.shortlisted.length + fairInterviews.rejected.length)],
+            ['Hired', String(fairInterviews.hired.length)],
+            ['Shortlisted', String(fairInterviews.shortlisted.length)],
+            ['Rejected', String(fairInterviews.rejected.length)],
+            ['Scheduled', String(fairInterviews.scheduled.length)],
+          ],
+          theme: 'striped',
+          headStyles: { fillColor: [245, 158, 11] },
+          styles: { fontSize: 8 }
+        });
+
+        const interviewSection = (title, rows, color) => {
+          sectionY = (doc.lastAutoTable?.finalY || sectionY) + 8;
+          sectionY = ensureSpace(sectionY, 28);
+          autoTable(doc, {
+            startY: sectionY,
+            head: [['Student', 'Reg No', 'Department', 'CGPA', 'Date']],
+            body: rows.length > 0
+              ? rows.map((student) => [
+                  student.studentName || student.StudentName || 'N/A',
+                  student.studentRegistration || student.StudentRegistration || 'N/A',
+                  student.department || student.Department || 'N/A',
+                  String(Number(student.cgpa ?? student.CGPA ?? 0).toFixed(2)),
+                  student.hiredDate || student.HiredDate || student.shortlistedDate || student.ShortlistedDate || student.rejectedDate || student.RejectedDate || student.updatedAt || student.UpdatedAt || student.interviewDate || student.InterviewDate
+                    ? new Date(student.hiredDate || student.HiredDate || student.shortlistedDate || student.ShortlistedDate || student.rejectedDate || student.RejectedDate || student.updatedAt || student.UpdatedAt || student.interviewDate || student.InterviewDate).toLocaleString()
+                    : 'N/A'
+                ])
+              : [['N/A', `No ${title.toLowerCase()} available`, '-', '-', '-']],
+            theme: 'striped',
+            headStyles: { fillColor: color },
+            styles: { fontSize: 7 }
+          });
+        };
+
+        interviewSection('Hired Students', fairInterviews.hired, [16, 185, 129]);
+        interviewSection('Shortlisted Students', fairInterviews.shortlisted, [99, 102, 241]);
+        interviewSection('Rejected Students', fairInterviews.rejected, [239, 68, 68]);
+        interviewSection('Scheduled Interviews', fairInterviews.scheduled, [37, 99, 235]);
+
+        sectionY = (doc.lastAutoTable?.finalY || sectionY) + 10;
+        sectionY = ensureSpace(sectionY, 24);
+        autoTable(doc, {
+          startY: sectionY,
+          head: [['Metric', 'Value']],
+          body: [
+            ['Total Surveys', String(fairSurveys.length)],
+            ['CDC Surveys', String(fairSurveys.filter((survey) => String(survey.type || survey.Type || '') === 'CDC').length)],
+            ['Department Surveys', String(fairSurveys.filter((survey) => String(survey.type || survey.Type || '') === 'Department').length)],
+          ],
+          theme: 'striped',
+          headStyles: { fillColor: [139, 92, 246] },
+          styles: { fontSize: 8 }
+        });
+
+        const renderSurveyPages = fairSurveys.length > 0 ? fairSurveys : [];
+        if (renderSurveyPages.length === 0) {
+          sectionY = (doc.lastAutoTable?.finalY || sectionY) + 8;
+          sectionY = ensureSpace(sectionY, 20);
+          autoTable(doc, {
+            startY: sectionY,
+            head: [['Status', 'Details']],
+            body: [['No survey responses available for this job fair', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [107, 114, 128] },
+            styles: { fontSize: 8 }
+          });
+          return;
+        }
+
+        for (let surveyIndex = 0; surveyIndex < renderSurveyPages.length; surveyIndex++) {
+          const survey = renderSurveyPages[surveyIndex];
+          if (surveyIndex > 0) {
+            doc.addPage();
+            const surveyHeaderBottom = drawHeader(`${companyName} - ${fairLabel}`, `Survey ${surveyIndex + 1} of ${renderSurveyPages.length}`);
+            sectionY = Math.max(surveyHeaderBottom + 12, 64);
+          } else if (surveyIndex === 0) {
+            sectionY = Math.max(sectionY, 64);
+          }
+
+          const surveyType = String(survey.type || survey.Type || 'Unknown');
+          const rows = getSurveyQuestionAnswerRows(survey).map((item) => [item.question, item.answer]);
+          const submittedAt = survey.submittedAt || survey.SubmittedAt;
+
+          const surveyMetaY = sectionY;
+          doc.setFontSize(12);
+          doc.setTextColor(0);
+          doc.setFont(undefined, 'bold');
+          doc.text(`Survey ${surveyIndex + 1}: ${surveyType}`, 14, surveyMetaY);
+          doc.setFontSize(9);
+          doc.setTextColor(90);
+          doc.setFont(undefined, 'normal');
+          doc.text(`Submitted: ${submittedAt ? new Date(submittedAt).toLocaleString() : 'N/A'}`, 14, surveyMetaY + 6);
+
+          const surveyTableStart = ensureSpace(surveyMetaY + 12, 25);
+          autoTable(doc, {
+            startY: surveyTableStart,
+            head: [['Question', 'Answer']],
+            body: rows.length ? rows : [['No survey questions available', 'N/A']],
+            theme: 'striped',
+            headStyles: { fillColor: surveyType === 'CDC' ? [79, 70, 229] : [245, 158, 11] },
+            styles: { fontSize: 8, cellPadding: 2.5 },
+            columnStyles: {
+              0: { cellWidth: 95 },
+              1: { cellWidth: 90 }
+            }
+          });
+        }
+      };
+
+      for (let index = 0; index < selectedSections.length; index++) {
+        await renderFairSection(selectedSections[index], index);
+      }
+
+      const safeFileName = String(companyName).replace(/\s+/g, '_');
+      const scopeSuffix = dossierJobFairScope === 'all'
+        ? 'All_Job_Fairs'
+        : `JobFair_${jobFairOptions.find((option) => option.value === dossierJobFairScope)?.label || dossierJobFairScope}`.replace(/\s+/g, '_');
+      doc.save(`${safeFileName}_Full_Company_Dossier_${scopeSuffix}_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.dismiss(loadingToastId);
+      toast.success('Company dossier downloaded');
+    } catch (error) {
+      console.error('Company dossier generation failed:', error);
+      toast.dismiss(loadingToastId);
+      toast.error('Failed to generate full company dossier');
+    }
+  };
+
   // Chart Data
   const statData = [
     { name: 'Hired', value: interviewStats.hired, color: '#10B981' },
@@ -549,6 +977,26 @@ const CompanyDetail = () => {
                 >
                   <Edit2 size={16} /> Edit Company Profile
                 </button>
+
+                <button
+                  onClick={handleDownloadCompanyDossier}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-white text-gray-700 rounded-lg text-sm font-semibold border border-gray-200 hover:bg-gray-50 transition"
+                >
+                  <Download size={16} /> Download Full Dossier
+                </button>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-gray-400 uppercase">Dossier Scope</label>
+                  <select
+                    value={dossierJobFairScope}
+                    onChange={(e) => setDossierJobFairScope(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-900 text-sm"
+                  >
+                    {jobFairOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* Room */}
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">

@@ -14,7 +14,10 @@ import {
   Loader2,
   Bell, 
   Users,
-  Edit2
+  Edit2,
+  Eye,
+  Ban,
+  CheckCircle
 } from 'lucide-react';
 import api, { getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -452,8 +455,8 @@ const CompaniesList = () => {
                               <Building2 className="text-gray-400 group-hover:text-indigo-600" size={20} />
                             )}
                           </div>
-                          <div className="overflow-hidden">
-                            <p className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1" title={company.name}>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors break-words whitespace-normal leading-snug" title={company.name}>
                               {company.name}
                               {typeof company.repsCount === 'number' && (
                                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">
@@ -543,12 +546,22 @@ const CompaniesList = () => {
                                 e.stopPropagation();
                                 setAssignRoomModal({ open: true, company });
                               }}
-                              className="px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                              className="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                               title="Assign Room"
                             >
-                              Assign
+                              <MapPin size={16} />
                             </button>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/companies/${company.companyId}`);
+                            }}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View Company"
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -568,6 +581,28 @@ const CompaniesList = () => {
                             title="Send Notification"
                           >
                             <Bell size={16} />
+                          </button>
+                          {/* Block/Unblock Button */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                if (company.isBlocked) {
+                                  await api.unblockCompany(company.companyId);
+                                  toast.success(`${company.name} unblocked successfully!`);
+                                } else {
+                                  await api.blockCompany(company.companyId);
+                                  toast.success(`${company.name} blocked and unregistered from job fair!`);
+                                }
+                                fetchCompanies(meta.page);
+                              } catch (error) {
+                                toast.error(getApiErrorMessage(error, 'Failed to update block status.'));
+                              }
+                            }}
+                            className={`p-2 rounded-lg transition-colors ${company.isBlocked ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'}`}
+                            title={company.isBlocked ? 'Unblock Company' : 'Block Company'}
+                          >
+                            {company.isBlocked ? <CheckCircle size={16} /> : <Ban size={16} />}
                           </button>
                         </div>
                       </td>

@@ -27,9 +27,10 @@ import { toast } from 'react-hot-toast';
 // ----------------------------------
 // Helper: Sidebar Item Component
 // ----------------------------------
-const SidebarItem = ({ to, icon: Icon, label, onClick }) => (
+const SidebarItem = ({ to, icon: Icon, label, onClick, end = false }) => (
   <NavLink
     to={to}
+    end={end}
     onClick={onClick}
     className={({ isActive }) =>
       `flex items-center space-x-3 px-6 py-3.5 transition-all duration-200 group ${
@@ -51,12 +52,27 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [activeAccountTab, setActiveAccountTab] = useState('password');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
+  const [emailForm, setEmailForm] = useState({
+    newEmail: '',
+    password: ''
+  });
+  const [createAdminForm, setCreateAdminForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const passwordRules = {
     minLength: passwordForm.newPassword.length >= 8,
@@ -82,7 +98,15 @@ const AdminLayout = () => {
 
   const closeChangePasswordModal = () => {
     setIsChangePasswordOpen(false);
+    setActiveAccountTab('password');
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setEmailForm({ newEmail: '', password: '' });
+    setCreateAdminForm({ name: '', email: '', password: '', confirmPassword: '' });
+  };
+
+  const openAccountModal = (tab) => {
+    setActiveAccountTab(tab);
+    setIsChangePasswordOpen(true);
   };
 
   const handleChangePassword = async (e) => {
@@ -105,10 +129,9 @@ const AdminLayout = () => {
 
     setIsChangingPassword(true);
     try {
-      await api.post('/Auth/change-password', {
+      await api.put('/admin/admins/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
-        confirmPassword: passwordForm.confirmPassword,
       });
       toast.success('Password changed successfully.');
       closeChangePasswordModal();
@@ -120,6 +143,83 @@ const AdminLayout = () => {
       toast.error(String(message));
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  const handleChangeEmail = async (e) => {
+    e.preventDefault();
+
+    if (!emailForm.newEmail || !emailForm.password) {
+      toast.error('Please provide new email and current password.');
+      return;
+    }
+
+    if (!emailRegex.test(emailForm.newEmail.trim())) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    setIsChangingEmail(true);
+    try {
+      await api.put('/admin/admins/change-email', {
+        newEmail: emailForm.newEmail.trim(),
+        password: emailForm.password,
+      });
+      toast.success('Email changed successfully. Please login again.');
+      closeChangePasswordModal();
+      localStorage.clear();
+      navigate('/');
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        'Failed to change email. Please try again.';
+      toast.error(String(message));
+    } finally {
+      setIsChangingEmail(false);
+    }
+  };
+
+  const handleCreateAdmin = async (e) => {
+    e.preventDefault();
+
+    if (!createAdminForm.name || !createAdminForm.email || !createAdminForm.password || !createAdminForm.confirmPassword) {
+      toast.error('Please fill all fields to create admin.');
+      return;
+    }
+
+    if (!emailRegex.test(createAdminForm.email.trim())) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+
+    if (createAdminForm.password.length < 8) {
+      toast.error('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (createAdminForm.password !== createAdminForm.confirmPassword) {
+      toast.error('Password and confirm password do not match.');
+      return;
+    }
+
+    setIsCreatingAdmin(true);
+    try {
+      await api.post('/admin/admins/create', {
+        name: createAdminForm.name.trim(),
+        email: createAdminForm.email.trim(),
+        password: createAdminForm.password,
+      });
+      toast.success('New admin created successfully.');
+      setCreateAdminForm({ name: '', email: '', password: '', confirmPassword: '' });
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data ||
+        'Failed to create admin. Please try again.';
+      toast.error(String(message));
+    } finally {
+      setIsCreatingAdmin(false);
     }
   };
 
@@ -195,6 +295,13 @@ const AdminLayout = () => {
             to="/admin/companies" 
             icon={Building2} 
             label="Companies" 
+            end
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <SidebarItem 
+            to="/admin/companies/all" 
+            icon={Building2} 
+            label="All Companies Directory" 
             onClick={() => setIsSidebarOpen(false)}
           />
           <SidebarItem 
@@ -239,18 +346,17 @@ const AdminLayout = () => {
   label="Notice Board" 
   onClick={() => setIsSidebarOpen(false)}
 />
+<SidebarItem 
+  to="/admin/admin-management" 
+  icon={KeyRound} 
+  label="Admin Management" 
+  onClick={() => setIsSidebarOpen(false)}
+/>
         </nav>
         
 
         {/* Logout Button */}
         <div className="p-4 border-t border-slate-700 relative z-10 flex-shrink-0">
-          <button
-            onClick={() => setIsChangePasswordOpen(true)}
-            className="mb-2 flex items-center space-x-3 px-4 py-3 w-full text-indigo-300 hover:bg-indigo-900/30 rounded-lg transition-colors"
-          >
-            <KeyRound size={20} />
-            <span className="font-medium">Change Password</span>
-          </button>
           <button 
             onClick={handleLogout}
             className="flex items-center space-x-3 px-4 py-3 w-full text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
@@ -291,16 +397,41 @@ const AdminLayout = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Change Password</h3>
+              <h3 className="text-lg font-bold text-gray-900">Admin Account Settings</h3>
               <button
                 onClick={closeChangePasswordModal}
                 className="text-gray-400 hover:text-gray-700"
-                disabled={isChangingPassword}
+                disabled={isChangingPassword || isChangingEmail || isCreatingAdmin}
               >
                 <X size={20} />
               </button>
             </div>
 
+            <div className="px-5 pt-4 pb-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveAccountTab('password')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${activeAccountTab === 'password' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Password
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAccountTab('email')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${activeAccountTab === 'email' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveAccountTab('create')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${activeAccountTab === 'create' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                Create Admin
+              </button>
+            </div>
+
+            {activeAccountTab === 'password' && (
             <form onSubmit={handleChangePassword} className="p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
@@ -367,6 +498,119 @@ const AdminLayout = () => {
                 </button>
               </div>
             </form>
+            )}
+
+            {activeAccountTab === 'email' && (
+            <form onSubmit={handleChangeEmail} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Email</label>
+                <input
+                  type="email"
+                  value={emailForm.newEmail}
+                  onChange={(e) => setEmailForm({ ...emailForm, newEmail: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={emailForm.password}
+                  onChange={(e) => setEmailForm({ ...emailForm, password: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  disabled={isChangingEmail}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingEmail}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-60 flex items-center gap-2"
+                >
+                  {isChangingEmail ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {isChangingEmail ? 'Updating...' : 'Update Email'}
+                </button>
+              </div>
+            </form>
+            )}
+
+            {activeAccountTab === 'create' && (
+            <form onSubmit={handleCreateAdmin} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={createAdminForm.name}
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, name: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={createAdminForm.email}
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, email: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={createAdminForm.password}
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, password: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input
+                  type="password"
+                  value={createAdminForm.confirmPassword}
+                  onChange={(e) => setCreateAdminForm({ ...createAdminForm, confirmPassword: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  disabled={isCreatingAdmin}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingAdmin}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-60 flex items-center gap-2"
+                >
+                  {isCreatingAdmin ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {isCreatingAdmin ? 'Creating...' : 'Create Admin'}
+                </button>
+              </div>
+            </form>
+            )}
           </div>
         </div>
       )}

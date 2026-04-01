@@ -338,6 +338,88 @@ const SurveyResponses = () => {
     });
   }, [companies, surveys, filters.search, filters.companyId]);
 
+  const submissionStatusRows = useMemo(() => {
+    const responseMap = new Map();
+
+    surveys.forEach((survey) => {
+      const idKey = survey.companyId ? `id-${survey.companyId}` : null;
+      const nameKey = String(survey.companyName || '').trim().toLowerCase();
+      const key = idKey || `name-${nameKey}`;
+      if (!key || key === 'name-') return;
+
+      if (!responseMap.has(key)) {
+        responseMap.set(key, { hasCDC: false, hasDepartment: false });
+      }
+
+      const entry = responseMap.get(key);
+      if (survey.type === 'CDC') entry.hasCDC = true;
+      if (survey.type === 'Department') entry.hasDepartment = true;
+    });
+
+    const fromCompanies = companies.map((company) => {
+      const companyId = company.companyId || company.CompanyId;
+      const companyName = String(company.name || company.Name || company.companyName || '').trim();
+      const directKey = companyId ? `id-${companyId}` : `name-${companyName.toLowerCase()}`;
+      const fallbackKey = `name-${companyName.toLowerCase()}`;
+      const responseEntry = responseMap.get(directKey) || responseMap.get(fallbackKey) || { hasCDC: false, hasDepartment: false };
+
+      return {
+        companyId,
+        companyName,
+        email:
+          company.email ||
+          company.Email ||
+          company.contactEmail ||
+          company.ContactEmail ||
+          company.companyEmail ||
+          company.CompanyEmail ||
+          'N/A',
+        room:
+          company.roomName ||
+          company.RoomName ||
+          company.roomNo ||
+          company.RoomNo ||
+          company.room ||
+          company.Room ||
+          'Not Allocated',
+        hasCDC: responseEntry.hasCDC,
+        hasDepartment: responseEntry.hasDepartment,
+      };
+    });
+
+    // Include companies that have survey rows but are missing from current companies API response.
+    const seen = new Set(
+      fromCompanies.map((row) => String(row.companyId || '').trim() || row.companyName.toLowerCase())
+    );
+
+    surveys.forEach((survey) => {
+      const identity = String(survey.companyId || '').trim() || String(survey.companyName || '').trim().toLowerCase();
+      if (!identity || seen.has(identity)) return;
+
+      const name = String(survey.companyName || 'Unknown Company').trim();
+      const key = survey.companyId ? `id-${survey.companyId}` : `name-${name.toLowerCase()}`;
+      const responseEntry = responseMap.get(key) || { hasCDC: false, hasDepartment: false };
+
+      fromCompanies.push({
+        companyId: survey.companyId,
+        companyName: name,
+        email: 'N/A',
+        room: 'Not Allocated',
+        hasCDC: responseEntry.hasCDC,
+        hasDepartment: responseEntry.hasDepartment,
+      });
+      seen.add(identity);
+    });
+
+    return fromCompanies
+      .map((row) => ({
+        ...row,
+        hasAnySubmission: row.hasCDC || row.hasDepartment,
+        hasBothSubmissions: row.hasCDC && row.hasDepartment,
+      }))
+      .sort((a, b) => a.companyName.localeCompare(b.companyName));
+  }, [companies, surveys]);
+
   // Download CSV Report
   const downloadCSVReport = () => {
     if (processedSurveys.length === 0) {
@@ -710,8 +792,8 @@ const SurveyResponses = () => {
   };
 
   const downloadAllCompanyReports = async () => {
-    if (surveys.length === 0) {
-      toast.error('No survey data available for bulk export');
+    if (companies.length === 0 && surveys.length === 0) {
+      toast.error('No company data available for bulk export');
       return;
     }
 
@@ -729,24 +811,31 @@ const SurveyResponses = () => {
         );
       };
 
-      const companyLookup = new Map(companies.map((company) => [company.name?.trim().toLowerCase(), company.companyId]));
+      const uniqueCompaniesMap = new Map();
 
-      const uniqueCompanies = Array.from(
-        surveys.reduce((map, surveyItem) => {
-          const normalizedName = (surveyItem.companyName || '').trim();
-          if (!normalizedName) return map;
+      companies.forEach((company) => {
+        const companyId = company.companyId || company.CompanyId;
+        const companyName = String(company.name || company.Name || company.companyName || '').trim();
+        if (!companyName) return;
 
-          const fallbackCompanyId = companyLookup.get(normalizedName.toLowerCase());
-          const resolvedCompanyId = surveyItem.companyId || fallbackCompanyId;
-          const key = resolvedCompanyId ? `id-${resolvedCompanyId}` : `name-${normalizedName.toLowerCase()}`;
+        const key = companyId ? `id-${companyId}` : `name-${companyName.toLowerCase()}`;
+        if (!uniqueCompaniesMap.has(key)) {
+          uniqueCompaniesMap.set(key, { companyId, companyName });
+        }
+      });
 
-          if (!map.has(key)) {
-            map.set(key, { companyId: resolvedCompanyId, companyName: normalizedName });
-          }
+      surveys.forEach((surveyItem) => {
+        const normalizedName = String(surveyItem.companyName || '').trim();
+        if (!normalizedName) return;
 
-          return map;
-        }, new Map()).values()
-      );
+        const resolvedCompanyId = surveyItem.companyId;
+        const key = resolvedCompanyId ? `id-${resolvedCompanyId}` : `name-${normalizedName.toLowerCase()}`;
+        if (!uniqueCompaniesMap.has(key)) {
+          uniqueCompaniesMap.set(key, { companyId: resolvedCompanyId, companyName: normalizedName });
+        }
+      });
+
+      const uniqueCompanies = Array.from(uniqueCompaniesMap.values());
 
       if (uniqueCompanies.length === 0) {
         toast.dismiss(loadingToastId);
@@ -852,6 +941,85 @@ const SurveyResponses = () => {
     } catch (error) {
       toast.dismiss(loadingToastId);
       toast.error('Failed to generate bulk company reports');
+    }
+  };
+
+  const downloadSurveySubmissionStatusReport = async () => {
+    if (submissionStatusRows.length === 0) {
+      toast.error('No company records found for submission status report');
+      return;
+    }
+
+    const loadingToastId = toast.loading('Preparing submission status report...');
+
+    try {
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Survey Submission Status Report', 14, 20);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
+      doc.text(`Total Companies: ${submissionStatusRows.length}`, 14, 34);
+
+      const submittedRows = submissionStatusRows.filter((row) => row.hasAnySubmission);
+      const notSubmittedRows = submissionStatusRows.filter((row) => !row.hasAnySubmission);
+
+      autoTable(doc, {
+        startY: 42,
+        head: [[
+          'Companies That Submitted Survey',
+          'Room No',
+          'CDC',
+          'Department',
+          'Certificate Eligibility'
+        ]],
+        body: submittedRows.length
+          ? submittedRows.map((row) => ([
+            row.companyName,
+            row.room,
+            row.hasCDC ? 'Submitted' : 'Not Submitted',
+            row.hasDepartment ? 'Submitted' : 'Not Submitted',
+            row.hasBothSubmissions ? 'Eligible (Both Submitted)' : 'Not Eligible Yet'
+          ]))
+          : [['No company has submitted any survey yet', '-', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: [22, 163, 74] },
+        styles: { fontSize: 8 }
+      });
+
+      autoTable(doc, {
+        startY: (doc.lastAutoTable?.finalY || 42) + 10,
+        head: [[
+          'Companies That Did Not Submit Any Survey',
+          'Room No',
+          'CDC',
+          'Department',
+          'Certificate Eligibility'
+        ]],
+        body: notSubmittedRows.length
+          ? notSubmittedRows.map((row) => ([
+            row.companyName,
+            row.room,
+            'Not Submitted',
+            'Not Submitted',
+            'Not Eligible Yet'
+          ]))
+          : [['All companies have submitted at least one survey', '-', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: [220, 38, 38] },
+        styles: { fontSize: 8 }
+      });
+
+      doc.save(`Survey_Submission_Status_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.dismiss(loadingToastId);
+      toast.success('Submission status report downloaded');
+    } catch (error) {
+      console.error('Submission status report generation failed:', error);
+      toast.dismiss(loadingToastId);
+      toast.error('Failed to generate submission status report');
     }
   };
 
@@ -1618,6 +1786,12 @@ const SurveyResponses = () => {
               className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center transition shadow-sm"
             >
               <Download size={16} className="mr-2 text-blue-600" /> All Company Reports
+            </button>
+            <button
+              onClick={downloadSurveySubmissionStatusReport}
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center transition shadow-sm"
+            >
+              <Download size={16} className="mr-2 text-emerald-600" /> Submission Status
             </button>
             <button
               onClick={downloadAllCDCForms}

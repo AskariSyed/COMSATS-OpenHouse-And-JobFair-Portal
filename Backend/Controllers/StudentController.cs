@@ -1039,7 +1039,34 @@ namespace JobFairPortal.Controllers
                 return NotFound("Student not found.");
 
             if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
+                return BadRequest(new { Code = "NO_FILE", Message = "No file uploaded." });
+
+            // ✅ FILE SIZE VALIDATION: Max 1MB
+            const long MAX_FILE_SIZE = 1048576; // 1MB in bytes
+            if (file.Length > MAX_FILE_SIZE)
+            {
+                return BadRequest(new
+                {
+                    Code = "FILE_TOO_LARGE",
+                    Message = "Profile picture must not exceed 1MB.",
+                    FileSizeInMB = Math.Round(file.Length / (1024.0 * 1024.0), 2),
+                    AllowedSizeInMB = 1,
+                    Suggestion = "Please resize the image and try again."
+                });
+            }
+
+            // ✅ VALIDATE FILE TYPE
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(fileExtension))
+            {
+                return BadRequest(new
+                {
+                    Code = "INVALID_FILE_TYPE",
+                    Message = "Invalid file type. Only JPG, JPEG, PNG, and WEBP are allowed.",
+                    AllowedTypes = allowedExtensions
+                });
+            }
 
             var uploadsFolder = Path.Combine("uploads", "student", "profilepics");
             Directory.CreateDirectory(uploadsFolder);
@@ -1056,7 +1083,13 @@ namespace JobFairPortal.Controllers
             student.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Profile picture uploaded.", ProfilePicUrl = student.ProfilePicUrl });
+            return Ok(new 
+            { 
+                Code = "SUCCESS",
+                Message = "Profile picture uploaded successfully.", 
+                ProfilePicUrl = student.ProfilePicUrl,
+                FileSizeInMB = Math.Round(file.Length / (1024.0 * 1024.0), 2)
+            });
         }
 
         [HttpPost("cv")]
@@ -1660,7 +1693,34 @@ namespace JobFairPortal.Controllers
             var file = dto.File;
 
             if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
+                return BadRequest(new { Code = "NO_FILE", Message = "No file uploaded." });
+
+            // ✅ FILE SIZE VALIDATION: Max 1MB
+            const long MAX_FILE_SIZE = 1048576; // 1MB in bytes
+            if (file.Length > MAX_FILE_SIZE)
+            {
+                return BadRequest(new
+                {
+                    Code = "FILE_TOO_LARGE",
+                    Message = "Profile picture must not exceed 1MB.",
+                    FileSizeInMB = Math.Round(file.Length / (1024.0 * 1024.0), 2),
+                    AllowedSizeInMB = 1,
+                    Suggestion = "Please resize the image and try again."
+                });
+            }
+
+            // ✅ VALIDATE FILE TYPE
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(fileExtension))
+            {
+                return BadRequest(new
+                {
+                    Code = "INVALID_FILE_TYPE",
+                    Message = "Invalid file type. Only JPG, JPEG, PNG, and WEBP are allowed.",
+                    AllowedTypes = allowedExtensions
+                });
+            }
 
             // Delete old profile picture if it exists
             if (!string.IsNullOrWhiteSpace(student.ProfilePicUrl))
@@ -1698,7 +1758,13 @@ namespace JobFairPortal.Controllers
             student.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return Ok(new { Message = "Profile picture updated successfully.", ProfilePicUrl = student.ProfilePicUrl });
+            return Ok(new 
+            { 
+                Code = "SUCCESS",
+                Message = "Profile picture updated successfully.", 
+                ProfilePicUrl = student.ProfilePicUrl,
+                FileSizeInMB = Math.Round(file.Length / (1024.0 * 1024.0), 2)
+            });
         }
 
         [HttpPost("name")]
@@ -2614,6 +2680,70 @@ namespace JobFairPortal.Controllers
             return Ok(recommendations);
         }
 
+        [HttpGet("companies/recommended")]
+        public async Task<IActionResult> GetRecommendedCompanies()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null) return NotFound("Student not found.");
+
+            if (student.Skills == null || !student.Skills.Any())
+                return BadRequest("Please add skills to your profile to get recommendations.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return NotFound("No active job fair.");
+
+            // Fetch all companies and their jobs for the active fair
+            var companiesWithJobs = await _context.CompanyJobFairParticipations
+                .Where(p => p.JobFairId == activeJobFair.JobFairId)
+                .Include(p => p.Company)
+                .ThenInclude(c => c.Jobs.Where(j => j.JobFairId == activeJobFair.JobFairId))
+                .AsNoTracking()
+                .ToListAsync();
+
+            // Calculate skill matches for each company based on their job requirements
+            var recommendations = companiesWithJobs
+                .Select(participation => new
+                {
+                    Company = participation.Company,
+                    MatchCount = participation.Company.Jobs
+                        .SelectMany(j => j.RequiredSkills ?? new string[] { })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Intersect(student.Skills, StringComparer.OrdinalIgnoreCase)
+                        .Count(),
+                    TotalUniqueSkillsRequired = participation.Company.Jobs
+                        .SelectMany(j => j.RequiredSkills ?? new string[] { })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Count(),
+                    MatchedSkills = participation.Company.Jobs
+                        .SelectMany(j => j.RequiredSkills ?? new string[] { })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Intersect(student.Skills, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    OpenJobs = participation.Company.Jobs.Count()
+                })
+                .Where(x => x.MatchCount > 0) // Only show companies with at least one matching skill
+                .OrderByDescending(x => x.MatchCount)
+                .Select(x => new
+                {
+                    x.Company.CompanyId,
+                    x.Company.Name,
+                    x.Company.Industry,
+                    x.Company.LogoUrl,
+                    x.Company.Website,
+                    MatchCount = x.MatchCount,
+                    TotalSkillsRequired = x.TotalUniqueSkillsRequired,
+                    OpenJobs = x.OpenJobs,
+                    MatchedSkills = x.MatchedSkills
+                })
+                .Take(10) // Limit to top 10
+                .ToList();
+
+            return Ok(recommendations);
+        }
+
 
 
         [HttpGet("notices")]
@@ -2635,25 +2765,31 @@ namespace JobFairPortal.Controllers
                 .Where(n => n.JobFairId == activeJobFair.JobFairId)
                 .AsQueryable();
 
-            // 4. Filter based on Audience
+            // 4. Filter based on Visibility & Audience
             if (isAdmin)
             {
-                // Admins see everything
-            }
-            else if (isStudent)
-            {
-                // Students see "Student" AND "All"
-                query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
-            }
-            else if (isCompany)
-            {
-                // Companies see "Company" AND "All"
-                query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+                // Admins see everything (both hidden and visible)
             }
             else
             {
-                // Fallback for unknown roles
-                return Forbid();
+                // Everyone else only sees NOT HIDDEN items
+                query = query.Where(n => n.IsHidden == false);
+
+                if (isStudent)
+                {
+                    // Students see "Student" AND "All"
+                    query = query.Where(n => n.Audience == NoticeAudience.Student || n.Audience == NoticeAudience.All);
+                }
+                else if (isCompany)
+                {
+                    // Companies see "Company" AND "All"
+                    query = query.Where(n => n.Audience == NoticeAudience.Company || n.Audience == NoticeAudience.All);
+                }
+                else
+                {
+                    // Fallback for unknown roles
+                    return Forbid();
+                }
             }
 
             // 5. Execute and Return

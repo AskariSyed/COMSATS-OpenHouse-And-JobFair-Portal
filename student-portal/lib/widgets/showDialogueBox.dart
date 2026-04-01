@@ -144,15 +144,42 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF181A20) : Colors.white;
+    final handleColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+    final headerTextColor = isDark ? Colors.white : Colors.black;
+    final searchFillColor = isDark
+        ? const Color(0xFF23242A)
+        : Colors.grey.shade50;
+    final searchBorderColor = isDark
+        ? Colors.grey.shade800
+        : Colors.grey.shade300;
+    final listTileBg = isDark ? const Color(0xFF23242A) : Colors.grey.shade100;
+    final dividerColor = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
+    final iconColor = isDark ? Colors.blue[200] : const Color(0xFF2563EB);
+    final workModeBg = isDark
+        ? Colors.green.withOpacity(0.12)
+        : Colors.green.withValues(alpha: 0.1);
+    final workModeIcon = isDark ? Colors.greenAccent : Colors.green;
+    final cityTextColor = isDark ? Colors.white : Colors.black;
+    final customLocBg = isDark
+        ? Colors.blue.withOpacity(0.08)
+        : const Color(0xFF2563EB).withValues(alpha: 0.05);
+    final customLocBorder = isDark
+        ? Colors.blue.withOpacity(0.18)
+        : const Color(0xFF2563EB).withValues(alpha: 0.3);
+    final customLocText = isDark ? Colors.blue[200] : const Color(0xFF2563EB);
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
         height: 600,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +191,7 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: handleColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -178,27 +205,31 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                      color: iconColor!.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.location_on_rounded,
-                      color: Color(0xFF2563EB),
+                      color: iconColor,
                       size: 24,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       "Select Location",
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
+                        color: headerTextColor,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: Colors.grey.shade600),
+                    icon: Icon(
+                      Icons.close,
+                      color: isDark ? Colors.white70 : Colors.grey.shade600,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -212,30 +243,27 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
               child: TextField(
                 controller: _searchController,
                 autofocus: true,
+                style: TextStyle(color: cityTextColor),
                 decoration: InputDecoration(
                   hintText: "Search city (e.g. London, Dubai)...",
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: Color(0xFF2563EB),
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
                   ),
+                  prefixIcon: Icon(Icons.search, color: iconColor),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(color: searchBorderColor),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(color: searchBorderColor),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF2563EB),
-                      width: 2,
-                    ),
+                    borderSide: BorderSide(color: iconColor, width: 2),
                   ),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: searchFillColor,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 14,
@@ -252,7 +280,7 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: _filteredLocations.length + 1,
                 separatorBuilder: (ctx, i) =>
-                    Divider(height: 1, color: Colors.grey.shade200),
+                    Divider(height: 1, color: dividerColor),
                 itemBuilder: (ctx, index) {
                   // Option to add custom city if not found
                   if (index == _filteredLocations.length) {
@@ -261,41 +289,36 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                       return Container(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF2563EB,
-                          ).withValues(alpha: 0.05),
+                          color: customLocBg,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: const Color(
-                              0xFF2563EB,
-                            ).withValues(alpha: 0.3),
-                          ),
+                          border: Border.all(color: customLocBorder),
                         ),
                         child: ListTile(
                           leading: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF2563EB,
-                              ).withValues(alpha: 0.1),
+                              color: iconColor.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.add_location_alt_rounded,
-                              color: Color(0xFF2563EB),
+                              color: iconColor,
                               size: 20,
                             ),
                           ),
                           title: Text(
                             "Use '${_searchController.text}'",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF2563EB),
+                              color: customLocText,
                             ),
                           ),
-                          subtitle: const Text(
+                          subtitle: Text(
                             "Tap to add this custom location",
-                            style: TextStyle(fontSize: 13),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark ? Colors.grey.shade400 : null,
+                            ),
                           ),
                           onTap: () =>
                               Navigator.pop(context, _searchController.text),
@@ -317,33 +340,39 @@ class _CitySearchSheetState extends State<CitySearchSheet> {
                       horizontal: 8,
                       vertical: 4,
                     ),
+                    tileColor: isDark ? listTileBg : null,
                     leading: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: isWorkMode
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.grey.shade100,
+                        color: isWorkMode ? workModeBg : listTileBg,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         isWorkMode
                             ? Icons.work_outline
                             : Icons.location_city_rounded,
-                        color: isWorkMode ? Colors.green : Colors.grey.shade600,
+                        color: isWorkMode
+                            ? workModeIcon
+                            : (isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600),
                         size: 20,
                       ),
                     ),
                     title: Text(
                       city,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
+                        color: cityTextColor,
                       ),
                     ),
                     trailing: Icon(
                       Icons.arrow_forward_ios,
                       size: 14,
-                      color: Colors.grey.shade400,
+                      color: isDark
+                          ? Colors.grey.shade600
+                          : Colors.grey.shade400,
                     ),
                     onTap: () => Navigator.pop(context, city),
                   );
