@@ -45,6 +45,13 @@ jobs:
       with:
         channel: stable
         cache: true
+
+    # Setup Java for Android APK build
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
     
     # Setup .NET for Backend
     - name: Setup .NET
@@ -85,7 +92,7 @@ jobs:
           exit 1
         fi
     
-    # Build Student Portal (Flutter Web)
+    # Build Student Portal (Flutter Web + APK)
     - name: Build Student Portal
       run: |
         cd student-portal
@@ -95,6 +102,11 @@ jobs:
           --dart-define=APP_ENV=production
         if [ ! -d "build/web" ]; then
           echo "Student build output missing"
+          exit 1
+        fi
+        flutter build apk --release
+        if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          echo "Student APK output missing"
           exit 1
         fi
     
@@ -122,6 +134,9 @@ jobs:
         
         # Package Student Portal
         tar -czf deploy-artifacts/student.tar.gz -C student-portal/build/web .
+
+        # Package Student APK
+        cp student-portal/build/app/outputs/flutter-apk/app-release.apk deploy-artifacts/student-portal.apk
         
         # Package Backend
         tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
@@ -151,6 +166,8 @@ jobs:
         scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
           deploy-artifacts/student.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student.tar.gz
         scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/student-portal.apk ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student-portal.apk
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
           deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
         
         # Execute remote deployment script
@@ -160,7 +177,7 @@ jobs:
         set -e
         
         echo "==> Creating directories..."
-        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/jfair /var/www/api
+        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/student/downloads /var/www/jfair /var/www/api
         
         echo "==> Installing system dependencies..."
         sudo apt-get update -y
@@ -179,6 +196,8 @@ jobs:
         echo "==> Deploying Student Portal..."
         sudo rm -rf /var/www/student/*
         sudo tar -xzf /tmp/student.tar.gz -C /var/www/student
+        sudo mkdir -p /var/www/student/downloads
+        sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
         sudo chown -R www-data:www-data /var/www/student
         
         echo "==> Deploying Landing Page..."
