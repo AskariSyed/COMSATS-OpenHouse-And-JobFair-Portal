@@ -1,9 +1,9 @@
 param(
     [string]$PemKeyPath = "C:\Users\HP\.ssh\jobfair-key.pem",
 
-    [string]$Ec2Host = "54.254.84.101",
+    [string]$Ec2Host = "52.221.35.144",
     [string]$Ec2User = "ubuntu",
-    [string]$BackendUrl = "http://54.254.84.101:5158",
+    [string]$BackendUrl = "http://52.221.35.144:5158",
     [switch]$UseRelativeApi,
 
     [string]$FirebaseEnvFilePath,
@@ -24,6 +24,7 @@ $workDir = Join-Path $repoRoot ".deploy-artifacts"
 $adminZip = Join-Path $workDir "admin.zip"
 $companyZip = Join-Path $workDir "company.zip"
 $studentZip = Join-Path $workDir "student.zip"
+$landingZip = Join-Path $workDir "landing.zip"
 
 function Write-Step {
     param([string]$Message)
@@ -97,6 +98,7 @@ New-Item -ItemType Directory -Path $workDir | Out-Null
 $adminDir = Join-Path $repoRoot "admin-portal"
 $companyDir = Join-Path $repoRoot "company-portal"
 $studentDir = Join-Path $repoRoot "student-portal"
+$landingDir = Join-Path $repoRoot "landing-page"
 
 if ($UseRelativeApi) {
     $BackendUrl = ""
@@ -165,6 +167,12 @@ if (-not (Test-Path (Join-Path $studentDir "build\web"))) {
 }
 Compress-Archive -Path (Join-Path $studentDir "build\web\*") -DestinationPath $studentZip -Force
 
+Write-Step "Packaging jfair.tech landing page"
+if (-not (Test-Path $landingDir)) {
+    throw "Landing page directory missing: landing-page"
+}
+Compress-Archive -Path (Join-Path $landingDir "*") -DestinationPath $landingZip -Force
+
 Write-Step "Uploading artifacts to EC2"
 $sshOptions = @("-o", "StrictHostKeyChecking=no")
 & scp @sshOptions -i $PemKeyPath $adminZip "${Ec2User}@${Ec2Host}:/tmp/admin.zip"
@@ -173,20 +181,25 @@ if ($LASTEXITCODE -ne 0) { throw "Upload failed: admin.zip" }
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: company.zip" }
 & scp @sshOptions -i $PemKeyPath $studentZip "${Ec2User}@${Ec2Host}:/tmp/student.zip"
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: student.zip" }
+& scp @sshOptions -i $PemKeyPath $landingZip "${Ec2User}@${Ec2Host}:/tmp/landing.zip"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: landing.zip" }
 
 Write-Step "Deploying static files on EC2"
 $remoteDeployScript = @'
 set -e
-sudo mkdir -p /var/www/admin /var/www/company /var/www/student
+sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/jfair
 sudo apt-get update -y
 sudo apt-get install -y unzip
-sudo rm -rf /var/www/admin/* /var/www/company/* /var/www/student/*
+sudo rm -rf /var/www/admin/* /var/www/company/* /var/www/student/* /var/www/jfair/*
 sudo unzip -o /tmp/admin.zip -d /var/www/admin
 sudo unzip -o /tmp/company.zip -d /var/www/company
 sudo unzip -o /tmp/student.zip -d /var/www/student
-sudo chown -R www-data:www-data /var/www/admin /var/www/company /var/www/student
+sudo unzip -o /tmp/landing.zip -d /var/www/jfair
+sudo chown -R www-data:www-data /var/www/admin /var/www/company /var/www/student /var/www/jfair
 sudo find /var/www/admin /var/www/company /var/www/student -type d -exec chmod 755 {} \;
 sudo find /var/www/admin /var/www/company /var/www/student -type f -exec chmod 644 {} \;
+sudo find /var/www/jfair -type d -exec chmod 755 {} \;
+sudo find /var/www/jfair -type f -exec chmod 644 {} \;
 sudo nginx -t
 sudo systemctl reload nginx
 '@
@@ -197,7 +210,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Step "Deployment completed"
-Write-Host "Admin:   http://$Ec2Host (or your admin domain)" -ForegroundColor Green
-Write-Host "Company: http://$Ec2Host (or your company domain)" -ForegroundColor Green
-Write-Host "Student: http://$Ec2Host (or your student domain)" -ForegroundColor Green
+Write-Host "Home:    https://jfair.tech" -ForegroundColor Green
+Write-Host "Admin:   https://admin.jfair.tech" -ForegroundColor Green
+Write-Host "Company: https://company.jfair.tech" -ForegroundColor Green
+Write-Host "Student: https://student.jfair.tech" -ForegroundColor Green
 Write-Host "API:     $BackendUrl" -ForegroundColor Green

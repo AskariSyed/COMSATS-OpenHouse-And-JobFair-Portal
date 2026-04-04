@@ -30,6 +30,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   final Set<String> _selectedIndustries = {};
   bool _showOnlyHiring = false;
   String _selectedSortOption = 'Name (A-Z)'; // Default sort
+  static const int _companiesPerPage = 8;
 
   @override
   void initState() {
@@ -56,8 +57,35 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     );
 
     if (studentProvider.token != null) {
-      await companyProvider.fetchCompanies(studentProvider.token!);
+      await companyProvider.fetchCompanies(
+        studentProvider.token!,
+        page: 1,
+        pageSize: _companiesPerPage,
+      );
       await companyProvider.fetchRecommendedCompanies(studentProvider.token!);
+    }
+  }
+
+  Future<void> _loadCompaniesPage(int page) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final companyProvider = Provider.of<CompanyProvider>(
+      context,
+      listen: false,
+    );
+
+    if (studentProvider.token != null) {
+      await companyProvider.searchCompanies(
+        _searchController.text,
+        studentProvider.student?.skills ?? [],
+        token: studentProvider.token,
+        industries: _selectedIndustries.toList(),
+        onlyHiring: _showOnlyHiring,
+        page: page,
+        pageSize: _companiesPerPage,
+      );
     }
   }
 
@@ -65,10 +93,15 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     final studentSkills =
         Provider.of<StudentProvider>(context, listen: false).student?.skills ??
         [];
-    Provider.of<CompanyProvider>(
-      context,
-      listen: false,
-    ).searchCompanies(query, studentSkills);
+    Provider.of<CompanyProvider>(context, listen: false).searchCompanies(
+      query,
+      studentSkills,
+      token: Provider.of<StudentProvider>(context, listen: false).token,
+      industries: _selectedIndustries.toList(),
+      onlyHiring: _showOnlyHiring,
+      page: 1,
+      pageSize: _companiesPerPage,
+    );
   }
 
   @override
@@ -91,30 +124,23 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     final bool showShimmer =
         companyProvider.isLoading && companyProvider.companies.isEmpty;
 
-    // Filter companies
-    var filteredCompanies = companyProvider.companies.where((company) {
-      if (_showOnlyHiring && company.jobCount == 0) return false;
-      if (_selectedIndustries.isNotEmpty) {
-        if (company.industry == null ||
-            !_selectedIndustries.contains(company.industry)) {
-          return false;
-        }
-      }
-      return true;
-    }).toList();
+    final displayCompanies = List<Company>.from(companyProvider.companies);
 
     // Sort companies
     if (_selectedSortOption == 'Name (A-Z)') {
-      filteredCompanies.sort(
+      displayCompanies.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       );
     } else if (_selectedSortOption == 'Name (Z-A)') {
-      filteredCompanies.sort(
+      displayCompanies.sort(
         (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
       );
     } else if (_selectedSortOption == 'Most Openings') {
-      filteredCompanies.sort((a, b) => b.jobCount.compareTo(a.jobCount));
+      displayCompanies.sort((a, b) => b.jobCount.compareTo(a.jobCount));
     }
+
+    final totalPages = companyProvider.totalPages;
+    final currentPage = companyProvider.currentPage;
 
     final bool showDataWithLoading =
         companyProvider.isLoading && companyProvider.companies.isNotEmpty;
@@ -182,7 +208,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                     ),
                                   ),
                                 )
-                              : filteredCompanies.isEmpty
+                              : displayCompanies.isEmpty
                               ? SizedBox(
                                   height: constraints.maxHeight * 0.7,
                                   child: Center(
@@ -192,10 +218,35 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                     ),
                                   ),
                                 )
-                              : _buildCompaniesGrid(
-                                  filteredCompanies,
-                                  student?.skills ?? [],
-                                  isMobile: true,
+                              : Column(
+                                  children: [
+                                    _buildCompaniesGrid(
+                                      displayCompanies,
+                                      student?.skills ?? [],
+                                      isMobile: true,
+                                    ),
+                                    if (totalPages > 1) ...[
+                                      const SizedBox(height: 20),
+                                      _buildPaginationControls(
+                                        currentPage: currentPage,
+                                        totalPages: totalPages,
+                                        onPrevious: currentPage > 1
+                                            ? () {
+                                                _loadCompaniesPage(
+                                                  currentPage - 1,
+                                                );
+                                              }
+                                            : null,
+                                        onNext: currentPage < totalPages
+                                            ? () {
+                                                _loadCompaniesPage(
+                                                  currentPage + 1,
+                                                );
+                                              }
+                                            : null,
+                                      ),
+                                    ],
+                                  ],
                                 ),
                           const SizedBox(height: 20),
                         ],
@@ -243,40 +294,74 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              "Participating Companies",
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .headlineSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
+                                    if (screenWidth < 1050)
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Participating Companies",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            "Browse companies offering jobs at the fair.",
+                                            style: TextStyle(
+                                              color: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall?.color,
                                             ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              "Browse companies offering jobs at the fair.",
-                                              style: TextStyle(
-                                                color: Theme.of(
-                                                  context,
-                                                ).textTheme.bodySmall?.color,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: _buildSearchBar(),
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "Participating Companies",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .headlineSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(
-                                          width: 300,
-                                          child: _buildSearchBar(),
-                                        ),
-                                      ],
-                                    ),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                "Browse companies offering jobs at the fair.",
+                                                style: TextStyle(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall?.color,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(
+                                            width: screenWidth > 1200
+                                                ? 440
+                                                : 380,
+                                            child: _buildSearchBar(),
+                                          ),
+                                        ],
+                                      ),
                                     const SizedBox(height: 30),
                                     if (companyProvider
                                         .recommendedCompanies
@@ -307,7 +392,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                       ),
                                     showShimmer
                                         ? _buildShimmerGrid(isMobile: false)
-                                        : filteredCompanies.isEmpty
+                                        : displayCompanies.isEmpty
                                         ? const SizedBox(
                                             height: 200,
                                             child: Center(
@@ -316,10 +401,38 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                               ),
                                             ),
                                           )
-                                        : _buildCompaniesGrid(
-                                            filteredCompanies,
-                                            student?.skills ?? [],
-                                            isMobile: false,
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              _buildCompaniesGrid(
+                                                displayCompanies,
+                                                student?.skills ?? [],
+                                                isMobile: false,
+                                              ),
+                                              if (totalPages > 1) ...[
+                                                const SizedBox(height: 20),
+                                                _buildPaginationControls(
+                                                  currentPage: currentPage,
+                                                  totalPages: totalPages,
+                                                  onPrevious: currentPage > 1
+                                                      ? () {
+                                                          _loadCompaniesPage(
+                                                            currentPage - 1,
+                                                          );
+                                                        }
+                                                      : null,
+                                                  onNext:
+                                                      currentPage < totalPages
+                                                      ? () {
+                                                          _loadCompaniesPage(
+                                                            currentPage + 1,
+                                                          );
+                                                        }
+                                                      : null,
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                   ],
                                 ),
@@ -357,36 +470,46 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
   Widget _buildSearchBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 700;
     return Row(
       children: [
         Expanded(
-          child: TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            decoration: InputDecoration(
-              hintText: "Search company name, industry...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Theme.of(context).cardColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+          child: Container(
+            height: isMobile ? 56 : 48,
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? Colors.white24 : Colors.grey.shade200,
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: isDark ? Colors.white24 : Colors.grey.shade200,
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: "Search company name, industry...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.transparent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
                 ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 0,
-                horizontal: 16,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: isMobile ? 12 : 8,
+                  horizontal: 16,
+                ),
               ),
             ),
           ),
         ),
         const SizedBox(width: 12),
         Container(
+          height: isMobile ? 56 : 48,
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
@@ -537,7 +660,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _onSearchChanged(_searchController.text);
+                        setState(() {});
+                      },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -602,6 +729,44 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPaginationControls({
+    required int currentPage,
+    required int totalPages,
+    required VoidCallback? onPrevious,
+    required VoidCallback? onNext,
+  }) {
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          "Page $currentPage of $totalPages",
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onPrevious,
+              icon: const Icon(Icons.chevron_left),
+              label: Text(isMobile ? "Prev" : "Previous"),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_right),
+              label: const Text("Next"),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -672,7 +837,8 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     final companyName = companyData['name'] ?? 'Unknown Company';
     final companyLogo = companyData['logoUrl'];
     final industry = companyData['industry'] ?? 'N/A';
-    final jobCount = companyData['jobCount'] ?? 0;
+    final jobCount = companyData['jobCount'] ?? companyData['openJobs'] ?? 0;
+    final openPositions = companyData['openPositions'] ?? jobCount;
     final matchCount = companyData['matchCount'] ?? 0;
     final matchedSkills = companyData['matchedSkills'] as List<dynamic>? ?? [];
 
@@ -805,6 +971,15 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                       color: Theme.of(context).primaryColor,
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$jobCount Job Post${jobCount != 1 ? 's' : ''} • $openPositions Total Position${openPositions != 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.color?.withOpacity(0.8),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1300,7 +1475,7 @@ class _CompanyCardState extends State<CompanyCard> {
                                   vertical: 4,
                                 ),
                                 child: Text(
-                                  "• ${job.jobTitle}",
+                                  "• ${job.jobTitle} (${job.numberOfJobs} position${job.numberOfJobs == 1 ? '' : 's'})",
                                   style: TextStyle(
                                     color: textColor,
                                     fontSize: 13,

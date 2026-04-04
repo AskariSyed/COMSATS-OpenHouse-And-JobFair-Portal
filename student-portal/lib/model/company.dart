@@ -3,11 +3,17 @@ import 'package:student_job_fair_portal/model/job.dart';
 class CompanyListResponse {
   final int jobFairId;
   final int totalCompanies;
+  final int page;
+  final int pageSize;
+  final int totalPages;
   final List<Company> companies;
 
   CompanyListResponse({
     required this.jobFairId,
     required this.totalCompanies,
+    required this.page,
+    required this.pageSize,
+    required this.totalPages,
     required this.companies,
   });
 
@@ -15,6 +21,9 @@ class CompanyListResponse {
     return CompanyListResponse(
       jobFairId: json['jobFairId'] ?? 0,
       totalCompanies: json['totalCompanies'] ?? 0,
+      page: json['page'] ?? 1,
+      pageSize: json['pageSize'] ?? 8,
+      totalPages: json['totalPages'] ?? 1,
       companies:
           (json['companies'] as List<dynamic>?)
               ?.map((x) => Company.fromJson(x))

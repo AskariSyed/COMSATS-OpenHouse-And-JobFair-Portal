@@ -33,6 +33,7 @@ class _JobsScreenState extends State<JobsScreen> {
   final TextEditingController _searchController = TextEditingController();
   final Set<JobType> _selectedJobTypes = {};
   String _selectedSortOption = 'Newest'; // Default sort
+  static const int _jobsPerPage = 6;
 
   @override
   void initState() {
@@ -56,13 +57,41 @@ class _JobsScreenState extends State<JobsScreen> {
     final jobProvider = Provider.of<JobProvider>(context, listen: false);
 
     if (studentProvider.token != null) {
-      await jobProvider.fetchJobs(studentProvider.token!);
+      await jobProvider.fetchJobs(
+        studentProvider.token!,
+        page: 1,
+        pageSize: _jobsPerPage,
+      );
       await jobProvider.fetchRecommendedJobs(studentProvider.token!);
     }
   }
 
+  Future<void> _loadJobsPage(int page) async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+    final jobProvider = Provider.of<JobProvider>(context, listen: false);
+
+    if (studentProvider.token != null) {
+      await jobProvider.searchJobs(
+        _searchController.text,
+        token: studentProvider.token,
+        jobTypes: _selectedJobTypes.toList(),
+        page: page,
+        pageSize: _jobsPerPage,
+      );
+    }
+  }
+
   void _onSearchChanged(String query) {
-    Provider.of<JobProvider>(context, listen: false).searchJobs(query);
+    Provider.of<JobProvider>(context, listen: false).searchJobs(
+      query,
+      token: Provider.of<StudentProvider>(context, listen: false).token,
+      jobTypes: _selectedJobTypes.toList(),
+      page: 1,
+      pageSize: _jobsPerPage,
+    );
   }
 
   @override
@@ -81,25 +110,25 @@ class _JobsScreenState extends State<JobsScreen> {
     final bool showShimmer =
         jobProvider.isLoading && jobProvider.displayJobs.isEmpty;
 
-    // Filter jobs
-    var filteredJobs = jobProvider.displayJobs.where((job) {
-      if (_selectedJobTypes.isEmpty) return true;
-      return _selectedJobTypes.contains(job.jobType);
-    }).toList();
+    final displayJobs = List<Job>.from(jobProvider.displayJobs);
 
     // Sort jobs
     if (_selectedSortOption == 'Newest') {
-      filteredJobs.sort((a, b) => b.jobId.compareTo(a.jobId));
+      displayJobs.sort((a, b) => b.jobId.compareTo(a.jobId));
     } else if (_selectedSortOption == 'Title (A-Z)') {
-      filteredJobs.sort(
+      displayJobs.sort(
         (a, b) => a.jobTitle.toLowerCase().compareTo(b.jobTitle.toLowerCase()),
       );
     } else if (_selectedSortOption == 'Company (A-Z)') {
-      filteredJobs.sort(
+      displayJobs.sort(
         (a, b) =>
             a.companyName.toLowerCase().compareTo(b.companyName.toLowerCase()),
       );
     }
+
+    final groupedJobs = _groupJobsByCompany(displayJobs);
+    final totalPages = jobProvider.totalPages;
+    final currentPage = jobProvider.currentPage;
 
     final bool showDataWithLoading =
         jobProvider.isLoading && jobProvider.displayJobs.isNotEmpty;
@@ -156,7 +185,7 @@ class _JobsScreenState extends State<JobsScreen> {
                                       child: Text(jobProvider.error!),
                                     ),
                                   )
-                                : filteredJobs.isEmpty
+                                : displayJobs.isEmpty
                                 ? const SizedBox(
                                     height: 100,
                                     child: Center(
@@ -165,7 +194,35 @@ class _JobsScreenState extends State<JobsScreen> {
                                       ),
                                     ),
                                   )
-                                : _buildJobsGrid(filteredJobs, isMobile: true),
+                                : Column(
+                                    children: [
+                                      _buildJobsGrid(
+                                        groupedJobs,
+                                        isMobile: true,
+                                      ),
+                                      if (totalPages > 1) ...[
+                                        const SizedBox(height: 20),
+                                        _buildPaginationControls(
+                                          currentPage: currentPage,
+                                          totalPages: totalPages,
+                                          onPrevious: currentPage > 1
+                                              ? () {
+                                                  _loadJobsPage(
+                                                    currentPage - 1,
+                                                  );
+                                                }
+                                              : null,
+                                          onNext: currentPage < totalPages
+                                              ? () {
+                                                  _loadJobsPage(
+                                                    currentPage + 1,
+                                                  );
+                                                }
+                                              : null,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                           ],
                         ),
                       ),
@@ -211,48 +268,88 @@ class _JobsScreenState extends State<JobsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              "Available Jobs",
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .headlineSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyLarge
-                                                        ?.color,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              "Explore opportunities grouped by company.",
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    color: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.color,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(
-                                          width: 300,
-                                          child: _buildSearchBar(),
-                                        ),
-                                      ],
-                                    ),
+                                    if (screenWidth < 1050)
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Available Jobs",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .headlineSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodyLarge?.color,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            "Explore opportunities grouped by company.",
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall?.color,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: _buildSearchBar(),
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "Available Jobs",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .headlineSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Theme.of(context)
+                                                          .textTheme
+                                                          .bodyLarge
+                                                          ?.color,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                "Explore opportunities grouped by company.",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.color,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(
+                                            width: screenWidth > 1200
+                                                ? 440
+                                                : 380,
+                                            child: _buildSearchBar(),
+                                          ),
+                                        ],
+                                      ),
                                     const SizedBox(height: 30),
                                     // ✅ RECOMMENDED JOBS SECTION (WEB)
                                     if (jobProvider
@@ -281,16 +378,44 @@ class _JobsScreenState extends State<JobsScreen> {
                                     ],
                                     showShimmer
                                         ? buildShimmerGrid(isMobile: false)
-                                        : filteredJobs.isEmpty
+                                        : displayJobs.isEmpty
                                         ? const SizedBox(
                                             height: 200,
                                             child: Center(
                                               child: Text("No jobs found."),
                                             ),
                                           )
-                                        : _buildJobsGrid(
-                                            filteredJobs,
-                                            isMobile: false,
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              _buildJobsGrid(
+                                                groupedJobs,
+                                                isMobile: false,
+                                              ),
+                                              if (totalPages > 1) ...[
+                                                const SizedBox(height: 20),
+                                                _buildPaginationControls(
+                                                  currentPage: currentPage,
+                                                  totalPages: totalPages,
+                                                  onPrevious: currentPage > 1
+                                                      ? () {
+                                                          _loadJobsPage(
+                                                            currentPage - 1,
+                                                          );
+                                                        }
+                                                      : null,
+                                                  onNext:
+                                                      currentPage < totalPages
+                                                      ? () {
+                                                          _loadJobsPage(
+                                                            currentPage + 1,
+                                                          );
+                                                        }
+                                                      : null,
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                   ],
                                 ),
@@ -325,10 +450,12 @@ class _JobsScreenState extends State<JobsScreen> {
 
   Widget _buildSearchBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 700;
     return Row(
       children: [
         Expanded(
           child: Container(
+            height: isMobile ? 56 : 48,
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(16),
@@ -358,8 +485,8 @@ class _JobsScreenState extends State<JobsScreen> {
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: isMobile ? 12 : 8,
                   horizontal: 20,
                 ),
               ),
@@ -368,6 +495,7 @@ class _JobsScreenState extends State<JobsScreen> {
         ),
         const SizedBox(width: 12),
         Container(
+          height: isMobile ? 56 : 48,
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
@@ -489,7 +617,11 @@ class _JobsScreenState extends State<JobsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _onSearchChanged(_searchController.text);
+                        setState(() {});
+                      },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -526,17 +658,17 @@ class _JobsScreenState extends State<JobsScreen> {
   }
 
   // Grouping Logic
-  Widget _buildJobsGrid(List<Job> jobs, {required bool isMobile}) {
-    if (jobs.isEmpty) return const Center(child: Text("No jobs found."));
+  List<List<Job>> _groupJobsByCompany(List<Job> jobs) {
     final Map<int, List<Job>> groupedJobs = {};
-    for (var job in jobs) {
-      if (!groupedJobs.containsKey(job.companyId)) {
-        groupedJobs[job.companyId] = [];
-      }
-      groupedJobs[job.companyId]!.add(job);
+    for (final job in jobs) {
+      groupedJobs.putIfAbsent(job.companyId, () => []).add(job);
     }
 
-    final groups = groupedJobs.values.toList();
+    return groupedJobs.values.toList();
+  }
+
+  Widget _buildJobsGrid(List<List<Job>> groups, {required bool isMobile}) {
+    if (groups.isEmpty) return const Center(child: Text("No jobs found."));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -556,12 +688,50 @@ class _JobsScreenState extends State<JobsScreen> {
           runSpacing: spacing,
           children: groups.map((companyJobs) {
             return SizedBox(
-              width: columns > 1 ? cardWidth : double.infinity,
+              width: columns > 1 ? cardWidth : availableWidth,
               child: _buildCompanyGroupCard(companyJobs),
             );
           }).toList(),
         );
       },
+    );
+  }
+
+  Widget _buildPaginationControls({
+    required int currentPage,
+    required int totalPages,
+    required VoidCallback? onPrevious,
+    required VoidCallback? onNext,
+  }) {
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          "Page $currentPage of $totalPages",
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onPrevious,
+              icon: const Icon(Icons.chevron_left),
+              label: Text(isMobile ? "Prev" : "Previous"),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_right),
+              label: const Text("Next"),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -619,7 +789,7 @@ class _JobsScreenState extends State<JobsScreen> {
               runSpacing: spacing,
               children: recommendedJobs.map((job) {
                 return SizedBox(
-                  width: columns > 1 ? cardWidth : double.infinity,
+                  width: columns > 1 ? cardWidth : availableWidth,
                   child: _buildRecommendedJobCard(job),
                 );
               }).toList(),
@@ -633,10 +803,11 @@ class _JobsScreenState extends State<JobsScreen> {
   Widget _buildRecommendedJobCard(dynamic jobData) {
     final jobTitle = jobData['jobTitle'] ?? 'Unknown Job';
     final companyName = jobData['companyName'] ?? 'Unknown Company';
+    final int? companyId = int.tryParse(jobData['companyId']?.toString() ?? '');
     final companyLogo = jobData['companyLogo'];
     final matchCount = jobData['matchCount'] ?? 0;
     final matchedSkills = jobData['matchedSkills'] as List<dynamic>? ?? [];
-    final jobType = jobData['jobType'] ?? 'FullTime';
+    final jobTypeLabel = _getRecommendedJobTypeLabel(jobData['jobType']);
 
     final logoUrl = companyLogo != null && companyLogo.isNotEmpty
         ? (companyLogo.startsWith('http')
@@ -646,143 +817,203 @@ class _JobsScreenState extends State<JobsScreen> {
 
     return Card(
       elevation: 4,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).cardColor,
-              Theme.of(context).cardColor.withOpacity(0.8),
-            ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: companyId == null
+            ? null
+            : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CompanyProfileScreen(
+                      companyId: companyId,
+                      companyName: companyName,
+                    ),
+                  ),
+                );
+              },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.amber.withOpacity(0.3),
+              width: 1.5,
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).cardColor,
+                Theme.of(context).cardColor.withOpacity(0.8),
+              ],
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (logoUrl != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: logoUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Container(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (logoUrl != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CachedNetworkImage(
+                          imageUrl: logoUrl,
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(8),
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.business),
                           ),
-                          child: const Icon(Icons.business),
                         ),
                       ),
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          companyName,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            companyName,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.grey[600]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber[100],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$matchCount/${matchedSkills.length} skills match',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber[800],
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$matchCount/${matchedSkills.length} skills match',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber[800],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                jobTitle,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  ],
                 ),
-                child: Text(
-                  jobType,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SizedBox(height: 12),
+                Text(
+                  jobTitle,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: matchedSkills.take(3).map((skill) {
-                  return Chip(
-                    label: Text(
-                      skill.toString(),
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    backgroundColor: Colors.green[100],
-                    labelStyle: TextStyle(color: Colors.green[800]),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                  );
-                }).toList(),
-              ),
-              if (matchedSkills.length > 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                   child: Text(
-                    '+${matchedSkills.length - 3} more skills',
+                    jobTypeLabel,
                     style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
+                      fontSize: 11,
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-            ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: matchedSkills.take(3).map((skill) {
+                    return Chip(
+                      label: Text(
+                        skill.toString(),
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      backgroundColor: Colors.green[100],
+                      labelStyle: TextStyle(color: Colors.green[800]),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (matchedSkills.length > 3)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '+${matchedSkills.length - 3} more skills',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  String _getRecommendedJobTypeLabel(dynamic jobTypeValue) {
+    if (jobTypeValue is int &&
+        jobTypeValue >= 0 &&
+        jobTypeValue < JobType.values.length) {
+      return _getJobTypeString(JobType.values[jobTypeValue]);
+    }
+
+    if (jobTypeValue is String) {
+      switch (jobTypeValue.toLowerCase()) {
+        case '0':
+        case 'fulltime':
+        case 'full_time':
+        case 'full time':
+          return 'Full Time';
+        case '1':
+        case 'parttime':
+        case 'part_time':
+        case 'part time':
+          return 'Part Time';
+        case '2':
+        case 'internship':
+          return 'Internship';
+        case '3':
+        case 'remote':
+          return 'Remote';
+        case '4':
+        case 'onsite':
+        case 'on_site':
+        case 'on site':
+          return 'Onsite';
+        default:
+          return 'Other';
+      }
+    }
+
+    return 'Other';
   }
 }
 

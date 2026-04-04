@@ -1,0 +1,131 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database (Supabase alternative for local development)
+  postgres:
+    image: postgres:16-alpine
+    container_name: jobfair-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-jobfair_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobfair_password}
+      POSTGRES_DB: ${DB_NAME:-jobfair_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - jobfair-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jobfair_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # .NET 8 Backend API
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: jobfair-backend
+    ports:
+      - "5158:5158"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${DB_NAME:-jobfair_db};Username=${DB_USER:-jobfair_user};Password=${DB_PASSWORD:-jobfair_password};SslMode=Disable"
+      CORS__AllowedOrigins__0: "http://localhost:3001"
+      CORS__AllowedOrigins__1: "http://localhost:3002"
+      CORS__AllowedOrigins__2: "http://localhost:3003"
+      CORS__AllowedOrigins__3: "http://localhost:5912"
+      Firebase__ServiceAccountKeyPath: "/app/config/firebase-service-account.json"
+      JWT__SecretKey: ${JWT_SECRET_KEY:-your-very-long-and-secure-jwt-secret-key-change-in-production}
+      JWT__ExpirationInMinutes: "1440"
+      SMTP__Host: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP__Port: ${SMTP_PORT:-587}
+      SMTP__Username: ${SMTP_USERNAME}
+      SMTP__Password: ${SMTP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./Backend/config:/app/config:ro
+      - backend_uploads:/app/uploads
+    networks:
+      - jobfair-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5158/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Admin Portal (React + Vite)
+  admin-portal:
+    build:
+      context: ./admin-portal
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5158
+    container_name: jobfair-admin-portal
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - jobfair-network
+
+  # Company Portal (React + Vite)
+  company-portal:
+    build:
+      context: ./company-portal
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5158
+    container_name: jobfair-company-portal
+    ports:
+      - "3002:80"
+    depends_on:
+      - backend
+    networks:
+      - jobfair-network
+
+  # Student Portal Web (Flutter Web)
+  student-portal:
+    build:
+      context: ./student-portal
+      dockerfile: Dockerfile.web
+      args:
+        BACKEND_BASE_URL: http://localhost:5158
+    container_name: jobfair-student-portal
+    ports:
+      - "3003:80"
+    depends_on:
+      - backend
+    networks:
+      - jobfair-network
+
+  # Nginx Reverse Proxy (Optional - for production-like setup)
+  nginx:
+    image: nginx:alpine
+    container_name: jobfair-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - admin-portal
+      - company-portal
+      - student-portal
+    networks:
+      - jobfair-network
+
+volumes:
+  postgres_data:
+  backend_uploads:
+
+networks:
+  jobfair-network:
+    driver: bridge

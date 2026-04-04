@@ -77,69 +77,113 @@ class BeautifulWebNavBar extends StatelessWidget {
                 ),
               ],
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Row(
-              children: [
-                // 1. Logo Section
-                _buildLogo(context, primaryColor, textColor),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 1250;
+                final isUltraCompact = constraints.maxWidth < 1020;
+                final showNavLabels = constraints.maxWidth >= 1360;
+                final showSecondaryActions = constraints.maxWidth >= 1120;
 
-                const Spacer(),
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isUltraCompact ? 14 : (isCompact ? 20 : 40),
+                  ),
+                  child: Row(
+                    children: [
+                      // 1. Logo Section
+                      _buildLogo(
+                        context,
+                        primaryColor,
+                        textColor,
+                        compact: isCompact,
+                      ),
 
-                // 2. Navigation Items (Centered)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _NavBarItem(
-                      title: "Dashboard",
-                      icon: Icons.dashboard_outlined,
-                      isActive: currentRoute == 'Dashboard',
-                      onTap: () => _nav(context, const DashboardScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
-                      title: "Profile",
-                      icon: Icons.person_outline,
-                      isActive: currentRoute == 'Profile',
-                      onTap: () => _nav(context, const ProfileScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
-                      title: "Jobs",
-                      icon: Icons.work_outline,
-                      isActive: currentRoute == 'Jobs',
-                      onTap: () => _nav(context, const JobsScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
-                      title: "Companies",
-                      icon: Icons.business_outlined,
-                      isActive: currentRoute == 'Companies',
-                      onTap: () => _nav(context, const CompaniesScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
-                      title: "Interviews",
-                      icon: Icons.list_alt_outlined,
-                      isActive: currentRoute == 'Interviews',
-                      badgeCount: upcomingCount,
-                      onTap: () => _nav(context, const QueueScreen()),
-                    ),
-                    const SizedBox(width: 8),
-                    _NavBarItem(
-                      title: "Requests",
-                      icon: Icons.inbox_outlined,
-                      isActive: currentRoute == 'Requests',
-                      badgeCount: requestReminderCount,
-                      onTap: () => _nav(context, const RequestsScreen()),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 10),
 
-                const Spacer(),
+                      // 2. Navigation Items (center area is scroll-safe)
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _NavBarItem(
+                                  title: "Dashboard",
+                                  icon: Icons.dashboard_outlined,
+                                  isActive: currentRoute == 'Dashboard',
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const DashboardScreen()),
+                                ),
+                                const SizedBox(width: 8),
+                                _NavBarItem(
+                                  title: "Profile",
+                                  icon: Icons.person_outline,
+                                  isActive: currentRoute == 'Profile',
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const ProfileScreen()),
+                                ),
+                                const SizedBox(width: 8),
+                                _NavBarItem(
+                                  title: "Jobs",
+                                  icon: Icons.work_outline,
+                                  isActive: currentRoute == 'Jobs',
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const JobsScreen()),
+                                ),
+                                const SizedBox(width: 8),
+                                _NavBarItem(
+                                  title: "Companies",
+                                  icon: Icons.business_outlined,
+                                  isActive: currentRoute == 'Companies',
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const CompaniesScreen()),
+                                ),
+                                const SizedBox(width: 8),
+                                _NavBarItem(
+                                  title: "Interviews",
+                                  icon: Icons.list_alt_outlined,
+                                  isActive: currentRoute == 'Interviews',
+                                  badgeCount: upcomingCount,
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const QueueScreen()),
+                                ),
+                                const SizedBox(width: 8),
+                                _NavBarItem(
+                                  title: "Requests",
+                                  icon: Icons.inbox_outlined,
+                                  isActive: currentRoute == 'Requests',
+                                  badgeCount: requestReminderCount,
+                                  showLabel: showNavLabels,
+                                  onTap: () =>
+                                      _nav(context, const RequestsScreen()),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
 
-                // 3. Profile, Settings & Logout Section
-                _buildUserProfile(context, primaryColor, textColor),
-              ],
+                      const SizedBox(width: 10),
+
+                      // 3. Profile, Settings & Logout Section
+                      _buildUserProfile(
+                        context,
+                        primaryColor,
+                        textColor,
+                        compact: isUltraCompact,
+                        showSecondaryActions: showSecondaryActions,
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -153,69 +197,84 @@ class BeautifulWebNavBar extends StatelessWidget {
     Navigator.pushReplacement(context, FadePageRoute(page: page));
   }
 
-  Widget _buildLogo(BuildContext context, Color primary, Color text) {
+  Widget _buildLogo(
+    BuildContext context,
+    Color primary,
+    Color text, {
+    bool compact = false,
+  }) {
     return Row(
       children: [
         Image.asset(
           'assets/LogoWithoutBg.png',
-          height: 40,
+          height: compact ? 34 : 40,
           errorBuilder: (_, __, ___) => Icon(Icons.school, color: primary),
         ),
-        const SizedBox(width: 12),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "COMSATS",
-              style: TextStyle(
-                color: primary,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                letterSpacing: 0.5,
+        if (!compact) ...[
+          const SizedBox(width: 12),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "COMSATS",
+                style: TextStyle(
+                  color: primary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
-            Text(
-              "Job Fair Student Portal",
-              style: TextStyle(
-                color: text.withValues(alpha: 0.7),
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
+              Text(
+                "Job Fair Student Portal",
+                style: TextStyle(
+                  color: text.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildUserProfile(BuildContext context, Color primary, Color text) {
+  Widget _buildUserProfile(
+    BuildContext context,
+    Color primary,
+    Color text, {
+    bool compact = false,
+    bool showSecondaryActions = true,
+  }) {
     return Row(
       children: [
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              userName,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: text,
+        if (!compact) ...[
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                userName,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: text,
+                ),
               ),
-            ),
-            Text(
-              "Student",
-              style: TextStyle(
-                color: text.withValues(alpha: 0.6),
-                fontSize: 11,
+              Text(
+                "Student",
+                style: TextStyle(
+                  color: text.withValues(alpha: 0.6),
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 12),
+            ],
+          ),
+          const SizedBox(width: 12),
+        ],
         CircleAvatar(
-          radius: 20,
+          radius: compact ? 17 : 20,
           backgroundColor: Theme.of(
             context,
           ).dividerColor.withValues(alpha: 0.1),
@@ -229,30 +288,30 @@ class BeautifulWebNavBar extends StatelessWidget {
                 )
               : null,
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
 
-        // 🔹 Notice Board Button (Web)
-        IconButton(
-          onPressed: () => showNoticeBoardPopup(context),
-          icon: Icon(
-            Icons.campaign_outlined,
-            color: text.withValues(alpha: 0.6),
+        if (showSecondaryActions)
+          IconButton(
+            onPressed: () => showNoticeBoardPopup(context),
+            icon: Icon(
+              Icons.campaign_outlined,
+              color: text.withValues(alpha: 0.6),
+            ),
+            tooltip: "Notice Board",
           ),
-          tooltip: "Notice Board",
-        ),
 
-        // 🔹 Settings Button (Web)
-        IconButton(
-          onPressed: () {
-            if (currentRoute == 'Settings') return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            );
-          },
-          icon: Icon(Icons.settings, color: text.withValues(alpha: 0.6)),
-          tooltip: "Settings",
-        ),
+        if (showSecondaryActions)
+          IconButton(
+            onPressed: () {
+              if (currentRoute == 'Settings') return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+            icon: Icon(Icons.settings, color: text.withValues(alpha: 0.6)),
+            tooltip: "Settings",
+          ),
 
         // Logout Button
         IconButton(
@@ -279,6 +338,7 @@ class _NavBarItem extends StatefulWidget {
   final IconData icon;
   final bool isActive;
   final int badgeCount;
+  final bool showLabel;
   final VoidCallback onTap;
 
   const _NavBarItem({
@@ -286,6 +346,7 @@ class _NavBarItem extends StatefulWidget {
     required this.icon,
     required this.isActive,
     this.badgeCount = 0,
+    this.showLabel = true,
     required this.onTap,
   });
 
@@ -314,7 +375,10 @@ class _NavBarItemState extends State<_NavBarItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.showLabel ? 16 : 10,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             color: widget.isActive
                 ? activeBg
@@ -326,17 +390,19 @@ class _NavBarItemState extends State<_NavBarItem> {
           child: Row(
             children: [
               Icon(widget.icon, size: 20, color: fgColor),
-              const SizedBox(width: 8),
-              Text(
-                widget.title,
-                style: TextStyle(
-                  color: fgColor,
-                  fontWeight: widget.isActive
-                      ? FontWeight.bold
-                      : FontWeight.w500,
-                  fontSize: 14,
+              if (widget.showLabel) ...[
+                const SizedBox(width: 8),
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: fgColor,
+                    fontWeight: widget.isActive
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
+              ],
               if (widget.badgeCount > 0) ...[
                 const SizedBox(width: 6),
                 Container(

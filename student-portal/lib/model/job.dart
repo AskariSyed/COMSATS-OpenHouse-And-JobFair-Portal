@@ -2,13 +2,25 @@ import 'package:student_job_fair_portal/mixins/enums.dart';
 
 class JobListResponse {
   final int totalJobs;
+  final int page;
+  final int pageSize;
+  final int totalPages;
   final List<Job> jobs;
 
-  JobListResponse({required this.totalJobs, required this.jobs});
+  JobListResponse({
+    required this.totalJobs,
+    required this.page,
+    required this.pageSize,
+    required this.totalPages,
+    required this.jobs,
+  });
 
   factory JobListResponse.fromJson(Map<String, dynamic> json) {
     return JobListResponse(
       totalJobs: json['totalJobs'] ?? 0,
+      page: json['page'] ?? 1,
+      pageSize: json['pageSize'] ?? 6,
+      totalPages: json['totalPages'] ?? 1,
       jobs:
           (json['jobs'] as List<dynamic>?)
               ?.map((x) => Job.fromJson(x))

@@ -275,52 +275,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    // ✅ Show crop option
-    if (mounted) {
-      final shouldCrop = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text("Crop Image"),
-          content: const SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Would you like to crop or adjust your profile picture?",
-                  style: TextStyle(fontSize: 13),
-                ),
-                SizedBox(height: 15),
-                Text(
-                  "✂️ Crop to perfect size\n📐 Choose aspect ratio\n✨ Frame your photo",
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text("Skip"),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text("Crop Image"),
-            ),
-          ],
-        ),
-      );
+    if (!mounted) return;
 
-      if (shouldCrop == true && mounted) {
-        final croppedImage = await ImageUtils.cropImage(image);
-        if (croppedImage != null && mounted) {
-          _validateAndUploadImage(croppedImage);
-        }
-      } else {
-        // Skip crop and validate directly
-        if (mounted) {
-          _validateAndUploadImage(image);
-        }
+    showTopSnackBar(
+      Overlay.of(context),
+      const CustomSnackBar.info(message: "Opening image cropper..."),
+    );
+
+    try {
+      final croppedImage = await ImageUtils.cropImage(image, context);
+      if (croppedImage != null && mounted) {
+        await _validateAndUploadImage(croppedImage);
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(
+            message: "Failed to crop image: ${e.toString()}",
+          ),
+        );
       }
     }
   }

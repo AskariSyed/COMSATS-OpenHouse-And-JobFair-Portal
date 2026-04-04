@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:image_editor_plus/image_editor_plus.dart';
+import 'package:image_editor_plus/options.dart' as ieo;
 
 /// Maximum file size allowed: 1MB
 const int MAX_FILE_SIZE_BYTES = 1048576; // 1MB
@@ -114,44 +117,70 @@ class ImageUtils {
   /// Check if image is valid and get its size in bytes
   static Future<int?> getImageFileSizeBytes(XFile xFile) async {
     try {
-      final file = File(xFile.path);
-      return await file.length();
+      // On web, use readAsBytes() instead of File access
+      if (kIsWeb) {
+        final bytes = await xFile.readAsBytes();
+        return bytes.length;
+      } else {
+        final file = File(xFile.path);
+        return await file.length();
+      }
     } catch (e) {
       debugPrint("❌ Error getting file size: $e");
       return null;
     }
   }
 
-  /// Crop image with user interaction
-  /// Returns the cropped image file or null if cancelled
-  static Future<XFile?> cropImage(XFile xFile) async {
+  /// Crop image with user interaction using image_editor_plus.
+  /// Returns the cropped image file or null if cancelled.
+  /// Works on both web and mobile platforms.
+  static Future<XFile?> cropImage(XFile xFile, BuildContext context) async {
     try {
-      final imageBytes = await xFile.readAsBytes();
-      final image = img.decodeImage(imageBytes);
-      if (image == null) return null;
+      debugPrint("🔍 Starting image crop for: ${xFile.name}");
 
-      // Center-crop to a square so profile pictures stay consistent.
-      final cropSize = image.width < image.height ? image.width : image.height;
-      final offsetX = (image.width - cropSize) ~/ 2;
-      final offsetY = (image.height - cropSize) ~/ 2;
-      final cropped = img.copyCrop(
-        image,
-        x: offsetX,
-        y: offsetY,
-        width: cropSize,
-        height: cropSize,
+      final sourceBytes = await xFile.readAsBytes();
+      final editedResult = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ImageCropper(
+            image: sourceBytes,
+            reversible: false,
+            availableRatios: const [ieo.AspectRatio(title: '1:1', ratio: 1)],
+          ),
+          fullscreenDialog: true,
+        ),
       );
 
-      final encoded = img.encodeJpg(cropped, quality: QUALITY_HIGH);
-      final fileName = xFile.name.isEmpty ? 'profile_crop.jpg' : xFile.name;
-      final tempPath =
-          '${Directory.systemTemp.path}${Platform.pathSeparator}$fileName';
-      final outFile = File(tempPath);
-      await outFile.writeAsBytes(encoded, flush: true);
+      if (editedResult == null) {
+        debugPrint("⚠️ Crop cancelled by user");
+        return null;
+      }
 
-      return XFile(outFile.path);
+      Uint8List croppedBytes;
+      if (editedResult is Uint8List) {
+        croppedBytes = editedResult;
+      } else if (editedResult is List<int>) {
+        croppedBytes = Uint8List.fromList(editedResult);
+      } else {
+        debugPrint(
+          "❌ Unsupported crop result type: ${editedResult.runtimeType}",
+        );
+        return null;
+      }
+
+      debugPrint("✅ Image cropped successfully");
+
+      // Compress the cropped image to ensure it's under 1MB
+      final compressedBytes = await compressImage(croppedBytes);
+
+      // Return as XFile from bytes to ensure compatibility.
+      return XFile.fromData(
+        compressedBytes,
+        mimeType: 'image/jpeg',
+        name: '${xFile.name.split('.').first}_cropped.jpg',
+      );
     } catch (e) {
       debugPrint("❌ Error cropping image: $e");
+      // On error, return null to let user proceed with original image
       return null;
     }
   }

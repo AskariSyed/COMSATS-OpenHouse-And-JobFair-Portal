@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Build artifacts
+dist
+build
+.dart_tool
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDEs
+.vscode
+.idea
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+*.log
+*.swp
+.env
+.env.local
+
+# Dependencies
+.dart_tool/
+
+# Flutter
+.gradle/
+ios/
+android/
+linux/
+macos/
+windows/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Secrets (never include in images)
+secrets/
+.env.*
+!.env.example

@@ -1886,10 +1886,15 @@ namespace JobFairPortal.Controllers
         } // -----------------------------
 
         [HttpGet("companies")]
-        public async Task<IActionResult> GetAvailableCompanies()
+        public async Task<IActionResult> GetAvailableCompanies(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 8)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 50);
 
             var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
             if (student == null) return NotFound("Student not found.");
@@ -1919,7 +1924,10 @@ namespace JobFairPortal.Controllers
                     p.Company.Industry,
                     p.Company.LogoUrl,
                     p.Company.Website,
-                    JobCount = p.Company.Jobs.Count, // Count only jobs in this fair due to filtered include
+                    JobCount = _context.Jobs.Count(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId),
+                    OpenPositions = _context.Jobs
+                        .Where(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId)
+                        .Sum(j => (int?)j.NumberOfJobs) ?? 0,
                     InterviewRequestStatus = p.Company.InterviewRequests
                         .Select(ir => ir.Status.ToString())
                         .FirstOrDefault() ?? "None",
@@ -1930,11 +1938,132 @@ namespace JobFairPortal.Controllers
                 })
                 .ToListAsync();
 
+            var totalCompanies = companies.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalCompanies / (double)pageSize));
+            var pagedCompanies = companies
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
             return Ok(new
             {
                 JobFair = activeJobFair.Semester,
-                TotalCompanies = companies.Count,
-                Companies = companies
+                TotalCompanies = totalCompanies,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                Companies = pagedCompanies
+            });
+        }
+
+        [HttpGet("companies/search")]
+        public async Task<IActionResult> SearchCompanies(
+            [FromQuery] string? keyword,
+            [FromQuery] string? industries = null,
+            [FromQuery] bool onlyHiring = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 8)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null) return NotFound("Student not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return NotFound("No active job fair found.");
+
+            var isParticipant = await _context.StudentJobFairParticipations
+                .AnyAsync(p => p.StudentId == student.StudentId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (!isParticipant)
+                return BadRequest("You are not registered for the current job fair. Please join via the dashboard.");
+
+            var companiesQuery = _context.CompanyJobFairParticipations
+                .Where(p => p.JobFairId == activeJobFair.JobFairId)
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.Jobs.Where(j => j.JobFairId == activeJobFair.JobFairId))
+                .Include(p => p.Company)
+                    .ThenInclude(c => c.InterviewRequests.Where(ir => ir.StudentId == student.StudentId && ir.JobFairId == activeJobFair.JobFairId))
+                .AsQueryable();
+
+            var participatingCompanies = await companiesQuery
+                .ToListAsync();
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var lowerKeyword = keyword.Trim().ToLowerInvariant();
+                participatingCompanies = participatingCompanies
+                    .Where(p =>
+                        (p.Company.Name ?? string.Empty).ToLowerInvariant().Contains(lowerKeyword) ||
+                        (p.Company.Industry ?? string.Empty).ToLowerInvariant().Contains(lowerKeyword) ||
+                        (p.Company.Jobs ?? new List<Job>()).Any(j =>
+                            (j.JobTitle ?? string.Empty).ToLowerInvariant().Contains(lowerKeyword) ||
+                            (j.JobDescription ?? string.Empty).ToLowerInvariant().Contains(lowerKeyword) ||
+                            (j.RequiredSkills ?? Array.Empty<string>()).Any(skill =>
+                                !string.IsNullOrWhiteSpace(skill) &&
+                                skill.ToLowerInvariant().Contains(lowerKeyword)))
+                    )
+                    .ToList();
+            }
+
+            var companies = participatingCompanies
+                .Select(p => new
+                {
+                    p.Company.CompanyId,
+                    p.Company.Name,
+                    p.Company.Industry,
+                    p.Company.LogoUrl,
+                    p.Company.Website,
+                    JobCount = _context.Jobs.Count(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId),
+                    OpenPositions = _context.Jobs
+                        .Where(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId)
+                        .Sum(j => (int?)j.NumberOfJobs) ?? 0,
+                    InterviewRequestStatus = p.Company.InterviewRequests
+                        .Select(ir => ir.Status.ToString())
+                        .FirstOrDefault() ?? "None",
+                    CanRequestInterview = !p.Company.InterviewRequests.Any(),
+                    IsWalkInInterviewing = p.IsPresent
+                        && p.Company.IsWalkInInterviewing
+                        && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow)
+                })
+                .Where(c => !onlyHiring || c.JobCount > 0)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(industries))
+            {
+                var allowedIndustries = industries
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                companies = companies
+                    .Where(c => string.IsNullOrWhiteSpace(c.Industry) || allowedIndustries.Contains(c.Industry))
+                    .ToList();
+            }
+
+            if (companies.Count == 0)
+            {
+                return NotFound("No companies found matching your criteria.");
+            }
+
+            var totalCompanies = companies.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalCompanies / (double)pageSize));
+            var pagedCompanies = companies
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Ok(new
+            {
+                JobFair = activeJobFair.Semester,
+                TotalCompanies = totalCompanies,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                Companies = pagedCompanies
             });
         }
 
@@ -1942,10 +2071,15 @@ namespace JobFairPortal.Controllers
         // Get All Jobs (Active Fair Only)
         // -----------------------------
         [HttpGet("jobs")]
-        public async Task<IActionResult> GetAllJobs()
+        public async Task<IActionResult> GetAllJobs(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 6)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 50);
 
             // 1. Get Active Fair
             var activeJobFairId = await _context.JobFairs
@@ -1953,7 +2087,16 @@ namespace JobFairPortal.Controllers
                 .Select(j => j.JobFairId)
                 .FirstOrDefaultAsync();
 
-            if (activeJobFairId == 0) return NotFound("No active job fair.");
+            if (activeJobFairId == 0)
+            {
+                return Ok(new
+                {
+                    JobFairId = 0,
+                    TotalJobs = 0,
+                    Jobs = new List<object>(),
+                    Message = "No active job fair."
+                });
+            }
 
             // 2. Filter Jobs by Active Fair
             var jobs = await _context.Jobs
@@ -1982,21 +2125,49 @@ namespace JobFairPortal.Controllers
                 })
                 .ToListAsync();
 
+            var totalJobs = jobs.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalJobs / (double)pageSize));
+            var pagedJobs = jobs
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
             if (jobs.Count == 0)
-                return NotFound("No jobs available for your job fair.");
+            {
+                return Ok(new
+                {
+                    JobFairId = activeJobFairId,
+                    TotalJobs = 0,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalPages = 1,
+                    Jobs = new List<object>(),
+                    Message = "No jobs available for your job fair."
+                });
+            }
 
             return Ok(new
             {
                 JobFairId = activeJobFairId,
-                TotalJobs = jobs.Count,
-                Jobs = jobs
+                TotalJobs = totalJobs,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                Jobs = pagedJobs
             });
         }
         [HttpGet("jobs/search")]
-        public async Task<IActionResult> SearchJobs([FromQuery] string? keyword, [FromQuery] string? jobType)
+        public async Task<IActionResult> SearchJobs(
+            [FromQuery] string? keyword,
+            [FromQuery] string? jobTypes = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 6)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 50);
 
             var activeJobFairId = await _context.JobFairs
                 .Where(j => j.IsActive)
@@ -2020,11 +2191,18 @@ namespace JobFairPortal.Controllers
                 );
             }
 
-            if (!string.IsNullOrWhiteSpace(jobType))
+            if (!string.IsNullOrWhiteSpace(jobTypes))
             {
-                if (Enum.TryParse<JobType>(jobType, true, out var jobTypeEnum))
+                var allowedJobTypes = jobTypes
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(value => Enum.TryParse<JobType>(value, true, out var parsed) ? parsed : (JobType?)null)
+                    .Where(value => value.HasValue)
+                    .Select(value => value!.Value)
+                    .ToHashSet();
+
+                if (allowedJobTypes.Count > 0)
                 {
-                    jobsQuery = jobsQuery.Where(j => j.JobType == jobTypeEnum);
+                    jobsQuery = jobsQuery.Where(j => allowedJobTypes.Contains(j.JobType));
                 }
             }
 
@@ -2053,11 +2231,21 @@ namespace JobFairPortal.Controllers
             if (jobs.Count == 0)
                 return NotFound("No jobs found matching your criteria.");
 
+            var totalJobs = jobs.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalJobs / (double)pageSize));
+            var pagedJobs = jobs
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
             return Ok(new
             {
                 JobFairId = activeJobFairId,
-                TotalJobs = jobs.Count,
-                Jobs = jobs
+                TotalJobs = totalJobs,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                Jobs = pagedJobs
             });
         }
 
@@ -2666,6 +2854,7 @@ namespace JobFairPortal.Controllers
                 .OrderByDescending(x => x.MatchCount)
                 .Select(x => new
                 {
+                    CompanyId = x.Job.CompanyId,
                     x.Job.JobId,
                     x.Job.JobTitle,
                     x.Job.JobType,
@@ -2695,7 +2884,7 @@ namespace JobFairPortal.Controllers
             var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
             if (activeJobFair == null) return NotFound("No active job fair.");
 
-            // Fetch all companies and their jobs for the active fair
+            // Fetch participating companies and their active-fair jobs.
             var companiesWithJobs = await _context.CompanyJobFairParticipations
                 .Where(p => p.JobFairId == activeJobFair.JobFairId)
                 .Include(p => p.Company)
@@ -2708,21 +2897,29 @@ namespace JobFairPortal.Controllers
                 .Select(participation => new
                 {
                     Company = participation.Company,
-                    MatchCount = participation.Company.Jobs
+                    JobsInCurrentFair = participation.Company.Jobs
+                        .Where(j => j.JobFairId == activeJobFair.JobFairId)
+                        .ToList()
+                })
+                .Select(x => new
+                {
+                    x.Company,
+                    MatchCount = x.JobsInCurrentFair
                         .SelectMany(j => j.RequiredSkills ?? new string[] { })
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Intersect(student.Skills, StringComparer.OrdinalIgnoreCase)
                         .Count(),
-                    TotalUniqueSkillsRequired = participation.Company.Jobs
+                    TotalUniqueSkillsRequired = x.JobsInCurrentFair
                         .SelectMany(j => j.RequiredSkills ?? new string[] { })
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Count(),
-                    MatchedSkills = participation.Company.Jobs
+                    MatchedSkills = x.JobsInCurrentFair
                         .SelectMany(j => j.RequiredSkills ?? new string[] { })
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Intersect(student.Skills, StringComparer.OrdinalIgnoreCase)
                         .ToList(),
-                    OpenJobs = participation.Company.Jobs.Count()
+                    JobCount = x.JobsInCurrentFair.Count,
+                    OpenPositions = x.JobsInCurrentFair.Sum(j => j.NumberOfJobs)
                 })
                 .Where(x => x.MatchCount > 0) // Only show companies with at least one matching skill
                 .OrderByDescending(x => x.MatchCount)
@@ -2735,7 +2932,9 @@ namespace JobFairPortal.Controllers
                     x.Company.Website,
                     MatchCount = x.MatchCount,
                     TotalSkillsRequired = x.TotalUniqueSkillsRequired,
-                    OpenJobs = x.OpenJobs,
+                    JobCount = x.JobCount,
+                    OpenPositions = x.OpenPositions,
+                    OpenJobs = x.JobCount,
                     MatchedSkills = x.MatchedSkills
                 })
                 .Take(10) // Limit to top 10

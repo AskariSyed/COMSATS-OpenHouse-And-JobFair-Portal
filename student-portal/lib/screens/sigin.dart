@@ -637,26 +637,57 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     ),
                                   ],
                                 ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    onPressed: _openApkDownload,
-                                    icon: const Icon(Icons.android, size: 16),
-                                    label: const Text(
-                                      'APK',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                      foregroundColor: subtitleColor,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
+                                if (kIsWeb ||
+                                    defaultTargetPlatform ==
+                                        TargetPlatform.android)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: _openApkDownload,
+                                      icon: const Icon(Icons.android, size: 16),
+                                      label: const Text(
+                                        'APK',
+                                        style: TextStyle(fontSize: 12),
                                       ),
-                                      minimumSize: const Size(0, 30),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: subtitleColor,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        minimumSize: const Size(0, 30),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
                                     ),
+                                  ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.blue.shade900.withOpacity(0.3)
+                                        : Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.blue.shade700.withOpacity(
+                                              0.5,
+                                            )
+                                          : Colors.blue.shade200,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '📚 Disclaimer: This is a Final Year Project by COMSATS Students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? Colors.blue.shade200
+                                          : Colors.blue.shade700,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ],

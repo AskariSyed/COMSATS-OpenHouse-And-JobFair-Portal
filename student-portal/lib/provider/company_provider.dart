@@ -17,12 +17,13 @@ class CompanyProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _isLoadingRecommended = false;
   String? _error;
+  int _searchRequestId = 0;
+  int _currentPage = 1;
+  int _totalPages = 1;
+  int _pageSize = 8;
 
   // Getters
-  List<Company> get companies =>
-      _filteredCompanies.isEmpty && _companies.isNotEmpty
-      ? _companies
-      : _filteredCompanies;
+  List<Company> get companies => _filteredCompanies;
 
   List<Company> get displayCompanies => _filteredCompanies;
   List<dynamic> get recommendedCompanies => _recommendedCompanies;
@@ -31,18 +32,27 @@ class CompanyProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoadingRecommended => _isLoadingRecommended;
   String? get error => _error;
+  int get currentPage => _currentPage;
+  int get totalPages => _totalPages;
+  int get pageSize => _pageSize;
 
   // Base URL
   final String baseUrl = BackendConfig.apiBaseUrl;
 
   /// Fetches the list of companies from the API
-  Future<void> fetchCompanies(String token) async {
+  Future<void> fetchCompanies(
+    String token, {
+    int page = 1,
+    int pageSize = 8,
+  }) async {
     _setLoading(true);
     _error = null;
+    _currentPage = page;
+    _pageSize = pageSize;
 
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl/Student/companies"),
+        Uri.parse("$baseUrl/Student/companies?page=$page&pageSize=$pageSize"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -54,9 +64,14 @@ class CompanyProvider with ChangeNotifier {
         final companyResponse = CompanyListResponse.fromJson(data);
         _companies = companyResponse.companies;
         _filteredCompanies = List.from(_companies);
+        _currentPage = companyResponse.page;
+        _pageSize = companyResponse.pageSize;
+        _totalPages = companyResponse.totalPages;
       } else if (response.statusCode == 404) {
         _companies = [];
         _filteredCompanies = [];
+        _currentPage = 1;
+        _totalPages = 1;
         _error = "No companies available for your job fair yet.";
       } else {
         _error = "Failed to load companies. Status: ${response.statusCode}";
@@ -169,31 +184,215 @@ class CompanyProvider with ChangeNotifier {
   }
 
   // --- Search Logic ---
-  void searchCompanies(String query, List<String> studentSkills) {
-    if (query.isEmpty) {
-      _filteredCompanies = List.from(_companies);
-    } else {
-      final lowerQuery = query.toLowerCase();
-      _filteredCompanies = _companies.where((company) {
-        final nameMatch = company.name.toLowerCase().contains(lowerQuery);
-        final industryMatch =
-            company.industry?.toLowerCase().contains(lowerQuery) ?? false;
+  Future<void> searchCompanies(
+    String query,
+    List<String> studentSkills, {
+    String? token,
+    List<String>? industries,
+    bool onlyHiring = false,
+    int page = 1,
+    int pageSize = 8,
+  }) {
+    return _searchCompanies(
+      query,
+      studentSkills,
+      token: token,
+      industries: industries,
+      onlyHiring: onlyHiring,
+      page: page,
+      pageSize: pageSize,
+    );
+  }
 
-        // Check jobs
-        final jobMatch = company.jobs.any((job) {
-          final titleMatch = job.jobTitle.toLowerCase().contains(lowerQuery);
-          final skillMatch = job.requiredSkills.any(
-            (skill) => skill.toLowerCase().contains(lowerQuery),
-          );
-          return titleMatch || skillMatch;
-        });
+  Future<void> _searchCompanies(
+    String query,
+    List<String> studentSkills, {
+    String? token,
+    List<String>? industries,
+    bool onlyHiring = false,
+    int page = 1,
+    int pageSize = 8,
+  }) async {
+    final trimmedQuery = query.trim();
+    final currentRequestId = ++_searchRequestId;
+    final selectedIndustries = (industries ?? const <String>[])
+        .where((industry) => industry.trim().isNotEmpty)
+        .toSet();
+    _currentPage = page;
+    _pageSize = pageSize;
 
-        return nameMatch || industryMatch || jobMatch;
-      }).toList();
+    if (token == null || token.isEmpty) {
+      if (trimmedQuery.isEmpty) {
+        _filteredCompanies = _applyCompanyFilters(
+          _companies,
+          selectedIndustries,
+          onlyHiring: onlyHiring,
+        );
+      } else {
+        _filteredCompanies = _applyLocalCompanySearch(
+          _companies,
+          trimmedQuery,
+          selectedIndustries,
+          onlyHiring: onlyHiring,
+        );
+      }
+      sortCompaniesBySkillMatch(studentSkills);
+      notifyListeners();
+      return;
     }
 
-    sortCompaniesBySkillMatch(studentSkills);
-    notifyListeners();
+    try {
+      final queryParameters = <String, String>{
+        'keyword': trimmedQuery,
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
+
+      if (selectedIndustries.isNotEmpty) {
+        queryParameters['industries'] = selectedIndustries.join(',');
+      }
+
+      if (onlyHiring) {
+        queryParameters['onlyHiring'] = 'true';
+      }
+
+      final response = await http.get(
+        Uri.parse(
+          "$baseUrl/Student/companies/search",
+        ).replace(queryParameters: queryParameters),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (currentRequestId != _searchRequestId) {
+        return;
+      }
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final apiCompanies = data is Map<String, dynamic>
+            ? (data['companies'] as List<dynamic>?)
+                      ?.map((x) => Company.fromJson(x))
+                      .toList() ??
+                  []
+            : <Company>[];
+
+        final localResults = trimmedQuery.isEmpty
+            ? _applyCompanyFilters(
+                _companies,
+                selectedIndustries,
+                onlyHiring: onlyHiring,
+              )
+            : _applyLocalCompanySearch(
+                _companies,
+                trimmedQuery,
+                selectedIndustries,
+                onlyHiring: onlyHiring,
+              );
+        final mergedCompanies = _mergeCompanies(localResults, apiCompanies);
+        _filteredCompanies = mergedCompanies;
+        _currentPage = data is Map<String, dynamic>
+            ? (data['page'] ?? page)
+            : page;
+        _pageSize = data is Map<String, dynamic>
+            ? (data['pageSize'] ?? pageSize)
+            : pageSize;
+        _totalPages = data is Map<String, dynamic>
+            ? (data['totalPages'] ?? 1)
+            : 1;
+        sortCompaniesBySkillMatch(studentSkills);
+        notifyListeners();
+      } else if (response.statusCode == 404) {
+        _filteredCompanies = [];
+        _totalPages = 1;
+        notifyListeners();
+      }
+    } catch (_) {
+      if (currentRequestId == _searchRequestId) {
+        _filteredCompanies = trimmedQuery.isEmpty
+            ? _applyCompanyFilters(
+                _companies,
+                selectedIndustries,
+                onlyHiring: onlyHiring,
+              )
+            : _applyLocalCompanySearch(
+                _companies,
+                trimmedQuery,
+                selectedIndustries,
+                onlyHiring: onlyHiring,
+              );
+        sortCompaniesBySkillMatch(studentSkills);
+        notifyListeners();
+      }
+    }
+  }
+
+  List<Company> _applyLocalCompanySearch(
+    List<Company> companies,
+    String query,
+    Set<String> selectedIndustries, {
+    required bool onlyHiring,
+  }) {
+    final lowerQuery = query.toLowerCase();
+
+    return companies.where((company) {
+      final nameMatch = company.name.toLowerCase().contains(lowerQuery);
+      final industryMatch =
+          company.industry?.toLowerCase().contains(lowerQuery) ?? false;
+
+      final jobMatch = company.jobs.any((job) {
+        final titleMatch = job.jobTitle.toLowerCase().contains(lowerQuery);
+        final skillMatch = job.requiredSkills.any(
+          (skill) => skill.toLowerCase().contains(lowerQuery),
+        );
+        return titleMatch || skillMatch;
+      });
+
+      final matchesQuery = nameMatch || industryMatch || jobMatch;
+      final matchesFilters = !onlyHiring || company.jobCount > 0;
+      final industryAllowed =
+          selectedIndustries.isEmpty ||
+          (company.industry != null &&
+              selectedIndustries.contains(company.industry));
+
+      return matchesQuery && matchesFilters && industryAllowed;
+    }).toList();
+  }
+
+  List<Company> _mergeCompanies(
+    List<Company> localCompanies,
+    List<Company> apiCompanies,
+  ) {
+    final merged = <int, Company>{};
+
+    for (final company in localCompanies) {
+      merged[company.companyId] = company;
+    }
+
+    for (final company in apiCompanies) {
+      merged[company.companyId] = company;
+    }
+
+    return merged.values.toList();
+  }
+
+  List<Company> _applyCompanyFilters(
+    List<Company> companies,
+    Set<String> selectedIndustries, {
+    required bool onlyHiring,
+  }) {
+    return companies.where((company) {
+      if (onlyHiring && company.jobCount == 0) return false;
+      if (selectedIndustries.isNotEmpty) {
+        if (company.industry == null ||
+            !selectedIndustries.contains(company.industry)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 
   // ✅ NEW: Fetch recommended companies based on student skills
