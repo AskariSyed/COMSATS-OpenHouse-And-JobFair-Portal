@@ -161,17 +161,22 @@ Compress-Archive -Path (Join-Path $companyDir "dist\*") -DestinationPath $compan
 
 Write-Step "Building Student portal (Flutter Web)"
 Run-OrThrow "flutter pub get" $studentDir
-Run-OrThrow "flutter build web --release --dart-define=BACKEND_BASE_URL=$BackendUrl" $studentDir
+Run-OrThrow "flutter build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL=$BackendUrl --dart-define=APP_ENV=production" $studentDir
 if (-not (Test-Path (Join-Path $studentDir "build\web"))) {
     throw "Student build output missing: student-portal/build/web"
 }
 Compress-Archive -Path (Join-Path $studentDir "build\web\*") -DestinationPath $studentZip -Force
 
-Write-Step "Packaging jfair.tech landing page"
+Write-Step "Building jfair.tech landing page"
 if (-not (Test-Path $landingDir)) {
     throw "Landing page directory missing: landing-page"
 }
-Compress-Archive -Path (Join-Path $landingDir "*") -DestinationPath $landingZip -Force
+Run-OrThrow "npm install" $landingDir
+Run-OrThrow "npm run build" $landingDir
+if (-not (Test-Path (Join-Path $landingDir "dist"))) {
+    throw "Landing build output missing: landing-page/dist"
+}
+Compress-Archive -Path (Join-Path $landingDir "dist\*") -DestinationPath $landingZip -Force
 
 Write-Step "Uploading artifacts to EC2"
 $sshOptions = @("-o", "StrictHostKeyChecking=no")

@@ -11,7 +11,8 @@ RUN flutter pub get
 
 # Build for web
 ARG BACKEND_BASE_URL=http://localhost:5158
-RUN flutter build web --release --dart-define=BACKEND_BASE_URL=${BACKEND_BASE_URL}
+ARG APP_ENV=production
+RUN flutter build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL=${BACKEND_BASE_URL} --dart-define=APP_ENV=${APP_ENV}
 
 # Production stage
 FROM nginx:alpine

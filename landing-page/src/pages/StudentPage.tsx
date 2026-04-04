@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Apple, Smartphone } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { StudentMockupSlider } from '../components/StudentMockupSlider';
 import { howToUse, portalUrls, studentCapabilities } from '../data/siteContent';
@@ -18,7 +19,13 @@ const studentFaqs = [
   },
   {
     question: 'How do I use the portal on iPhone?',
-    answer: 'Open student.jfair.tech in Safari, tap Share, and choose Add to Home Screen for app-like access.'
+    answer: [
+      'Open Safari and go to student.jfair.tech.',
+      'Wait for the page to load.',
+      'Tap the Share button at the bottom of Safari.',
+      'Scroll if needed and choose Add to Home Screen.',
+      'Save the shortcut to open the student portal like an app.'
+    ]
   },
   {
     question: 'How do I get Android app access?',
@@ -29,8 +36,8 @@ const studentFaqs = [
     answer: 'You will receive it on your university-provided Microsoft account email, using the template format FA22-BCS-000@cuiwah.edu.pk. During sign-up, enter your registration number and an auto-generated password will be sent to this email.'
   },
   {
-    question: 'Can I change my password?',
-    answer: 'For password changes, please contact the IT Center or the portal admin for assistance.'
+    question: 'Can I change my email?',
+    answer: 'For email changes, please contact the IT Center or the portal admin for assistance.'
   }
 ];
 
@@ -71,14 +78,14 @@ export function StudentPage() {
         className="grid gap-4 md:grid-cols-2"
       >
         <article className="rounded-2xl border border-teal-200 bg-teal-50 p-6 transition-transform duration-300 hover:-translate-y-1">
-          <h3 className="text-lg font-bold text-teal-900">Android</h3>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-teal-900"><Smartphone className="h-5 w-5" />Android</h3>
           <p className="mt-2 text-sm text-teal-800">Install APK for app-like experience and quick access.</p>
           <a href={portalUrls.studentApk} className="mt-4 inline-block rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white">Download student-portal.apk</a>
         </article>
 
         <article className="rounded-2xl border border-blue-200 bg-blue-50 p-6 transition-transform duration-300 hover:-translate-y-1">
-          <h3 className="text-lg font-bold text-blue-900">iPhone</h3>
-          <p className="mt-2 text-sm text-blue-800">Open student.jfair.tech in Safari, then tap Share and choose Add to Home Screen.</p>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-blue-900"><Apple className="h-5 w-5" />iPhone</h3>
+          <p className="mt-2 text-sm text-blue-800 whitespace-pre-line">Open Safari and go to student.jfair.tech.\n• Wait for the page to load.\n• Tap Share at the bottom of Safari.\n• Scroll if needed and choose Add to Home Screen.</p>
           <a href={portalUrls.student} className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Open Student Portal</a>
         </article>
       </motion.section>
@@ -108,7 +115,15 @@ export function StudentPage() {
           {studentFaqs.map((faq) => (
             <details key={faq.question} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">{faq.question}</summary>
-              <p className="mt-2 text-sm text-slate-700">{faq.answer}</p>
+              {Array.isArray(faq.answer) ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  {faq.answer.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate-700">{faq.answer}</p>
+              )}
             </details>
           ))}
         </div>

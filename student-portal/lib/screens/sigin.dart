@@ -9,11 +9,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:student_job_fair_portal/model/student.dart';
 import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:student_job_fair_portal/screens/forgetpassword_screen.dart';
-import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
+import 'package:student_job_fair_portal/screens/forgetpassword_screen.dart'
+    deferred as forgot_password_screen;
+import 'package:student_job_fair_portal/screens/dashboard_screen.dart'
+    deferred as dashboard_screen;
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
-import 'package:student_job_fair_portal/screens/signup.dart';
+import 'package:student_job_fair_portal/screens/signup.dart'
+    deferred as signup_screen;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:universal_html/html.dart' as html;
 
@@ -158,10 +161,13 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             Provider.of<StudentProvider>(context, listen: false).fetchProfile();
           }
 
+          await dashboard_screen.loadLibrary();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              MaterialPageRoute(
+                builder: (_) => dashboard_screen.DashboardScreen(),
+              ),
             );
           });
         }
@@ -530,13 +536,18 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const ForgotPasswordRequestScreen(),
-                                        ),
-                                      );
+                                      () async {
+                                        await forgot_password_screen
+                                            .loadLibrary();
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                forgot_password_screen.ForgotPasswordRequestScreen(),
+                                          ),
+                                        );
+                                      }();
                                     },
                                     child: const Text(
                                       'Forgot Password?',
@@ -618,13 +629,17 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     ),
                                     TextButton(
                                       onPressed: () {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const StudentSignUpScreen(),
-                                          ),
-                                        );
+                                        () async {
+                                          await signup_screen.loadLibrary();
+                                          if (!context.mounted) return;
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  signup_screen.StudentSignUpScreen(),
+                                            ),
+                                          );
+                                        }();
                                       },
                                       child: const Text(
                                         'Sign Up',

@@ -1,11 +1,11 @@
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { portalUrls } from '../data/siteContent';
 
 const navLinks = [
   { label: 'Portals', to: '/' },
   { label: 'How to Use', to: '/how-to-use' },
-  { label: 'Student App', to: '/student' },
   { label: 'Team', to: '/team' }
 ];
 
@@ -14,6 +14,12 @@ const detailLinks = [
   { label: 'Company', to: '/company' },
   { label: 'Admin', to: '/admin' },
   { label: 'Team', to: '/team' }
+];
+
+const portalQuickLinks = [
+  { label: 'Student Portal', href: portalUrls.student },
+  { label: 'Company Portal', href: portalUrls.company },
+  { label: 'Admin Portal', href: portalUrls.admin }
 ];
 
 export function Navbar() {
@@ -68,7 +74,17 @@ export function Navbar() {
               </div>
             )}
           </div>
-          <a href="https://student.jfair.tech" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Get Started</a>
+          <div className="flex items-center gap-2">
+            {portalQuickLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
         </nav>
 
         <button onClick={() => setOpen((v) => !v)} className="md:hidden" type="button">
@@ -109,7 +125,17 @@ export function Navbar() {
                 ))}
               </div>
             )}
-            <a href="https://student.jfair.tech" className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white">Get Started</a>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {portalQuickLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-semibold text-white"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       )}
