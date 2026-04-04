@@ -27,6 +27,46 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Detect changed projects
+      id: changes
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "admin=true" >> "$GITHUB_OUTPUT"
+          echo "company=true" >> "$GITHUB_OUTPUT"
+          echo "landing=true" >> "$GITHUB_OUTPUT"
+          echo "student=true" >> "$GITHUB_OUTPUT"
+          echo "backend=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+
+        if echo "$changed_files" | grep -vE '^(admin-portal/|company-portal/|landing-page/|student-portal/|Backend/)' | grep -q '.'; then
+          echo "admin=true" >> "$GITHUB_OUTPUT"
+          echo "company=true" >> "$GITHUB_OUTPUT"
+          echo "landing=true" >> "$GITHUB_OUTPUT"
+          echo "student=true" >> "$GITHUB_OUTPUT"
+          echo "backend=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if echo "$changed_files" | grep -q '^admin-portal/'; then echo "admin=true" >> "$GITHUB_OUTPUT"; else echo "admin=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^company-portal/'; then echo "company=true" >> "$GITHUB_OUTPUT"; else echo "company=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^landing-page/'; then echo "landing=true" >> "$GITHUB_OUTPUT"; else echo "landing=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^student-portal/'; then echo "student=true" >> "$GITHUB_OUTPUT"; else echo "student=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^Backend/'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
+
+    - name: Show changed projects
+      run: |
+        echo "Admin:   ${{ steps.changes.outputs.admin }}"
+        echo "Company: ${{ steps.changes.outputs.company }}"
+        echo "Landing: ${{ steps.changes.outputs.landing }}"
+        echo "Student: ${{ steps.changes.outputs.student }}"
+        echo "Backend: ${{ steps.changes.outputs.backend }}"
     
     # Setup Node.js for React apps
     - name: Setup Node.js
@@ -61,6 +101,7 @@ jobs:
     
     # Build Admin Portal
     - name: Build Admin Portal
+      if: steps.changes.outputs.admin == 'true'
       run: |
         cd admin-portal
         npm ci
@@ -72,6 +113,7 @@ jobs:
     
     # Build Company Portal
     - name: Build Company Portal
+      if: steps.changes.outputs.company == 'true'
       run: |
         cd company-portal
         npm ci
@@ -83,6 +125,7 @@ jobs:
     
     # Build Landing Page
     - name: Build Landing Page
+      if: steps.changes.outputs.landing == 'true'
       run: |
         cd landing-page
         npm ci
@@ -94,6 +137,7 @@ jobs:
     
     # Build Student Portal (Flutter Web + APK)
     - name: Build Student Portal
+      if: steps.changes.outputs.student == 'true'
       run: |
         cd student-portal
         flutter pub get
@@ -112,6 +156,7 @@ jobs:
     
     # Build Backend (.NET)
     - name: Build Backend
+      if: steps.changes.outputs.backend == 'true'
       run: |
         cd Backend
         dotnet restore
@@ -120,32 +165,33 @@ jobs:
     
     # Create deployment artifacts
     - name: Package artifacts
+      if: always()
       run: |
         mkdir -p deploy-artifacts
         
-        # Package Admin Portal
-        tar -czf deploy-artifacts/admin.tar.gz -C admin-portal/dist .
-        
-        # Package Company Portal
-        tar -czf deploy-artifacts/company.tar.gz -C company-portal/dist .
-        
-        # Package Landing Page
-        tar -czf deploy-artifacts/landing.tar.gz -C landing-page/dist .
-        
-        # Package Student Portal
-        tar -czf deploy-artifacts/student.tar.gz -C student-portal/build/web .
-
-        # Package Student APK
-        cp student-portal/build/app/outputs/flutter-apk/app-release.apk deploy-artifacts/student-portal.apk
-        
-        # Package Backend
-        tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
+        if [ "${{ steps.changes.outputs.admin }}" = "true" ]; then
+          tar -czf deploy-artifacts/admin.tar.gz -C admin-portal/dist .
+        fi
+        if [ "${{ steps.changes.outputs.company }}" = "true" ]; then
+          tar -czf deploy-artifacts/company.tar.gz -C company-portal/dist .
+        fi
+        if [ "${{ steps.changes.outputs.landing }}" = "true" ]; then
+          tar -czf deploy-artifacts/landing.tar.gz -C landing-page/dist .
+        fi
+        if [ "${{ steps.changes.outputs.student }}" = "true" ]; then
+          tar -czf deploy-artifacts/student.tar.gz -C student-portal/build/web .
+          cp student-portal/build/app/outputs/flutter-apk/app-release.apk deploy-artifacts/student-portal.apk
+        fi
+        if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
+        fi
         
         echo "Artifacts packaged:"
         ls -lh deploy-artifacts/
     
     # Setup SSH and deploy to EC2
     - name: Deploy to EC2
+      if: always()
       env:
         EC2_PEM_KEY: ${{ secrets.EC2_PEM_KEY }}
       run: |
@@ -157,18 +203,22 @@ jobs:
         
         # Upload artifacts to EC2
         echo "Uploading artifacts to EC2..."
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/admin.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/admin.tar.gz
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/company.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/company.tar.gz
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/landing.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/landing.tar.gz
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/student.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student.tar.gz
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/student-portal.apk ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student-portal.apk
-        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
+        if [ "${{ steps.changes.outputs.admin }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/admin.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/admin.tar.gz
+        fi
+        if [ "${{ steps.changes.outputs.company }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/company.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/company.tar.gz
+        fi
+        if [ "${{ steps.changes.outputs.landing }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/landing.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/landing.tar.gz
+        fi
+        if [ "${{ steps.changes.outputs.student }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/student.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student.tar.gz
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/student-portal.apk ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student-portal.apk
+        fi
+        if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
+        fi
         
         # Execute remote deployment script
         echo "Running remote deployment..."
@@ -184,31 +234,41 @@ jobs:
         sudo apt-get install -y tar gzip
         
         echo "==> Deploying Admin Portal..."
-        sudo rm -rf /var/www/admin/*
-        sudo tar -xzf /tmp/admin.tar.gz -C /var/www/admin
-        sudo chown -R www-data:www-data /var/www/admin
+        if [ "${{ steps.changes.outputs.admin }}" = "true" ]; then
+          sudo rm -rf /var/www/admin/*
+          sudo tar -xzf /tmp/admin.tar.gz -C /var/www/admin
+          sudo chown -R www-data:www-data /var/www/admin
+        fi
         
         echo "==> Deploying Company Portal..."
-        sudo rm -rf /var/www/company/*
-        sudo tar -xzf /tmp/company.tar.gz -C /var/www/company
-        sudo chown -R www-data:www-data /var/www/company
+        if [ "${{ steps.changes.outputs.company }}" = "true" ]; then
+          sudo rm -rf /var/www/company/*
+          sudo tar -xzf /tmp/company.tar.gz -C /var/www/company
+          sudo chown -R www-data:www-data /var/www/company
+        fi
         
         echo "==> Deploying Student Portal..."
-        sudo rm -rf /var/www/student/*
-        sudo tar -xzf /tmp/student.tar.gz -C /var/www/student
-        sudo mkdir -p /var/www/student/downloads
-        sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
-        sudo chown -R www-data:www-data /var/www/student
+        if [ "${{ steps.changes.outputs.student }}" = "true" ]; then
+          sudo rm -rf /var/www/student/*
+          sudo tar -xzf /tmp/student.tar.gz -C /var/www/student
+          sudo mkdir -p /var/www/student/downloads
+          sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
+          sudo chown -R www-data:www-data /var/www/student
+        fi
         
         echo "==> Deploying Landing Page..."
-        sudo rm -rf /var/www/jfair/*
-        sudo tar -xzf /tmp/landing.tar.gz -C /var/www/jfair
-        sudo chown -R www-data:www-data /var/www/jfair
+        if [ "${{ steps.changes.outputs.landing }}" = "true" ]; then
+          sudo rm -rf /var/www/jfair/*
+          sudo tar -xzf /tmp/landing.tar.gz -C /var/www/jfair
+          sudo chown -R www-data:www-data /var/www/jfair
+        fi
         
         echo "==> Deploying Backend API..."
-        sudo rm -rf /var/www/api/*
-        sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
-        sudo chown -R www-data:www-data /var/www/api
+        if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          sudo rm -rf /var/www/api/*
+          sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
+          sudo chown -R www-data:www-data /var/www/api
+        fi
         
         # Set proper permissions
         sudo find /var/www/admin /var/www/company /var/www/student /var/www/jfair -type d -exec chmod 755 {} \;
