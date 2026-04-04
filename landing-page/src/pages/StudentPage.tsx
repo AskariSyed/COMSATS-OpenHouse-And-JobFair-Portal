@@ -85,7 +85,14 @@ export function StudentPage() {
 
         <article className="rounded-2xl border border-blue-200 bg-blue-50 p-6 transition-transform duration-300 hover:-translate-y-1">
           <h3 className="flex items-center gap-2 text-lg font-bold text-blue-900"><Apple className="h-5 w-5" />iPhone</h3>
-          <p className="mt-2 text-sm text-blue-800 whitespace-pre-line">Open Safari and go to student.jfair.tech.\n• Wait for the page to load.\n• Tap Share at the bottom of Safari.\n• Scroll if needed and choose Add to Home Screen.</p>
+          <div className="mt-2 text-sm text-blue-800">
+            <p>Open Safari and go to student.jfair.tech.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-blue-900">
+              <li>Wait for the page to load.</li>
+              <li>Tap Share at the bottom of Safari.</li>
+              <li>Scroll if needed and choose Add to Home Screen.</li>
+            </ul>
+          </div>
           <a href={portalUrls.student} className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Open Student Portal</a>
         </article>
       </motion.section>

@@ -32,7 +32,7 @@ export function Navbar() {
         <Link to="/" className="flex items-center gap-3">
           <img src="/assets/LogoWithoutBg.png" alt="COMSATS Job Fair" className="h-11 w-11 rounded-xl border border-blue-100 object-contain" />
           <div>
-            <p className="text-sm font-bold text-slate-900">jfair.tech</p>
+            <p className="text-sm font-bold text-slate-900">COMSATS</p>
             <p className="text-xs text-slate-500">Open House and Job Fair Portal</p>
           </div>
         </Link>

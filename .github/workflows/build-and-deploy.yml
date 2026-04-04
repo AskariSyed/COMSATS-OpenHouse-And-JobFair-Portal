@@ -1,0 +1,212 @@
+name: Build and Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USER: ${{ secrets.EC2_USER }}
+  BACKEND_URL: ${{ secrets.BACKEND_URL }}
+  VITE_SERVER_URL: ${{ secrets.BACKEND_URL }}
+  VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+  VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+  VITE_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+  VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+  VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+  VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+  VITE_FIREBASE_VAPID_KEY: ${{ secrets.FIREBASE_VAPID_KEY }}
+  VITE_BACKEND_URL: ${{ secrets.BACKEND_URL }}
+  VITE_API_BASE_URL: ${{ secrets.BACKEND_URL }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    # Setup Node.js for React apps
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: |
+          admin-portal/package-lock.json
+          company-portal/package-lock.json
+          landing-page/package-lock.json
+    
+    # Setup Flutter for Student portal
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'latest'
+        cache: true
+    
+    # Setup .NET for Backend
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    # Build Admin Portal
+    - name: Build Admin Portal
+      run: |
+        cd admin-portal
+        npm ci
+        npm run build
+        if [ ! -d "dist" ]; then
+          echo "Admin build output missing"
+          exit 1
+        fi
+    
+    # Build Company Portal
+    - name: Build Company Portal
+      run: |
+        cd company-portal
+        npm ci
+        npm run build
+        if [ ! -d "dist" ]; then
+          echo "Company build output missing"
+          exit 1
+        fi
+    
+    # Build Landing Page
+    - name: Build Landing Page
+      run: |
+        cd landing-page
+        npm ci
+        npm run build
+        if [ ! -d "dist" ]; then
+          echo "Landing build output missing"
+          exit 1
+        fi
+    
+    # Build Student Portal (Flutter Web)
+    - name: Build Student Portal
+      run: |
+        cd student-portal
+        flutter pub get
+        flutter build web --release --no-wasm-dry-run \
+          --dart-define=BACKEND_BASE_URL=${{ env.BACKEND_URL }} \
+          --dart-define=APP_ENV=production
+        if [ ! -d "build/web" ]; then
+          echo "Student build output missing"
+          exit 1
+        fi
+    
+    # Build Backend (.NET)
+    - name: Build Backend
+      run: |
+        cd Backend
+        dotnet restore
+        dotnet build --configuration Release
+        dotnet publish --configuration Release --output publish
+    
+    # Create deployment artifacts
+    - name: Package artifacts
+      run: |
+        mkdir -p deploy-artifacts
+        
+        # Package Admin Portal
+        tar -czf deploy-artifacts/admin.tar.gz -C admin-portal/dist .
+        
+        # Package Company Portal
+        tar -czf deploy-artifacts/company.tar.gz -C company-portal/dist .
+        
+        # Package Landing Page
+        tar -czf deploy-artifacts/landing.tar.gz -C landing-page/dist .
+        
+        # Package Student Portal
+        tar -czf deploy-artifacts/student.tar.gz -C student-portal/build/web .
+        
+        # Package Backend
+        tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
+        
+        echo "Artifacts packaged:"
+        ls -lh deploy-artifacts/
+    
+    # Setup SSH and deploy to EC2
+    - name: Deploy to EC2
+      env:
+        EC2_PEM_KEY: ${{ secrets.EC2_PEM_KEY }}
+      run: |
+        # Setup SSH
+        mkdir -p ~/.ssh
+        echo "$EC2_PEM_KEY" > ~/.ssh/jobfair-key.pem
+        chmod 600 ~/.ssh/jobfair-key.pem
+        echo "StrictHostKeyChecking=no" >> ~/.ssh/config
+        
+        # Upload artifacts to EC2
+        echo "Uploading artifacts to EC2..."
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/admin.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/admin.tar.gz
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/company.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/company.tar.gz
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/landing.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/landing.tar.gz
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/student.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/student.tar.gz
+        scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
+        
+        # Execute remote deployment script
+        echo "Running remote deployment..."
+        ssh -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+          ${{ env.EC2_USER }}@${{ env.EC2_HOST }} 'bash -s' << 'DEPLOY_SCRIPT'
+        set -e
+        
+        echo "==> Creating directories..."
+        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/jfair /var/www/api
+        
+        echo "==> Installing system dependencies..."
+        sudo apt-get update -y
+        sudo apt-get install -y tar gzip
+        
+        echo "==> Deploying Admin Portal..."
+        sudo rm -rf /var/www/admin/*
+        sudo tar -xzf /tmp/admin.tar.gz -C /var/www/admin
+        sudo chown -R www-data:www-data /var/www/admin
+        
+        echo "==> Deploying Company Portal..."
+        sudo rm -rf /var/www/company/*
+        sudo tar -xzf /tmp/company.tar.gz -C /var/www/company
+        sudo chown -R www-data:www-data /var/www/company
+        
+        echo "==> Deploying Student Portal..."
+        sudo rm -rf /var/www/student/*
+        sudo tar -xzf /tmp/student.tar.gz -C /var/www/student
+        sudo chown -R www-data:www-data /var/www/student
+        
+        echo "==> Deploying Landing Page..."
+        sudo rm -rf /var/www/jfair/*
+        sudo tar -xzf /tmp/landing.tar.gz -C /var/www/jfair
+        sudo chown -R www-data:www-data /var/www/jfair
+        
+        echo "==> Deploying Backend API..."
+        sudo rm -rf /var/www/api/*
+        sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
+        sudo chown -R www-data:www-data /var/www/api
+        
+        # Set proper permissions
+        sudo find /var/www/admin /var/www/company /var/www/student /var/www/jfair -type d -exec chmod 755 {} \;
+        sudo find /var/www/admin /var/www/company /var/www/student /var/www/jfair -type f -exec chmod 644 {} \;
+        
+        echo "==> Validating Nginx configuration..."
+        sudo nginx -t
+        
+        echo "==> Reloading Nginx..."
+        sudo systemctl reload nginx
+        
+        echo "==> Deployment completed successfully!"
+        DEPLOY_SCRIPT
+        
+        # Cleanup
+        rm ~/.ssh/jobfair-key.pem
+    
+    - name: Cleanup
+      if: always()
+      run: rm -rf deploy-artifacts ~/.ssh/jobfair-key.pem
