@@ -17,13 +17,18 @@ class UpdateService {
       final String currentVersion = packageInfo.version;
       final int currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-      // 2. Fetch remote version info
-      String baseUrl = BackendConfig.apiBaseUrl.replaceAll(RegExp(r'/api/?$'), '');
-      if (!baseUrl.endsWith('/')) baseUrl += '/';
-      final String versionUrl = '${baseUrl}student/version.json';
+      // 2. Fetch remote version info ALWAYS from the designated student frontend subdomain
+      // Because the backend API server (api.jfair.tech) does not host the Flutter web files.
+      final String versionUrl = 'https://student.jfair.tech/version.json';
+      
+      debugPrint("====== UPDATE SERVICE ======");
+      debugPrint("Local Build Number: $currentBuildNumber (Version: $currentVersion)");
+      debugPrint("Checking remote URL: $versionUrl");
 
-      final response = await http.get(Uri.parse(versionUrl)).timeout(const Duration(seconds: 10));
+      final response = await http.get(Uri.parse(versionUrl)).timeout(const Duration(seconds: 10));    
 
+      debugPrint("Response Status: ${response.statusCode}");
+      
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body);
         
@@ -32,11 +37,8 @@ class UpdateService {
         final bool forceUpdate = decoded['force_update'] ?? false;
         final String whatsNew = decoded['whats_new'] ?? 'A new version is available!';
         
-        // Construct full APK URL if it is relative
+        // APK Url should be parsed directly since it is absolute in version.json
         String apkUrl = decoded['apk_url'] ?? '';
-        if (apkUrl.startsWith('/')) {
-          apkUrl = '$baseUrl${apkUrl.substring(1)}';
-        }
 
         // Compare versions (prioritize build number)
         bool updateAvailable = remoteBuildNumber > currentBuildNumber;
@@ -73,9 +75,12 @@ class UpdateService {
             ),
           );
         }
+      } else {
+        debugPrint("Failed to fetch version info. Server returned body: ${response.body}");
       }
     } catch (e) {
-      debugPrint('Update check failed: $e');
+      debugPrint("====== UPDATE SERVICE ERROR ======");
+      debugPrint("Error checking for updates: $e");
     }
   }
 }
