@@ -822,7 +822,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   void _checkAppUpdate() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      UpdateService.checkForUpdate(context);
+      UpdateService.checkForUpdate(context, navigatorKey: navigatorKey);
     });
   }
 

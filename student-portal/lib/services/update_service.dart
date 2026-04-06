@@ -7,7 +7,7 @@ import 'package:student_job_fair_portal/config/backend_config.dart';
 import 'package:student_job_fair_portal/screens/update_dialog.dart';
 
 class UpdateService {
-  static Future<void> checkForUpdate(BuildContext context) async {
+  static Future<void> checkForUpdate(BuildContext context, {GlobalKey<NavigatorState>? navigatorKey}) async {
     // Only check for updates on mobile platforms (Android)
     if (kIsWeb) return;
 
@@ -21,14 +21,14 @@ class UpdateService {
       // Because the backend API server (api.jfair.tech) does not host the Flutter web files.
       final String versionUrl = 'https://student.jfair.tech/version.json';
       
-      debugPrint("====== UPDATE SERVICE ======");
-      debugPrint("Local Build Number: $currentBuildNumber (Version: $currentVersion)");
-      debugPrint("Checking remote URL: $versionUrl");
+      final response = await http.get(
+        Uri.parse(versionUrl),
+        headers: {
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        },
+      ).timeout(const Duration(seconds: 10));    
 
-      final response = await http.get(Uri.parse(versionUrl)).timeout(const Duration(seconds: 10));    
-
-      debugPrint("Response Status: ${response.statusCode}");
-      
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body);
         
@@ -60,27 +60,36 @@ class UpdateService {
           }
         }
 
-        if (updateAvailable && context.mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: !forceUpdate,
-            builder: (context) => PopScope(
-              canPop: !forceUpdate,
-              child: UpdateDialog(
-                latestVersion: latestVersion,
-                whatsNew: whatsNew,
-                apkUrl: apkUrl,
-                forceUpdate: forceUpdate,
+        if (updateAvailable) {
+          // Identify a mounted context to show the dialog correctly
+          BuildContext? dialogContext;
+          if (context.mounted) {
+            dialogContext = context;
+          } else if (navigatorKey?.currentContext != null) {
+            dialogContext = navigatorKey!.currentContext;
+          }
+
+          if (dialogContext != null) {
+            showDialog(
+              context: dialogContext,
+              barrierDismissible: !forceUpdate,
+              builder: (ctx) => PopScope(
+                canPop: !forceUpdate,
+                child: UpdateDialog(
+                  latestVersion: latestVersion,
+                  whatsNew: whatsNew,
+                  apkUrl: apkUrl,
+                  forceUpdate: forceUpdate,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
-      } else {
-        debugPrint("Failed to fetch version info. Server returned body: ${response.body}");
       }
     } catch (e) {
-      debugPrint("====== UPDATE SERVICE ERROR ======");
-      debugPrint("Error checking for updates: $e");
+      if (kDebugMode) {
+        debugPrint("Error checking for updates: $e");
+      }
     }
   }
 }
