@@ -43,16 +43,15 @@ jobs:
           exit 0
         fi
 
-        changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
-
-        if echo "$changed_files" | grep -vE '^(admin-portal/|company-portal/|landing-page/|student-portal/|Backend/)' | grep -q '.'; then
-          echo "admin=true" >> "$GITHUB_OUTPUT"
-          echo "company=true" >> "$GITHUB_OUTPUT"
-          echo "landing=true" >> "$GITHUB_OUTPUT"
-          echo "student=true" >> "$GITHUB_OUTPUT"
-          echo "backend=true" >> "$GITHUB_OUTPUT"
-          exit 0
+        # Safely get changed files using conditional fallbacks
+        if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+          changed_files="$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")"
+        else
+          changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")"
         fi
+
+        echo "Changed files:"
+        echo "$changed_files"
 
         if echo "$changed_files" | grep -q '^admin-portal/'; then echo "admin=true" >> "$GITHUB_OUTPUT"; else echo "admin=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^company-portal/'; then echo "company=true" >> "$GITHUB_OUTPUT"; else echo "company=false" >> "$GITHUB_OUTPUT"; fi

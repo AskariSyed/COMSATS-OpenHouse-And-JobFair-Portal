@@ -39,7 +39,7 @@ const getEducationGradeLabel = (edu) => {
   return value ? `CGPA: ${value}` : null;
 };
 
-export default function InterviewManager({ onError, onSuccess, onSelectStudent, navigationTarget }) {
+export default function InterviewManager({ onError, onSuccess, onSelectStudent, navigationTarget, isPresent, isJobFairDay }) {
   const [activeTab, setActiveTab] = useState('pending'); // pending | accepted | scheduled | completed
   const [pendingView, setPendingView] = useState('all'); // all | inbox | sent
   const [loading, setLoading] = useState(true);
@@ -482,6 +482,21 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
   return (
     <div className="space-y-6 animate-fade-in relative">
       
+      {/* --- INFO BANNERS --- */}
+      {!isJobFairDay && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-sm flex items-center gap-2 font-medium">
+          <Clock className="w-5 h-5 flex-shrink-0" />
+          <span>Interview scheduling is only possible on job fair day.</span>
+        </div>
+      )}
+
+      {isJobFairDay && !isPresent && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm flex items-center gap-2 font-medium">
+          <Clock className="w-5 h-5 flex-shrink-0" />
+          <span>Please mark your attendance to start scheduling your interviews on job fair day.</span>
+        </div>
+      )}
+
       {/* --- KPI Stats Row --- */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatBox label="Pending Requests" value={pendingRequests.length} icon={Inbox} color="text-orange-600" bg="bg-orange-50" />
@@ -598,13 +613,15 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
       {activeTab === 'accepted' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button
-              onClick={handleScheduleAllAccepted}
-              disabled={schedulingAll || acceptedRequests.length === 0 || isInterviewWindowClosed}
-              className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
-            >
-              {schedulingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />} Schedule All
-            </button>
+            {isJobFairDay && isPresent && (
+              <button
+                onClick={handleScheduleAllAccepted}
+                disabled={schedulingAll || acceptedRequests.length === 0 || isInterviewWindowClosed}
+                className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {schedulingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />} Schedule All
+              </button>
+            )}
           </div>
 
           {acceptedRequests.length === 0 ? (
@@ -672,13 +689,15 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                               <CheckCircle2 className="w-3 h-3" /> Scheduled
                             </span>
                           ) : (
-                            <button
-                              onClick={() => openScheduleModal(req)}
-                              disabled={isInterviewWindowClosed}
-                              className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
-                            >
-                              <Calendar className="w-3.5 h-3.5" /> Schedule
-                            </button>
+                            isJobFairDay && isPresent ? (
+                              <button
+                                onClick={() => openScheduleModal(req)}
+                                disabled={isInterviewWindowClosed}
+                                className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
+                              >
+                                <Calendar className="w-3.5 h-3.5" /> Schedule
+                              </button>
+                            ) : null
                           )}
                         </div>
                       </td>

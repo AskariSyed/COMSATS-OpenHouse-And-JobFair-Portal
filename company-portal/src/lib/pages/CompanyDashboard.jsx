@@ -294,6 +294,8 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
           onSuccess={onSuccess}
           onSelectStudent={safeSelectStudent}
           navigationTarget={interviewNavTarget}
+          isPresent={Boolean(normalizedAttendance?.isPresent)}
+          isJobFairDay={isJobFairDay}
         />
       )}
       {activeTab === 'requests' && <CompanyRequests onError={onError} onSuccess={onSuccess} />}

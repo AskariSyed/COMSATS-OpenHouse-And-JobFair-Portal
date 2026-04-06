@@ -63,8 +63,9 @@ const AdminManagement = () => {
       return;
     }
 
-    if (createAdminForm.password.length < 8) {
-      toast.error('Password must be at least 8 characters long.');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+    if (!passwordRegex.test(createAdminForm.password)) {
+      toast.error('Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit.');
       return;
     }
 
@@ -135,8 +136,9 @@ const AdminManagement = () => {
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters long.');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+    if (!passwordRegex.test(passwordForm.newPassword)) {
+      toast.error('Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit.');
       return;
     }
 

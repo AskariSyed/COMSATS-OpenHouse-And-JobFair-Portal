@@ -1,4 +1,4 @@
-﻿using CsvHelper;
+using CsvHelper;
 using CsvHelper.Configuration;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
@@ -3868,6 +3868,29 @@ Job Fair Team
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation("✅ Admin user created successfully: {Email}", dto.Email);
+
+                // Send email to new admin
+                try
+                {
+                    string subject = "You are now an Admin - Job Fair Portal";
+                    string body = $@"
+                        <p>Hello {dto.Name},</p>
+                        <p>An admin account has been created for you on the Job Fair Portal.</p>
+                        <p>Your login credentials are:</p>
+                        <ul>
+                            <li><strong>Email:</strong> {dto.Email}</li>
+                            <li><strong>Password:</strong> {dto.Password}</li>
+                        </ul>
+                        <p>You can now log in to the admin portal.</p>
+                        <p>Best regards,<br/>Job Fair Portal Team</p>";
+
+                    await _mailService.SendMailAsync(dto.Email, subject, body);
+                    _logger.LogInformation("Admin creation email sent to: {Email}", dto.Email);
+                }
+                catch (Exception mailEx)
+                {
+                    _logger.LogWarning(mailEx, "Failed to send admin creation email to: {Email}", dto.Email);
+                }
 
                 return Ok(new
                 {
