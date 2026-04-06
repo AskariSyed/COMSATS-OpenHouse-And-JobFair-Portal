@@ -652,9 +652,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                     ),
                                   ],
                                 ),
-                                if (kIsWeb ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.android)
+                                if (kIsWeb)
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton.icon(

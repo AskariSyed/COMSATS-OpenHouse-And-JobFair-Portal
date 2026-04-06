@@ -25,6 +25,7 @@ import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
+import 'package:student_job_fair_portal/screens/cv_live_preview.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -246,6 +247,16 @@ class SettingsScreen extends StatelessWidget {
     final student = studentProvider.student;
     if (student == null) return;
 
+    if (!kIsWeb) {
+      // 📱 Native handling: Launch the new Interactive Live Preview interface
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (ctx) => const CVLivePreviewScreen()),
+      );
+      return;
+    }
+
+    // 🌐 Web Handling: Just pop it into a browser tab
     final customEmail = await _askCvEditPreference(
       context,
       title: 'Preview CV',
@@ -271,29 +282,15 @@ class SettingsScreen extends StatelessWidget {
         customEmail: customEmail,
       );
 
-      if (kIsWeb) {
-        await CVGenerator.previewPdfOnWeb(pdfBytes);
-        if (context.mounted) {
-          showTopSnackBar(
-            Overlay.of(context),
-            const CustomSnackBar.success(
-              message: 'CV preview opened in a new browser tab.',
-            ),
-          );
-        }
-        return;
-      }
-
-      await showDialog(
-        context: context,
-        builder: (ctx) => Dialog(
-          child: SizedBox(
-            width: isMobile ? double.infinity : 900,
-            height: isMobile ? 600 : 700,
-            child: SfPdfViewer.memory(pdfBytes),
+      await CVGenerator.previewPdfOnWeb(pdfBytes);
+      if (context.mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.success(
+            message: 'CV preview opened in a new browser tab.',
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         showTopSnackBar(
