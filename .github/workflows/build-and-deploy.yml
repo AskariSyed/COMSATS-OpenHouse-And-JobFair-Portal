@@ -226,7 +226,7 @@ jobs:
         set -e
         
         echo "==> Creating directories..."
-        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/student/downloads /var/www/jfair /var/www/api
+        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/downloads /var/www/jfair /var/www/api
         
         echo "==> Installing system dependencies..."
         sudo apt-get update -y
@@ -250,9 +250,10 @@ jobs:
         if [ "${{ steps.changes.outputs.student }}" = "true" ]; then
           sudo rm -rf /var/www/student/*
           sudo tar -xzf /tmp/student.tar.gz -C /var/www/student
-          sudo mkdir -p /var/www/student/downloads
-          sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
+          sudo mkdir -p /var/www/downloads
+          sudo cp /tmp/student-portal.apk /var/www/downloads/student-portal.apk
           sudo chown -R www-data:www-data /var/www/student
+          sudo chown -R www-data:www-data /var/www/downloads
         fi
         
         echo "==> Deploying Landing Page..."

@@ -24,6 +24,7 @@ $workDir = Join-Path $repoRoot ".deploy-artifacts"
 $adminZip = Join-Path $workDir "admin.zip"
 $companyZip = Join-Path $workDir "company.zip"
 $studentZip = Join-Path $workDir "student.zip"
+$studentApk = Join-Path $workDir "student-portal.apk"
 $landingZip = Join-Path $workDir "landing.zip"
 
 function Write-Step {
@@ -159,13 +160,18 @@ if (-not (Test-Path (Join-Path $companyDir "dist"))) {
 }
 Compress-Archive -Path (Join-Path $companyDir "dist\*") -DestinationPath $companyZip -Force
 
-Write-Step "Building Student portal (Flutter Web)"
+Write-Step "Building Student portal (Web & APK)"
 Run-OrThrow "flutter pub get" $studentDir
 Run-OrThrow "flutter build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL=$BackendUrl --dart-define=APP_ENV=production" $studentDir
+Run-OrThrow "flutter build apk --release" $studentDir
 if (-not (Test-Path (Join-Path $studentDir "build\web"))) {
     throw "Student build output missing: student-portal/build/web"
 }
+if (-not (Test-Path (Join-Path $studentDir "build\app\outputs\flutter-apk\app-release.apk"))) {
+    throw "Student APK output missing: student-portal/build/app/outputs/flutter-apk/app-release.apk"
+}
 Compress-Archive -Path (Join-Path $studentDir "build\web\*") -DestinationPath $studentZip -Force
+Copy-Item (Join-Path $studentDir "build\app\outputs\flutter-apk\app-release.apk") $studentApk -Force
 
 Write-Step "Building jfair.tech landing page"
 if (-not (Test-Path $landingDir)) {
@@ -186,6 +192,8 @@ if ($LASTEXITCODE -ne 0) { throw "Upload failed: admin.zip" }
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: company.zip" }
 & scp @sshOptions -i $PemKeyPath $studentZip "${Ec2User}@${Ec2Host}:/tmp/student.zip"
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: student.zip" }
+& scp @sshOptions -i $PemKeyPath $studentApk "${Ec2User}@${Ec2Host}:/tmp/student-portal.apk"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: student-portal.apk" }
 & scp @sshOptions -i $PemKeyPath $landingZip "${Ec2User}@${Ec2Host}:/tmp/landing.zip"
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: landing.zip" }
 
@@ -199,6 +207,8 @@ sudo rm -rf /var/www/admin/* /var/www/company/* /var/www/student/* /var/www/jfai
 sudo unzip -o /tmp/admin.zip -d /var/www/admin
 sudo unzip -o /tmp/company.zip -d /var/www/company
 sudo unzip -o /tmp/student.zip -d /var/www/student
+sudo mkdir -p /var/www/student/downloads
+sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
 sudo unzip -o /tmp/landing.zip -d /var/www/jfair
 sudo chown -R www-data:www-data /var/www/admin /var/www/company /var/www/student /var/www/jfair
 sudo find /var/www/admin /var/www/company /var/www/student -type d -exec chmod 755 {} \;
