@@ -55,7 +55,7 @@ export function HomePage() {
               One Platform for Students, Companies and Admins
             </h1>
             <p className="mt-4 text-lg text-slate-600">
-              CUI Job Fair And Open House Solution brings your role-based portal suite into one entry point for the COMSATS Open House and Job Fair system.
+              COMSATS Job Fair And Open House Solution brings your role-based portal suite into one entry point for the COMSATS Open House and Job Fair system.
             </p>
             <p className="mt-3 text-sm font-semibold text-slate-700">
               Student portal is mobile-first. Company and Admin portals are desktop-focused for operations.

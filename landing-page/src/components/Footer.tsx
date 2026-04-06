@@ -5,7 +5,7 @@ export function Footer() {
         <div className="flex items-center gap-3">
           <img src="/assets/LogoWithoutBg.png" alt="COMSATS Job Fair" className="h-12 w-12 rounded-xl border border-blue-100 object-contain" />
           <div>
-            <p className="font-bold">jfair.tech</p>
+            <p className="font-bold">COMSATS Job Fair and Open House Solution</p>
             <p className="text-sm text-slate-600">Central portal for students, companies, and admins.</p>
           </div>
         </div>
