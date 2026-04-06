@@ -64,6 +64,11 @@ namespace JobFairPortal.Controllers
                 return BadRequest("Admin with this email already exists.");
             }
 
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$"))
+            {
+                return BadRequest("Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit.");
+            }
+
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 
             var adminUser = new User
@@ -3840,6 +3845,11 @@ Job Fair Team
                 return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Email, password, and name are required." });
             }
 
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$"))
+            {
+                return BadRequest(new { Code = "WEAK_PASSWORD", Message = "Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit." });
+            }
+
             // Check if admin already exists
             var existingAdmin = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email && u.Role == UserRole.Admin);
             if (existingAdmin != null)
@@ -3921,6 +3931,11 @@ Job Fair Team
             if (string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.NewPassword))
             {
                 return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Current password and new password are required." });
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$"))
+            {
+                return BadRequest(new { Code = "WEAK_PASSWORD", Message = "Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit." });
             }
 
             try

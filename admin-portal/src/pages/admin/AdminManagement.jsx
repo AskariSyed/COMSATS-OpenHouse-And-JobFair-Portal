@@ -1,9 +1,41 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, ShieldCheck, Mail, KeyRound, UserPlus } from 'lucide-react';
+import { Loader2, ShieldCheck, Mail, KeyRound, UserPlus, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/api';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const PasswordStrength = ({ password }) => {
+  if (!password) return null;
+  const rules = [
+    { label: 'At least 9 characters', test: /.{9,}/ },
+    { label: 'At least 1 uppercase letter', test: /[A-Z]/ },
+    { label: 'At least 1 lowercase letter', test: /[a-z]/ },
+    { label: 'At least 1 digit', test: /\d/ },
+    { label: 'At least 1 special character', test: /[^A-Za-z0-9]/ },
+  ];
+  const score = rules.filter(r => r.test.test(password)).length;
+  const colors = ['bg-red-500', 'bg-red-500', 'bg-orange-500', 'bg-amber-400', 'bg-lime-500', 'bg-green-600'];
+  const textColors = ['text-red-500', 'text-red-500', 'text-orange-500', 'text-amber-500', 'text-lime-600', 'text-green-600'];
+  return (
+    <div className="space-y-1 mt-1 text-xs px-1">
+      <div className="flex gap-1 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full transition-all duration-300 ${colors[score]}`} style={{ width: `${(score / 5) * 100}%` }}></div>
+      </div>
+      <div className={`font-medium ${textColors[score]}`}>
+        {score === 5 ? 'Strong password' : score > 2 ? 'Medium password' : 'Weak password'}
+      </div>
+      <ul className="grid grid-cols-1 gap-1 text-[10px] text-gray-500 mt-1">
+        {rules.map((r, i) => (
+          <li key={i} className="flex items-center gap-1.5 break-words">
+            {r.test.test(password) ? <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> : <XCircle className="w-3 h-3 text-gray-300 flex-shrink-0" />}
+            <span className={r.test.test(password) ? 'text-gray-900 line-through opacity-50' : ''}>{r.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
 const AdminManagement = () => {
   const [admins, setAdmins] = useState([]);
@@ -38,9 +70,10 @@ const AdminManagement = () => {
     } catch (error) {
       const message =
         error?.response?.data?.message ||
+        error?.response?.data?.Message ||
         error?.response?.data ||
         'Failed to fetch admin users.';
-      toast.error(String(message));
+      toast.error(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setLoadingAdmins(false);
     }
@@ -87,9 +120,10 @@ const AdminManagement = () => {
     } catch (error) {
       const message =
         error?.response?.data?.message ||
+        error?.response?.data?.Message ||
         error?.response?.data ||
         'Failed to create admin.';
-      toast.error(String(message));
+      toast.error(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setIsCreatingAdmin(false);
     }
@@ -120,9 +154,10 @@ const AdminManagement = () => {
     } catch (error) {
       const message =
         error?.response?.data?.message ||
+        error?.response?.data?.Message ||
         error?.response?.data ||
         'Failed to change email.';
-      toast.error(String(message));
+      toast.error(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setIsChangingEmail(false);
     }
@@ -158,9 +193,10 @@ const AdminManagement = () => {
     } catch (error) {
       const message =
         error?.response?.data?.message ||
+        error?.response?.data?.Message ||
         error?.response?.data ||
         'Failed to change password.';
-      toast.error(String(message));
+      toast.error(typeof message === 'string' ? message : JSON.stringify(message));
     } finally {
       setIsChangingPassword(false);
     }
@@ -204,6 +240,7 @@ const AdminManagement = () => {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               required
             />
+            <PasswordStrength password={createAdminForm.password} />
             <input
               type="password"
               placeholder="Confirm Password"
@@ -278,6 +315,7 @@ const AdminManagement = () => {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               required
             />
+            <PasswordStrength password={passwordForm.newPassword} />
             <input
               type="password"
               placeholder="Confirm New Password"
