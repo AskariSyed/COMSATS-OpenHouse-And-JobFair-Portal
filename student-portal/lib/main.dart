@@ -24,6 +24,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/company_profile_screen.dart';
 import 'screens/requestScreen.dart';
+import 'services/update_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -816,6 +817,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _checkAuth();
+    _checkAppUpdate();
+  }
+
+  void _checkAppUpdate() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
   }
 
   Future<void> _checkAuth() async {

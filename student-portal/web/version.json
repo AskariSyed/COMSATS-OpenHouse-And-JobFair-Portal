@@ -1,0 +1,7 @@
+{
+  "latest_version": "1.0.1",
+  "build_number": 2,
+  "apk_url": "/student/downloads/student-portal.apk",
+  "force_update": false,
+  "whats_new": "• Added APK update availability check\n• Performance improvements"
+}
