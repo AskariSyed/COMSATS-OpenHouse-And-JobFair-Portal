@@ -26,10 +26,14 @@ class CompaniesScreen extends StatefulWidget {
 }
 
 class _CompaniesScreenState extends State<CompaniesScreen> {
+  static const String _companyTabAll = 'all';
+  static const String _companyTabWalkIn = 'walkin';
+
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedIndustries = {};
   bool _showOnlyHiring = false;
   String _selectedSortOption = 'Name (A-Z)'; // Default sort
+  String _selectedCompanyTab = _companyTabAll;
   static const int _companiesPerPage = 8;
 
   @override
@@ -57,6 +61,9 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     );
 
     if (studentProvider.token != null) {
+      if (studentProvider.dashboardData == null) {
+        await studentProvider.fetchDashboardData();
+      }
       await companyProvider.fetchCompanies(
         studentProvider.token!,
         page: 1,
@@ -104,6 +111,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     );
   }
 
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   @override
   Widget build(BuildContext context) {
     final companyProvider = Provider.of<CompanyProvider>(context);
@@ -139,6 +150,17 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
       displayCompanies.sort((a, b) => b.jobCount.compareTo(a.jobCount));
     }
 
+    final marketOverview = studentProvider.dashboardData?.marketOverview;
+    final fairDate = marketOverview?.currentFairDate;
+    final isJobFairDay = fairDate != null && _isSameDay(fairDate, DateTime.now());
+    final walkInCompanies =
+      displayCompanies.where((company) => company.isWalkInInterviewing).toList();
+    final showWalkInTab = isJobFairDay && walkInCompanies.isNotEmpty;
+    final isWalkInTabSelected =
+      showWalkInTab && _selectedCompanyTab == _companyTabWalkIn;
+    final companiesToDisplay =
+      isWalkInTabSelected ? walkInCompanies : displayCompanies;
+
     final totalPages = companyProvider.totalPages;
     final currentPage = companyProvider.currentPage;
 
@@ -171,9 +193,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                         children: [
                           _buildSearchBar(),
                           const SizedBox(height: 16),
-                          if (companyProvider.recommendedCompanies.isNotEmpty)
+                          if (!isWalkInTabSelected &&
+                              companyProvider.recommendedCompanies.isNotEmpty)
                             _buildRecommendedCompaniesSection(isMobile: true),
-                          if (companyProvider.recommendedCompanies.isNotEmpty)
+                          if (!isWalkInTabSelected &&
+                              companyProvider.recommendedCompanies.isNotEmpty)
                             Divider(
                               color: Theme.of(
                                 context,
@@ -181,19 +205,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                               thickness: 2,
                               height: 24,
                             ),
-                          if (companyProvider.recommendedCompanies.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  "All Companies",
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-                              ),
-                            ),
+                          _buildCompanyTabs(
+                            showWalkInTab: showWalkInTab,
+                            walkInCount: walkInCompanies.length,
+                          ),
                           const SizedBox(height: 8),
                           showShimmer
                               ? _buildShimmerGrid(isMobile: true)
@@ -208,12 +223,14 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                     ),
                                   ),
                                 )
-                              : displayCompanies.isEmpty
+                              : companiesToDisplay.isEmpty
                               ? SizedBox(
                                   height: constraints.maxHeight * 0.7,
                                   child: Center(
                                     child: Text(
-                                      "No companies match your filters.",
+                                      isWalkInTabSelected
+                                          ? "No companies are currently available for walk-in interviews."
+                                          : "No companies match your filters.",
                                       style: TextStyle(color: textColor),
                                     ),
                                   ),
@@ -221,7 +238,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                               : Column(
                                   children: [
                                     _buildCompaniesGrid(
-                                      displayCompanies,
+                                      companiesToDisplay,
                                       student?.skills ?? [],
                                       isMobile: true,
                                     ),
@@ -363,9 +380,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                         ],
                                       ),
                                     const SizedBox(height: 30),
-                                    if (companyProvider
-                                        .recommendedCompanies
-                                        .isNotEmpty)
+                                    if (!isWalkInTabSelected &&
+                                        companyProvider
+                                            .recommendedCompanies
+                                            .isNotEmpty)
                                       Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -390,9 +408,14 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                           const SizedBox(height: 20),
                                         ],
                                       ),
+                                    _buildCompanyTabs(
+                                      showWalkInTab: showWalkInTab,
+                                      walkInCount: walkInCompanies.length,
+                                    ),
+                                    const SizedBox(height: 20),
                                     showShimmer
                                         ? _buildShimmerGrid(isMobile: false)
-                                        : displayCompanies.isEmpty
+                                        : companiesToDisplay.isEmpty
                                         ? const SizedBox(
                                             height: 200,
                                             child: Center(
@@ -406,7 +429,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               _buildCompaniesGrid(
-                                                displayCompanies,
+                                                companiesToDisplay,
                                                 student?.skills ?? [],
                                                 isMobile: false,
                                               ),
@@ -529,6 +552,40 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCompanyTabs({
+    required bool showWalkInTab,
+    required int walkInCount,
+  }) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('All Companies'),
+            selected: _selectedCompanyTab == _companyTabAll || !showWalkInTab,
+            onSelected: (_) {
+              setState(() {
+                _selectedCompanyTab = _companyTabAll;
+              });
+            },
+          ),
+          if (showWalkInTab)
+            ChoiceChip(
+              label: Text('Walk-In Interviewing ($walkInCount)'),
+              selected: _selectedCompanyTab == _companyTabWalkIn,
+              onSelected: (_) {
+                setState(() {
+                  _selectedCompanyTab = _companyTabWalkIn;
+                });
+              },
+            ),
+        ],
+      ),
     );
   }
 

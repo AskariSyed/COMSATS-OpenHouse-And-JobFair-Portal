@@ -89,6 +89,12 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
       }
     : null;
 
+  const showSurveyHeadline =
+    surveyAvailability.hasActiveJobFair &&
+    surveyAvailability.isJobFairDay &&
+    Boolean(normalizedAttendance?.isPresent) &&
+    !surveySubmitted;
+
   useEffect(() => {
     setSelectedStudentId(null);
     setSelectedProjectId(null);
@@ -225,6 +231,13 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
 
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
+      {showSurveyHeadline && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-3 py-2 overflow-hidden">
+          <div className="company-survey-marquee whitespace-nowrap font-semibold text-amber-900 text-sm">
+            Fill both CDC and Department surveys today to be eligible for your Job Fair participation certificate.
+          </div>
+        </div>
+      )}
       {surveyReminderOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-xl border border-amber-300 bg-amber-50 shadow-2xl p-5">
