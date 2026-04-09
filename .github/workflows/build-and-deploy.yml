@@ -323,8 +323,12 @@ jobs:
             sudo chmod +x /tmp/efbundle
             # Run the self-contained migrations bundle using the production appsettings
             # The bundle reads the connection string from appsettings.Production.json in /var/www/api
-            sudo /tmp/efbundle \
-              --connection "$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json)"
+            DB_CONN="$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json || true)"
+            if [ -z "$DB_CONN" ]; then
+              echo "ERROR: Could not extract DefaultConnection from /var/www/api/appsettings.Production.json"
+              exit 1
+            fi
+            sudo /tmp/efbundle --connection "$DB_CONN"
             echo "==> EF migrations applied successfully!"
             sudo rm -f /tmp/efbundle
           else
