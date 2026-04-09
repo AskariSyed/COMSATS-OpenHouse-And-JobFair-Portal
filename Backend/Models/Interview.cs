@@ -8,7 +8,8 @@ namespace JobFairPortal.Models
         InProgress,
         Shortlisted,
         Hired,
-        Rejected
+        Rejected,
+        DidNotAppear
     }
 
     public class Interview

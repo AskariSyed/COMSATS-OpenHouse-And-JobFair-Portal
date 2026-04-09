@@ -6,7 +6,8 @@ namespace JobFairPortal.Models
     {
         Admin,
         Student,
-        Company
+        Company,
+        CoAdmin
     }
 
     public class User

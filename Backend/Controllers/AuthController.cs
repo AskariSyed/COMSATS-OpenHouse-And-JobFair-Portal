@@ -1,4 +1,4 @@
-﻿using BCrypt.Net;
+using BCrypt.Net;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
@@ -64,7 +64,7 @@ namespace JobFairPortal.Controllers
         public async Task<IActionResult> AdminLogin([FromBody] LoginDto loginDto)
         {
             _logger.LogInformation("Admin login attempt for email: {Email}", loginDto.EmailOrRegNo);
-            return await Login(loginDto, UserRole.Admin);
+            return await Login(loginDto, UserRole.Admin, allowCoAdminForAdminPortal: true);
         }
 
         [HttpPost("company/login")]
@@ -161,15 +161,26 @@ namespace JobFairPortal.Controllers
             return Ok(BuildCompleteProfileResponse(user, student, token));
         }
 
-        private async Task<IActionResult> Login(LoginDto loginDto, UserRole role)
+        private async Task<IActionResult> Login(LoginDto loginDto, UserRole role, bool allowCoAdminForAdminPortal = false)
         {
             if (!_validationService.ValidateLoginDto(loginDto, out var validationError))
                 return BadRequest(validationError);
 
             var input = loginDto.EmailOrRegNo.Trim();
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == role);
+            User? user;
+            if (allowCoAdminForAdminPortal && role == UserRole.Admin)
+            {
+                user = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.Email.ToLower() == input.ToLower() &&
+                        (u.Role == UserRole.Admin || u.Role == UserRole.CoAdmin));
+            }
+            else
+            {
+                user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == input.ToLower() && u.Role == role);
+            }
 
             if (user == null)
             {
@@ -186,6 +197,10 @@ namespace JobFairPortal.Controllers
             if (!user.IsActive)
             {
                 _logger.LogWarning("Login attempted on inactive account - role {Role}, user: {UserId}", role, user.UserId);
+                if (user.Role == UserRole.Admin || user.Role == UserRole.CoAdmin)
+                {
+                    return Unauthorized("Your admin account is blocked. Please contact super admin.");
+                }
                 return Unauthorized("Account not verified. Please complete the OTP verification process.");
             }
 
@@ -569,17 +584,7 @@ namespace JobFairPortal.Controllers
                 });
             }
 
-            // Allow password reset for both Student and Company accounts
-            // Only restrict Admin accounts if needed
-            if (user.Role == UserRole.Admin)
-            {
-                _logger.LogWarning("Forgot password request - admin account: {Email}", dto.Email);
-                return BadRequest(new
-                {
-                    Code = "INVALID_ACCOUNT_TYPE",
-                    Message = "Admin accounts cannot use this password reset method. Please contact the system administrator."
-                });
-            }
+            // Allow password reset for all accounts including Admin
 
             try
             {
@@ -765,17 +770,7 @@ namespace JobFairPortal.Controllers
                     });
                 }
 
-                // Allow both Student and Company accounts
-                // Only restrict Admin accounts if needed
-                if (user.Role == UserRole.Admin)
-                {
-                    _logger.LogWarning("Password reset OTP request - admin account attempt: {Email}", input);
-                    return BadRequest(new
-                    {
-                        Code = "INVALID_ACCOUNT_TYPE",
-                        Message = "Admin accounts cannot use this password reset method. Please contact the system administrator."
-                    });
-                }
+                // Allow all accounts including Admin
             }
 
             try
@@ -1070,102 +1065,42 @@ namespace JobFairPortal.Controllers
 
         private async Task SendStudentRegistrationEmail(string email, string tempPassword, JobFair jobFair)
         {
-            var subject = "Your Job Fair Portal Account";
-            var body = $"""
-                Dear Student,
-
-                Your account for the Job Fair Portal has been created successfully.
-
-                Email: {email}
-                Temporary Password: {tempPassword}
-
-                Please log in and change your password after your first login for security.
-
-                Linked Job Fair: {jobFair.Semester}
-                Date: {jobFair.date:MMMM dd, yyyy}
-
-                If you have any questions, please contact us.
-
-                Regards,
-                Job Fair Management Team
-                """;
-
+            var subject = "Welcome to Job Fair Portal — Your Login Credentials";
+            var body = EmailTemplateService.GetStudentWelcomeTemplate(
+                email,
+                tempPassword,
+                jobFair.Semester ?? "Upcoming Semester",
+                jobFair.date.ToString("MMMM dd, yyyy"));
             await _mailService.SendMailAsync(email, subject, body);
         }
 
         private async Task SendCompanyOtpEmail(string email, string otp)
         {
-            var subject = "Company Registration OTP";
-            var body = $"""
-                Dear Company Representative,
-
-                Your OTP for company registration is: {otp}
-
-                This OTP is valid for 10 minutes.
-
-                Do not share this OTP with anyone.
-
-                Regards,
-                Job Fair Management Team
-                """;
-
+            var subject = "Company Registration Verification — Job Fair Portal";
+            var body = EmailTemplateService.GetCompanyOtpTemplate(otp, OTP_EXPIRY_MINUTES);
             await _mailService.SendMailAsync(email, subject, body);
         }
 
         private async Task SendPasswordResetEmail(string email, string? fullName, string resetLink)
         {
-            var subject = "Password Reset Request";
-            var body = $"""
-                Dear {fullName ?? "User"},
-
-                You have requested to reset your password. Click the link below to proceed:
-
-                Reset Link: {resetLink}
-
-                This link will expire in {TOKEN_EXPIRY_MINUTES} minutes.
-
-                If you did not request this, please ignore this email and your password will remain unchanged.
-
-                Regards,
-                Job Fair Management Team
-                """;
-
+            var subject = "Password Reset Request — Job Fair Portal";
+            var body = EmailTemplateService.GetPasswordResetLinkTemplate(
+                fullName ?? "User", resetLink, TOKEN_EXPIRY_MINUTES);
             await _mailService.SendMailAsync(email, subject, body);
         }
 
         private async Task SendPasswordResetOtpEmail(string email, string? fullName, string otp)
         {
-            var subject = "Password Reset OTP";
-            var body = $"""
-                Dear {fullName ?? "User"},
-
-                Your password reset OTP is: {otp}
-
-                This OTP will expire in {OTP_EXPIRY_MINUTES} minutes.
-
-                Do not share this OTP with anyone.
-
-                Regards,
-                Job Fair Management Team
-                """;
-
+            var subject = "Password Reset OTP — Job Fair Portal";
+            var body = EmailTemplateService.GetPasswordResetOtpTemplate(
+                fullName ?? "User", otp, OTP_EXPIRY_MINUTES);
             await _mailService.SendMailAsync(email, subject, body);
         }
 
         private async Task SendPasswordChangedEmail(string email, string? fullName)
         {
-            var subject = "Password Changed Successfully";
-            var body = $"""
-                Dear {fullName ?? "User"},
-
-                Your password has been changed successfully.
-
-                If you did not make this change, please contact support immediately.
-
-                Regards,
-                Job Fair Management Team
-                """;
-
+            var subject = "Password Changed Successfully — Job Fair Portal";
+            var body = EmailTemplateService.GetPasswordChangedTemplate(fullName ?? "User");
             await _mailService.SendMailAsync(email, subject, body);
         }
 

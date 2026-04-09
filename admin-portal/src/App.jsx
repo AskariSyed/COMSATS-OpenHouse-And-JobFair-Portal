@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 
 // Import Pages
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Import Layouts
 import AdminLayout from './layouts/AdminLayout';
@@ -43,8 +44,11 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   // 2. Wrong Role? -> Go to Login (or a "Not Authorized" page)
-  if (requiredRole && userRole !== requiredRole) {
-    return <Navigate to="/" replace />;
+  if (requiredRole) {
+    const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    if (!allowedRoles.includes(userRole)) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   // 3. All good? Render the page
@@ -63,6 +67,7 @@ function App() {
       <Routes>
         {/* Public Route: Login */}
         <Route path="/" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ----------------------- */}
         {/* Protected Admin Routes  */}
@@ -70,7 +75,7 @@ function App() {
         <Route 
           path="/admin" 
           element={
-            <ProtectedRoute requiredRole="Admin">
+            <ProtectedRoute requiredRole={["Admin", "CoAdmin"]}>
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -92,7 +97,14 @@ function App() {
           <Route path="feedback" element={<FeedbackStats />} />
           <Route path="companies/:companyId" element={<CompanyDetail />} />
           <Route path="notices" element={<NoticeBoard />} />
-          <Route path="admin-management" element={<AdminManagement />} />
+          <Route
+            path="admin-management"
+            element={
+              <ProtectedRoute requiredRole="Admin">
+                <AdminManagement />
+              </ProtectedRoute>
+            }
+          />
           <Route path="attendance" element={<AttendanceManagement />} />
           <Route path="surveys" element={<SurveyResponses />} />
           <Route path="surveys/company/:companyId" element={<CompanySurveyDetail />} />

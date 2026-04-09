@@ -226,6 +226,7 @@ const CompanyDetail = () => {
   const [dossierJobFairScope, setDossierJobFairScope] = useState('all');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [profileBanner, setProfileBanner] = useState(null);
   const [profileFormData, setProfileFormData] = useState({
     name: '',
     industry: '',
@@ -346,10 +347,13 @@ const CompanyDetail = () => {
       });
 
       toast.success('Company profile updated successfully');
+      setProfileBanner({ type: 'success', message: 'Company profile updated successfully.' });
       setIsEditingProfile(false);
       await fetchDetails();
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Failed to update company profile'));
+      const message = getApiErrorMessage(error, 'Failed to update company profile');
+      toast.error(message);
+      setProfileBanner({ type: 'error', message: String(message) });
     } finally {
       setProfileSaving(false);
     }
@@ -920,6 +924,11 @@ const CompanyDetail = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-10 px-4 sm:px-6 animate-fade-in">
+      {profileBanner && (
+        <div className={`rounded-lg border px-4 py-3 text-sm font-medium mt-6 ${profileBanner.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {profileBanner.message}
+        </div>
+      )}
       
       {/* Back Button */}
       <button 

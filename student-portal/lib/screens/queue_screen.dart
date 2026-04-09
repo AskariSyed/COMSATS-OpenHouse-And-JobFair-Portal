@@ -25,6 +25,7 @@ class QueueScreen extends StatefulWidget {
 class _QueueScreenState extends State<QueueScreen> {
   final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   Timer? _timer;
+  final Set<String> _sendingQueueActions = <String>{};
 
   @override
   void initState() {
@@ -251,7 +252,7 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              "Showing upcoming, in-progress, shortlisted, hired and rejected interviews",
+              "Showing upcoming, in-progress, shortlisted, hired, under-review and no-show interviews",
               style: TextStyle(fontSize: 16, color: subTextColor),
             ),
             const SizedBox(height: 24),
@@ -406,7 +407,7 @@ class _QueueScreenState extends State<QueueScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        interview.status,
+                        _getStatusLabel(interview.status),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -517,6 +518,10 @@ class _QueueScreenState extends State<QueueScreen> {
                       ),
                     ],
                   ),
+                if (_showQuickStudentActions(interview)) ...[
+                  const SizedBox(height: 12),
+                  _buildQueueActions(interview, isDark),
+                ],
               ],
             ),
           ),
@@ -658,10 +663,122 @@ class _QueueScreenState extends State<QueueScreen> {
       case 'hired':
         return Colors.green.shade700;
       case 'rejected':
-        return Colors.red;
+        return Colors.indigo;
+      case 'didnotappear':
+        return Colors.deepOrange;
       default:
         return Colors.grey;
     }
+  }
+
+  String _getStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'inprogress':
+        return 'In Progress';
+      case 'rejected':
+        return 'Under Review';
+      case 'didnotappear':
+        return 'Did Not Appear';
+      default:
+        return status;
+    }
+  }
+
+  int? _minutesLeft(Interview interview) {
+    if (interview.scheduledTime == null) return null;
+    return interview.scheduledTime!.difference(DateTime.now()).inMinutes;
+  }
+
+  bool _showQuickStudentActions(Interview interview) {
+    final status = interview.status.toLowerCase();
+    if (status != 'queued' && status != 'inprogress') return false;
+    final minutesLeft = _minutesLeft(interview);
+    if (minutesLeft == null) return false;
+    return minutesLeft >= 0 && minutesLeft <= 5;
+  }
+
+  Future<void> _sendQueueAction(Interview interview, String type) async {
+    final key = '${interview.interviewId}_$type';
+    if (_sendingQueueActions.contains(key)) return;
+
+    setState(() => _sendingQueueActions.add(key));
+
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+    final error = await provider.notifyCompanyForInterviewUpdate(
+      interviewId: interview.interviewId,
+      type: type,
+    );
+
+    if (!mounted) return;
+    setState(() => _sendingQueueActions.remove(key));
+
+    final isComing = type == 'StudentArrivingSoon';
+    final successText = isComing
+        ? 'Company notified that you are on your way.'
+        : 'Reschedule request sent to the company.';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? successText),
+        backgroundColor: error == null ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  Widget _buildQueueActions(Interview interview, bool isDark) {
+    final comingKey = '${interview.interviewId}_StudentArrivingSoon';
+    final rescheduleKey = '${interview.interviewId}_StudentRescheduleRequest';
+    final isComingLoading = _sendingQueueActions.contains(comingKey);
+    final isRescheduleLoading = _sendingQueueActions.contains(rescheduleKey);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: isComingLoading
+              ? null
+              : () => _sendQueueAction(interview, 'StudentArrivingSoon'),
+          icon: isComingLoading
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.directions_walk, size: 16),
+          label: const Text('I am Coming'),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: isDark ? Colors.green.shade300 : Colors.green.shade600,
+            ),
+            foregroundColor: isDark
+                ? Colors.green.shade300
+                : Colors.green.shade700,
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: isRescheduleLoading
+              ? null
+              : () => _sendQueueAction(interview, 'StudentRescheduleRequest'),
+          icon: isRescheduleLoading
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.schedule_send, size: 16),
+          label: const Text('Request Reschedule'),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(
+              color: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
+            ),
+            foregroundColor: isDark
+                ? Colors.orange.shade300
+                : Colors.orange.shade800,
+          ),
+        ),
+      ],
+    );
   }
 
   String _formatActualDateTime(DateTime dateTime) {
@@ -699,8 +816,10 @@ class _QueueScreenState extends State<QueueScreen> {
         return 3;
       case 'rejected':
         return 4;
-      default:
+      case 'didnotappear':
         return 5;
+      default:
+        return 6;
     }
   }
 }

@@ -287,9 +287,24 @@ export const startInterview = (interviewId) => {
   return request(`/Company/interviews/${interviewId}/start`, 'POST', {});
 };
 
+export const rescheduleInterview = (interviewId, scheduledTime, requestId = null) => {
+  return request(`/Company/interviews/${interviewId}/reschedule`, 'POST', {
+    scheduledTime,
+    requestId
+  });
+};
+
 export const startWalkInInterview = (studentId, overrideScheduledInterview = false) => {
   return request(`/Company/students/${studentId}/walkin/start`, 'POST', {
     overrideScheduledInterview
+  });
+};
+
+export const notifyStudent = (studentId, title, body, type = 'CompanyDirectMessage') => {
+  return request(`/Company/students/${studentId}/notify`, 'POST', {
+    title,
+    body,
+    type
   });
 };
 

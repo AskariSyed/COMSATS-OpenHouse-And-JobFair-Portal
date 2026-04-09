@@ -58,14 +58,16 @@ jobs:
         if echo "$changed_files" | grep -q '^landing-page/'; then echo "landing=true" >> "$GITHUB_OUTPUT"; else echo "landing=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^student-portal/'; then echo "student=true" >> "$GITHUB_OUTPUT"; else echo "student=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^Backend/'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^Backend/Migrations/'; then echo "migrations=true" >> "$GITHUB_OUTPUT"; else echo "migrations=false" >> "$GITHUB_OUTPUT"; fi
 
     - name: Show changed projects
       run: |
-        echo "Admin:   ${{ steps.changes.outputs.admin }}"
-        echo "Company: ${{ steps.changes.outputs.company }}"
-        echo "Landing: ${{ steps.changes.outputs.landing }}"
-        echo "Student: ${{ steps.changes.outputs.student }}"
-        echo "Backend: ${{ steps.changes.outputs.backend }}"
+        echo "Admin:      ${{ steps.changes.outputs.admin }}"
+        echo "Company:    ${{ steps.changes.outputs.company }}"
+        echo "Landing:    ${{ steps.changes.outputs.landing }}"
+        echo "Student:    ${{ steps.changes.outputs.student }}"
+        echo "Backend:    ${{ steps.changes.outputs.backend }}"
+        echo "Migrations: ${{ steps.changes.outputs.migrations }}"
     
     # Setup Node.js for React apps
     - name: Setup Node.js
@@ -161,6 +163,25 @@ jobs:
         dotnet restore
         dotnet build --configuration Release
         dotnet publish --configuration Release --output publish
+
+    # Build EF Migrations Bundle (only when new migrations were added)
+    - name: Build EF Migrations Bundle
+      if: steps.changes.outputs.migrations == 'true'
+      run: |
+        cd Backend
+        # Install dotnet-ef tool locally in this job
+        dotnet tool install --global dotnet-ef
+        export PATH="$PATH:$HOME/.dotnet/tools"
+        # Build a self-contained migrations bundle for linux-x64
+        # The bundle is a standalone executable — no dotnet runtime needed on the server
+        dotnet ef migrations bundle \
+          --project JobFairPortal.csproj \
+          --runtime linux-x64 \
+          --self-contained \
+          --output publish/efbundle \
+          --force
+        echo "Migrations bundle created:"
+        ls -lh publish/efbundle
     
     # Create deployment artifacts
     - name: Package artifacts
@@ -183,6 +204,11 @@ jobs:
         fi
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
           tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
+        fi
+        # Package the migrations bundle separately so it can be run before service restart
+        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
+          cp Backend/publish/efbundle deploy-artifacts/efbundle
+          echo "Migrations bundle included in artifacts."
         fi
         
         echo "Artifacts packaged:"
@@ -217,6 +243,9 @@ jobs:
         fi
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
           scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
+        fi
+        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
+          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/efbundle ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/efbundle
         fi
         
         # Execute remote deployment script
@@ -268,6 +297,19 @@ jobs:
           sudo rm -rf /var/www/api/*
           sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
           sudo chown -R www-data:www-data /var/www/api
+        fi
+
+        echo "==> Running EF Database Migrations..."
+        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
+          sudo chmod +x /tmp/efbundle
+          # Run the self-contained migrations bundle using the production appsettings
+          # The bundle reads the connection string from appsettings.Production.json in /var/www/api
+          sudo /tmp/efbundle \
+            --connection "$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json)"
+          echo "==> EF migrations applied successfully!"
+          sudo rm -f /tmp/efbundle
+        else
+          echo "==> No new migrations detected — skipping database update."
         fi
         
         # Set proper permissions

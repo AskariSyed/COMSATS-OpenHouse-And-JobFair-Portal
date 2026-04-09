@@ -42,6 +42,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('role');
       localStorage.removeItem('userId');
+      localStorage.removeItem('email');
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('admin_session_expired', '1');
         if (window.location.pathname !== '/') {

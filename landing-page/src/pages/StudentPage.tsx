@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Apple, Smartphone } from 'lucide-react';
+import { Apple, Smartphone, Info } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { StudentMockupSlider } from '../components/StudentMockupSlider';
 import { howToUse, portalUrls, studentCapabilities } from '../data/siteContent';
@@ -48,6 +48,25 @@ export function StudentPage() {
         title="Student Portal (Mobile-first)"
         subtitle="Built for on-the-go student usage: profile readiness, CV workflows, jobs and companies discovery, interview requests, queue tracking, and notification reminders."
       />
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm"
+      >
+        <div className="flex gap-3 items-start">
+          <Info className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
+          <div className="text-sm text-amber-900">
+            <p className="font-bold text-amber-800 text-base mb-1">Mobile Device Recommended</p>
+            <p className="leading-relaxed">
+              Students are highly encouraged to use a mobile device instead of the website for better notification availability.{' '}
+              If you are on <strong>Android</strong>, please <a href={portalUrls.studentApk} className="font-semibold underline hover:text-amber-700 transition-colors">download and install the app</a>.{' '}
+              If you are on <strong>iOS (iPhone)</strong>, please open the website in Safari and add it to your home screen.
+            </p>
+          </div>
+        </div>
+      </motion.div>
 
       <motion.section
         initial={{ opacity: 0, y: 20 }}

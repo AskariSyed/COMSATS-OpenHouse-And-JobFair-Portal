@@ -1035,12 +1035,14 @@ namespace JobFairPortal.Controllers
                 .Select(i => new
                 {
                     i.InterviewId,
+                    i.RequestId,
                     StudentName = i.Student.User.FullName,
                     StudentId = i.Student.StudentId,
                     i.Student.RegistrationNo,
                     i.ScheduledTime,
                     i.StartedAt,
                     i.EndedAt,
+                    DurationMinutes = i.DurationMinutes,
                     Status = i.Status.ToString(),
                     TimeUntilInterview = i.ScheduledTime.HasValue ? (i.ScheduledTime.Value - DateTime.UtcNow).TotalHours : 0
                 })
@@ -1781,8 +1783,8 @@ public async Task<IActionResult> RejectInterviewRequest(int requestId, [FromBody
                 Token = request.Student.FcmToken,
                 Notification = new FirebaseAdmin.Messaging.Notification
                 {
-                    Title = "Interview Request Rejected",
-                    Body = $"{company.Name} has rejected your interview request"
+                    Title = "Interview Request Update",
+                    Body = $"{company.Name} has updated your interview request status to under review"
                 },
                 Data = new Dictionary<string, string>
                 {
@@ -1790,7 +1792,7 @@ public async Task<IActionResult> RejectInterviewRequest(int requestId, [FromBody
                     { "CompanyId", company.CompanyId.ToString() },
                     { "CompanyName", company.Name },
                     { "Reason", dto.Reason ?? "No reason provided" },
-                    { "Type", "InterviewRejected" }
+                    { "Type", "InterviewRequestUpdate" }
                 }
             };
 
@@ -1804,7 +1806,7 @@ public async Task<IActionResult> RejectInterviewRequest(int requestId, [FromBody
 
     return Ok(new
     {
-        Message = "Interview request rejected successfully.",
+        Message = "Interview request updated successfully.",
         RequestId = request.RequestId,
         StudentName = request.Student.User.FullName,
         RejectionReason = dto.Reason,
@@ -4024,6 +4026,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 RequestId = dto.RequestId ?? 0,
                 JobFairId = activeJobFair.JobFairId,
                 ScheduledTime = scheduledTime,
+                DurationMinutes = durationMinutes,
                 Status = InterviewStatus.Queued,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -4109,6 +4112,197 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
         }
 
         [Authorize(Roles = "Company")]
+        [HttpPost("interviews/{interviewId}/reschedule")]
+        public async Task<IActionResult> RescheduleInterview(int interviewId, [FromBody] ScheduleInterviewDto dto)
+        {
+            if (dto == null) return BadRequest("Request body required.");
+            var scheduledTime = DateTime.SpecifyKind(dto.ScheduledTime, DateTimeKind.Utc);
+
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            var interview = await _context.Interviews
+                .FirstOrDefaultAsync(i => i.InterviewId == interviewId
+                    && i.CompanyId == company.CompanyId
+                    && i.JobFairId == activeJobFair.JobFairId);
+
+            if (interview == null) return NotFound("Interview not found.");
+
+            if (interview.Status == InterviewStatus.Hired ||
+                interview.Status == InterviewStatus.Shortlisted ||
+                interview.Status == InterviewStatus.Rejected ||
+                interview.Status == InterviewStatus.DidNotAppear)
+            {
+                return BadRequest("Completed interviews cannot be rescheduled.");
+            }
+
+            var participation = await _context.CompanyJobFairParticipations
+                .Include(p => p.Room)
+                .FirstOrDefaultAsync(p => p.CompanyId == company.CompanyId && p.JobFairId == activeJobFair.JobFairId);
+
+            if (participation == null) return BadRequest("Company not registered for the active job fair.");
+            if (!participation.IsPresent) return BadRequest("Company must be marked present to reschedule.");
+
+            var durationMinutes = participation.InterviewDurationMinutes > 0
+                ? participation.InterviewDurationMinutes
+                : company.InterviewDurationMinutes;
+            if (durationMinutes <= 0) return BadRequest("Interview duration not configured.");
+
+            var duration = TimeSpan.FromMinutes(durationMinutes);
+            var buffer = TimeSpan.FromSeconds(90);
+
+            var windowDate = GetDateInJobFairTimeZone(scheduledTime);
+            var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(windowDate);
+            if (scheduledTime < DateTime.UtcNow) return BadRequest("Scheduled time must be in the future.");
+            if (scheduledTime < dayStart || scheduledTime + duration > hardStop) return BadRequest("Scheduled time outside allowed window.");
+
+            var companyConflicts = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.InterviewId != interview.InterviewId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
+                .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
+                .ToListAsync();
+
+            var studentConflicts = await _context.Interviews
+                .Where(i => i.StudentId == interview.StudentId
+                    && i.JobFairId == activeJobFair.JobFairId
+                    && i.InterviewId != interview.InterviewId
+                    && i.ScheduledTime.HasValue
+                    && i.ScheduledTime.Value >= dayStart
+                    && i.ScheduledTime.Value < dayEndExclusive)
+                .Select(i => new { Start = i.ScheduledTime!.Value, End = i.ScheduledTime!.Value.AddMinutes(durationMinutes) })
+                .ToListAsync();
+
+            var candStartWithBuffer = scheduledTime - buffer;
+            var candEndWithBuffer = scheduledTime + duration + buffer;
+
+            bool companyBusy = companyConflicts.Any(b => Overlaps(DateTime.SpecifyKind(b.Start, DateTimeKind.Utc), DateTime.SpecifyKind(b.End, DateTimeKind.Utc), candStartWithBuffer, candEndWithBuffer));
+            bool studentBusy = studentConflicts.Any(b => Overlaps(DateTime.SpecifyKind(b.Start, DateTimeKind.Utc), DateTime.SpecifyKind(b.End, DateTimeKind.Utc), candStartWithBuffer, candEndWithBuffer));
+
+            if (companyBusy) return Conflict(new { Message = "Company has a conflicting interview at that time." });
+            if (studentBusy) return Conflict(new { Message = "Student has a conflicting interview at that time." });
+
+            interview.ScheduledTime = scheduledTime;
+            interview.DurationMinutes = durationMinutes;
+            interview.Status = InterviewStatus.Queued;
+            interview.StartedAt = null;
+            interview.EndedAt = null;
+            interview.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = "Interview rescheduled.",
+                interview.InterviewId,
+                interview.StudentId,
+                interview.ScheduledTime,
+                interview.DurationMinutes,
+                Status = interview.Status.ToString()
+            });
+        }
+
+        [Authorize(Roles = "Company")]
+        [HttpPost("students/{studentId}/notify")]
+        public async Task<IActionResult> NotifyStudent(int studentId, [FromBody] CompanyStudentNotificationDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Title) || string.IsNullOrWhiteSpace(dto.Body))
+                return BadRequest("Title and Body are required.");
+
+            var companyUserId = GetUserIdFromToken();
+            if (companyUserId <= 0) return Unauthorized();
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.UserId == companyUserId);
+            if (company == null) return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs.AsNoTracking().FirstOrDefaultAsync(j => j.IsActive);
+            if (activeJobFair == null) return BadRequest("No active job fair.");
+
+            var hasRelationship = await _context.Interviews
+                .AnyAsync(i => i.CompanyId == company.CompanyId && i.StudentId == studentId && i.JobFairId == activeJobFair.JobFairId)
+                || await _context.InterviewRequests
+                    .AnyAsync(r => r.CompanyId == company.CompanyId && r.StudentId == studentId && r.JobFairId == activeJobFair.JobFairId);
+
+            if (!hasRelationship)
+                return BadRequest("Student is not associated with this company in the active job fair.");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null) return NotFound("Student not found.");
+
+            var pushSent = false;
+            var emailSent = false;
+            var notificationType = string.IsNullOrWhiteSpace(dto.Type) ? "CompanyDirectMessage" : dto.Type!;
+
+            if (!string.IsNullOrWhiteSpace(student.FcmToken))
+            {
+                try
+                {
+                    var push = new Message
+                    {
+                        Token = student.FcmToken,
+                        Notification = new FirebaseAdmin.Messaging.Notification
+                        {
+                            Title = dto.Title.Trim(),
+                            Body = dto.Body.Trim()
+                        },
+                        Data = new Dictionary<string, string>
+                        {
+                            { "Type", notificationType },
+                            { "CompanyId", company.CompanyId.ToString() },
+                            { "StudentId", student.StudentId.ToString() }
+                        }
+                    };
+
+                    await FirebaseMessaging.DefaultInstance.SendAsync(push);
+                    pushSent = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send direct student push notification. CompanyId={CompanyId}, StudentId={StudentId}", company.CompanyId, student.StudentId);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(student.User?.Email))
+            {
+                try
+                {
+                    var emailBody = $@"
+<p>Dear {student.User.FullName},</p>
+<p><strong>{company.Name}</strong> sent you a message:</p>
+<p style='white-space: pre-wrap;'><strong>{dto.Title.Trim()}</strong><br/>{dto.Body.Trim()}</p>
+<p>Regards,<br/>COMSATS Job Fair Team</p>";
+
+                    await _mailService.SendMailAsync(student.User.Email, dto.Title.Trim(), emailBody);
+                    emailSent = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send direct student email notification. CompanyId={CompanyId}, StudentId={StudentId}", company.CompanyId, student.StudentId);
+                }
+            }
+
+            return Ok(new
+            {
+                Message = "Notification processed.",
+                StudentId = student.StudentId,
+                PushSent = pushSent,
+                EmailSent = emailSent
+            });
+        }
+
+        [Authorize(Roles = "Company")]
         [HttpPost("interviews/{interviewId}/start")]
         public async Task<IActionResult> StartInterview(int interviewId)
         {
@@ -4123,8 +4317,20 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             if (interview == null) return NotFound("Interview not found.");
 
-            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected)
+            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected || interview.Status == InterviewStatus.DidNotAppear)
                 return BadRequest("Interview is already completed.");
+
+            if (interview.ScheduledTime.HasValue)
+            {
+                var nowUtc = DateTime.UtcNow;
+                var earliestStart = interview.ScheduledTime.Value.AddMinutes(-15);
+                var latestStart = interview.ScheduledTime.Value.AddMinutes(15);
+
+                if (nowUtc < earliestStart || nowUtc > latestStart)
+                {
+                    return BadRequest("Interview can only be started within ±15 minutes of its scheduled time.");
+                }
+            }
 
             interview.Status = InterviewStatus.InProgress;
             interview.StartedAt ??= DateTime.UtcNow;
@@ -4317,13 +4523,13 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             if (interview == null) return NotFound("Interview not found.");
 
-            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected)
+            if (interview.Status == InterviewStatus.Hired || interview.Status == InterviewStatus.Shortlisted || interview.Status == InterviewStatus.Rejected || interview.Status == InterviewStatus.DidNotAppear)
                 return BadRequest("Interview already completed.");
 
             if (!Enum.TryParse<InterviewStatus>(dto.ResultStatus, true, out var parsedStatus) ||
-                (parsedStatus != InterviewStatus.Hired && parsedStatus != InterviewStatus.Shortlisted && parsedStatus != InterviewStatus.Rejected))
+                (parsedStatus != InterviewStatus.Hired && parsedStatus != InterviewStatus.Shortlisted && parsedStatus != InterviewStatus.Rejected && parsedStatus != InterviewStatus.DidNotAppear))
             {
-                return BadRequest("ResultStatus must be one of: Hired, Shortlisted, Rejected.");
+                return BadRequest("ResultStatus must be one of: Hired, Shortlisted, Rejected, DidNotAppear.");
             }
 
             interview.Status = parsedStatus;
@@ -4340,21 +4546,36 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
                 if (student != null)
                 {
+                    var studentResultLabel = parsedStatus switch
+                    {
+                        InterviewStatus.Rejected => "UnderReview",
+                        _ => parsedStatus.ToString()
+                    };
+
                     if (!string.IsNullOrWhiteSpace(student.FcmToken))
                     {
+                        var pushBody = parsedStatus switch
+                        {
+                            InterviewStatus.Hired => $"{company.Name} marked your interview result as Hired.",
+                            InterviewStatus.Shortlisted => $"{company.Name} marked your interview result as Shortlisted.",
+                            InterviewStatus.Rejected => $"{company.Name} marked your interview as under review.",
+                            InterviewStatus.DidNotAppear => $"{company.Name} recorded the interview attendance update.",
+                            _ => $"{company.Name} updated your interview result."
+                        };
+
                         var push = new Message
                         {
                             Token = student.FcmToken,
                             Notification = new FirebaseAdmin.Messaging.Notification
                             {
                                 Title = "Interview Result Updated",
-                                Body = $"{company.Name} marked your interview result as {parsedStatus}."
+                                Body = pushBody
                             },
                             Data = new Dictionary<string, string>
                             {
                                 { "InterviewId", interview.InterviewId.ToString() },
                                 { "CompanyId", company.CompanyId.ToString() },
-                                { "ResultStatus", parsedStatus.ToString() },
+                                { "ResultStatus", studentResultLabel },
                                 { "Type", "InterviewCompleted" }
                             }
                         };
@@ -4377,10 +4598,23 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
 <p>We wish you great success in your professional journey.</p>
 <p>Regards,<br/>Job Fair Team</p>"
+                            : parsedStatus == InterviewStatus.Rejected
+                            ? $@"
+<p>Dear {student.User.FullName},</p>
+<p>Your interview with <strong>{company.Name}</strong> has been completed.</p>
+<p><strong>Status:</strong> Under Review</p>
+<p>The company may share additional updates soon.</p>
+<p>Regards,<br/>Job Fair Team</p>"
+                            : parsedStatus == InterviewStatus.DidNotAppear
+                            ? $@"
+<p>Dear {student.User.FullName},</p>
+<p>Your interview with <strong>{company.Name}</strong> has been marked as not attended.</p>
+<p>If this was recorded by mistake, please contact the company or Job Fair desk.</p>
+<p>Regards,<br/>Job Fair Team</p>"
                             : $@"
 <p>Dear {student.User.FullName},</p>
 <p>Your interview with <strong>{company.Name}</strong> has been completed.</p>
-<p><strong>Result:</strong> {parsedStatus}</p>
+<p><strong>Result:</strong> {studentResultLabel}</p>
 <p>Regards,<br/>Job Fair Team</p>";
 
                         var subject = parsedStatus == InterviewStatus.Hired

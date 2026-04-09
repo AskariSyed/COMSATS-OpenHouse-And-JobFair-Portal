@@ -2,6 +2,7 @@
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
+using JobFairPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<StudentController> _logger;
+        private readonly MailKitMailService _mailService;
         private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
         private static readonly TimeSpan InterviewCutoffLocal = TimeSpan.FromHours(16.5);
         private static readonly TimeSpan WalkInStartLocal = new TimeSpan(9, 0, 0);
@@ -27,10 +29,11 @@ namespace JobFairPortal.Controllers
 
 
 
-        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger)
+        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger, MailKitMailService mailService)
         {
             _context = context;
             _logger = logger;
+            _mailService = mailService;
         }
 
         [HttpDelete("interview-requests/{requestId}")]
@@ -1884,6 +1887,129 @@ namespace JobFairPortal.Controllers
 
             return Ok(interviews);
         } // -----------------------------
+
+        [HttpPost("interviews/{interviewId}/notify-company")]
+        public async Task<IActionResult> NotifyCompanyForQueuedInterview(int interviewId, [FromBody] StudentInterviewQueueNotificationDto dto)
+        {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Type))
+                return BadRequest("Type is required.");
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized();
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null) return NotFound("Student not found.");
+
+            var interview = await _context.Interviews
+                .Include(i => i.Company)
+                    .ThenInclude(c => c.User)
+                .FirstOrDefaultAsync(i => i.InterviewId == interviewId && i.StudentId == student.StudentId);
+
+            if (interview == null)
+                return NotFound("Interview not found.");
+
+            if (interview.Status != InterviewStatus.Queued && interview.Status != InterviewStatus.InProgress)
+                return BadRequest("Notification is allowed only for queued or in-progress interviews.");
+
+            if (!interview.ScheduledTime.HasValue)
+                return BadRequest("Interview is not scheduled yet.");
+
+            var minutesLeft = (interview.ScheduledTime.Value - DateTime.UtcNow).TotalMinutes;
+            if (minutesLeft > 5)
+                return BadRequest("This quick notification is only available within 5 minutes of interview time.");
+
+            var normalizedType = dto.Type.Trim().ToLowerInvariant();
+            string title;
+            string body;
+            string eventType;
+
+            switch (normalizedType)
+            {
+                case "studentarrivingsoon":
+                case "iamcoming":
+                case "coming":
+                    title = "Student Is On The Way";
+                    body = $"{student.User.FullName} is on the way and expects to arrive in a few minutes.";
+                    eventType = "StudentArrivingSoon";
+                    break;
+
+                case "studentreschedulerequest":
+                case "requestreschedule":
+                case "reschedule":
+                    title = "Reschedule Request";
+                    body = $"{student.User.FullName} requested to reschedule the interview timing.";
+                    eventType = "StudentRescheduleRequest";
+                    break;
+
+                default:
+                    return BadRequest("Type must be one of: StudentArrivingSoon, StudentRescheduleRequest.");
+            }
+
+            var pushSent = false;
+            var emailSent = false;
+
+            if (!string.IsNullOrWhiteSpace(interview.Company?.FcmToken))
+            {
+                try
+                {
+                    var message = new Message
+                    {
+                        Token = interview.Company.FcmToken,
+                        Notification = new FirebaseAdmin.Messaging.Notification
+                        {
+                            Title = title,
+                            Body = body
+                        },
+                        Data = new Dictionary<string, string>
+                        {
+                            { "Type", eventType },
+                            { "InterviewId", interview.InterviewId.ToString() },
+                            { "CompanyId", interview.CompanyId.ToString() },
+                            { "StudentId", student.StudentId.ToString() },
+                            { "StudentName", student.User.FullName ?? "Student" }
+                        }
+                    };
+
+                    await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                    pushSent = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send student queue push notification. InterviewId={InterviewId}", interview.InterviewId);
+                }
+            }
+
+            var companyEmail = interview.Company?.User?.Email;
+            if (!string.IsNullOrWhiteSpace(companyEmail))
+            {
+                try
+                {
+                    var emailBody = $@"
+<p>Dear {interview.Company?.Name},</p>
+<p>{body}</p>
+<p><strong>Interview ID:</strong> {interview.InterviewId}</p>
+<p>Regards,<br/>COMSATS Job Fair Team</p>";
+
+                    await _mailService.SendMailAsync(companyEmail, title, emailBody);
+                    emailSent = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send student queue email notification. InterviewId={InterviewId}", interview.InterviewId);
+                }
+            }
+
+            return Ok(new
+            {
+                Message = "Notification processed.",
+                interview.InterviewId,
+                Type = eventType,
+                PushSent = pushSent,
+                EmailSent = emailSent
+            });
+        }
 
         [HttpGet("companies")]
         public async Task<IActionResult> GetAvailableCompanies(

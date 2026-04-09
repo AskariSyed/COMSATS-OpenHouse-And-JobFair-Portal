@@ -704,10 +704,19 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
 
     if (interviewStatus == 'rejected') {
       return _buildStatusCard(
-        color: Colors.red,
-        icon: Icons.cancel_outlined,
-        title: "Not Selected",
-        subtitle: "This interview did not result in selection.",
+        color: Colors.indigo,
+        icon: Icons.hourglass_top,
+        title: "Under Review",
+        subtitle: "Your profile is still being reviewed by the company.",
+      );
+    }
+
+    if (interviewStatus == 'didnotappear') {
+      return _buildStatusCard(
+        color: Colors.deepOrange,
+        icon: Icons.event_busy,
+        title: "Attendance Marked",
+        subtitle: "This interview was marked as not attended.",
       );
     }
 
@@ -731,10 +740,10 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
 
     if (requestStatus == 'rejected') {
       return _buildStatusCard(
-        color: Colors.red,
-        icon: Icons.cancel_outlined,
-        title: "Request Rejected",
-        subtitle: "This request was not successful.",
+        color: Colors.indigo,
+        icon: Icons.hourglass_top,
+        title: "Request Under Review",
+        subtitle: "Your request was updated and remains under review.",
       );
     }
 

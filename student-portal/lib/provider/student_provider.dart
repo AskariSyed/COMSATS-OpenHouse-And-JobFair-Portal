@@ -1135,6 +1135,30 @@ class StudentProvider with ChangeNotifier {
     }
   }
 
+  Future<String?> notifyCompanyForInterviewUpdate({
+    required int interviewId,
+    required String type,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/Student/interviews/$interviewId/notify-company"),
+        headers: _authHeaders,
+        body: json.encode({"type": type}),
+      );
+
+      if (response.statusCode == 200) {
+        return null;
+      }
+
+      return _extractApiError(
+        response,
+        fallback: 'Failed to send company notification',
+      );
+    } catch (e) {
+      return "Error: $e";
+    }
+  }
+
   Future<String?> withdrawRequest(int requestId) async {
     try {
       final response = await http.delete(

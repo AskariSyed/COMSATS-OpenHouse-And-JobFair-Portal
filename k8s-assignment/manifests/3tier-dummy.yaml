@@ -1,0 +1,189 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: assignment-app
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dummy-frontend-html
+  namespace: assignment-app
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>DevOps Lab Assignment 2</title>
+      <style>
+        :root {
+          --bg1: #0f172a;
+          --bg2: #1e293b;
+          --card: #111827;
+          --accent: #22c55e;
+          --text: #e5e7eb;
+          --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          min-height: 100vh;
+          font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+          color: var(--text);
+          background: radial-gradient(circle at top left, #1d4ed8 0%, var(--bg1) 45%),
+                      linear-gradient(120deg, var(--bg2), #020617);
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .card {
+          width: min(900px, 100%);
+          background: color-mix(in srgb, var(--card) 92%, white 8%);
+          border: 1px solid #334155;
+          border-radius: 18px;
+          padding: 28px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+        .badge {
+          display: inline-block;
+          background: rgba(34, 197, 94, 0.15);
+          border: 1px solid rgba(34, 197, 94, 0.5);
+          color: var(--accent);
+          font-weight: 700;
+          border-radius: 999px;
+          padding: 6px 12px;
+          margin-bottom: 14px;
+        }
+        h1 {
+          margin: 0 0 10px;
+          font-size: clamp(1.4rem, 2.8vw, 2.2rem);
+          line-height: 1.25;
+        }
+        p {
+          margin: 0;
+          color: var(--muted);
+          font-size: clamp(1rem, 2vw, 1.1rem);
+          line-height: 1.7;
+        }
+      </style>
+    </head>
+    <body>
+      <section class="card">
+        <span class="badge">Kubernetes 2-Node Cluster</span>
+        <h1>This is devops lab assignment 2 for Hassan Askari FA22-BCS-155 successfully running as kuburntees worker and master nodes.</h1>
+        <p>Frontend is deployed on Kubernetes with custom CSS and exposed through NodePort service 30080.</p>
+      </section>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dummy-db
+  namespace: assignment-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dummy-db
+  template:
+    metadata:
+      labels:
+        app: dummy-db
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dummy-db
+  namespace: assignment-app
+spec:
+  selector:
+    app: dummy-db
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dummy-backend
+  namespace: assignment-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dummy-backend
+  template:
+    metadata:
+      labels:
+        app: dummy-backend
+    spec:
+      containers:
+      - name: backend
+        image: hashicorp/http-echo:1.0.0
+        args:
+        - "-text=Hello from backend tier"
+        ports:
+        - containerPort: 5678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dummy-backend
+  namespace: assignment-app
+spec:
+  selector:
+    app: dummy-backend
+  ports:
+  - port: 5678
+    targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dummy-frontend
+  namespace: assignment-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dummy-frontend
+  template:
+    metadata:
+      labels:
+        app: dummy-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: frontend-html
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+      volumes:
+      - name: frontend-html
+        configMap:
+          name: dummy-frontend-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dummy-frontend
+  namespace: assignment-app
+spec:
+  type: NodePort
+  selector:
+    app: dummy-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080

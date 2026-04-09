@@ -152,14 +152,17 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
     final marketOverview = studentProvider.dashboardData?.marketOverview;
     final fairDate = marketOverview?.currentFairDate;
-    final isJobFairDay = fairDate != null && _isSameDay(fairDate, DateTime.now());
-    final walkInCompanies =
-      displayCompanies.where((company) => company.isWalkInInterviewing).toList();
+    final isJobFairDay =
+        fairDate != null && _isSameDay(fairDate, DateTime.now());
+    final walkInCompanies = displayCompanies
+        .where((company) => company.isWalkInInterviewing)
+        .toList();
     final showWalkInTab = isJobFairDay && walkInCompanies.isNotEmpty;
     final isWalkInTabSelected =
-      showWalkInTab && _selectedCompanyTab == _companyTabWalkIn;
-    final companiesToDisplay =
-      isWalkInTabSelected ? walkInCompanies : displayCompanies;
+        showWalkInTab && _selectedCompanyTab == _companyTabWalkIn;
+    final companiesToDisplay = isWalkInTabSelected
+        ? walkInCompanies
+        : displayCompanies;
 
     final totalPages = companyProvider.totalPages;
     final currentPage = companyProvider.currentPage;
@@ -1189,11 +1192,11 @@ class _CompanyCardState extends State<CompanyCard> {
       icon = Icons.check_circle_outline;
     } else {
       bg = isDark
-          ? Colors.red.shade900.withValues(alpha: 0.3)
-          : Colors.red.shade50;
-      text = isDark ? Colors.red.shade300 : Colors.red.shade700;
-      label = "Rejected";
-      icon = Icons.cancel_outlined;
+          ? Colors.indigo.shade900.withValues(alpha: 0.3)
+          : Colors.indigo.shade50;
+      text = isDark ? Colors.indigo.shade300 : Colors.indigo.shade700;
+      label = "Under Review";
+      icon = Icons.hourglass_top;
     }
 
     return Container(

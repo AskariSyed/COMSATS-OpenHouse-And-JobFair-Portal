@@ -20,17 +20,13 @@ namespace JobFairPortal.Services
         {
             var message = new MimeMessage();
 
-            // ✅ From must match Gmail account
+        
             var gmailUser = _config["Smtp:User"];
             if (string.IsNullOrWhiteSpace(gmailUser))
             {
                 throw new InvalidOperationException("SMTP user is not configured (Smtp:User).");
             }
             message.From.Add(new MailboxAddress("Job Fair Portal", gmailUser));
-
-            //// ✅ Optional: set Reply-To to CUI email
-            //message.ReplyTo.Add(new MailboxAddress("Job Fair Portal", "jobfair@cuiwah.edu.pk"));
-
             message.To.Add(MailboxAddress.Parse(toEmail));
             message.Subject = subject;
             message.ReplyTo.Add(new MailboxAddress("Job Fair Portal", "askari.syed04@gmail.com"));

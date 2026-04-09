@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download } from 'lucide-react';
-import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews } from '../api';
+import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download, Bell } from 'lucide-react';
+import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews, rescheduleInterview, notifyStudent } from '../api';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
 const formatGradeValue = (value, digits = 2) => {
@@ -72,6 +72,18 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
   const [profileLoading, setProfileLoading] = useState(false);
   const [downloadingAllCvs, setDownloadingAllCvs] = useState(false);
   const [isInterviewWindowClosed, setIsInterviewWindowClosed] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
+  const [notifyModal, setNotifyModal] = useState(null); // { interview }
+  const [notifyPreset, setNotifyPreset] = useState('NEXT');
+  const [notifyTitle, setNotifyTitle] = useState('Interview Update');
+  const [notifyBody, setNotifyBody] = useState('');
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [quickNotifyKey, setQuickNotifyKey] = useState('');
+
+  useEffect(() => {
+    const intervalId = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -96,7 +108,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
         .filter((req) => {
           const interview = req.interview || req.Interview;
           const interviewStatus = String(interview?.interviewStatus || interview?.InterviewStatus || '').toLowerCase();
-          return interviewStatus === 'hired' || interviewStatus === 'shortlisted' || interviewStatus === 'rejected';
+          return interviewStatus === 'hired' || interviewStatus === 'shortlisted' || interviewStatus === 'rejected' || interviewStatus === 'didnotappear';
         })
         .map((req) => {
           const interview = req.interview || req.Interview;
@@ -115,7 +127,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
       const acceptedOnly = allAcceptedRequests.filter((req) => {
         const interview = req.interview || req.Interview;
         const interviewStatus = String(interview?.interviewStatus || interview?.InterviewStatus || '').toLowerCase();
-        return interviewStatus !== 'hired' && interviewStatus !== 'shortlisted' && interviewStatus !== 'rejected';
+        return interviewStatus !== 'hired' && interviewStatus !== 'shortlisted' && interviewStatus !== 'rejected' && interviewStatus !== 'didnotappear';
       });
 
       setIsInterviewWindowClosed(hasCutoffPassed(analyticsData?.jobFairDate));
@@ -199,13 +211,13 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
     }
   };
 
-  const openScheduleModal = async (request) => {
+  const openScheduleModal = async (target, mode = 'schedule') => {
     if (isInterviewWindowClosed) {
       onError('Job Fair has ended.');
       return;
     }
 
-    setScheduleModal({ request });
+    setScheduleModal({ target, mode });
     setAvailableSlots([]);
     setSlotDurationMinutes(30);
     setSelectedSlot('');
@@ -214,7 +226,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
     try {
       const now = new Date();
       const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const availability = await getStudentAvailability(request.studentId, localDate);
+      const availability = await getStudentAvailability(target.studentId, localDate);
       const slots = availability?.slots || [];
       setSlotDurationMinutes(Number(availability?.slotDurationMinutes) || 30);
       setAvailableSlots(slots);
@@ -235,24 +247,32 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
       return;
     }
 
-    if (!scheduleModal?.request?.studentId || !selectedSlot) {
+    if (!scheduleModal?.target?.studentId || !selectedSlot) {
       onError('Please select an available slot');
       return;
     }
 
     setScheduling(true);
     try {
-      await scheduleStudentInterview(
-        scheduleModal.request.studentId,
-        selectedSlot,
-        scheduleModal.request.requestId
-      );
+      if (scheduleModal.mode === 'reschedule') {
+        await rescheduleInterview(
+          scheduleModal.target.interviewId,
+          selectedSlot,
+          scheduleModal.target.requestId ?? null
+        );
+      } else {
+        await scheduleStudentInterview(
+          scheduleModal.target.studentId,
+          selectedSlot,
+          scheduleModal.target.requestId
+        );
+      }
 
       setScheduleModal(null);
       setAvailableSlots([]);
       setSelectedSlot('');
       setRefreshKey(k => k + 1);
-      if (onSuccess) onSuccess('Interview scheduled successfully');
+      if (onSuccess) onSuccess(scheduleModal.mode === 'reschedule' ? 'Interview rescheduled successfully' : 'Interview scheduled successfully');
     } catch (err) {
       onError(err.message);
     } finally {
@@ -293,6 +313,10 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
   });
 
   const handleStartInterview = async (interview) => {
+    if (!canStartInterview(interview)) {
+      onError('Interview can only be started within ±15 minutes of scheduled time.');
+      return;
+    }
     setStartingInterviewId(interview.interviewId);
     try {
       await startInterview(interview.interviewId);
@@ -359,6 +383,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
     const val = String(status || '').trim().toLowerCase();
     if (val === 'hired') return 'HIRED';
     if (val === 'shortlisted') return 'SHORTLISTED';
+    if (val === 'didnotappear' || val === 'did not appear') return 'DID NOT APPEAR';
     if (val === 'rejected') return 'REJECTED';
     return 'COMPLETED';
   };
@@ -367,8 +392,176 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
     const val = String(status || '').trim().toLowerCase();
     if (val === 'hired') return 'bg-green-100 text-green-800 border border-green-200';
     if (val === 'shortlisted') return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    if (val === 'didnotappear' || val === 'did not appear') return 'bg-slate-100 text-slate-800 border border-slate-200';
     if (val === 'rejected') return 'bg-red-100 text-red-800 border border-red-200';
     return 'bg-gray-100 text-gray-700 border border-gray-200';
+  };
+
+  const getSafeDate = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const getInterviewDuration = (interview) => {
+    const duration = Number(interview?.durationMinutes ?? interview?.DurationMinutes ?? 30);
+    return Number.isFinite(duration) && duration > 0 ? duration : 30;
+  };
+
+  const canStartInterview = (interview) => {
+    const status = String(interview?.status || '').toLowerCase();
+    if (status !== 'queued') return false;
+
+    const scheduled = getSafeDate(interview?.scheduledTime);
+    if (!scheduled) return true;
+
+    const earliest = scheduled.getTime() - (15 * 60 * 1000);
+    const latest = scheduled.getTime() + (15 * 60 * 1000);
+    return nowTick >= earliest && nowTick <= latest;
+  };
+
+  const canMarkDidNotAppear = (interview) => {
+    const status = String(interview?.status || '').toLowerCase();
+    if (status !== 'queued' && status !== 'inprogress') return false;
+
+    const scheduled = getSafeDate(interview?.scheduledTime);
+    if (!scheduled) return true;
+
+    return nowTick >= (scheduled.getTime() - (15 * 60 * 1000));
+  };
+
+  const getRemainingSeconds = (interview) => {
+    const status = String(interview?.status || '').toLowerCase();
+    if (status !== 'inprogress') return null;
+
+    const started = getSafeDate(interview?.startedAt);
+    if (!started) return null;
+
+    const endMs = started.getTime() + (getInterviewDuration(interview) * 60 * 1000);
+    return Math.floor((endMs - nowTick) / 1000);
+  };
+
+  const formatDurationLabel = (seconds) => {
+    const abs = Math.abs(seconds);
+    const mins = Math.floor(abs / 60);
+    const secs = abs % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const getGlobalOvertimeMinutes = () => {
+    const overtimeValues = scheduledInterviews
+      .filter((it) => String(it?.status || '').toLowerCase() === 'inprogress')
+      .map((it) => getRemainingSeconds(it))
+      .filter((sec) => typeof sec === 'number' && sec < 0)
+      .map((sec) => Math.ceil(Math.abs(sec) / 60));
+
+    if (overtimeValues.length === 0) return 0;
+    return Math.max(...overtimeValues);
+  };
+
+  const buildNotificationTemplate = (preset, interview) => {
+    const studentName = interview?.studentName || 'Student';
+    const overtimeMinutes = getGlobalOvertimeMinutes();
+
+    if (preset === 'NEXT') {
+      return {
+        title: 'You Are Next',
+        body: `Dear ${studentName}, you are next. Please come to the interview room now.`
+      };
+    }
+
+    if (preset === 'SOON') {
+      return {
+        title: 'Interview Starting Soon',
+        body: `Dear ${studentName}, your interview is starting soon. Please be ready and arrive at the room.`
+      };
+    }
+
+    if (preset === 'DELAY') {
+      const delay = overtimeMinutes > 0 ? overtimeMinutes : 5;
+      return {
+        title: 'Interview Delay Update',
+        body: `Dear ${studentName}, the previous interview is running overtime. Your interview might be delayed by approximately ${delay} minute${delay === 1 ? '' : 's'}.`
+      };
+    }
+
+    return {
+      title: 'Interview Update',
+      body: ''
+    };
+  };
+
+  const openNotifyModal = (interview) => {
+    const preset = 'NEXT';
+    const template = buildNotificationTemplate(preset, interview);
+    setNotifyPreset(preset);
+    setNotifyTitle(template.title);
+    setNotifyBody(template.body);
+    setNotifyModal({ interview });
+  };
+
+  const handlePresetChange = (preset) => {
+    setNotifyPreset(preset);
+    if (!notifyModal?.interview) return;
+    const template = buildNotificationTemplate(preset, notifyModal.interview);
+    setNotifyTitle(template.title);
+    setNotifyBody(template.body);
+  };
+
+  const handleSendStudentNotification = async () => {
+    if (!notifyModal?.interview?.studentId) {
+      onError('Student reference is missing for notification.');
+      return;
+    }
+    if (!notifyTitle.trim() || !notifyBody.trim()) {
+      onError('Please provide both title and message.');
+      return;
+    }
+
+    setSendingNotification(true);
+    try {
+      await notifyStudent(
+        notifyModal.interview.studentId,
+        notifyTitle.trim(),
+        notifyBody.trim(),
+        notifyPreset === 'CUSTOM' ? 'CompanyCustomMessage' : `CompanyPreset${notifyPreset}`
+      );
+      setNotifyModal(null);
+      if (onSuccess) onSuccess('Notification sent to student.');
+    } catch (err) {
+      onError(err.message || 'Failed to send notification.');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
+  const handleQuickPresetNotification = async (interview, preset) => {
+    if (!interview?.studentId) {
+      onError('Student reference is missing for notification.');
+      return;
+    }
+
+    const template = buildNotificationTemplate(preset, interview);
+    if (!template.title.trim() || !template.body.trim()) {
+      onError('Unable to generate preset notification content.');
+      return;
+    }
+
+    const actionKey = `${interview.interviewId}:${preset}`;
+    setQuickNotifyKey(actionKey);
+    try {
+      await notifyStudent(
+        interview.studentId,
+        template.title,
+        template.body,
+        `CompanyPreset${preset}`
+      );
+      if (onSuccess) onSuccess(`Notification sent to ${interview.studentName}.`);
+    } catch (err) {
+      onError(err.message || 'Failed to send quick notification.');
+    } finally {
+      setQuickNotifyKey('');
+    }
   };
 
   const getWatermarkColor = (label) => {
@@ -691,7 +884,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                           ) : (
                             isJobFairDay && isPresent ? (
                               <button
-                                onClick={() => openScheduleModal(req)}
+                                onClick={() => openScheduleModal(req, 'schedule')}
                                 disabled={isInterviewWindowClosed}
                                 className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 inline-flex items-center gap-1"
                               >
@@ -742,6 +935,13 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                         <div className="mt-2 space-y-1 text-xs">
                           <div className="text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded w-fit">Start: {formatDateTime(int.startedAt)}</div>
                           <div className="text-rose-700 bg-rose-50 border border-rose-100 px-2 py-1 rounded w-fit">End: {formatDateTime(int.endedAt)}</div>
+                          {getRemainingSeconds(int) !== null && (
+                            <div className={`px-2 py-1 rounded w-fit font-semibold ${getRemainingSeconds(int) >= 0 ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-red-700 bg-red-50 border border-red-100'}`}>
+                              {getRemainingSeconds(int) >= 0
+                                ? `Time Left: ${formatDurationLabel(getRemainingSeconds(int))}`
+                                : `Overtime: ${formatDurationLabel(getRemainingSeconds(int))}`}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="p-4">
@@ -761,10 +961,65 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                            {(String(int.status).toLowerCase() === 'queued') && (
                              <button
                                onClick={() => handleStartInterview(int)}
-                               disabled={startingInterviewId === int.interviewId}
+                               disabled={startingInterviewId === int.interviewId || !canStartInterview(int)}
                                className="text-xs font-medium bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded disabled:opacity-50"
+                               title={!canStartInterview(int) ? 'Start allowed only within ±15 minutes of scheduled time.' : 'Start interview'}
                              >
                                {startingInterviewId === int.interviewId ? 'Starting...' : 'Start Interview'}
+                             </button>
+                           )}
+
+                           <button
+                             onClick={() => openScheduleModal(int, 'reschedule')}
+                             disabled={isInterviewWindowClosed}
+                             className="text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded disabled:opacity-50"
+                           >
+                             Reschedule
+                           </button>
+
+                           <button
+                             onClick={() => openNotifyModal(int)}
+                             className="text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded inline-flex items-center gap-1"
+                           >
+                             <Bell className="w-3 h-3" /> Notify
+                           </button>
+
+                           <button
+                             onClick={() => handleQuickPresetNotification(int, 'NEXT')}
+                             disabled={quickNotifyKey === `${int.interviewId}:NEXT`}
+                             className="text-xs font-medium bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1 rounded inline-flex items-center gap-1 disabled:opacity-50"
+                             title="Send quick: You are next"
+                           >
+                             {quickNotifyKey === `${int.interviewId}:NEXT` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Next
+                           </button>
+
+                           <button
+                             onClick={() => handleQuickPresetNotification(int, 'DELAY')}
+                             disabled={quickNotifyKey === `${int.interviewId}:DELAY`}
+                             className="text-xs font-medium bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded inline-flex items-center gap-1 disabled:opacity-50"
+                             title="Send quick: delay update"
+                           >
+                             {quickNotifyKey === `${int.interviewId}:DELAY` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Delay
+                           </button>
+
+                           <button
+                             onClick={() => handleQuickPresetNotification(int, 'SOON')}
+                             disabled={quickNotifyKey === `${int.interviewId}:SOON`}
+                             className="inline-flex items-center gap-1 text-xs font-medium bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded disabled:opacity-60"
+                             title="Send quick: interview starts soon"
+                           >
+                             {quickNotifyKey === `${int.interviewId}:SOON` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Soon
+                           </button>
+
+                           {canMarkDidNotAppear(int) && (
+                             <button
+                               onClick={() => completeInterview(int.interviewId, 'DidNotAppear').then(() => {
+                                 setRefreshKey(k => k + 1);
+                                 if (onSuccess) onSuccess('Interview marked as student did not appear.');
+                               }).catch((err) => onError(err.message))}
+                               className="text-xs font-medium bg-slate-600 hover:bg-slate-700 text-white px-2.5 py-1 rounded"
+                             >
+                               Student Didn&apos;t Appear
                              </button>
                            )}
 
@@ -1060,7 +1315,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
             <div className="p-6 border-b">
               <h3 className="text-lg font-bold text-gray-900">Schedule Interview</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Candidate: <span className="font-medium text-gray-900">{scheduleModal.request.studentName}</span>
+                Candidate: <span className="font-medium text-gray-900">{scheduleModal.target.studentName}</span>
               </p>
             </div>
 
@@ -1109,7 +1364,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                   onClick={handleScheduleStudent}
                   className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
                 >
-                  {scheduling ? <Loader2 className="animate-spin w-4 h-4" /> : 'Schedule Interview'}
+                  {scheduling ? <Loader2 className="animate-spin w-4 h-4" /> : (scheduleModal.mode === 'reschedule' ? 'Reschedule Interview' : 'Schedule Interview')}
                 </button>
               </div>
             </div>
@@ -1143,6 +1398,7 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                 <option value="Hired">Hired</option>
                 <option value="Shortlisted">Shortlisted</option>
                 <option value="Rejected">Rejected</option>
+                <option value="DidNotAppear">Student Didn&apos;t Appear</option>
               </select>
 
               <div className="flex gap-3 pt-2">
@@ -1160,6 +1416,77 @@ export default function InterviewManager({ onError, onSuccess, onSelectStudent, 
                   className="flex-1 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
                 >
                   {completing ? <Loader2 className="animate-spin w-4 h-4" /> : 'Save Result'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Send Notification</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Student: <span className="font-medium text-gray-900">{notifyModal.interview.studentName}</span>
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Preset</label>
+                <select
+                  value={notifyPreset}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="NEXT">You are next, please come</option>
+                  <option value="SOON">Interview starts soon</option>
+                  <option value="DELAY">Interview delayed due to overtime</option>
+                  <option value="CUSTOM">Custom message</option>
+                </select>
+                {notifyPreset === 'DELAY' && getGlobalOvertimeMinutes() <= 0 && (
+                  <p className="mt-1 text-xs text-amber-700">No active overtime detected right now. You can still edit and send the message manually.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <input
+                  value={notifyTitle}
+                  onChange={(e) => setNotifyTitle(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Notification title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                <textarea
+                  rows={4}
+                  value={notifyBody}
+                  onChange={(e) => setNotifyBody(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  placeholder="Write your custom message to the student"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNotifyModal(null)}
+                  className="flex-1 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={sendingNotification}
+                  onClick={handleSendStudentNotification}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                >
+                  {sendingNotification ? <Loader2 className="animate-spin w-4 h-4" /> : 'Send Notification'}
                 </button>
               </div>
             </div>

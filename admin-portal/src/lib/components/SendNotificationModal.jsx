@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Bell, Send, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../api';
@@ -20,6 +21,15 @@ const SendNotificationModal = ({
       setFormData({ title: initialTitle, body: initialBody });
     }
   }, [isOpen, initialTitle, initialBody]);
+
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -82,7 +92,9 @@ const SendNotificationModal = ({
     }
   };
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal((
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         
@@ -148,7 +160,7 @@ const SendNotificationModal = ({
         </form>
       </div>
     </div>
-  );
+  ), document.body);
 };
 
 export default SendNotificationModal;

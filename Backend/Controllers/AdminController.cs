@@ -1,4 +1,4 @@
-using CsvHelper;
+﻿using CsvHelper;
 using CsvHelper.Configuration;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
@@ -19,6 +19,7 @@ using Notification = FirebaseAdmin.Messaging.Notification;
 using Microsoft.Extensions.Caching.Memory;
 using FirebaseAdmin;
 using JobFairPortal.Services;
+using System.Security.Claims;
 
 
 
@@ -30,7 +31,7 @@ namespace JobFairPortal.Controllers
     // -----------------------------
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,CoAdmin")]
     public class AdminController : ControllerBase
 
     {
@@ -49,52 +50,28 @@ namespace JobFairPortal.Controllers
             _cache = cache;
             _mailService = mailService;
         }
-        // -----------------------------
-        // 1. Create Admin
-        // -----------------------------
-        [HttpPost("create-onetime")]
-        public async Task<IActionResult> CreateAdmin([FromBody] AdminCreateDto dto)
+
+        private bool IsSuperAdmin()
         {
-            _logger.LogInformation("CreateAdmin called with email: {Email}", dto.Email);
+            var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+            return string.Equals(roleClaim, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
 
-            var existingAdmin = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email && u.Role == UserRole.Admin);
-            if (existingAdmin != null)
+        private IActionResult SuperAdminOnly(string action)
+        {
+            return StatusCode(403, new
             {
-                _logger.LogWarning("Admin creation failed. Admin with email {Email} already exists.", dto.Email);
-                return BadRequest("Admin with this email already exists.");
-            }
-
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$"))
-            {
-                return BadRequest("Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit.");
-            }
-
-            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-
-            var adminUser = new User
-            {
-                FullName = dto.Name,
-                Email = dto.Email,
-                PasswordHash = hashedPassword,
-                Role = UserRole.Admin
-            };
-
-            _context.Users.Add(adminUser);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Admin profile created successfully for email: {Email}", dto.Email);
-
-            return Ok(new
-            {
-                Message = "Admin profile created successfully.",
-                AdminId = adminUser.UserId,
-                Email = adminUser.Email
+                Code = "FORBIDDEN",
+                Message = $"Only super admin can {action}."
             });
         }
-        
-            // -----------------------------
-            // Get All Companies (Global List, regardless of participation)
-            // -----------------------------
+
+        // Note: Admin/Co-admin creation now uses OTP-based flow via 
+        // POST /api/admin/admins/request-otp and POST /api/admin/admins/create (see CreateAdminUser method below)
+
+        // -----------------------------
+        // Get All Companies (Global List, regardless of participation)
+        // -----------------------------
             [HttpGet("companies/all")]
             public async Task<IActionResult> GetAllCompaniesGlobal(
                 [FromQuery] int page = 1,
@@ -407,7 +384,7 @@ namespace JobFairPortal.Controllers
 
             var rooms = await _context.Rooms
                 .Include(r => r.Company)
-                .Where(r => r.JobFairId == jobFairId.Value) // ✅ Filter by JobFairId
+                .Where(r => r.JobFairId == jobFairId.Value) // âœ… Filter by JobFairId
                 .Select(r => new RoomResponseDto
                 {
                     RoomId = r.RoomId,
@@ -478,7 +455,7 @@ namespace JobFairPortal.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
-            // ✅ FIX: Query Participation to get status specific to this Job Fair
+            // âœ… FIX: Query Participation to get status specific to this Job Fair
             var query = _context.CompanyJobFairParticipations
                 .Include(p => p.Company)
                     .ThenInclude(c => c.User)
@@ -515,8 +492,8 @@ namespace JobFairPortal.Controllers
                 FocalPersonEmail = p.Company.FocalPersonEmail,
                 FocalPersonPhone = p.Company.FocalPersonPhone,
                 RoomName = p.Company.Room != null ? p.Company.Room.RoomName : null,
-                ArrivalStatus = p.ArrivalStatus.ToString(), // ✅ Correct status for this fair
-                IsPresent = p.IsPresent,                    // ✅ Correct presence for this fair
+                ArrivalStatus = p.ArrivalStatus.ToString(), // âœ… Correct status for this fair
+                IsPresent = p.IsPresent,                    // âœ… Correct presence for this fair
                 RepsCount = p.Company.RepsCount,
                 TotalJobs = p.Company.Jobs.Count(j => j.JobFairId == jobFairId.Value),
                 TotalInterviews = p.Company.Interviews.Count(i => i.JobFairId == jobFairId.Value),
@@ -839,7 +816,7 @@ namespace JobFairPortal.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 20;
 
-            // ✅ FIX: Filter on Participation
+            // âœ… FIX: Filter on Participation
             var query = _context.CompanyJobFairParticipations
                 .Include(p => p.Company)
                     .ThenInclude(c => c.User)
@@ -971,7 +948,7 @@ namespace JobFairPortal.Controllers
             _context.Companies.Add(company);
             await _context.SaveChangesAsync();
 
-            // ✅ FIX: Create Participation Record
+            // âœ… FIX: Create Participation Record
             var participation = new CompanyJobFairParticipation
             {
                 CompanyId = company.CompanyId,
@@ -1221,7 +1198,7 @@ Job Fair Team
             // 2. Check if data is already in cache
             if (!_cache.TryGetValue(cacheKey, out DashboardOverviewDto? dashboard) || dashboard == null)
             {
-                // ⚠️ CACHE MISS: Data not found, fetch from Database
+                // âš ï¸ CACHE MISS: Data not found, fetch from Database
                 _logger.LogInformation("Fetching dashboard stats from DB...");
 
                 var topRequestedCandidates = await _context.InterviewRequests
@@ -1282,7 +1259,7 @@ Job Fair Team
 
                 var topHiredCandidate = topHiredCandidates.FirstOrDefault();
 
-                // ✅ FIX: Filter all stats by Active Job Fair ID
+                // âœ… FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
                 {
                     // FIX: Count from Participation table to get accurate attendee count
@@ -1604,7 +1581,7 @@ Job Fair Team
 
             var query = _context.Rooms
                 .Include(r => r.Company)
-                .Where(r => r.JobFairId == jobFairId.Value) // ✅ Filter by JobFairId
+                .Where(r => r.JobFairId == jobFairId.Value) // âœ… Filter by JobFairId
                 .AsQueryable();
 
             if (status.HasValue)
@@ -1775,7 +1752,7 @@ Job Fair Team
                 });
             }
 
-            // ✅ FIX: Query StudentJobFairParticipations to get students for THIS fair only
+            // âœ… FIX: Query StudentJobFairParticipations to get students for THIS fair only
             var query = _context.StudentJobFairParticipations
                 .Include(p => p.Student)
                     .ThenInclude(s => s.User)
@@ -1957,7 +1934,7 @@ Job Fair Team
                 });
             }
 
-            // ✅ FIX: Query StudentJobFairParticipations
+            // âœ… FIX: Query StudentJobFairParticipations
             var query = _context.StudentJobFairParticipations
                 .Include(p => p.Student)
                     .ThenInclude(s => s.User)
@@ -2852,7 +2829,7 @@ Job Fair Team
             });
         }
         [HttpGet("notices")]
-        [Authorize]
+        [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> GetNotices()
         {
             var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
@@ -2861,7 +2838,7 @@ Job Fair Team
 
             var isStudent = User.IsInRole("Student");
             var isCompany = User.IsInRole("Company");
-            var isAdmin = User.IsInRole("Admin");
+            var isAdmin = User.IsInRole("Admin") || User.IsInRole("CoAdmin");
 
             var query = _context.Notices
                 .Where(n => n.JobFairId == activeJobFair.JobFairId)
@@ -3291,8 +3268,8 @@ Job Fair Team
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }
-[HttpDelete("notice/{id}")]
-        [Authorize(Roles = "Admin")]
+    [HttpDelete("notice/{id}")]
+    [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> DeleteNotice(int id)
         {
             var notice = await _context.Notices.FindAsync(id);
@@ -3309,7 +3286,7 @@ Job Fair Team
         }
     
         [HttpPost("notices")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> CreateNotice([FromBody] NoticeCreateDto dto)
         {
             var activeJobFair = await _context.JobFairs.FirstOrDefaultAsync(j => j.IsActive);
@@ -3342,7 +3319,7 @@ Job Fair Team
         }
 
         [HttpPut("notices/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> UpdateNotice(int id, [FromBody] NoticeUpdateDto dto)
         {
             var notice = await _context.Notices.FindAsync(id);
@@ -3369,7 +3346,7 @@ Job Fair Team
         }
         
         [HttpPut("Notice/{id}/toggle-visibility")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> ToggleVisibility(int id)
         {
             var notice = await _context.Notices.FindAsync(id);
@@ -3829,46 +3806,137 @@ Job Fair Team
             });
         }
 
-        // ✅ NEW: Admin management endpoints
+        // âœ… NEW: Admin management endpoints
         // ========================================
-        // Create Admin User (Admin can create other admins)
+        // Send OTP to Super Admin (authorize co-admin creation)
+        // ========================================
+        [HttpPost("admins/send-otp")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> SendCoAdminCreationOtp()
+        {
+            if (!IsSuperAdmin())
+                return SuperAdminOnly("request an admin action OTP");
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim?.Value, out int userId))
+                return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
+
+            var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && (u.Role == UserRole.Admin || u.Role == UserRole.CoAdmin));
+            if (admin == null)
+                return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Admin user not found." });
+
+            // Generate 6-digit OTP
+            var otp = GenerateAdminOtp();
+            var cacheKey = $"coadmin-create-otp:{userId}";
+            _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(10));
+
+            _logger.LogInformation("Co-admin creation OTP generated for admin {AdminId}", userId);
+
+            try
+            {
+                var subject = "Admin Action Verification - Job Fair Portal";
+                var body = Services.EmailTemplateService.GetAdminActionOtpTemplate(
+                    admin.FullName ?? "Admin", otp, 10);
+                await _mailService.SendMailAsync(admin.Email, subject, body);
+                _logger.LogInformation("Co-admin creation OTP sent to {Email}", admin.Email);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send OTP email to admin {AdminId}", userId);
+                return StatusCode(500, new { Code = "EMAIL_ERROR", Message = "Failed to send OTP email. Please try again." });
+            }
+
+            return Ok(new
+            {
+                Code = "SUCCESS",
+                Message = "OTP sent to your registered email address.",
+                ExpiryMinutes = 10
+            });
+        }
+
+        // ========================================
+        // Verify OTP (pre-flight from frontend)
+        // ========================================
+        [HttpPost("admins/verify-otp")]
+        [Authorize(Roles = "Admin")]
+        public IActionResult VerifyCoAdminCreationOtp([FromBody] AdminVerifyOtpDto dto)
+        {
+            if (!IsSuperAdmin())
+                return SuperAdminOnly("verify an admin action OTP");
+
+            if (string.IsNullOrWhiteSpace(dto.Otp))
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "OTP is required." });
+
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim?.Value, out int userId))
+                return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
+
+            var cacheKey = $"coadmin-create-otp:{userId}";
+            if (!_cache.TryGetValue(cacheKey, out string? cachedOtp) || string.IsNullOrWhiteSpace(cachedOtp))
+                return BadRequest(new { Code = "OTP_EXPIRED", Message = "OTP has expired or was not found. Please request a new one." });
+
+            if (!cachedOtp.Equals(dto.Otp.Trim(), StringComparison.Ordinal))
+                return BadRequest(new { Code = "INVALID_OTP", Message = "The OTP you entered is incorrect." });
+
+            return Ok(new { Code = "SUCCESS", Message = "OTP verified successfully." });
+        }
+
+        // ========================================
+        // Create Co-Admin (name + email only â€” password auto-generated)
         // ========================================
         [HttpPost("admins/create")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateAdminUser([FromBody] AdminCreateDto dto)
         {
-            _logger.LogInformation("Admin creating new admin user with email: {Email}", dto.Email);
+            if (!IsSuperAdmin())
+                return SuperAdminOnly("create co-admin accounts");
 
-            // Validate input
-            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password) || string.IsNullOrWhiteSpace(dto.Name))
-            {
-                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Email, password, and name are required." });
-            }
+            _logger.LogInformation("Super admin creating new co-admin user with email: {Email}", dto.Email);
 
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$"))
-            {
-                return BadRequest(new { Code = "WEAK_PASSWORD", Message = "Password does not meet minimum requirement: at least one upper case, one lower case, 9 characters in total, one special character, and one digit." });
-            }
+            // Validate input fields
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "Email and name are required." });
 
-            // Check if admin already exists
-            var existingAdmin = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email && u.Role == UserRole.Admin);
+            if (string.IsNullOrWhiteSpace(dto.Otp))
+                return BadRequest(new { Code = "VALIDATION_ERROR", Message = "OTP verification is required to create a co-admin." });
+
+            // Re-verify OTP inside this endpoint (prevents CSRF/race conditions)
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim?.Value, out int callerAdminId))
+                return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
+
+            var otpCacheKey = $"coadmin-create-otp:{callerAdminId}";
+            if (!_cache.TryGetValue(otpCacheKey, out string? cachedOtp) || string.IsNullOrWhiteSpace(cachedOtp))
+                return BadRequest(new { Code = "OTP_EXPIRED", Message = "OTP has expired. Please request a new one." });
+
+            if (!cachedOtp.Equals(dto.Otp.Trim(), StringComparison.Ordinal))
+                return BadRequest(new { Code = "INVALID_OTP", Message = "Invalid OTP." });
+
+            // Invalidate OTP immediately after use
+            _cache.Remove(otpCacheKey);
+
+            // Check for duplicate
+            var existingAdmin = await _context.Users.FirstOrDefaultAsync(u =>
+                u.Email == dto.Email.Trim() &&
+                (u.Role == UserRole.Admin || u.Role == UserRole.CoAdmin));
             if (existingAdmin != null)
             {
                 _logger.LogWarning("Admin creation failed. Admin with email {Email} already exists.", dto.Email);
-                return BadRequest(new { Code = "DUPLICATE_ADMIN", Message = "An admin with this email already exists." });
+                return BadRequest(new { Code = "DUPLICATE_ADMIN", Message = "An admin/co-admin with this email already exists." });
             }
 
             try
             {
-                // Hash password
-                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+                // Auto-generate a strong password
+                var plainPassword = GenerateSecureAdminPassword();
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(plainPassword);
 
                 var adminUser = new User
                 {
-                    FullName = dto.Name,
-                    Email = dto.Email,
+                    FullName = dto.Name.Trim(),
+                    Email = dto.Email.Trim(),
                     PasswordHash = hashedPassword,
-                    Role = UserRole.Admin,
+                    Role = UserRole.CoAdmin,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -3877,35 +3945,26 @@ Job Fair Team
                 _context.Users.Add(adminUser);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("✅ Admin user created successfully: {Email}", dto.Email);
+                _logger.LogInformation("âœ… Co-admin user created successfully: {Email}", dto.Email);
 
-                // Send email to new admin
+                // Send branded welcome email with auto-generated credentials
                 try
                 {
-                    string subject = "You are now an Admin - Job Fair Portal";
-                    string body = $@"
-                        <p>Hello {dto.Name},</p>
-                        <p>An admin account has been created for you on the Job Fair Portal.</p>
-                        <p>Your login credentials are:</p>
-                        <ul>
-                            <li><strong>Email:</strong> {dto.Email}</li>
-                            <li><strong>Password:</strong> {dto.Password}</li>
-                        </ul>
-                        <p>You can now log in to the admin portal.</p>
-                        <p>Best regards,<br/>Job Fair Portal Team</p>";
-
-                    await _mailService.SendMailAsync(dto.Email, subject, body);
-                    _logger.LogInformation("Admin creation email sent to: {Email}", dto.Email);
+                    var subject = "Welcome - Your Co-Admin Account on Job Fair Portal";
+                    var body = Services.EmailTemplateService.GetWelcomeAdminTemplate(
+                        dto.Name.Trim(), dto.Email.Trim(), plainPassword);
+                    await _mailService.SendMailAsync(dto.Email.Trim(), subject, body);
+                    _logger.LogInformation("Welcome email sent to new co-admin: {Email}", dto.Email);
                 }
                 catch (Exception mailEx)
                 {
-                    _logger.LogWarning(mailEx, "Failed to send admin creation email to: {Email}", dto.Email);
+                    _logger.LogWarning(mailEx, "Failed to send welcome email to co-admin: {Email}", dto.Email);
                 }
 
                 return Ok(new
                 {
                     Code = "SUCCESS",
-                    Message = "Admin user created successfully.",
+                    Message = "Co-admin created successfully. Login credentials have been emailed.",
                     AdminId = adminUser.UserId,
                     Email = adminUser.Email,
                     Name = adminUser.FullName
@@ -3918,11 +3977,73 @@ Job Fair Team
             }
         }
 
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // Private helpers
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        private static string GenerateAdminOtp()
+        {
+            using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+            var buffer = new byte[sizeof(int)];
+            rng.GetBytes(buffer);
+            var number = Math.Abs(BitConverter.ToInt32(buffer, 0));
+            return (number % 900000 + 100000).ToString();
+        }
+
+        /// <summary>
+        /// Generates a cryptographically random password that always satisfies
+        /// the portal's complexity rules (upper, lower, digit, special, â‰¥9 chars).
+        /// </summary>
+        private static string GenerateSecureAdminPassword()
+        {
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghjkmnpqrstuvwxyz";
+            const string digits = "23456789";
+            const string special = "@#$%!&*";
+            const string all = upper + lower + digits + special;
+
+            using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+
+            char Pick(string charset)
+            {
+                var buf = new byte[1];
+                while (true)
+                {
+                    rng.GetBytes(buf);
+                    var idx = buf[0] % charset.Length;
+                    return charset[idx];
+                }
+            }
+
+            // Guarantee at least one of each required class
+            var chars = new List<char>
+            {
+                Pick(upper), Pick(upper),
+                Pick(lower), Pick(lower),
+                Pick(digits),
+                Pick(special),
+            };
+
+            // Fill to 12 characters
+            for (int i = chars.Count; i < 12; i++)
+                chars.Add(Pick(all));
+
+            // Fisher-Yates shuffle
+            for (int i = chars.Count - 1; i > 0; i--)
+            {
+                var buf = new byte[1];
+                rng.GetBytes(buf);
+                int j = buf[0] % (i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+
+            return new string(chars.ToArray());
+        }
+
         // ========================================
         // Change Admin Password
         // ========================================
         [HttpPut("admins/change-password")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,CoAdmin")]
         public async Task<IActionResult> ChangeAdminPassword([FromBody] ChangeAdminPasswordDto dto)
         {
             _logger.LogInformation("Admin changing password");
@@ -3947,7 +4068,7 @@ Job Fair Team
                     return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
                 }
 
-                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.Role == UserRole.Admin);
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && (u.Role == UserRole.Admin || u.Role == UserRole.CoAdmin));
                 if (admin == null)
                 {
                     return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Admin user not found." });
@@ -3967,7 +4088,7 @@ Job Fair Team
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("✅ Admin {AdminId} changed password successfully", userId);
+                _logger.LogInformation("âœ… Admin {AdminId} changed password successfully", userId);
 
                 return Ok(new
                 {
@@ -4006,7 +4127,7 @@ Job Fair Team
                     return Unauthorized(new { Code = "INVALID_TOKEN", Message = "Unable to identify user from token." });
                 }
 
-                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.Role == UserRole.Admin);
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userId && (u.Role == UserRole.Admin || u.Role == UserRole.CoAdmin));
                 if (admin == null)
                 {
                     return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Admin user not found." });
@@ -4032,7 +4153,7 @@ Job Fair Team
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("✅ Admin {AdminId} changed email to {NewEmail}", userId, dto.NewEmail);
+                _logger.LogInformation("âœ… Admin {AdminId} changed email to {NewEmail}", userId, dto.NewEmail);
 
                 return Ok(new
                 {
@@ -4055,12 +4176,17 @@ Job Fair Team
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAllAdmins()
         {
+            if (!IsSuperAdmin())
+            {
+                return SuperAdminOnly("view co-admin accounts");
+            }
+
             _logger.LogInformation("Fetching all admin users");
 
             try
             {
                 var admins = await _context.Users
-                    .Where(u => u.Role == UserRole.Admin)
+                    .Where(u => u.Role == UserRole.CoAdmin)
                     .Select(u => new
                     {
                         u.UserId,
@@ -4085,5 +4211,92 @@ Job Fair Team
                 return StatusCode(500, new { Code = "ERROR", Message = "Error fetching admins: " + ex.Message });
             }
         }
+
+        [HttpPut("admins/{adminId:int}/block")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> BlockCoAdmin(int adminId)
+        {
+            if (!IsSuperAdmin())
+            {
+                return SuperAdminOnly("block co-admin accounts");
+            }
+
+            var coAdmin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == adminId && u.Role == UserRole.CoAdmin);
+            if (coAdmin == null)
+            {
+                return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Co-admin profile not found." });
+            }
+
+            if (!coAdmin.IsActive)
+            {
+                return Ok(new { Code = "SUCCESS", Message = "Co-admin is already blocked." });
+            }
+
+            coAdmin.IsActive = false;
+            coAdmin.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Code = "SUCCESS", Message = "Co-admin blocked successfully." });
+        }
+
+        [HttpPut("admins/{adminId:int}/unblock")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UnblockCoAdmin(int adminId)
+        {
+            if (!IsSuperAdmin())
+            {
+                return SuperAdminOnly("unblock co-admin accounts");
+            }
+
+            var coAdmin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == adminId && u.Role == UserRole.CoAdmin);
+            if (coAdmin == null)
+            {
+                return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Co-admin profile not found." });
+            }
+
+            if (coAdmin.IsActive)
+            {
+                return Ok(new { Code = "SUCCESS", Message = "Co-admin is already active." });
+            }
+
+            coAdmin.IsActive = true;
+            coAdmin.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Code = "SUCCESS", Message = "Co-admin unblocked successfully." });
+        }
+
+        [HttpDelete("admins/{adminId:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteCoAdmin(int adminId)
+        {
+            if (!IsSuperAdmin())
+            {
+                return SuperAdminOnly("delete co-admin accounts");
+            }
+
+            var coAdmin = await _context.Users.FirstOrDefaultAsync(u => u.UserId == adminId && u.Role == UserRole.CoAdmin);
+            if (coAdmin == null)
+            {
+                return NotFound(new { Code = "ADMIN_NOT_FOUND", Message = "Co-admin profile not found." });
+            }
+
+            try
+            {
+                _context.Users.Remove(coAdmin);
+                await _context.SaveChangesAsync();
+                return Ok(new { Code = "SUCCESS", Message = "Co-admin deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete co-admin profile {AdminId}", adminId);
+                return StatusCode(409, new
+                {
+                    Code = "DELETE_FAILED",
+                    Message = "Unable to delete co-admin profile due to linked records. Block the profile instead."
+                });
+            }
+        }
     }
 }
+

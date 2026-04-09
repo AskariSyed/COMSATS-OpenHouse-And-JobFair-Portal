@@ -694,13 +694,13 @@ class _RequestsScreenState extends State<RequestsScreen>
                   padding: EdgeInsets.all(isMobile ? 10 : 12),
                   decoration: BoxDecoration(
                     color: isDark
-                        ? Colors.red.shade900.withValues(alpha: 0.2)
-                        : Colors.red.shade50,
+                        ? Colors.indigo.shade900.withValues(alpha: 0.2)
+                        : Colors.indigo.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isDark
-                          ? Colors.red.shade700.withValues(alpha: 0.5)
-                          : Colors.red.shade100,
+                          ? Colors.indigo.shade700.withValues(alpha: 0.5)
+                          : Colors.indigo.shade100,
                     ),
                   ),
                   child: Row(
@@ -709,17 +709,17 @@ class _RequestsScreenState extends State<RequestsScreen>
                         Icons.info_outline,
                         size: 16,
                         color: isDark
-                            ? Colors.red.shade300
-                            : Colors.red.shade700,
+                            ? Colors.indigo.shade300
+                            : Colors.indigo.shade700,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Reason: ${req.reasonForReject}",
+                          "Update: ${req.reasonForReject}",
                           style: TextStyle(
                             color: isDark
-                                ? Colors.red.shade300
-                                : Colors.red.shade700,
+                                ? Colors.indigo.shade300
+                                : Colors.indigo.shade700,
                             fontSize: 13,
                           ),
                         ),
@@ -763,9 +763,9 @@ class _RequestsScreenState extends State<RequestsScreen>
         icon = Icons.check_circle_outline;
         break;
       case RequestStatus.Rejected:
-        color = Colors.red;
-        text = "Rejected";
-        icon = Icons.cancel_outlined;
+        color = Colors.indigo;
+        text = "Under Review";
+        icon = Icons.hourglass_top;
         break;
       default:
         color = Colors.orange;

@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import api from '../lib/api';
@@ -49,10 +49,12 @@ const Login = () => {
 
       // 2. Save Token & User Details
       localStorage.setItem('token', data.token || data.Token);
-      localStorage.setItem('role', 'Admin'); 
+      localStorage.setItem('role', data.role || data.Role || 'Admin');
       localStorage.setItem('userId', data.userId || data.UserId);
+      localStorage.setItem('email', formData.email.trim());
       
-      const toastId = toast.success('Welcome back, Administrator', {
+      const roleLabel = (data.role || data.Role || 'Admin') === 'CoAdmin' ? 'Co-Admin' : 'Administrator';
+      const toastId = toast.success(`Welcome back, ${roleLabel}`, {
         duration: 1200
       });
 
@@ -163,9 +165,14 @@ const Login = () => {
 
             {/* Password Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <Link to="/forgot-password" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />

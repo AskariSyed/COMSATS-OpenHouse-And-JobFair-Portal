@@ -1,5 +1,6 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, Mail, Phone, Globe, Github, Linkedin, 
@@ -86,11 +87,15 @@ const StudentDetail = () => {
   const [credentialsFormData, setCredentialsFormData] = useState({ email: '', password: '' });
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileBanner, setProfileBanner] = useState(null);
   const [emailSending, setEmailSending] = useState(false);
   const [emailFormData, setEmailFormData] = useState({
     subject: '',
     body: ''
   });
+  const profileFormRef = useRef(null);
+  const credentialsFormRef = useRef(null);
+  const credentialsPasswordInputRef = useRef(null);
   const [profileFormData, setProfileFormData] = useState({
     fullName: '',
     registrationNo: '',
@@ -137,6 +142,35 @@ const StudentDetail = () => {
     };
     fetchDetails();
   }, [studentId, navigate, location.search]);
+
+  // Auto-scroll to profile form when opened
+  useEffect(() => {
+    if (isEditingProfile && profileFormRef.current) {
+      profileFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [isEditingProfile]);
+
+  // Auto-scroll and focus the password field when credentials editor opens
+  useEffect(() => {
+    if (!isEditingCredentials) return;
+    if (credentialsFormRef.current) {
+      credentialsFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (credentialsPasswordInputRef.current) {
+      credentialsPasswordInputRef.current.focus({ preventScroll: true });
+      credentialsPasswordInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isEditingCredentials]);
+
+  // Lock background scroll while email modal is open
+  useEffect(() => {
+    if (!isEmailModalOpen || typeof document === 'undefined') return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isEmailModalOpen]);
 
   const handleSaveCredentials = async () => {
     try {
@@ -192,6 +226,7 @@ const StudentDetail = () => {
       });
 
       toast.success('Student profile updated successfully');
+      setProfileBanner({ type: 'success', message: 'Student profile updated successfully.' });
       setIsEditingProfile(false);
 
       const res = await api.get(`/admin/students/${studentId}/details`);
@@ -207,6 +242,7 @@ const StudentDetail = () => {
     } catch (error) {
       const errorMsg = error.response?.data?.Message || error.response?.data?.message || 'Failed to update student profile';
       toast.error(errorMsg);
+      setProfileBanner({ type: 'error', message: String(errorMsg) });
     } finally {
       setProfileLoading(false);
     }
@@ -264,6 +300,11 @@ const StudentDetail = () => {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-10 px-4 sm:px-6 lg:px-8">
+      {profileBanner && (
+        <div className={`rounded-lg border px-4 py-3 text-sm font-medium ${profileBanner.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {profileBanner.message}
+        </div>
+      )}
       
       {/* Back Button */}
       <button 
@@ -371,7 +412,7 @@ const StudentDetail = () => {
 
           {/* Edit Credentials Modal */}
           {isEditingProfile && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div ref={profileFormRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Edit Student Profile</h3>
                 <button
@@ -469,7 +510,7 @@ const StudentDetail = () => {
 
           {/* Edit Credentials Modal */}
           {isEditingCredentials && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div ref={credentialsFormRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Edit Credentials</h3>
                 <button
@@ -495,6 +536,7 @@ const StudentDetail = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                   <input
+                    ref={credentialsPasswordInputRef}
                     type="password"
                     value={credentialsFormData.password}
                     onChange={(e) => setCredentialsFormData({ ...credentialsFormData, password: e.target.value })}
@@ -720,7 +762,7 @@ const StudentDetail = () => {
         type="student"
       />
 
-      {isEmailModalOpen && (
+      {isEmailModalOpen && typeof document !== 'undefined' && createPortal((
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-fade-in">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
@@ -777,7 +819,7 @@ const StudentDetail = () => {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 };

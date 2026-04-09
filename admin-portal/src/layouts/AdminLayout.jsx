@@ -45,11 +45,24 @@ const SidebarItem = ({ to, icon: Icon, label, onClick, end = false }) => (
   </NavLink>
 );
 
+const SidebarButton = ({ icon: Icon, label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex items-center space-x-3 px-6 py-3.5 transition-all duration-200 group text-gray-300 hover:bg-slate-800 hover:text-white w-full text-left"
+  >
+    <Icon size={20} className="transition-colors group-hover:text-indigo-400" />
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
 // ----------------------------------
 // Main Layout Component
 // ----------------------------------
 const AdminLayout = () => {
   const navigate = useNavigate();
+  const currentRole = localStorage.getItem('role') || '';
+  const isSuperAdmin = currentRole === 'Admin';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [activeAccountTab, setActiveAccountTab] = useState('password');
@@ -183,8 +196,13 @@ const AdminLayout = () => {
   const handleCreateAdmin = async (e) => {
     e.preventDefault();
 
+    if (!isSuperAdmin) {
+      toast.error('Only super admin can create co-admin accounts.');
+      return;
+    }
+
     if (!createAdminForm.name || !createAdminForm.email || !createAdminForm.password || !createAdminForm.confirmPassword) {
-      toast.error('Please fill all fields to create admin.');
+      toast.error('Please fill all fields to create co-admin.');
       return;
     }
 
@@ -210,13 +228,13 @@ const AdminLayout = () => {
         email: createAdminForm.email.trim(),
         password: createAdminForm.password,
       });
-      toast.success('New admin created successfully.');
+      toast.success('New co-admin created successfully.');
       setCreateAdminForm({ name: '', email: '', password: '', confirmPassword: '' });
     } catch (error) {
       const message =
         error?.response?.data?.message ||
         error?.response?.data ||
-        'Failed to create admin. Please try again.';
+        'Failed to create co-admin. Please try again.';
       toast.error(String(message));
     } finally {
       setIsCreatingAdmin(false);
@@ -346,12 +364,22 @@ const AdminLayout = () => {
   label="Notice Board" 
   onClick={() => setIsSidebarOpen(false)}
 />
+          <SidebarButton
+            icon={Settings}
+            label="Change Password"
+            onClick={() => {
+              openAccountModal('password');
+              setIsSidebarOpen(false);
+            }}
+          />
+{isSuperAdmin && (
 <SidebarItem 
   to="/admin/admin-management" 
   icon={KeyRound} 
   label="Admin Management" 
   onClick={() => setIsSidebarOpen(false)}
 />
+)}
         </nav>
         
 
@@ -404,7 +432,7 @@ const AdminLayout = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Admin Account Settings</h3>
+                <h3 className="text-lg font-bold text-gray-900">Account Settings</h3>
               <button
                 onClick={closeChangePasswordModal}
                 className="text-gray-400 hover:text-gray-700"
@@ -422,6 +450,7 @@ const AdminLayout = () => {
               >
                 Password
               </button>
+              {isSuperAdmin && (
               <button
                 type="button"
                 onClick={() => setActiveAccountTab('email')}
@@ -429,13 +458,16 @@ const AdminLayout = () => {
               >
                 Email
               </button>
+              )}
+              {isSuperAdmin && (
               <button
                 type="button"
                 onClick={() => setActiveAccountTab('create')}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium ${activeAccountTab === 'create' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                Create Admin
+                Create Co-Admin
               </button>
+              )}
             </div>
 
             {activeAccountTab === 'password' && (
@@ -552,7 +584,7 @@ const AdminLayout = () => {
             </form>
             )}
 
-            {activeAccountTab === 'create' && (
+            {isSuperAdmin && activeAccountTab === 'create' && (
             <form onSubmit={handleCreateAdmin} className="p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -613,7 +645,7 @@ const AdminLayout = () => {
                   className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-60 flex items-center gap-2"
                 >
                   {isCreatingAdmin ? <Loader2 size={16} className="animate-spin" /> : null}
-                  {isCreatingAdmin ? 'Creating...' : 'Create Admin'}
+                  {isCreatingAdmin ? 'Creating...' : 'Create Co-Admin'}
                 </button>
               </div>
             </form>
