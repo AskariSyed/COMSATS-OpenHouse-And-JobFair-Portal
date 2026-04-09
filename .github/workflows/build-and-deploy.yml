@@ -57,8 +57,15 @@ jobs:
         if echo "$changed_files" | grep -q '^company-portal/'; then echo "company=true" >> "$GITHUB_OUTPUT"; else echo "company=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^landing-page/'; then echo "landing=true" >> "$GITHUB_OUTPUT"; else echo "landing=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^student-portal/'; then echo "student=true" >> "$GITHUB_OUTPUT"; else echo "student=false" >> "$GITHUB_OUTPUT"; fi
-        if echo "$changed_files" | grep -q '^Backend/'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
-        if echo "$changed_files" | grep -q '^Backend/Migrations/'; then echo "migrations=true" >> "$GITHUB_OUTPUT"; else echo "migrations=false" >> "$GITHUB_OUTPUT"; fi
+        if echo "$changed_files" | grep -q '^Backend/'; then
+          echo "backend=true" >> "$GITHUB_OUTPUT"
+          # If backend changed, always prepare/run migration bundle.
+          # EF bundle is idempotent and applies only pending migrations.
+          echo "migrations=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "backend=false" >> "$GITHUB_OUTPUT"
+          echo "migrations=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Show changed projects
       run: |
@@ -164,7 +171,7 @@ jobs:
         dotnet build --configuration Release
         dotnet publish --configuration Release --output publish
 
-    # Build EF Migrations Bundle (only when new migrations were added)
+    # Build EF Migrations Bundle (whenever backend changes)
     - name: Build EF Migrations Bundle
       if: steps.changes.outputs.migrations == 'true'
       run: |
@@ -310,6 +317,23 @@ jobs:
           sudo rm -f /tmp/efbundle
         else
           echo "==> No new migrations detected — skipping database update."
+        fi
+
+        echo "==> Restarting backend service..."
+        if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          if systemctl list-unit-files | grep -q '^jobfair-backend.service'; then
+            sudo systemctl restart jobfair-backend
+            sudo systemctl status jobfair-backend --no-pager -l | head -n 20
+          elif systemctl list-unit-files | grep -q '^jobfair-api.service'; then
+            sudo systemctl restart jobfair-api
+            sudo systemctl status jobfair-api --no-pager -l | head -n 20
+          elif systemctl list-unit-files | grep -q '^kestrel-jobfair.service'; then
+            sudo systemctl restart kestrel-jobfair
+            sudo systemctl status kestrel-jobfair --no-pager -l | head -n 20
+          else
+            echo "WARNING: No known backend systemd service found (jobfair-backend/jobfair-api/kestrel-jobfair)."
+            echo "Please restart your backend service manually in this script."
+          fi
         fi
         
         # Set proper permissions
