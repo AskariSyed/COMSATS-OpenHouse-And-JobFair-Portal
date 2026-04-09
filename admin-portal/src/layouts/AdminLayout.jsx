@@ -63,6 +63,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const currentRole = localStorage.getItem('role') || '';
   const isSuperAdmin = currentRole === 'Admin';
+  const isCoAdmin = currentRole === 'CoAdmin';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [activeAccountTab, setActiveAccountTab] = useState('password');
@@ -364,6 +365,7 @@ const AdminLayout = () => {
   label="Notice Board" 
   onClick={() => setIsSidebarOpen(false)}
 />
+{isCoAdmin && (
           <SidebarButton
             icon={Settings}
             label="Change Password"
@@ -372,6 +374,7 @@ const AdminLayout = () => {
               setIsSidebarOpen(false);
             }}
           />
+)}
 {isSuperAdmin && (
 <SidebarItem 
   to="/admin/admin-management" 
