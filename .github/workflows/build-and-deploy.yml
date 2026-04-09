@@ -57,15 +57,7 @@ jobs:
         if echo "$changed_files" | grep -q '^company-portal/'; then echo "company=true" >> "$GITHUB_OUTPUT"; else echo "company=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^landing-page/'; then echo "landing=true" >> "$GITHUB_OUTPUT"; else echo "landing=false" >> "$GITHUB_OUTPUT"; fi
         if echo "$changed_files" | grep -q '^student-portal/'; then echo "student=true" >> "$GITHUB_OUTPUT"; else echo "student=false" >> "$GITHUB_OUTPUT"; fi
-        if echo "$changed_files" | grep -q '^Backend/'; then
-          echo "backend=true" >> "$GITHUB_OUTPUT"
-          # If backend changed, always prepare/run migration bundle.
-          # EF bundle is idempotent and applies only pending migrations.
-          echo "migrations=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "backend=false" >> "$GITHUB_OUTPUT"
-          echo "migrations=false" >> "$GITHUB_OUTPUT"
-        fi
+        if echo "$changed_files" | grep -q '^Backend/'; then echo "backend=true" >> "$GITHUB_OUTPUT"; else echo "backend=false" >> "$GITHUB_OUTPUT"; fi
 
     - name: Show changed projects
       run: |
@@ -74,7 +66,6 @@ jobs:
         echo "Landing:    ${{ steps.changes.outputs.landing }}"
         echo "Student:    ${{ steps.changes.outputs.student }}"
         echo "Backend:    ${{ steps.changes.outputs.backend }}"
-        echo "Migrations: ${{ steps.changes.outputs.migrations }}"
     
     # Setup Node.js for React apps
     - name: Setup Node.js
@@ -171,28 +162,6 @@ jobs:
         dotnet build --configuration Release
         dotnet publish JobFairPortal.csproj --configuration Release --output publish
 
-    # Build EF Migrations Bundle (whenever backend changes)
-    - name: Build EF Migrations Bundle
-      if: steps.changes.outputs.migrations == 'true'
-      run: |
-        cd Backend
-        # Install dotnet-ef pinned to EF Core 9.x (matches project package versions)
-        dotnet tool uninstall --global dotnet-ef || true
-        dotnet tool install --global dotnet-ef --version 9.*
-        export PATH="$PATH:$HOME/.dotnet/tools"
-        # Restore runtime-specific assets required by migrations bundle
-        dotnet restore JobFairPortal.csproj -r linux-x64
-        # Build a self-contained migrations bundle for linux-x64
-        # The bundle is a standalone executable — no dotnet runtime needed on the server
-        dotnet ef migrations bundle \
-          --project JobFairPortal.csproj \
-          --runtime linux-x64 \
-          --self-contained \
-          --output publish/efbundle \
-          --force
-        echo "Migrations bundle created:"
-        ls -lh publish/efbundle
-    
     # Create deployment artifacts
     - name: Package artifacts
       if: always()
@@ -215,16 +184,6 @@ jobs:
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
           tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
         fi
-        # Package the migrations bundle separately so it can be run before service restart
-        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          if [ -f Backend/publish/efbundle ]; then
-            cp Backend/publish/efbundle deploy-artifacts/efbundle
-            echo "Migrations bundle included in artifacts."
-          else
-            echo "WARNING: efbundle not found; skipping migration artifact packaging."
-          fi
-        fi
-        
         echo "Artifacts packaged:"
         ls -lh deploy-artifacts/
     
@@ -258,14 +217,6 @@ jobs:
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
           scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
         fi
-        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          if [ -f deploy-artifacts/efbundle ]; then
-            scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/efbundle ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/efbundle
-          else
-            echo "WARNING: deploy-artifacts/efbundle missing; skipping migration upload."
-          fi
-        fi
-        
         # Execute remote deployment script
         echo "Running remote deployment..."
         ssh -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
@@ -315,47 +266,6 @@ jobs:
           sudo rm -rf /var/www/api/*
           sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
           sudo chown -R www-data:www-data /var/www/api
-        fi
-
-        echo "==> Running EF Database Migrations..."
-        if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          if [ -f /tmp/efbundle ]; then
-            sudo chmod +x /tmp/efbundle
-            # Run the self-contained migrations bundle using the production appsettings
-            # The bundle reads the connection string from appsettings.Production.json in /var/www/api
-            if [ ! -f /var/www/api/appsettings.Production.json ]; then
-              echo "ERROR: /var/www/api/appsettings.Production.json not found"
-              exit 1
-            fi
-            DB_CONN="$(sudo python3 -c "import json; p='/var/www/api/appsettings.Production.json'; d=json.load(open(p, 'r', encoding='utf-8')); print(((d.get('ConnectionStrings') or {}).get('DefaultConnection') or ''))" 2>/dev/null || true)"
-            if [ -z "$DB_CONN" ]; then
-              echo "ERROR: Could not extract DefaultConnection from /var/www/api/appsettings.Production.json"
-              exit 1
-            fi
-
-            # Force IPv4 for migration connectivity (some EC2 networks can't route IPv6)
-            DB_CONN_FOR_MIGRATION="$DB_CONN"
-            DB_HOST="$(echo "$DB_CONN" | sed -n 's/.*Host=\([^;]*\).*/\1/p')"
-            if [ -n "$DB_HOST" ]; then
-              echo "==> Resolving DB host: $DB_HOST"
-              # Use broadly-supported resolver path; never fail deployment if lookup command fails.
-              DB_HOST_IPV4="$(getent hosts "$DB_HOST" 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.' | head -n 1 || true)"
-              if [ -n "$DB_HOST_IPV4" ]; then
-                DB_CONN_FOR_MIGRATION="${DB_CONN/Host=$DB_HOST;/Host=$DB_HOST_IPV4;}"
-                echo "==> Using IPv4 host for migrations: $DB_HOST_IPV4"
-              else
-                echo "WARNING: Could not resolve IPv4 for $DB_HOST; using original host."
-              fi
-            fi
-
-            sudo env ConnectionStrings__DefaultConnection="$DB_CONN_FOR_MIGRATION" /tmp/efbundle --connection "$DB_CONN_FOR_MIGRATION"
-            echo "==> EF migrations applied successfully!"
-            sudo rm -f /tmp/efbundle
-          else
-            echo "WARNING: /tmp/efbundle missing on server; skipping migrations."
-          fi
-        else
-          echo "==> No new migrations detected — skipping database update."
         fi
 
         echo "==> Restarting backend service..."
