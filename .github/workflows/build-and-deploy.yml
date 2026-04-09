@@ -176,9 +176,9 @@ jobs:
       if: steps.changes.outputs.migrations == 'true'
       run: |
         cd Backend
-        # Install dotnet-ef pinned to .NET 8 to match the project/framework
+        # Install dotnet-ef pinned to EF Core 9.x (matches project package versions)
         dotnet tool uninstall --global dotnet-ef || true
-        dotnet tool install --global dotnet-ef --version 8.*
+        dotnet tool install --global dotnet-ef --version 9.*
         export PATH="$PATH:$HOME/.dotnet/tools"
         # Restore runtime-specific assets required by migrations bundle
         dotnet restore JobFairPortal.csproj -r linux-x64
