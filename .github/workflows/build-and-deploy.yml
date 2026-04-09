@@ -169,16 +169,19 @@ jobs:
         cd Backend
         dotnet restore
         dotnet build --configuration Release
-        dotnet publish --configuration Release --output publish
+        dotnet publish JobFairPortal.csproj --configuration Release --output publish
 
     # Build EF Migrations Bundle (whenever backend changes)
     - name: Build EF Migrations Bundle
       if: steps.changes.outputs.migrations == 'true'
       run: |
         cd Backend
-        # Install dotnet-ef tool locally in this job
-        dotnet tool install --global dotnet-ef
+        # Install dotnet-ef pinned to .NET 8 to match the project/framework
+        dotnet tool uninstall --global dotnet-ef || true
+        dotnet tool install --global dotnet-ef --version 8.*
         export PATH="$PATH:$HOME/.dotnet/tools"
+        # Restore runtime-specific assets required by migrations bundle
+        dotnet restore JobFairPortal.csproj -r linux-x64
         # Build a self-contained migrations bundle for linux-x64
         # The bundle is a standalone executable — no dotnet runtime needed on the server
         dotnet ef migrations bundle \
@@ -214,8 +217,12 @@ jobs:
         fi
         # Package the migrations bundle separately so it can be run before service restart
         if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          cp Backend/publish/efbundle deploy-artifacts/efbundle
-          echo "Migrations bundle included in artifacts."
+          if [ -f Backend/publish/efbundle ]; then
+            cp Backend/publish/efbundle deploy-artifacts/efbundle
+            echo "Migrations bundle included in artifacts."
+          else
+            echo "WARNING: efbundle not found; skipping migration artifact packaging."
+          fi
         fi
         
         echo "Artifacts packaged:"
@@ -252,7 +259,11 @@ jobs:
           scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/backend.tar.gz ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/backend.tar.gz
         fi
         if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/efbundle ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/efbundle
+          if [ -f deploy-artifacts/efbundle ]; then
+            scp -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no deploy-artifacts/efbundle ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:/tmp/efbundle
+          else
+            echo "WARNING: deploy-artifacts/efbundle missing; skipping migration upload."
+          fi
         fi
         
         # Execute remote deployment script
@@ -308,13 +319,17 @@ jobs:
 
         echo "==> Running EF Database Migrations..."
         if [ "${{ steps.changes.outputs.migrations }}" = "true" ]; then
-          sudo chmod +x /tmp/efbundle
-          # Run the self-contained migrations bundle using the production appsettings
-          # The bundle reads the connection string from appsettings.Production.json in /var/www/api
-          sudo /tmp/efbundle \
-            --connection "$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json)"
-          echo "==> EF migrations applied successfully!"
-          sudo rm -f /tmp/efbundle
+          if [ -f /tmp/efbundle ]; then
+            sudo chmod +x /tmp/efbundle
+            # Run the self-contained migrations bundle using the production appsettings
+            # The bundle reads the connection string from appsettings.Production.json in /var/www/api
+            sudo /tmp/efbundle \
+              --connection "$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json)"
+            echo "==> EF migrations applied successfully!"
+            sudo rm -f /tmp/efbundle
+          else
+            echo "WARNING: /tmp/efbundle missing on server; skipping migrations."
+          fi
         else
           echo "==> No new migrations detected — skipping database update."
         fi
