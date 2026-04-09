@@ -49,7 +49,7 @@ namespace JobFairPortal.Services
 
             using var client = new SmtpClient();
 
-            var host =  _config["Smtp:Host"];
+            var host = _config["Smtp:Host"];
             if (string.IsNullOrWhiteSpace(host))
             {
                 throw new InvalidOperationException("SMTP host is not configured (Smtp:Host).");

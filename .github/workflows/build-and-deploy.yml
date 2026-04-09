@@ -268,6 +268,20 @@ jobs:
           sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
           sudo chown -R www-data:www-data /var/www/api
         fi
+
+        
+        echo "==> Creating Firebase config..."
+
+        sudo mkdir -p /var/www/api/config
+
+        echo "${{ secrets.FIREBASE_CONFIG_BASE64 }}" | base64 -d | sudo tee /var/www/api/config/firebase.json > /dev/null
+
+        sudo chown www-data:www-data /var/www/api/config/firebase.json
+
+        echo "==> Restarting Backend..."
+        sudo pkill dotnet || true
+        cd /var/www/api
+        nohup dotnet JobFairPortal.dll > app.log 2>&1 &
         
         # Set proper permissions
         sudo find /var/www/admin /var/www/company /var/www/student /var/www/jfair -type d -exec chmod 755 {} \;
