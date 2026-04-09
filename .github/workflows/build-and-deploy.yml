@@ -332,7 +332,21 @@ jobs:
               echo "ERROR: Could not extract DefaultConnection from /var/www/api/appsettings.Production.json"
               exit 1
             fi
-            sudo env ConnectionStrings__DefaultConnection="$DB_CONN" /tmp/efbundle --connection "$DB_CONN"
+
+            # Force IPv4 for migration connectivity (some EC2 networks can't route IPv6)
+            DB_CONN_FOR_MIGRATION="$DB_CONN"
+            DB_HOST="$(echo "$DB_CONN" | sed -n 's/.*Host=\([^;]*\).*/\1/p')"
+            if [ -n "$DB_HOST" ]; then
+              DB_HOST_IPV4="$(getent ahostsv4 "$DB_HOST" | awk 'NR==1{print $1}')"
+              if [ -n "$DB_HOST_IPV4" ]; then
+                DB_CONN_FOR_MIGRATION="${DB_CONN/Host=$DB_HOST;/Host=$DB_HOST_IPV4;}"
+                echo "==> Using IPv4 host for migrations: $DB_HOST_IPV4"
+              else
+                echo "WARNING: Could not resolve IPv4 for $DB_HOST; using original host."
+              fi
+            fi
+
+            sudo env ConnectionStrings__DefaultConnection="$DB_CONN_FOR_MIGRATION" /tmp/efbundle --connection "$DB_CONN_FOR_MIGRATION"
             echo "==> EF migrations applied successfully!"
             sudo rm -f /tmp/efbundle
           else
