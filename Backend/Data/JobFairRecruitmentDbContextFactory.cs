@@ -64,6 +64,13 @@ namespace JobFairPortal.Data
                 {
                     return (args[i + 1] ?? string.Empty).Trim();
                 }
+
+                // Some hosts may pass the raw connection string as a positional arg.
+                if (arg.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+                    || arg.Contains("Server=", StringComparison.OrdinalIgnoreCase))
+                {
+                    return arg.Trim();
+                }
             }
 
             return null;
