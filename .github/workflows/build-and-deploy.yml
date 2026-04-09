@@ -270,7 +270,7 @@ jobs:
         echo "Running remote deployment..."
         ssh -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
           ${{ env.EC2_USER }}@${{ env.EC2_HOST }} 'bash -s' << 'DEPLOY_SCRIPT'
-        set -e
+        set -euo pipefail
         
         echo "==> Creating directories..."
         sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/downloads /var/www/jfair /var/www/api
@@ -323,7 +323,11 @@ jobs:
             sudo chmod +x /tmp/efbundle
             # Run the self-contained migrations bundle using the production appsettings
             # The bundle reads the connection string from appsettings.Production.json in /var/www/api
-            DB_CONN="$(sudo grep -oP '(?<="DefaultConnection": ")[^"]+' /var/www/api/appsettings.Production.json || true)"
+            if [ ! -f /var/www/api/appsettings.Production.json ]; then
+              echo "ERROR: /var/www/api/appsettings.Production.json not found"
+              exit 1
+            fi
+            DB_CONN="$(sudo python3 -c "import json; p='/var/www/api/appsettings.Production.json'; d=json.load(open(p, 'r', encoding='utf-8')); print(((d.get('ConnectionStrings') or {}).get('DefaultConnection') or ''))" 2>/dev/null || true)"
             if [ -z "$DB_CONN" ]; then
               echo "ERROR: Could not extract DefaultConnection from /var/www/api/appsettings.Production.json"
               exit 1
@@ -340,15 +344,25 @@ jobs:
 
         echo "==> Restarting backend service..."
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          restart_and_verify() {
+            svc="$1"
+            echo "==> Restarting service: $svc"
+            sudo systemctl restart "$svc"
+            if ! sudo systemctl is-active --quiet "$svc"; then
+              echo "ERROR: Service '$svc' is not active after restart"
+              sudo systemctl status "$svc" --no-pager -l || true
+              sudo journalctl -u "$svc" -n 100 --no-pager || true
+              exit 1
+            fi
+            echo "==> Service '$svc' is active"
+          }
+
           if systemctl list-unit-files | grep -q '^jobfair-backend.service'; then
-            sudo systemctl restart jobfair-backend
-            sudo systemctl status jobfair-backend --no-pager -l | head -n 20
+            restart_and_verify jobfair-backend
           elif systemctl list-unit-files | grep -q '^jobfair-api.service'; then
-            sudo systemctl restart jobfair-api
-            sudo systemctl status jobfair-api --no-pager -l | head -n 20
+            restart_and_verify jobfair-api
           elif systemctl list-unit-files | grep -q '^kestrel-jobfair.service'; then
-            sudo systemctl restart kestrel-jobfair
-            sudo systemctl status kestrel-jobfair --no-pager -l | head -n 20
+            restart_and_verify kestrel-jobfair
           else
             echo "WARNING: No known backend systemd service found (jobfair-backend/jobfair-api/kestrel-jobfair)."
             echo "Please restart your backend service manually in this script."
