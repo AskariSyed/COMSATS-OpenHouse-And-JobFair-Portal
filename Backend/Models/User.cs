@@ -10,7 +10,7 @@ namespace JobFairPortal.Models
         CoAdmin
     }
 
-    public class User
+    public class  User
     {
         [Key]
         public int UserId { get; set; }
