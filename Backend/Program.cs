@@ -22,8 +22,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("DefaultConnection"));
 dataSourceBuilder.EnableDynamicJson(); 
-var dataSource = dataSourceBuilder.Build();
-
+var dataSource =  dataSourceBuilder.Build();
+ 
 builder.Services.AddDbContext<JobFairRecruitmentDbContext>(options =>
     options.UseNpgsql(dataSource));
 
