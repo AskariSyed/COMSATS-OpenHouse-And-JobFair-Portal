@@ -117,6 +117,7 @@ jobs:
     
     # Setup Node.js for React apps
     - name: Setup Node.js
+      if: steps.changes.outputs.admin == 'true' || steps.changes.outputs.company == 'true' || steps.changes.outputs.landing == 'true'
       uses: actions/setup-node@v4
       with:
         node-version: '20'
@@ -128,6 +129,7 @@ jobs:
     
     # Setup Flutter for Student portal
     - name: Setup Flutter
+      if: steps.changes.outputs.student == 'true'
       uses: subosito/flutter-action@v2
       with:
         channel: stable
@@ -135,6 +137,7 @@ jobs:
 
     # Setup Java for Android APK build
     - name: Setup Java
+      if: steps.changes.outputs.student == 'true'
       uses: actions/setup-java@v4
       with:
         distribution: temurin
@@ -142,6 +145,7 @@ jobs:
     
     # Setup .NET for Backend
     - name: Setup .NET
+      if: steps.changes.outputs.backend == 'true'
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
@@ -328,8 +332,12 @@ jobs:
           exit 1
         fi
 
-        printf '%s' "$FIREBASE_CONFIG_JSON" | sudo tee /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json > /dev/null
+        cat > /tmp/firebase-config.json << FIREBASE_EOF
+        $FIREBASE_CONFIG_JSON
+        FIREBASE_EOF
+        sudo cp /tmp/firebase-config.json /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json
         sudo cp /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json /var/www/api/config/firebase.json
+        rm /tmp/firebase-config.json
 
         sudo chown www-data:www-data /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json /var/www/api/config/firebase.json
 
