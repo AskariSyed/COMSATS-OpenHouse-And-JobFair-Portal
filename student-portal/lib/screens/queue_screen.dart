@@ -46,7 +46,7 @@ class _QueueScreenState extends State<QueueScreen> {
     final absDiff = diff.abs();
 
     if (absDiff.inMinutes < 1) {
-      return isFuture ? "Starting now" : "Just started";
+      return isFuture ? "Starting now" : "Delayed just now";
     }
 
     final String timeStr;
@@ -56,7 +56,14 @@ class _QueueScreenState extends State<QueueScreen> {
       timeStr = "${absDiff.inMinutes}m";
     }
 
-    return isFuture ? "Starts in $timeStr" : "Started $timeStr ago";
+    return isFuture ? "Starts in $timeStr" : "Delayed by $timeStr";
+  }
+
+  bool _isQueuedInterviewOverdue(Interview interview) {
+    final scheduledTime = interview.scheduledTime;
+    if (scheduledTime == null) return false;
+    if (interview.status.toLowerCase() != 'queued') return false;
+    return scheduledTime.toLocal().isBefore(DateTime.now());
   }
 
   @override
@@ -390,6 +397,7 @@ class _QueueScreenState extends State<QueueScreen> {
     final cardBorder = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
     final logoSize = isMobile ? 56.0 : 68.0;
     final isQueued = interview.status.toLowerCase() == 'queued';
+    final isOverdueQueued = _isQueuedInterviewOverdue(interview);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -446,15 +454,34 @@ class _QueueScreenState extends State<QueueScreen> {
                                 if (isMobile && isQueued)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      _getFormattedCountdown(
-                                        interview.scheduledTime,
-                                      ),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(context).primaryColor,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isOverdueQueued
+                                              ? Icons.watch_later_outlined
+                                              : Icons.schedule,
+                                          size: 14,
+                                          color: isOverdueQueued
+                                              ? Colors.red
+                                              : Theme.of(context).primaryColor,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _getFormattedCountdown(
+                                            interview.scheduledTime,
+                                          ),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isOverdueQueued
+                                                ? Colors.red
+                                                : Theme.of(
+                                                    context,
+                                                  ).primaryColor,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                               ],
@@ -498,7 +525,12 @@ class _QueueScreenState extends State<QueueScreen> {
                       ),
                       const SizedBox(height: 10),
                       if (isMobile)
-                        _buildMobileCardContent(interview, isExpanded, isDark)
+                        _buildMobileCardContent(
+                          interview,
+                          isExpanded,
+                          isDark,
+                          isOverdueQueued,
+                        )
                       else
                         _buildWebCardContent(interview, isDark),
                     ],
@@ -516,6 +548,7 @@ class _QueueScreenState extends State<QueueScreen> {
     Interview interview,
     bool isExpanded,
     bool isDark,
+    bool isOverdueQueued,
   ) {
     return Column(
       children: [
@@ -570,7 +603,27 @@ class _QueueScreenState extends State<QueueScreen> {
             ],
           ),
         ),
-        if (isExpanded && _showQuickStudentActions(interview)) ...[
+        if (isOverdueQueued) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed:
+                  _sendingQueueActions.contains(
+                    '${interview.interviewId}_StudentRescheduleRequest',
+                  )
+                  ? null
+                  : () =>
+                        _sendQueueAction(interview, 'StudentRescheduleRequest'),
+              icon: const Icon(Icons.notification_important_outlined, size: 18),
+              label: const Text('Request Reschedule'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+              ),
+            ),
+          ),
+        ] else if (isExpanded && _showQuickStudentActions(interview)) ...[
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -588,6 +641,8 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Widget _buildWebCardContent(Interview interview, bool isDark) {
+    final isOverdueQueued = _isQueuedInterviewOverdue(interview);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -635,7 +690,27 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
           ],
         ),
-        if (_showQuickStudentActions(interview)) ...[
+        if (isOverdueQueued) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed:
+                  _sendingQueueActions.contains(
+                    '${interview.interviewId}_StudentRescheduleRequest',
+                  )
+                  ? null
+                  : () =>
+                        _sendQueueAction(interview, 'StudentRescheduleRequest'),
+              icon: const Icon(Icons.notification_important_outlined, size: 18),
+              label: const Text('Request Reschedule'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+              ),
+            ),
+          ),
+        ] else if (_showQuickStudentActions(interview)) ...[
           const SizedBox(height: 12),
           _buildNotificationMenu(interview),
         ],
@@ -647,6 +722,7 @@ class _QueueScreenState extends State<QueueScreen> {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 20),
       tooltip: 'Send Update to Company',
+      useRootNavigator: true,
       onSelected: (value) => _sendQueueAction(interview, value),
       itemBuilder: (context) => [
         PopupMenuItem(

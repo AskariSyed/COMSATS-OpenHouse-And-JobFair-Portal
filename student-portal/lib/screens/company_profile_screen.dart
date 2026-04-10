@@ -37,6 +37,15 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   bool _isSendingRequest = false; // Loading state for request button
   bool _isDescriptionExpanded = false;
 
+  bool _isQueuedInterviewOverdue(
+    DateTime? scheduledTime,
+    String interviewStatus,
+  ) {
+    if (scheduledTime == null) return false;
+    if (interviewStatus.toLowerCase() != 'queued') return false;
+    return scheduledTime.toLocal().isBefore(DateTime.now());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -132,6 +141,34 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       showTopSnackBar(
         Overlay.of(context),
         CustomSnackBar.error(message: error),
+      );
+    }
+  }
+
+  Future<void> _handleRequestReschedule(int interviewId) async {
+    if (interviewId <= 0) return;
+
+    setState(() => _isSendingRequest = true);
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+    final errorMessage = await provider.notifyCompanyForInterviewUpdate(
+      interviewId: interviewId,
+      type: 'StudentRescheduleRequest',
+    );
+
+    if (!mounted) return;
+    setState(() => _isSendingRequest = false);
+
+    if (errorMessage == null) {
+      showTopSnackBar(
+        Overlay.of(context),
+        const CustomSnackBar.success(
+          message: 'Reschedule request sent to company.',
+        ),
+      );
+    } else {
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(message: errorMessage),
       );
     }
   }
@@ -551,6 +588,10 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         company.latestInterview?.scheduledTime ?? req?.interviewScheduledTime;
     final interviewRoom =
         company.latestInterview?.room ?? req?.interviewRoom ?? 'TBA';
+    final isQueuedOverdue = _isQueuedInterviewOverdue(
+      scheduledTime,
+      interviewStatus,
+    );
     final scheduledDisplay = scheduledTime != null
         ? '${scheduledTime.toLocal().day.toString().padLeft(2, '0')}-${scheduledTime.toLocal().month.toString().padLeft(2, '0')}-${scheduledTime.toLocal().year} ${scheduledTime.toLocal().hour.toString().padLeft(2, '0')}:${scheduledTime.toLocal().minute.toString().padLeft(2, '0')}'
         : null;
@@ -658,6 +699,68 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
 
     if (interviewStatus == 'queued') {
       if (scheduledDisplay != null) {
+        if (isQueuedOverdue) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.watch_later_outlined,
+                      color: Colors.red.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Interview Delayed',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Time: $scheduledDisplay • Room: $interviewRoom',
+                  style: TextStyle(color: Colors.red.shade700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The scheduled time has passed and the interview is still queued. You can request a reschedule.',
+                  style: TextStyle(color: Colors.red.shade700),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSendingRequest
+                        ? null
+                        : () => _handleRequestReschedule(
+                            company.latestInterview?.interviewId ?? 0,
+                          ),
+                    icon: const Icon(Icons.notification_important_outlined),
+                    label: const Text('Request Reschedule'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return _buildStatusCard(
           color: Colors.green,
           icon: Icons.event_available,

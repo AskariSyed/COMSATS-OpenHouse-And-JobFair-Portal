@@ -22,6 +22,63 @@ export default function App() {
   const [fcmPopup, setFcmPopup] = useState(null);
   const unauthorizedTimerRef = useRef(null);
 
+  const showBrowserNotification = async (title, body) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    if (Notification.permission !== 'granted') {
+      return;
+    }
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        if (registration?.showNotification) {
+          await registration.showNotification(title, {
+            body: body || '',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png'
+          });
+          return;
+        }
+      }
+
+      new Notification(title, {
+        body: body || '',
+        icon: '/icon-192.png'
+      });
+    } catch (error) {
+      console.warn('Unable to show browser notification:', error);
+    }
+  };
+
+  const refreshNotificationStateFromPayload = (payload) => {
+    const dataType = String(payload?.data?.type || payload?.data?.Type || '').toLowerCase();
+    const studentName = payload?.data?.studentname || payload?.data?.StudentName || 'Candidate';
+
+    const isQueueUpdate = [
+      'studentarrivingsoon',
+      'studentarrived',
+      'studentrunninglate',
+      'studentreschedulerequest'
+    ].includes(dataType);
+
+    if (!isQueueUpdate) {
+      return;
+    }
+
+    setNotificationCounts((prev) => ({
+      interviews: prev.interviews + 1,
+      overview: prev.overview + 1
+    }));
+
+    setNextIncomingInterview({
+      scheduledTime: payload?.data?.scheduledtime || payload?.data?.ScheduledTime || null,
+      studentName
+    });
+  };
+
   const withCompanyAvatar = async (baseUser) => {
     try {
       const profile = await getCompanyProfile();
@@ -125,6 +182,8 @@ export default function App() {
         const action = payload?.data?.action || '';
 
         setFcmPopup({ title, body, dataType, action });
+        refreshNotificationStateFromPayload(payload);
+        showBrowserNotification(title, body);
       });
     };
 
