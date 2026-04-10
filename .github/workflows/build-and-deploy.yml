@@ -279,7 +279,7 @@ jobs:
         set -e
         
         echo "==> Creating directories..."
-        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/student/downloads /var/www/jfair /var/www/api
+        sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/student/downloads /var/www/jfair /var/www/api /var/www/uploads
         
         echo "==> Installing system dependencies..."
         sudo apt-get update -y
@@ -319,7 +319,15 @@ jobs:
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
           sudo rm -rf /var/www/api/*
           sudo tar -xzf /tmp/backend.tar.gz -C /var/www/api
+
+          # Keep uploads persistent across backend deployments.
+          sudo mkdir -p /var/www/uploads /var/www/api/wwwroot
+          sudo rm -rf /var/www/api/uploads /var/www/api/wwwroot/uploads
+          sudo ln -sfn /var/www/uploads /var/www/api/uploads
+          sudo ln -sfn /var/www/uploads /var/www/api/wwwroot/uploads
+
           sudo chown -R www-data:www-data /var/www/api
+          sudo chown -h www-data:www-data /var/www/api/uploads /var/www/api/wwwroot/uploads
         fi
 
         
