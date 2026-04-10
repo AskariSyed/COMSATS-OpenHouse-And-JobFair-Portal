@@ -61,6 +61,7 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
   const [surveySubmitted, setSurveySubmitted] = useState(false);
   const [surveyReminderOpen, setSurveyReminderOpen] = useState(false);
   const [interviewNavTarget, setInterviewNavTarget] = useState({ tab: 'pending', pendingView: 'all', key: 0 });
+  const [profileTab, setProfileTab] = useState('profile');
 
   const reminderStorageKey = `companySurveyReminderLastShown:${user?.id || user?.email || 'default'}`;
 
@@ -154,13 +155,14 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
   const isJobFairDay = jobFairDate ? jobFairDate.toDateString() === new Date().toDateString() : false;
   const canMarkAttendance = isJobFairDay && !normalizedAttendance?.isPresent;
 
-  const safeSelectStudent = (student) => {
+  const safeSelectStudent = (student, tab = 'profile') => {
     const id = student.studentId || student.StudentId || student.id || student.Id;
     if (id) {
       const fromPastAnalytics = Boolean(student.fromPastAnalytics || student.FromPastAnalytics);
       if (onProfileContextChange) {
         onProfileContextChange(fromPastAnalytics ? 'history' : 'current');
       }
+      setProfileTab(tab);
       setSelectedProjectId(null);
       setSelectedStudentId(id);
     }
@@ -216,6 +218,7 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
           studentId={selectedStudentId} 
           onBack={() => setSelectedStudentId(null)} 
           readOnly={profileContext === 'history'}
+          initialTab={profileTab}
           onNavigateToInterviews={() => {
             setSelectedStudentId(null);
             if (onTabChange) onTabChange('interviews');
@@ -303,6 +306,8 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
       {activeTab === 'interviews' && (
         <InterviewManager
+          user={user}
+          roomName={attendanceStatus?.RoomDetails?.RoomName}
           onError={onError}
           onSuccess={onSuccess}
           onSelectStudent={safeSelectStudent}

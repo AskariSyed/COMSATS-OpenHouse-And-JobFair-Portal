@@ -26,6 +26,38 @@ class _QueueScreenState extends State<QueueScreen> {
   final String _serverBaseUrl = BackendConfig.serverBaseUrl;
   Timer? _timer;
   final Set<String> _sendingQueueActions = <String>{};
+  final Set<int> _expandedCardIds = <int>{};
+
+  void _toggleCard(int id) {
+    setState(() {
+      if (_expandedCardIds.contains(id)) {
+        _expandedCardIds.remove(id);
+      } else {
+        _expandedCardIds.add(id);
+      }
+    });
+  }
+
+  String _getFormattedCountdown(DateTime? scheduledTime) {
+    if (scheduledTime == null) return "TBD";
+    final now = DateTime.now();
+    final diff = scheduledTime.difference(now);
+    final bool isFuture = !diff.isNegative;
+    final absDiff = diff.abs();
+
+    if (absDiff.inMinutes < 1) {
+      return isFuture ? "Starting now" : "Just started";
+    }
+
+    final String timeStr;
+    if (absDiff.inHours > 0) {
+      timeStr = "${absDiff.inHours}h ${absDiff.inMinutes % 60}m";
+    } else {
+      timeStr = "${absDiff.inMinutes}m";
+    }
+
+    return isFuture ? "Starts in $timeStr" : "Started $timeStr ago";
+  }
 
   @override
   void initState() {
@@ -268,6 +300,7 @@ class _QueueScreenState extends State<QueueScreen> {
                     interview: interview,
                     isMobile: isMobile,
                     isDark: isDark,
+                    isExpanded: _expandedCardIds.contains(interview.interviewId),
                   ),
                 );
               },
@@ -345,21 +378,17 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Widget _buildInterviewQueueCard({
-    required Interview interview,
-    required bool isMobile,
     required bool isDark,
+    bool isExpanded = false,
   }) {
     final statusColor = _getStatusColor(interview.status);
     final cardBg = isDark ? Colors.grey.shade900 : Colors.white;
     final cardBorder = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
     final logoSize = isMobile ? 56.0 : 68.0;
+    final isQueued = interview.status.toLowerCase() == 'queued';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 16,
-        vertical: isMobile ? 12 : 14,
-      ),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(14),
@@ -372,161 +401,265 @@ class _QueueScreenState extends State<QueueScreen> {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildCompanyLogo(interview, logoSize),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isMobile ? () => _toggleCard(interview.interviewId) : null,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 16,
+              vertical: isMobile ? 12 : 14,
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        interview.companyName,
-                        style: TextStyle(
-                          fontSize: isMobile ? 16 : 18,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        _getStatusLabel(interview.status),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (isMobile)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      children: [
-                        _buildMobileDetailRow(
-                          icon: Icons.play_circle_outline,
-                          label: 'Scheduled Start',
-                          value: interview.scheduledTime != null
-                              ? _formatActualDateTime(interview.scheduledTime!)
-                              : 'TBD',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildMobileDetailRow(
-                          icon: Icons.login_outlined,
-                          label: 'Actual Start',
-                          value: interview.startedAt != null
-                              ? _formatActualDateTime(interview.startedAt!)
-                              : 'TBD',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildMobileDetailRow(
-                          icon: Icons.logout_outlined,
-                          label: 'Ended At',
-                          value: interview.endedAt != null
-                              ? _formatActualDateTime(interview.endedAt!)
-                              : 'TBD',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildMobileDetailRow(
-                          icon: Icons.access_time,
-                          label: 'Duration',
-                          value: interview.durationMinutes != null
-                              ? '${interview.durationMinutes} mins'
-                              : 'TBD',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildMobileDetailRow(
-                          icon: Icons.meeting_room_outlined,
-                          label: 'Room',
-                          value: interview.room,
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                _buildCompanyLogo(interview, logoSize),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildQueueInfoPill(
-                        icon: Icons.play_circle_outline,
-                        label: 'Scheduled Start',
-                        value: interview.scheduledTime != null
-                            ? _formatActualDateTime(interview.scheduledTime!)
-                            : 'TBD',
-                        isDark: isDark,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  interview.companyName,
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 16 : 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (isMobile && isQueued)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      _getFormattedCountdown(interview.scheduledTime),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  _getStatusLabel(interview.status),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ),
+                              if (isMobile)
+                                Icon(
+                                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                                  size: 20,
+                                  color: Theme.of(context).textTheme.bodySmall?.color,
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
-                      _buildQueueInfoPill(
-                        icon: Icons.login_outlined,
-                        label: 'Actual Start',
-                        value: interview.startedAt != null
-                            ? _formatActualDateTime(interview.startedAt!)
-                            : 'TBD',
-                        isDark: isDark,
-                      ),
-                      _buildQueueInfoPill(
-                        icon: Icons.logout_outlined,
-                        label: 'Ended At',
-                        value: interview.endedAt != null
-                            ? _formatActualDateTime(interview.endedAt!)
-                            : 'TBD',
-                        isDark: isDark,
-                      ),
-                      _buildQueueInfoPill(
-                        icon: Icons.access_time,
-                        label: 'Duration',
-                        value: interview.durationMinutes != null
-                            ? '${interview.durationMinutes} mins'
-                            : 'TBD',
-                        isDark: isDark,
-                      ),
-                      _buildQueueInfoPill(
-                        icon: Icons.meeting_room_outlined,
-                        label: 'Room',
-                        value: interview.room,
-                        isDark: isDark,
-                      ),
+                      const SizedBox(height: 10),
+                      if (isMobile)
+                        _buildMobileCardContent(interview, isExpanded, isDark)
+                      else
+                        _buildWebCardContent(interview, isDark),
                     ],
                   ),
-                if (_showQuickStudentActions(interview)) ...[
-                  const SizedBox(height: 12),
-                  _buildQueueActions(interview, isDark),
-                ],
+                ),
               ],
             ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildMobileCardContent(Interview interview, bool isExpanded, bool isDark) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              _buildMobileDetailRow(
+                icon: Icons.play_circle_outline,
+                label: 'Scheduled Start',
+                value: interview.scheduledTime != null
+                    ? _formatActualDateTime(interview.scheduledTime!)
+                    : 'TBD',
+              ),
+              const SizedBox(height: 8),
+              _buildMobileDetailRow(
+                icon: Icons.meeting_room_outlined,
+                label: 'Room',
+                value: interview.room,
+              ),
+              if (isExpanded) ...[
+                const SizedBox(height: 8),
+                _buildMobileDetailRow(
+                  icon: Icons.login_outlined,
+                  label: 'Actual Start',
+                  value: interview.startedAt != null
+                      ? _formatActualDateTime(interview.startedAt!)
+                      : 'TBD',
+                ),
+                const SizedBox(height: 8),
+                _buildMobileDetailRow(
+                  icon: Icons.logout_outlined,
+                  label: 'Ended At',
+                  value: interview.endedAt != null
+                      ? _formatActualDateTime(interview.endedAt!)
+                      : 'TBD',
+                ),
+                const SizedBox(height: 8),
+                _buildMobileDetailRow(
+                  icon: Icons.access_time,
+                  label: 'Duration',
+                  value: interview.durationMinutes != null
+                      ? '${interview.durationMinutes} mins'
+                      : 'TBD',
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (isExpanded && _showQuickStudentActions(interview)) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              const Text("Actions", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              _buildNotificationMenu(interview),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildWebCardContent(Interview interview, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildQueueInfoPill(
+              icon: Icons.play_circle_outline,
+              label: 'Scheduled Start',
+              value: interview.scheduledTime != null
+                  ? _formatActualDateTime(interview.scheduledTime!)
+                  : 'TBD',
+              isDark: isDark,
+            ),
+            _buildQueueInfoPill(
+              icon: Icons.login_outlined,
+              label: 'Actual Start',
+              value: interview.startedAt != null
+                  ? _formatActualDateTime(interview.startedAt!)
+                  : 'TBD',
+              isDark: isDark,
+            ),
+            _buildQueueInfoPill(
+              icon: Icons.logout_outlined,
+              label: 'Ended At',
+              value: interview.endedAt != null
+                  ? _formatActualDateTime(interview.endedAt!)
+                  : 'TBD',
+              isDark: isDark,
+            ),
+            _buildQueueInfoPill(
+              icon: Icons.access_time,
+              label: 'Duration',
+              value: interview.durationMinutes != null
+                  ? '${interview.durationMinutes} mins'
+                  : 'TBD',
+              isDark: isDark,
+            ),
+            _buildQueueInfoPill(
+              icon: Icons.meeting_room_outlined,
+              label: 'Room',
+              value: interview.room,
+              isDark: isDark,
+            ),
+          ],
+        ),
+        if (_showQuickStudentActions(interview)) ...[
+          const SizedBox(height: 12),
+          _buildNotificationMenu(interview),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildNotificationMenu(Interview interview) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 20),
+      tooltip: 'Send Update to Company',
+      onSelected: (value) => _sendQueueAction(interview, value),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'StudentArrivingSoon',
+          child: _buildPopupItem(Icons.directions_walk, 'I am Coming', Colors.green),
+        ),
+        PopupMenuItem(
+          value: 'StudentArrived',
+          child: _buildPopupItem(Icons.how_to_reg, 'I have Arrived', Colors.blue),
+        ),
+        PopupMenuItem(
+          value: 'StudentRunningLate',
+          child: _buildPopupItem(Icons.timer_out_of_sync, 'Running Late', Colors.orange),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'StudentRescheduleRequest',
+          child: _buildPopupItem(Icons.notification_important_outlined, 'Request Reschedule', Colors.red),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopupItem(IconData icon, String label, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 12),
+        Text(label, style: const TextStyle(fontSize: 14)),
+      ],
     );
   }
 
@@ -691,10 +824,8 @@ class _QueueScreenState extends State<QueueScreen> {
 
   bool _showQuickStudentActions(Interview interview) {
     final status = interview.status.toLowerCase();
-    if (status != 'queued' && status != 'inprogress') return false;
-    final minutesLeft = _minutesLeft(interview);
-    if (minutesLeft == null) return false;
-    return minutesLeft >= 0 && minutesLeft <= 5;
+    // Show actions for queued (upcoming) or currently interviewing students
+    return status == 'queued' || status == 'inprogress';
   }
 
   Future<void> _sendQueueAction(Interview interview, String type) async {
@@ -713,9 +844,14 @@ class _QueueScreenState extends State<QueueScreen> {
     setState(() => _sendingQueueActions.remove(key));
 
     final isComing = type == 'StudentArrivingSoon';
-    final successText = isComing
-        ? 'Company notified that you are on your way.'
-        : 'Reschedule request sent to the company.';
+    final isArrived = type == 'StudentArrived';
+    final isLate = type == 'StudentRunningLate';
+    
+    String successText = 'Notification sent to company.';
+    if (isComing) successText = 'Company notified that you are on your way.';
+    if (isArrived) successText = 'Company notified that you have arrived.';
+    if (isLate) successText = 'Company notified that you are running late.';
+    if (type == 'StudentRescheduleRequest') successText = 'Reschedule request sent to company.';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -725,61 +861,6 @@ class _QueueScreenState extends State<QueueScreen> {
     );
   }
 
-  Widget _buildQueueActions(Interview interview, bool isDark) {
-    final comingKey = '${interview.interviewId}_StudentArrivingSoon';
-    final rescheduleKey = '${interview.interviewId}_StudentRescheduleRequest';
-    final isComingLoading = _sendingQueueActions.contains(comingKey);
-    final isRescheduleLoading = _sendingQueueActions.contains(rescheduleKey);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        OutlinedButton.icon(
-          onPressed: isComingLoading
-              ? null
-              : () => _sendQueueAction(interview, 'StudentArrivingSoon'),
-          icon: isComingLoading
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.directions_walk, size: 16),
-          label: const Text('I am Coming'),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: isDark ? Colors.green.shade300 : Colors.green.shade600,
-            ),
-            foregroundColor: isDark
-                ? Colors.green.shade300
-                : Colors.green.shade700,
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: isRescheduleLoading
-              ? null
-              : () => _sendQueueAction(interview, 'StudentRescheduleRequest'),
-          icon: isRescheduleLoading
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.schedule_send, size: 16),
-          label: const Text('Request Reschedule'),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
-            ),
-            foregroundColor: isDark
-                ? Colors.orange.shade300
-                : Colors.orange.shade800,
-          ),
-        ),
-      ],
-    );
-  }
 
   String _formatActualDateTime(DateTime dateTime) {
     final local = dateTime.toLocal();

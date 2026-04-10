@@ -1,4 +1,4 @@
-﻿using FirebaseAdmin.Messaging;
+using FirebaseAdmin.Messaging;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
@@ -1687,6 +1687,7 @@ namespace JobFairPortal.Controllers
                 RequestId = request.RequestId,
                 Status = InterviewStatus.Queued,
                 ScheduledTime = dto.ScheduledTime,
+                DurationMinutes = company.InterviewDurationMinutes,
                 JobFairId = request.JobFairId,  // ✅ FIX: Add the JobFairId from the request
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -1982,7 +1983,8 @@ public async Task<IActionResult> GetAllInterviewRequests(
                     InterviewStatus = i.Status.ToString(),
                     i.ScheduledTime,
                     i.StartedAt,
-                    i.EndedAt
+                    i.EndedAt,
+                    i.DurationMinutes
                 })
                 .FirstOrDefault()
         })
@@ -3416,7 +3418,10 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var nowUtc = DateTime.UtcNow;
             var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(scheduleDate);
             var (lunchStart, lunchEnd) = GetLunchBreakWindowUtc(scheduleDate);
-            var startTime = nowUtc > dayStart ? nowUtc : dayStart;
+            
+            // Respect custom start time if provided and in the future relative to now/dayStart
+            var defaultStartTime = nowUtc > dayStart ? nowUtc : dayStart;
+            var startTime = (date.HasValue && date.Value > defaultStartTime) ? date.Value : defaultStartTime;
 
             var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
             if (interviewDurationMinutes <= 0) return BadRequest("Interview duration is not configured for this company.");
@@ -3581,6 +3586,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                             RequestId = req.RequestId,
                             JobFairId = activeJobFair.JobFairId,
                             ScheduledTime = searchPointer,
+                            DurationMinutes = (int)duration.TotalMinutes,
                             Status = InterviewStatus.Queued,
                             CreatedAt = DateTime.UtcNow,
                             UpdatedAt = DateTime.UtcNow

@@ -1,4 +1,4 @@
-﻿using FirebaseAdmin.Messaging;
+using FirebaseAdmin.Messaging;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
@@ -1917,10 +1917,18 @@ namespace JobFairPortal.Controllers
                 return BadRequest("Interview is not scheduled yet.");
 
             var minutesLeft = (interview.ScheduledTime.Value - DateTime.UtcNow).TotalMinutes;
-            if (minutesLeft > 5)
-                return BadRequest("This quick notification is only available within 5 minutes of interview time.");
-
             var normalizedType = dto.Type.Trim().ToLowerInvariant();
+            
+            // Relaxed restrictions:
+            // - Reschedule: Anytime
+            // - Arrived/Coming/Late: Within 30 mins (before or after)
+            bool isReschedule = normalizedType == "studentreschedulerequest" || normalizedType == "requestreschedule" || normalizedType == "reschedule";
+            
+            if (!isReschedule && Math.Abs(minutesLeft) > 30)
+            {
+                return BadRequest("This notification is only available within 30 minutes of interview time.");
+            }
+
             string title;
             string body;
             string eventType;
@@ -1931,8 +1939,24 @@ namespace JobFairPortal.Controllers
                 case "iamcoming":
                 case "coming":
                     title = "Student Is On The Way";
-                    body = $"{student.User.FullName} is on the way and expects to arrive in a few minutes.";
+                    body = $"{student.User.FullName} is on the way and expects to arrive shortly.";
                     eventType = "StudentArrivingSoon";
+                    break;
+
+                case "studentarrived":
+                case "iarrived":
+                case "arrived":
+                    title = "Student Has Arrived";
+                    body = $"{student.User.FullName} has arrived at the venue and is ready for the interview.";
+                    eventType = "StudentArrived";
+                    break;
+
+                case "studentrunninglate":
+                case "runninglate":
+                case "late":
+                    title = "Student Running Late";
+                    body = $"{student.User.FullName} is running a few minutes late but will be there soon.";
+                    eventType = "StudentRunningLate";
                     break;
 
                 case "studentreschedulerequest":
@@ -1944,7 +1968,7 @@ namespace JobFairPortal.Controllers
                     break;
 
                 default:
-                    return BadRequest("Type must be one of: StudentArrivingSoon, StudentRescheduleRequest.");
+                    return BadRequest("Invalid notification type. Supported types: Coming, Arrived, RunningLate, Reschedule.");
             }
 
             var pushSent = false;

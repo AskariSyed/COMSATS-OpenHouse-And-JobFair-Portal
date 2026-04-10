@@ -38,8 +38,9 @@ const getEducationGradeLabel = (edu) => {
    return value ? `CGPA: ${value}` : null;
 };
 
-export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews, readOnly = false }) {
+export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigateToInterviews, readOnly = false, initialTab = 'profile' }) {
   const [profile, setProfile] = useState(null);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
    const [interviewActionLoading, setInterviewActionLoading] = useState(false);
@@ -543,11 +544,27 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
         </div>
       </div>
 
-      {/* --- BALANCED 2-COLUMN LAYOUT --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         
-         {/* LEFT COLUMN */}
-         <div className="space-y-6">
+      {/* --- TABS NAVIGATION --- */}
+      <div className="flex border-b border-gray-200 mb-6 sticky top-0 bg-gray-50/80 backdrop-blur-md z-10 pt-2">
+         <button 
+            onClick={() => setActiveTab('profile')}
+            className={`px-6 py-3 text-sm font-bold border-b-2 transition-all ${activeTab === 'profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+         >
+            Full Profile
+         </button>
+         <button 
+            onClick={() => setActiveTab('interviews')}
+            className={`px-6 py-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === 'interviews' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+         >
+            <Calendar className="w-4 h-4" /> Scheduled Interviews
+         </button>
+      </div>
+
+      {/* --- TAB CONTENT --- */}
+      {activeTab === 'profile' ? (
+         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+            {/* LEFT COLUMN */}
+            <div className="space-y-6">
             {/* Skills */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
@@ -747,8 +764,102 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                   )) : <div className="text-gray-400 italic">No achievements listed.</div>}
                </div>
             </div>
+            </div>
          </div>
-      </div>
+      ) : (
+         <div className="animate-fade-in space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+               <div className="max-w-md mx-auto">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <Calendar className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Interview Status</h3>
+                  
+                  {(() => {
+                     const { interviewId, status } = getCurrentInterviewFromProfile(profile);
+                     const req = profile.InterviewRequest || profile.interviewRequest || {};
+                     const reqStatus = String(req.Status || req.status || '').toLowerCase();
+
+                     if (interviewId) {
+                        const interview = profile.CurrentInterview || profile.currentInterview || {};
+                        const scheduledTime = interview.ScheduledTime || interview.scheduledTime;
+                        const startedAt = interview.StartedAt || interview.startedAt;
+                        
+                        return (
+                           <div className="mt-6 p-6 rounded-2xl bg-gray-50 border border-gray-100 text-left">
+                              <div className="flex justify-between items-start mb-6">
+                                 <div>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Current Status</p>
+                                    <div className="flex items-center gap-2">
+                                       <span className={`px-3 py-1 rounded-full text-sm font-bold uppercase ${
+                                          status === 'inprogress' ? 'bg-purple-100 text-purple-700' :
+                                          status === 'queued' ? 'bg-blue-100 text-blue-700' :
+                                          'bg-green-100 text-green-700'
+                                       }`}>
+                                          {status === 'inprogress' ? 'In Progress' : status === 'queued' ? 'Scheduled' : status}
+                                       </span>
+                                    </div>
+                                 </div>
+                                 {scheduledTime && (
+                                    <div className="text-right">
+                                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Time</p>
+                                       <p className="font-bold text-gray-900">{new Date(scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                       <p className="text-[10px] text-gray-500">{new Date(scheduledTime).toLocaleDateString()}</p>
+                                    </div>
+                                 )}
+                              </div>
+
+                              <div className="space-y-4 pt-4 border-t border-gray-200">
+                                 {startedAt && (
+                                    <div className="flex justify-between text-sm">
+                                       <span className="text-gray-500">Interview Started</span>
+                                       <span className="font-medium text-gray-900">{new Date(startedAt).toLocaleTimeString()}</span>
+                                    </div>
+                                 )}
+                                 <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Venue</span>
+                                    <span className="font-medium text-gray-900">Assigned Interview Room</span>
+                                 </div>
+                              </div>
+
+                              <div className="mt-8">
+                                 {renderHeaderAction()}
+                              </div>
+                           </div>
+                        );
+                     }
+
+                     if (reqStatus === 'accepted') {
+                        return (
+                           <div className="mt-6">
+                              <p className="text-gray-600 mb-6">The interview request was accepted, but it hasn't been scheduled into a specific time slot yet.</p>
+                              {renderHeaderAction()}
+                           </div>
+                        );
+                     }
+
+                     if (reqStatus === 'pending') {
+                        return (
+                           <div className="mt-6">
+                              <p className="text-gray-600 mb-6">An interview request is currently pending student response.</p>
+                              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 font-bold text-sm">
+                                 <Clock className="w-4 h-4" /> Awaiting Response
+                              </div>
+                           </div>
+                        );
+                     }
+
+                     return (
+                        <div className="mt-6">
+                           <p className="text-gray-600 mb-6">No active interview or request found for this student.</p>
+                           {renderHeaderAction()}
+                        </div>
+                     );
+                  })()}
+               </div>
+            </div>
+         </div>
+      )}
 
       {endInterviewModal.open && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
