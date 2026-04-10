@@ -3411,9 +3411,34 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (participation == null) return BadRequest("Company is not registered for the active job fair.");
             if (!participation.IsPresent) return BadRequest("Company is not marked present for the active job fair.");
 
-            var requestedStartTimeUtc = date.HasValue
-                ? DateTime.SpecifyKind(date.Value, DateTimeKind.Utc)
-                : (DateTime?)null;
+            var requestedStartTimeRaw = HttpContext.Request.Query["date"].FirstOrDefault();
+            DateTime? requestedStartTimeUtc = null;
+
+            if (!string.IsNullOrWhiteSpace(requestedStartTimeRaw))
+            {
+                if (DateTimeOffset.TryParse(requestedStartTimeRaw, out var dto))
+                {
+                    requestedStartTimeUtc = dto.UtcDateTime;
+                }
+                else if (DateTime.TryParse(requestedStartTimeRaw, out var dt))
+                {
+                    requestedStartTimeUtc = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                }
+            }
+            else if (date.HasValue)
+            {
+                requestedStartTimeUtc = date.Value.Kind switch
+                {
+                    DateTimeKind.Utc => date.Value,
+                    DateTimeKind.Local => date.Value.ToUniversalTime(),
+                    _ => DateTime.SpecifyKind(date.Value, DateTimeKind.Utc)
+                };
+            }
+
+            _logger.LogInformation(
+                "OptimizeJobFairSchedule parsed start time. RawDate={RawDate}, ParsedStartUtc={ParsedStartUtc:o}",
+                requestedStartTimeRaw,
+                requestedStartTimeUtc);
 
             var scheduleDate = (requestedStartTimeUtc ?? activeJobFair.date).Date;
 
@@ -3426,6 +3451,9 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             // Respect custom start time if provided.
             var defaultStartTime = nowUtc > dayStart ? nowUtc : dayStart;
             var startTime = requestedStartTimeUtc ?? defaultStartTime;
+
+            if (startTime < defaultStartTime)
+                startTime = defaultStartTime;
 
             if (startTime < dayStart)
                 startTime = dayStart;

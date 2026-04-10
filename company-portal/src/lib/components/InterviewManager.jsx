@@ -61,6 +61,7 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
   const [selectedSlot, setSelectedSlot] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [availabilityDate, setAvailabilityDate] = useState('');
   const [schedulingAll, setSchedulingAll] = useState(false);
   const [startingInterviewId, setStartingInterviewId] = useState(null);
   const [completeModal, setCompleteModal] = useState(null); // { interview }
@@ -98,16 +99,28 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
       getAllInterviewRequests('Accepted'),
       getAnalytics()
     ]).then(([requestsData, acceptedData, analyticsData]) => {
-      const normalizedScheduled = (analyticsData.interviews?.scheduledInterviews || []).filter((interview) => {
-        const scheduledTime = interview.scheduledTime || interview.ScheduledTime;
-        const status = String(interview.status || interview.Status || '').toLowerCase();
-        if (!scheduledTime) return false;
+      const normalizedScheduled = (analyticsData.interviews?.scheduledInterviews || [])
+        .map((interview) => ({
+          interviewId: interview.interviewId ?? interview.InterviewId ?? interview.id ?? interview.Id ?? null,
+          requestId: interview.requestId ?? interview.RequestId ?? null,
+          studentId: interview.studentId ?? interview.StudentId,
+          studentName: interview.studentName ?? interview.StudentName,
+          registrationNo: interview.registrationNo ?? interview.RegistrationNo,
+          status: interview.status ?? interview.Status ?? '',
+          scheduledTime: interview.scheduledTime ?? interview.ScheduledTime,
+          startedAt: interview.startedAt ?? interview.StartedAt,
+          endedAt: interview.endedAt ?? interview.EndedAt,
+        }))
+        .filter((interview) => {
+          const status = String(interview.status || '').toLowerCase();
+          if (!interview.scheduledTime) return false;
+          if (!interview.interviewId) return false;
 
-        const interviewDate = new Date(scheduledTime);
-        if (Number.isNaN(interviewDate.getTime())) return false;
+          const interviewDate = new Date(interview.scheduledTime);
+          if (Number.isNaN(interviewDate.getTime())) return false;
 
-        return status === 'queued' || status === 'accepted' || status === 'inprogress' || status === '';
-      });
+          return status === 'queued' || status === 'accepted' || status === 'inprogress' || status === '';
+        });
 
       const allAcceptedRequests = acceptedData.requests || [];
       const completed = allAcceptedRequests
@@ -157,6 +170,21 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
   const formatDateTime = (value) => {
     if (!value) return '--';
     return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  const toDateTimeLocalValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const fromDateTimeLocalValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString();
   };
 
   const getPktDateParts = (inputDate) => {
@@ -223,19 +251,26 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
       return;
     }
 
+    if (mode === 'reschedule' && !target?.interviewId) {
+      onError('Unable to reschedule: interview id is missing. Please refresh and try again.');
+      return;
+    }
+
     setScheduleModal({ target, mode });
     setAvailableSlots([]);
     setSlotDurationMinutes(30);
     setSelectedSlot('');
+    setAvailabilityDate('');
     setLoadingSlots(true);
 
     try {
-      const now = new Date();
-      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const baseDate = target?.scheduledTime ? new Date(target.scheduledTime) : new Date();
+      const localDate = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`;
       const availability = await getStudentAvailability(target.studentId, localDate);
       const slots = availability?.slots || [];
       setSlotDurationMinutes(Number(availability?.slotDurationMinutes) || 30);
       setAvailableSlots(slots);
+      setAvailabilityDate(localDate);
       if (slots.length > 0) {
         setSelectedSlot(slots[0]);
       }
@@ -255,6 +290,17 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
 
     if (!scheduleModal?.target?.studentId || !selectedSlot) {
       onError('Please select an available slot');
+      return;
+    }
+
+    const selectedMs = new Date(selectedSlot).getTime();
+    const isAvailableSlot = availableSlots.some((slot) => {
+      const slotMs = new Date(slot).getTime();
+      return Number.isFinite(slotMs) && Math.abs(slotMs - selectedMs) < 60000;
+    });
+
+    if (!isAvailableSlot) {
+      onError('Selected time is not available for this student. Please choose an available slot.');
       return;
     }
 
@@ -995,60 +1041,12 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
                              Reschedule
                            </button>
 
-                            <div className="relative inline-block group/notify">
-                              <button
-                                className="text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded inline-flex items-center gap-1"
-                              >
-                                <Bell className="w-3 h-3" /> Notify <ChevronDown className="w-3 h-3" />
-                              </button>
-                              <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-xl opacity-0 invisible group-hover/notify:opacity-100 group-hover/notify:visible transition-all z-20 overflow-hidden">
-                                <div className="p-1.5 space-y-0.5">
-                                   <button 
-                                     onClick={() => openNotifyModal(int)}
-                                     className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-indigo-600 rounded flex items-center gap-2"
-                                   >
-                                     <Send className="w-3 h-3" /> Preview & Send
-                                   </button>
-                                   <div className="h-px bg-gray-100 my-1 mx-2"></div>
-                                   <button 
-                                     onClick={() => {
-                                       const template = buildNotificationTemplate('NEXT', int);
-                                       setNotifyPreset('NEXT');
-                                       setNotifyTitle(template.title);
-                                       setNotifyBody(template.body);
-                                       setNotifyModal({ interview: int });
-                                     }}
-                                     className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-teal-600 rounded flex items-center gap-2"
-                                   >
-                                     <div className="w-2 h-2 rounded-full bg-teal-500"></div> You Are Next
-                                   </button>
-                                   <button 
-                                     onClick={() => {
-                                       const template = buildNotificationTemplate('DELAY', int);
-                                       setNotifyPreset('DELAY');
-                                       setNotifyTitle(template.title);
-                                       setNotifyBody(template.body);
-                                       setNotifyModal({ interview: int });
-                                     }}
-                                     className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-orange-600 rounded flex items-center gap-2"
-                                   >
-                                     <div className="w-2 h-2 rounded-full bg-orange-500"></div> Delay Update
-                                   </button>
-                                   <button 
-                                     onClick={() => {
-                                       const template = buildNotificationTemplate('SOON', int);
-                                       setNotifyPreset('SOON');
-                                       setNotifyTitle(template.title);
-                                       setNotifyBody(template.body);
-                                       setNotifyModal({ interview: int });
-                                     }}
-                                     className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-indigo-600 rounded flex items-center gap-2"
-                                   >
-                                     <div className="w-2 h-2 rounded-full bg-indigo-500"></div> Starting Soon
-                                   </button>
-                                </div>
-                              </div>
-                            </div>
+                            <button
+                              onClick={() => openNotifyModal(int)}
+                              className="text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded inline-flex items-center gap-1"
+                            >
+                              <Bell className="w-3 h-3" /> Notify
+                            </button>
 
                            {canMarkDidNotAppear(int) && (
                              <button
@@ -1396,6 +1394,48 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
                     <p className="mt-2 text-xs text-gray-500">
                       Interview window: {formatDateTime(selectedSlot)} - {formatDateTime(new Date(new Date(selectedSlot).getTime() + slotDurationMinutes * 60000))}
                     </p>
+                  )}
+
+                  {scheduleModal.mode === 'reschedule' && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Or Set Time Manually
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={toDateTimeLocalValue(selectedSlot)}
+                        onChange={async (e) => {
+                          const iso = fromDateTimeLocalValue(e.target.value);
+                          if (!iso) return;
+
+                          setSelectedSlot(iso);
+
+                          const local = new Date(e.target.value);
+                          if (Number.isNaN(local.getTime()) || !scheduleModal?.target?.studentId) return;
+
+                          const dateStr = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+
+                          if (dateStr === availabilityDate) return;
+
+                          try {
+                            setLoadingSlots(true);
+                            const availability = await getStudentAvailability(scheduleModal.target.studentId, dateStr);
+                            const slots = availability?.slots || [];
+                            setSlotDurationMinutes(Number(availability?.slotDurationMinutes) || 30);
+                            setAvailableSlots(slots);
+                            setAvailabilityDate(dateStr);
+                          } catch (err) {
+                            onError(err.message || 'Failed to load student availability for selected date.');
+                          } finally {
+                            setLoadingSlots(false);
+                          }
+                        }}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        Manual time uses your local timezone and is sent to the server in UTC.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
