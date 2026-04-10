@@ -271,7 +271,7 @@ jobs:
         # Execute remote deployment script
         echo "Running remote deployment..."
         ssh -i ~/.ssh/jobfair-key.pem -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-          ${{ env.EC2_USER }}@${{ env.EC2_HOST }} 'bash -s' << 'DEPLOY_SCRIPT'
+          ${{ env.EC2_USER }}@${{ env.EC2_HOST }} 'bash -s' << DEPLOY_SCRIPT
         set -e
         
         echo "==> Creating directories..."
