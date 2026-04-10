@@ -22,8 +22,8 @@ class BackendConfig {
 
   static String get serverBaseUrl {
     if (_isInsecureBackendOnSecurePage) {
-      final origin = html.window.location.origin;
-      if (origin.isNotEmpty) {
+      final origin = html.window.location.origin.toString();
+      if (origin.isNotEmpty && origin != 'null') {
         return origin;
       }
       return configuredServerBaseUrl;
