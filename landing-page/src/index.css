@@ -18,3 +18,13 @@
       linear-gradient(180deg, #fcfdff 0%, #f8fbff 100%);
   }
 }
+
+@keyframes landingNoticeMarquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.landing-notice-marquee {
+  display: inline-block;
+  animation: landingNoticeMarquee 18s linear infinite;
+}

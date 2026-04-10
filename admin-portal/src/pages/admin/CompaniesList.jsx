@@ -48,10 +48,58 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
     industry: '',
     focalPersonName: '', 
     email: '',
-    focalPersonPhone: '' // Added
+    focalPersonPhone: '',
+    repsCount: 1
   });
   const [loading, setLoading] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [suggestedRoom, setSuggestedRoom] = useState(null);
   const phoneRegex = /^\d{11}$/;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchRooms = async () => {
+      setRoomsLoading(true);
+      try {
+        const res = await api.get('/admin/rooms');
+        if (cancelled) return;
+
+        const allRooms = Array.isArray(res.data) ? res.data : [];
+        setRooms(allRooms.filter((room) => Number(room.status) === 0));
+      } catch (error) {
+        if (!cancelled) {
+          toast.error('Failed to load room suggestions');
+          setRooms([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRoomsLoading(false);
+        }
+      }
+    };
+
+    fetchRooms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const repsCount = Number(formData.repsCount || 0);
+    if (!rooms.length || repsCount <= 0) {
+      setSuggestedRoom(null);
+      return;
+    }
+
+    const bestRoom = [...rooms]
+      .filter((room) => Number(room.capacity) >= repsCount)
+      .sort((a, b) => Number(a.capacity) - Number(b.capacity) || String(a.roomName).localeCompare(String(b.roomName)))[0] || null;
+
+    setSuggestedRoom(bestRoom);
+  }, [formData.repsCount, rooms]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,10 +107,22 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
       toast.error('Phone number must be exactly 11 digits.');
       return;
     }
+    if (!Number.isFinite(Number(formData.repsCount)) || Number(formData.repsCount) < 1) {
+      toast.error('Number of representatives must be at least 1.');
+      return;
+    }
     setLoading(true);
     try {
-      await api.post('/admin/companies/onspot', formData);
-      toast.success(`${formData.name} added successfully!`);
+      const response = await api.post('/admin/companies/onspot', formData);
+      const isRegistered = Boolean(response.data?.success ?? response.data?.Success);
+      const roomAllotted = Boolean(response.data?.roomAllotted ?? response.data?.roomAlloted ?? response.data?.RoomAllotted ?? response.data?.RoomAlloted);
+
+      if (isRegistered) {
+        toast.success(roomAllotted ? `${formData.name} registered successfully and a room was allotted.` : `${formData.name} registered successfully.`);
+      } else {
+        toast.error(`${formData.name} could not be registered.`);
+        return;
+      }
       onSuccess();
       onClose();
     } catch (error) {
@@ -156,6 +216,34 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
                 onChange={(e) => setFormData({...formData, focalPersonPhone: e.target.value})}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Number of Representatives *</label>
+            <input 
+              type="number"
+              min="1"
+              required
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              placeholder="e.g. 3"
+              value={formData.repsCount}
+              onChange={(e) => setFormData({...formData, repsCount: e.target.value})}
+            />
+          </div>
+
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Room suggestion</div>
+            {roomsLoading ? (
+              <p className="mt-2 text-sm text-indigo-700">Loading room suggestions...</p>
+            ) : suggestedRoom ? (
+              <p className="mt-2 text-sm text-indigo-900">
+                {suggestedRoom.roomName} can accommodate this company (capacity: {suggestedRoom.capacity}). It will be assigned automatically after registration.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-indigo-700">
+                No vacant room currently fits {formData.repsCount || 0} representative(s).
+              </p>
+            )}
           </div>
 
           <div className="pt-2 flex justify-end gap-3">

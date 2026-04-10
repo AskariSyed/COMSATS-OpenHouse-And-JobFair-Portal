@@ -12,6 +12,7 @@ const AudienceBadge = ({ audience }) => {
   const config = {
     Student: { color: 'bg-blue-100 text-blue-700', icon: Users },
     Company: { color: 'bg-purple-100 text-purple-700', icon: Building2 },
+    Public:  { color: 'bg-amber-100 text-amber-700', icon: Globe },
     All:     { color: 'bg-emerald-100 text-emerald-700', icon: Globe },
   };
   
@@ -38,8 +39,37 @@ const NoticeBoard = () => {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    audience: 0 
+    audience: 0,
+    isBanner: false
   });
+
+  const getBannerTarget = (state) => {
+    if (!state?.isBanner) return 'none';
+    if (Number(state.audience) === 3) return 'public';
+    return 'company';
+  };
+
+  const setAudience = (audienceVal) => {
+    setFormData((prev) => ({
+      ...prev,
+      audience: audienceVal,
+      isBanner: prev.isBanner && (audienceVal === 2 || audienceVal === 3)
+    }));
+  };
+
+  const setBannerTarget = (target) => {
+    setFormData((prev) => {
+      if (target === 'none') {
+        return { ...prev, isBanner: false };
+      }
+
+      if (target === 'company') {
+        return { ...prev, isBanner: true, audience: 2 };
+      }
+
+      return { ...prev, isBanner: true, audience: 3 };
+    });
+  };
 
   // --- Fetch Notices ---
   const fetchNotices = async () => {
@@ -61,7 +91,7 @@ const NoticeBoard = () => {
   // --- Open Modal (Create vs Edit) ---
   const openCreateModal = () => {
     setEditingId(null);
-    setFormData({ title: '', content: '', audience: 0 }); // Reset to 'All'
+    setFormData({ title: '', content: '', audience: 0, isBanner: false }); // Reset to 'All'
     setShowModal(true);
   };
 
@@ -72,11 +102,13 @@ const NoticeBoard = () => {
     let audienceInt = 0; // Default 'All'
     if (notice.audience === 'Student') audienceInt = 1;
     if (notice.audience === 'Company') audienceInt = 2;
+    if (notice.audience === 'Public') audienceInt = 3;
 
     setFormData({
       title: notice.title,
       content: notice.content,
-      audience: audienceInt
+      audience: audienceInt,
+      isBanner: Boolean(notice.isBanner)
     });
     setShowModal(true);
   };
@@ -175,6 +207,11 @@ const NoticeBoard = () => {
                     )}
                   </h3>
                   <AudienceBadge audience={notice.audience} />
+                  {notice.isBanner && (
+                    <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700">
+                      Banner
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-gray-400">
                   {new Date(notice.createdAt).toLocaleDateString()}
@@ -237,17 +274,18 @@ const NoticeBoard = () => {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* ✅ FIX 3: Updated Values to match 0=All, 1=Student, 2=Company */}
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  {/* 0=All, 1=Student, 2=Company, 3=Public */}
                   {[
                     { val: 0, label: 'Everyone', icon: Globe },
                     { val: 1, label: 'Students', icon: Users },
                     { val: 2, label: 'Companies', icon: Building2 },
+                    { val: 3, label: 'Public', icon: Bell },
                   ].map((opt) => (
                     <button
                       key={opt.val}
                       type="button"
-                      onClick={() => setFormData({...formData, audience: opt.val})}
+                      onClick={() => setAudience(opt.val)}
                       className={`flex flex-col items-center justify-center p-3 rounded-lg border transition ${
                         formData.audience === opt.val 
                           ? 'border-indigo-600 bg-indigo-50 text-indigo-700' 
@@ -281,6 +319,34 @@ const NoticeBoard = () => {
                   value={formData.content}
                   onChange={e => setFormData({...formData, content: e.target.value})}
                 />
+              </div>
+
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-semibold text-red-800">Banner Placement</p>
+                <p className="mt-1 text-xs text-red-700">Choose where this notice should appear as a running red marquee banner.</p>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {[
+                    { key: 'none', label: 'No Banner' },
+                    { key: 'company', label: 'Company Portal' },
+                    { key: 'public', label: 'Public Landing Page' },
+                  ].map((opt) => {
+                    const isActive = getBannerTarget(formData) === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setBannerTarget(opt.key)}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                          isActive
+                            ? 'border-red-500 bg-red-100 text-red-800'
+                            : 'border-red-200 bg-white text-red-700 hover:bg-red-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

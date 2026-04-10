@@ -1420,9 +1420,9 @@ namespace JobFairPortal.Controllers
             }
 
             // 5. Execute and Return
-            var notices = await query
+            var rawNotices = await query
                 .OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NoticeResponseDto
+                .Select(n => new
                 {
                     NoticeId = n.NoticeId,
                     Title = n.Title,
@@ -1432,7 +1432,34 @@ namespace JobFairPortal.Controllers
                 })
                 .ToListAsync();
 
+            var notices = rawNotices
+                .Select(n => new NoticeResponseDto
+                {
+                    NoticeId = n.NoticeId,
+                    Title = StripNoticeBannerPrefix(n.Title),
+                    Content = n.Content,
+                    Audience = n.Audience,
+                    IsBanner = HasNoticeBannerPrefix(n.Title),
+                    CreatedAt = n.CreatedAt
+                })
+                .ToList();
+
             return Ok(notices);
+        }
+
+        private const string NoticeBannerPrefix = "[BANNER] ";
+
+        private static bool HasNoticeBannerPrefix(string? value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.StartsWith(NoticeBannerPrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string StripNoticeBannerPrefix(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return HasNoticeBannerPrefix(value) ? value.Substring(NoticeBannerPrefix.Length).TrimStart() : value;
         }
 
 
@@ -2910,6 +2937,22 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var scopedJobs = targetJobFairId.HasValue ? company.Jobs.Where(j => j.JobFairId == targetJobFairId.Value).ToList() : new List<Job>();
             var scopedRequests = targetJobFairId.HasValue ? company.InterviewRequests.Where(ir => ir.JobFairId == targetJobFairId.Value).ToList() : new List<InterviewRequest>();
             var scopedInterviews = targetJobFairId.HasValue ? company.Interviews.Where(i => i.JobFairId == targetJobFairId.Value).ToList() : new List<Interview>();
+            var hasDescription = !string.IsNullOrWhiteSpace(company.Description);
+            var hasLogo = !string.IsNullOrWhiteSpace(company.LogoUrl);
+            var hasJobs = scopedJobs.Any();
+            var hasInterviewDuration = company.InterviewDurationMinutes > 0;
+            var missingProfileFields = new List<string>();
+
+            if (!hasDescription)
+                missingProfileFields.Add("Company description");
+            if (!hasLogo)
+                missingProfileFields.Add("Company logo");
+            if (!hasJobs)
+                missingProfileFields.Add("At least one job posting");
+            if (!hasInterviewDuration)
+                missingProfileFields.Add("Expected interview duration");
+
+            var isProfileComplete = missingProfileFields.Count == 0;
 
             var profile = new
             {
@@ -2997,6 +3040,17 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                     ArrivalStatus = participation?.ArrivalStatus.ToString() ?? "Pending",
                     IsPresent = company.IsPresent,
                     IsWalkInInterviewing = company.IsWalkInInterviewing
+                },
+
+                // --- Profile completeness ---
+                ProfileCompletion = new
+                {
+                    IsComplete = isProfileComplete,
+                    MissingFields = missingProfileFields,
+                    HasDescription = hasDescription,
+                    HasLogo = hasLogo,
+                    HasJobs = hasJobs,
+                    HasInterviewDuration = hasInterviewDuration
                 },
 
                 // --- Timestamps ---

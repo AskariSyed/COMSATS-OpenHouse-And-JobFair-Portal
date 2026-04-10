@@ -13,10 +13,11 @@ import CompanyRequests from '../components/CompanyRequests';
 import SurveyForm from '../components/SurveyForm';
 import AttendanceScanner from '../components/AttendanceScanner';
 import PreviousJobFairAnalytics from '../components/PreviousJobFairAnalytics';
-import { getConfirmationStatus } from '../api';
+import { getConfirmationStatus, getCompanyProfile, getNotices } from '../api';
 import { getMySurveyStatus } from '../api';
 
 const SURVEY_REMINDER_INTERVAL_MS = 20 * 60 * 1000;
+const NOTICE_BANNER_REFRESH_MS = 5 * 60 * 1000;
 
 const getPktDateParts = (inputDate) => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -62,6 +63,8 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
   const [surveyReminderOpen, setSurveyReminderOpen] = useState(false);
   const [interviewNavTarget, setInterviewNavTarget] = useState({ tab: 'pending', pendingView: 'all', key: 0 });
   const [profileTab, setProfileTab] = useState('profile');
+  const [profileCompletion, setProfileCompletion] = useState({ isComplete: true, missingFields: [] });
+  const [companyBannerNotices, setCompanyBannerNotices] = useState([]);
 
   const reminderStorageKey = `companySurveyReminderLastShown:${user?.id || user?.email || 'default'}`;
 
@@ -83,12 +86,64 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
       .catch(() => setSurveyAvailability({ hasActiveJobFair: true, isJobFairDay: false }));
   };
 
+  const refreshCompanyBannerNotices = () => {
+    getNotices()
+      .then((items) => {
+        const notices = Array.isArray(items) ? items : [];
+        const banners = notices
+          .filter((n) => Boolean(n?.isBanner ?? n?.IsBanner))
+          .map((n) => {
+            const title = String(n?.title || n?.Title || '').trim();
+            const content = String(n?.content || n?.Content || '').trim();
+            if (title && content) return `${title}: ${content}`;
+            return title || content;
+          })
+          .filter(Boolean);
+
+        setCompanyBannerNotices(banners);
+      })
+      .catch(() => setCompanyBannerNotices([]));
+  };
+
   const normalizedAttendance = attendanceStatus
     ? {
         jobFairDate: attendanceStatus.jobFairDate || attendanceStatus.JobFairDate,
         isPresent: attendanceStatus.isPresent ?? attendanceStatus.IsPresent,
+        arrivalStatus: attendanceStatus.arrivalStatus || attendanceStatus.ArrivalStatus,
       }
     : null;
+
+  const applyProfileCompletion = (profile) => {
+    const completion = profile?.profileCompletion || profile?.ProfileCompletion || {};
+    const isComplete = Boolean(completion.isComplete ?? completion.IsComplete ?? true);
+    const missingFields = completion.missingFields || completion.MissingFields || [];
+    setProfileCompletion({ isComplete, missingFields });
+    return { isComplete };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCompanyProfile()
+      .then((profile) => {
+        if (cancelled) return;
+
+        const { isComplete } = applyProfileCompletion(profile);
+
+        if (!isComplete && activeTab !== 'profile' && onTabChange) {
+          onTabChange('profile');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfileCompletion({ isComplete: true, missingFields: [] });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, onTabChange]);
 
   const showSurveyHeadline =
     surveyAvailability.hasActiveJobFair &&
@@ -107,6 +162,10 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
       .catch(() => setAttendanceStatus(null));
 
     refreshSurveyStatus();
+    refreshCompanyBannerNotices();
+
+    const noticeIntervalId = setInterval(refreshCompanyBannerNotices, NOTICE_BANNER_REFRESH_MS);
+    return () => clearInterval(noticeIntervalId);
   }, []);
 
   useEffect(() => {
@@ -153,7 +212,22 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
 
   const jobFairDate = normalizedAttendance?.jobFairDate ? new Date(normalizedAttendance.jobFairDate) : null;
   const isJobFairDay = jobFairDate ? jobFairDate.toDateString() === new Date().toDateString() : false;
-  const canMarkAttendance = isJobFairDay && !normalizedAttendance?.isPresent;
+  const isOnSpotRegistration = String(normalizedAttendance?.arrivalStatus || '').toLowerCase() === 'onspot';
+  const canMarkAttendance = isJobFairDay && !normalizedAttendance?.isPresent && !isOnSpotRegistration;
+  const bannerMessages = [];
+
+  if (!profileCompletion.isComplete) {
+    const missingText = profileCompletion.missingFields?.length > 0 ? `Missing: ${profileCompletion.missingFields.join(', ')}.` : 'Your profile still has required fields to complete.';
+    bannerMessages.push(`Complete your company profile before moving forward. ${missingText}`);
+  }
+
+  if (showSurveyHeadline) {
+    bannerMessages.push('Fill both CDC and Department surveys today to be eligible for your Job Fair participation certificate.');
+  }
+
+  if (companyBannerNotices.length > 0) {
+    bannerMessages.push(...companyBannerNotices);
+  }
 
   const safeSelectStudent = (student, tab = 'profile') => {
     const id = student.studentId || student.StudentId || student.id || student.Id;
@@ -234,37 +308,15 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
 
   return (
     <div className="max-w-7xl mx-auto animate-fade-in">
-      {showSurveyHeadline && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-3 py-2 overflow-hidden">
-          <div className="company-survey-marquee whitespace-nowrap font-semibold text-amber-900 text-sm">
-            Fill both CDC and Department surveys today to be eligible for your Job Fair participation certificate.
-          </div>
-        </div>
-      )}
-      {surveyReminderOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-amber-300 bg-amber-50 shadow-2xl p-5">
-            <p className="text-base font-bold text-amber-900">Mandatory Survey Required for Certificate</p>
-            <p className="text-sm text-amber-800 mt-2">
-              It is after 2:00 PM on Job Fair day. Please complete the survey to receive your certificate.
-            </p>
-            <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <button
-                onClick={() => {
-                  setSurveyReminderOpen(false);
-                  if (onTabChange) onTabChange('surveys');
-                }}
-                className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-semibold"
-              >
-                Fill Survey Now
-              </button>
-              <button
-                onClick={() => setSurveyReminderOpen(false)}
-                className="px-3 py-2 border border-amber-300 hover:bg-amber-100 text-amber-900 rounded-md text-sm font-semibold"
-              >
-                Remind Me Later
-              </button>
-            </div>
+      {bannerMessages.length > 0 && (
+        <div className="mb-4 overflow-hidden rounded-xl border border-red-300 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-4 py-3 text-white shadow-lg">
+          <div className="company-survey-marquee whitespace-nowrap text-sm font-semibold tracking-wide">
+            {bannerMessages.map((message, index) => (
+              <span key={index} className="inline-flex items-center">
+                <span>{message}</span>
+                {index < bannerMessages.length - 1 && <span className="mx-4 text-white/70">•</span>}
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -294,7 +346,13 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
         />
       )}
       {activeTab === 'history-analytics' && <PreviousJobFairAnalytics onError={onError} onSuccess={onSuccess} onSelectStudent={safeSelectStudent} />}
-      {activeTab === 'profile' && <CompanyProfile onError={onError} onSuccess={onSuccess} />}
+      {activeTab === 'profile' && (
+        <CompanyProfile
+          onError={onError}
+          onSuccess={onSuccess}
+          onProfileCompletionChange={(completion) => setProfileCompletion(completion)}
+        />
+      )}
       {activeTab === 'students' && (
         <StudentDirectory
           onSelect={safeSelectStudent}

@@ -39,6 +39,10 @@ namespace JobFairPortal.DTOs
         public string? Industry { get; set; }
         public string? UserEmail { get; set; }
         public string? RoomName { get; set; }
+        public bool RoomAssigned { get; set; }
+        public int? RoomId { get; set; }
+        public int? RoomCapacity { get; set; }
+        public string? TemporaryPassword { get; set; }
     }
     public class CompanyOverviewDto
     {

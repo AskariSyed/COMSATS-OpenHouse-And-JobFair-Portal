@@ -7,9 +7,10 @@ namespace JobFairPortal.Models
 {
     public enum NoticeAudience
     {
-        All,        // Visible to everyone
+        All,        // Visible to internal portals (students + companies)
         Student,    // Visible only to Students
-        Company     // Visible only to Companies
+        Company,    // Visible only to Companies
+        Public      // Visible on public landing page
     }
     public class Notice
     {

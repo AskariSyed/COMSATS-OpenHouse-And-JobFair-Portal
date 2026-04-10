@@ -9,8 +9,9 @@ import { allSkillsList } from '../../data/skills';
 const PHONE_11_REGEX = /^\d{11}$/;
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
-export default function CompanyProfile({ onError, onSuccess }) {
+export default function CompanyProfile({ onError, onSuccess, onProfileCompletionChange }) {
   const onErrorRef = useRef(onError);
+  const autoOpenedIncompleteRef = useRef(false);
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,10 +42,84 @@ export default function CompanyProfile({ onError, onSuccess }) {
       .then(([profileData, attendanceData]) => {
         setProfile(profileData);
         setAttendance(attendanceData);
+
+        if (onProfileCompletionChange) {
+          const completion = profileData?.profileCompletion || profileData?.ProfileCompletion || {};
+          const isComplete = Boolean(completion.isComplete ?? completion.IsComplete ?? true);
+          const missingFields = completion.missingFields || completion.MissingFields || [];
+          onProfileCompletionChange({ isComplete, missingFields });
+        }
       })
       .catch(err => onErrorRef.current?.(err.message))
       .finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, onProfileCompletionChange]);
+
+  const contactInfo = profile?.contactInfo || {};
+  const focalPerson = profile?.focalPerson || {};
+  const interviewStats = profile?.interviewStats || {};
+  const jobs = profile?.jobs || { jobs: [] };
+  const interviewDurationMinutes = profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30;
+  const repsCount = profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1;
+  const isWalkInInterviewing = profile?.companySettings?.isWalkInInterviewing ?? profile?.companySettings?.IsWalkInInterviewing ?? false;
+  const attendanceModel = attendance
+    ? {
+        isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
+        arrivalStatus: attendance.arrivalStatus ?? attendance.ArrivalStatus,
+        jobFairDate: attendance.jobFairDate ?? attendance.JobFairDate,
+        roomAssigned: attendance.roomAssigned ?? attendance.RoomAssigned,
+        roomDetails: (() => {
+          const room = attendance.roomDetails ?? attendance.RoomDetails;
+          if (!room) return null;
+          return {
+            roomName: room.roomName ?? room.RoomName,
+            capacity: room.capacity ?? room.Capacity,
+          };
+        })(),
+        confirmedAt: attendance.confirmedAt ?? attendance.ConfirmedAt,
+        canConfirmAttendance: attendance.canConfirmAttendance ?? attendance.CanConfirmAttendance,
+        daysUntilJobFair: attendance.daysUntilJobFair ?? attendance.DaysUntilJobFair,
+      }
+    : null;
+  const profileCompletion = profile?.profileCompletion || profile?.ProfileCompletion || {};
+  const isProfileComplete = profileCompletion.isComplete ?? profileCompletion.IsComplete ?? true;
+  const missingProfileFields = profileCompletion.missingFields || profileCompletion.MissingFields || [];
+  const isOnSpotRegistration = String(attendanceModel?.arrivalStatus || '').toLowerCase() === 'onspot';
+  const incompleteFieldSet = new Set(missingProfileFields.map((field) => String(field || '').toLowerCase()));
+  const shouldPromptInitialJobPost = !isProfileComplete && incompleteFieldSet.has('at least one job posting');
+
+  const getAutoOpenTarget = () => {
+    if (!isProfileComplete) {
+      if (!contactInfo?.email || !contactInfo?.phone) return 'contact';
+      if (incompleteFieldSet.has('company description')) return 'details';
+      if (incompleteFieldSet.has('company logo')) return 'branding';
+      if (incompleteFieldSet.has('expected interview duration')) return 'interview';
+      if (incompleteFieldSet.has('at least one job posting')) return 'job';
+      return 'details';
+    }
+
+    return null;
+  };
+
+  useEffect(() => {
+    if (!profile || isProfileComplete) {
+      autoOpenedIncompleteRef.current = false;
+      return;
+    }
+
+    if (autoOpenedIncompleteRef.current) {
+      return;
+    }
+
+    const nextTarget = getAutoOpenTarget();
+    if (nextTarget === 'job') {
+      setEditingJob(null);
+      setShowJobModal(true);
+    } else if (nextTarget) {
+      setProfileEditSection(nextTarget);
+    }
+
+    autoOpenedIncompleteRef.current = true;
+  }, [profile, isProfileComplete, contactInfo?.email, contactInfo?.phone, missingProfileFields.join('|')]);
 
   if (loading) return <div className="h-96 flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-blue-600" /></div>;
   if (!profile) return <div className="text-center p-12 text-red-500">Profile not found.</div>;
@@ -126,30 +201,6 @@ export default function CompanyProfile({ onError, onSuccess }) {
     }
   };
 
-  const { contactInfo, focalPerson, interviewStats, jobs } = profile;
-  const interviewDurationMinutes = profile?.companySettings?.interviewDurationMinutes ?? profile?.companySettings?.InterviewDurationMinutes ?? 30;
-  const repsCount = profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1;
-  const isWalkInInterviewing = profile?.companySettings?.isWalkInInterviewing ?? profile?.companySettings?.IsWalkInInterviewing ?? false;
-  const attendanceModel = attendance
-    ? {
-        isConfirmed: attendance.isConfirmed ?? attendance.IsConfirmed,
-        arrivalStatus: attendance.arrivalStatus ?? attendance.ArrivalStatus,
-        jobFairDate: attendance.jobFairDate ?? attendance.JobFairDate,
-        roomAssigned: attendance.roomAssigned ?? attendance.RoomAssigned,
-        roomDetails: (() => {
-          const room = attendance.roomDetails ?? attendance.RoomDetails;
-          if (!room) return null;
-          return {
-            roomName: room.roomName ?? room.RoomName,
-            capacity: room.capacity ?? room.Capacity,
-          };
-        })(),
-        confirmedAt: attendance.confirmedAt ?? attendance.ConfirmedAt,
-        canConfirmAttendance: attendance.canConfirmAttendance ?? attendance.CanConfirmAttendance,
-        daysUntilJobFair: attendance.daysUntilJobFair ?? attendance.DaysUntilJobFair,
-      }
-    : null;
-
   const formattedJobFairDate = attendanceModel?.jobFairDate
     ? new Date(attendanceModel.jobFairDate).toLocaleDateString()
     : 'Date not announced';
@@ -165,6 +216,16 @@ export default function CompanyProfile({ onError, onSuccess }) {
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-10">
+      {!isProfileComplete && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm">
+          <p className="font-bold">Complete your company profile before moving forward.</p>
+          {missingProfileFields.length > 0 && (
+            <p className="mt-1 text-sm">
+              Missing: {missingProfileFields.join(', ')}.
+            </p>
+          )}
+        </div>
+      )}
       
       {/* --- HEADER SECTION --- */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
@@ -240,7 +301,7 @@ export default function CompanyProfile({ onError, onSuccess }) {
         {/* --- LEFT COLUMN: DETAILS --- */}
         <div className="space-y-6">
             {/* Attendance Card */}
-            {attendanceModel && !attendanceModel.isConfirmed && (
+            {attendanceModel && !attendanceModel.isConfirmed && !isOnSpotRegistration && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-3">
                   <CheckCircle className="w-5 h-5 text-blue-600" />
@@ -460,6 +521,10 @@ export default function CompanyProfile({ onError, onSuccess }) {
           onSave={async () => {
             setRefreshKey(k => k+1);
             setProfileEditSection(null);
+            if (shouldPromptInitialJobPost) {
+              setEditingJob(null);
+              setShowJobModal(true);
+            }
           }}
           onError={onError}
         />
@@ -614,6 +679,13 @@ function AddLinkButton({ onAdd }) {
 }
 
 function ProfileModal({ profile, section, onClose, onSave, onError }) {
+  const socialPlatformOptions = [
+    { platform: 0, label: 'LinkedIn' },
+    { platform: 1, label: 'Website' },
+    { platform: 2, label: 'Twitter' },
+    { platform: 3, label: 'Facebook' },
+    { platform: 4, label: 'Instagram' },
+  ];
   const [formData, setFormData] = useState({
     ...profile,
     description: profile?.description || '',
@@ -621,19 +693,34 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
     repsCount: profile?.companySettings?.repsCount ?? profile?.companySettings?.RepsCount ?? 1,
     Logo: null
   });
+  const [initialSocialLinks, setInitialSocialLinks] = useState(
+    socialPlatformOptions.map((option) => ({ ...option, url: '' }))
+  );
   const [loading, setLoading] = useState(false);
 
   const modalTitleMap = {
-    details: 'Edit Company Details',
+    details: 'Add Company Details',
     contact: 'Edit Official Contact',
     interview: 'Edit Interview Settings',
-    branding: 'Update Company Logo'
+    branding: 'Add Company Logo'
   };
 
+  const detailsAreAlreadyFilled = Boolean(
+    profile?.description ||
+    profile?.website ||
+    profile?.address
+  );
   const showDetails = section === 'details';
   const showContact = section === 'contact';
   const showInterview = section === 'interview';
   const showBranding = section === 'branding';
+  const isFirstTimeDetailsSetup = showDetails && !detailsAreAlreadyFilled;
+  const hasLogoAlready = Boolean(profile?.logoUrl);
+  const title = section === 'details' && detailsAreAlreadyFilled
+    ? 'Edit Company Details'
+    : section === 'branding' && hasLogoAlready
+      ? 'Update Company Logo'
+      : modalTitleMap[section] || 'Edit Company Profile';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -659,6 +746,25 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       onError('Logo must be an image file (PNG/JPG/JPEG/WEBP).');
       return;
     }
+
+    if (isFirstTimeDetailsSetup) {
+      const invalidLink = initialSocialLinks.find((link) => {
+        const url = String(link.url || '').trim();
+        if (!url) return false;
+        try {
+          const parsed = new URL(url);
+          return parsed.protocol !== 'http:' && parsed.protocol !== 'https:';
+        } catch {
+          return true;
+        }
+      });
+
+      if (invalidLink) {
+        onError(`Please enter a valid URL for ${invalidLink.label}.`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const data = new FormData();
@@ -672,6 +778,20 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       if(formData.Logo) data.append('Logo', formData.Logo);
       
       await updateCompanyProfile(data);
+
+      if (isFirstTimeDetailsSetup) {
+        const linksToAdd = initialSocialLinks
+          .map((link) => ({
+            platform: link.platform,
+            url: String(link.url || '').trim()
+          }))
+          .filter((link) => Boolean(link.url));
+
+        for (const link of linksToAdd) {
+          await addContactLink(link);
+        }
+      }
+
       onSave();
     } catch (err) { onError(err.message); } finally { setLoading(false); }
   };
@@ -681,7 +801,7 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
       <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-           <h3 className="text-lg font-bold text-gray-900">{modalTitleMap[section] || 'Edit Company Profile'}</h3>
+           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
@@ -719,6 +839,75 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
                    placeholder="Write a short company description"
                  />
                </div>
+
+               {isFirstTimeDetailsSetup && (
+                 <>
+                   <Input
+                     label="Expected Interview Time (minutes)"
+                     type="number"
+                     min="5"
+                     max="240"
+                     value={formData.interviewDurationMinutes}
+                     onChange={e => setFormData({...formData, interviewDurationMinutes: Number(e.target.value)})}
+                   />
+                   <Input
+                     label="Number of Representatives"
+                     type="number"
+                     min="1"
+                     max="100"
+                     value={formData.repsCount}
+                     onChange={e => setFormData({...formData, repsCount: Number(e.target.value)})}
+                   />
+                   <div className="pt-2">
+                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Upload Company Logo</label>
+                     <div className="flex items-center justify-center w-full">
+                       <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                         <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                           <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                           <p className="text-xs text-gray-500">PNG, JPG (MAX. 2MB)</p>
+                           {formData.Logo && <p className="mt-2 text-sm text-blue-600 font-bold">{formData.Logo.name}</p>}
+                         </div>
+                         <input
+                           type="file"
+                           accept="image/*"
+                           className="hidden"
+                           onChange={e => {
+                             const selected = e.target.files?.[0] || null;
+                             if (selected && !(selected.type || '').startsWith('image/')) {
+                               onError('Please select an image file only.');
+                               e.target.value = '';
+                               return;
+                             }
+                             setFormData({...formData, Logo: selected});
+                           }}
+                         />
+                       </label>
+                     </div>
+                   </div>
+
+                   <div className="pt-2">
+                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Social Links (Optional)</label>
+                     <div className="space-y-3">
+                       {initialSocialLinks.map((link, idx) => (
+                         <div key={link.platform}>
+                           <label className="block text-xs font-semibold text-gray-600 mb-1">{link.label}</label>
+                           <input
+                             type="url"
+                             placeholder={`https://${link.label.toLowerCase()}.com/...`}
+                             value={link.url}
+                             onChange={(e) => {
+                               const next = [...initialSocialLinks];
+                               next[idx] = { ...next[idx], url: e.target.value };
+                               setInitialSocialLinks(next);
+                             }}
+                             className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                           />
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 </>
+               )}
              </>
            )}
 

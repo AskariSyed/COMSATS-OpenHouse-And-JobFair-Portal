@@ -1,7 +1,17 @@
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Apple, ArrowRight, Briefcase, Building2, Download, ShieldCheck, Smartphone, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { featureGrid, portalUrls } from '../data/siteContent';
+
+type PublicNotice = {
+  noticeId: number;
+  title: string;
+  content: string;
+  audience: string;
+  isBanner?: boolean;
+  createdAt: string;
+};
 
 const jumpAnimation = {
   y: [0, -10, 0],
@@ -40,6 +50,41 @@ const cards = [
 ];
 
 export function HomePage() {
+  const [publicNotices, setPublicNotices] = useState<PublicNotice[]>([]);
+
+  useEffect(() => {
+    let disposed = false;
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+    const fetchPublicNotices = async () => {
+      try {
+        const response = await fetch(`${apiBase}/api/public/notices`);
+        if (!response.ok) throw new Error('Failed to fetch public notices');
+        const data = await response.json();
+        if (!disposed) {
+          setPublicNotices(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!disposed) {
+          setPublicNotices([]);
+        }
+      }
+    };
+
+    fetchPublicNotices();
+    const intervalId = window.setInterval(fetchPublicNotices, 5 * 60 * 1000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const regularNotices = useMemo(
+    () => publicNotices.filter((notice) => !notice.isBanner),
+    [publicNotices]
+  );
+
   return (
     <div className="space-y-12">
       <motion.section
@@ -177,6 +222,25 @@ export function HomePage() {
             <Link to="/admin" className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold">Admin Details</Link>
             <Link to="/how-to-use" className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold">How to Use</Link>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-blue-100 bg-white p-8 shadow-soft">
+        <h2 className="text-2xl font-extrabold">Public Notices</h2>
+        <p className="mt-2 text-sm text-slate-600">Latest announcements for visitors and participants.</p>
+        <div className="mt-5 space-y-3">
+          {regularNotices.length === 0 && (
+            <p className="text-sm text-slate-500">No public notices right now.</p>
+          )}
+          {regularNotices.map((notice) => (
+            <article key={notice.noticeId} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-base font-bold text-slate-900">{notice.title}</h3>
+                <span className="shrink-0 text-xs text-slate-500">{new Date(notice.createdAt).toLocaleDateString()}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{notice.content}</p>
+            </article>
+          ))}
         </div>
       </section>
     </div>

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Caching.Memory;
 using FirebaseAdmin;
 using JobFairPortal.Services;
 using System.Security.Claims;
+using System.Net;
 
 
 
@@ -66,12 +67,7 @@ namespace JobFairPortal.Controllers
             });
         }
 
-        // Note: Admin/Co-admin creation now uses OTP-based flow via 
-        // POST /api/admin/admins/request-otp and POST /api/admin/admins/create (see CreateAdminUser method below)
-
-        // -----------------------------
-        // Get All Companies (Global List, regardless of participation)
-        // -----------------------------
+      
             [HttpGet("companies/all")]
             public async Task<IActionResult> GetAllCompaniesGlobal(
                 [FromQuery] int page = 1,
@@ -893,6 +889,9 @@ namespace JobFairPortal.Controllers
             if (string.IsNullOrWhiteSpace(dto.FocalPersonPhone))
                 return BadRequest("Focal person phone is required.");
 
+            if (dto.RepsCount <= 0)
+                return BadRequest("Number of representatives is required.");
+
             var normalizedEmail = dto.Email.Trim().ToLowerInvariant();
 
             var existingCompanyWithSameEmail = await _context.Companies
@@ -909,7 +908,7 @@ namespace JobFairPortal.Controllers
 
             if (existingUser == null)
             {
-                generatedTempPassword = $"OnSpot@{Guid.NewGuid():N}";
+                generatedTempPassword = GenerateOnSpotPassword();
                 existingUser = new User
                 {
                     Email = normalizedEmail,
@@ -945,10 +944,11 @@ namespace JobFairPortal.Controllers
                 UpdatedAt = DateTime.UtcNow
             };
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
             _context.Companies.Add(company);
             await _context.SaveChangesAsync();
 
-            // âœ… FIX: Create Participation Record
             var participation = new CompanyJobFairParticipation
             {
                 CompanyId = company.CompanyId,
@@ -961,39 +961,87 @@ namespace JobFairPortal.Controllers
                 UpdatedAt = DateTime.UtcNow
             };
             _context.CompanyJobFairParticipations.Add(participation);
+
+            var assignedRoom = await FindBestVacantRoomAsync(activeJobFairId.Value, company.RepsCount);
+            if (assignedRoom != null)
+            {
+                assignedRoom.CompanyId = company.CompanyId;
+                assignedRoom.Status = RoomStatus.Alloted;
+                assignedRoom.UpdatedAt = DateTime.UtcNow;
+                participation.RoomId = assignedRoom.RoomId;
+            }
+
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var subject = "On-Spot Company Registration - Job Fair Portal";
-                    var body = generatedTempPassword == null
-                        ? $"""
-Hello {dto.FocalPersonName},
 
-Your company ({dto.Name}) has been registered on-spot for the active job fair.
+                    var safeCompanyName = WebUtility.HtmlEncode(dto.Name);
+                    var safeFocalPerson = WebUtility.HtmlEncode(dto.FocalPersonName);
+                    var safeEmail = WebUtility.HtmlEncode(normalizedEmail);
+                    var roomSection = assignedRoom == null
+                        ? "<p><strong>Room assignment:</strong> Pending. We will allocate the best available room automatically.</p>"
+                        : $"<p><strong>Room assignment:</strong> {WebUtility.HtmlEncode(assignedRoom.RoomName)} (Capacity: {assignedRoom.Capacity})</p>";
+                    var credentialSection = generatedTempPassword == null
+                        ? "<p>Your account already existed, so your previous password remains unchanged.</p>"
+                        : $"<p><strong>Temporary password:</strong> {WebUtility.HtmlEncode(generatedTempPassword)}</p><p>Please login and change your password immediately.</p>";
 
-Email: {normalizedEmail}
+                    var bodyTemplate = """
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6; }
+        .container { max-width: 640px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px; }
+        .header { background: #0f172a; color: #fff; padding: 20px; border-radius: 12px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 16px 0; }
+        .links a { color: #2563eb; text-decoration: none; }
+        .footer { color: #6b7280; font-size: 12px; margin-top: 24px; }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>On-Spot Registration Completed</h1>
+        </div>
+        <p>Dear <strong>__SAFE_FOCAL_PERSON__</strong>,</p>
+        <p>Your company <strong>__SAFE_COMPANY_NAME__</strong> has been registered for the active job fair.</p>
 
-Your account already existed, so your previous password remains unchanged.
+        <div class='card'>
+            <p><strong>Login email:</strong> __SAFE_EMAIL__</p>
+            __CREDENTIAL_SECTION__
+            <p><strong>Company Portal:</strong> <span class='links'><a href='https://company.jfair.tech'>company.jfair.tech</a></span></p>
+            <p><strong>Job Fair Site:</strong> <span class='links'><a href='https://jfair.tech'>jfair.tech</a></span></p>
+            __ROOM_SECTION__
+        </div>
 
-Regards,
-Job Fair Team
-"""
-                        : $"""
-Hello {dto.FocalPersonName},
+        <div class='card'>
+            <p><strong>Please complete your profile before moving forward.</strong></p>
+            <ul>
+                <li>Add your company description</li>
+                <li>Upload your logo</li>
+                <li>Post your jobs</li>
+                <li>Confirm your expected interview duration</li>
+            </ul>
+        </div>
 
-Your company ({dto.Name}) has been registered on-spot for the active job fair.
-
-Login email: {normalizedEmail}
-Temporary password: {generatedTempPassword}
-
-Please login and change your password immediately.
-
-Regards,
-Job Fair Team
+        <p>Regards,<br />Job Fair Team</p>
+        <div class='footer'>This is an automated message. Please do not reply directly to this email.</div>
+    </div>
+</body>
+</html>
 """;
+
+                    var body = bodyTemplate
+                        .Replace("__SAFE_FOCAL_PERSON__", safeFocalPerson)
+                        .Replace("__SAFE_COMPANY_NAME__", safeCompanyName)
+                        .Replace("__SAFE_EMAIL__", safeEmail)
+                        .Replace("__CREDENTIAL_SECTION__", credentialSection)
+                        .Replace("__ROOM_SECTION__", roomSection);
 
                     await _mailService.SendMailAsync(normalizedEmail, subject, body);
                 }
@@ -1003,11 +1051,10 @@ Job Fair Team
                 }
             });
 
-            return Ok(new CompanyResponseDto
+            return Ok(new
             {
-                CompanyId = company.CompanyId,
-                Name = company.Name,
-                Industry = company.Industry
+                success = true,
+                roomAllotted = assignedRoom != null
             });
         }
 
@@ -2863,9 +2910,9 @@ Job Fair Team
                     return Forbid();
             }
 
-            var notices = await query
+            var rawNotices = await query
                 .OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NoticeResponseDto
+                .Select(n => new
                 {
                     NoticeId = n.NoticeId,
                     Title = n.Title,
@@ -2875,6 +2922,19 @@ Job Fair Team
                     CreatedAt = n.CreatedAt
                 })
                 .ToListAsync();
+
+            var notices = rawNotices
+                .Select(n => new NoticeResponseDto
+                {
+                    NoticeId = n.NoticeId,
+                    Title = StripNoticeBannerPrefix(n.Title),
+                    Content = n.Content,
+                    Audience = n.Audience,
+                    IsHidden = n.IsHidden,
+                    IsBanner = HasNoticeBannerPrefix(n.Title),
+                    CreatedAt = n.CreatedAt
+                })
+                .ToList();
 
             return Ok(notices);
         }
@@ -3295,7 +3355,7 @@ Job Fair Team
 
             var notice = new Notice
             {
-                Title = dto.Title,
+                Title = dto.IsBanner ? AddNoticeBannerPrefix(dto.Title) : StripNoticeBannerPrefix(dto.Title),
                 Content = dto.Content,
                 Audience = dto.Audience,
                 JobFairId = activeJobFair.JobFairId,
@@ -3310,10 +3370,11 @@ Job Fair Team
             return Ok(new NoticeResponseDto
             {
                 NoticeId = notice.NoticeId,
-                Title = notice.Title,
+                Title = StripNoticeBannerPrefix(notice.Title),
                 Content = notice.Content,
                 Audience = notice.Audience.ToString(),
                 IsHidden = notice.IsHidden,
+                IsBanner = HasNoticeBannerPrefix(notice.Title),
                 CreatedAt = notice.CreatedAt
             });
         }
@@ -3327,7 +3388,7 @@ Job Fair Team
                 return NotFound("Notice not found.");
 
             // Update notice fields
-            notice.Title = dto.Title;
+            notice.Title = dto.IsBanner ? AddNoticeBannerPrefix(dto.Title) : StripNoticeBannerPrefix(dto.Title);
             notice.Content = dto.Content;
             notice.Audience = dto.Audience;
             notice.UpdatedAt = DateTime.UtcNow;
@@ -3337,12 +3398,37 @@ Job Fair Team
             return Ok(new NoticeResponseDto
             {
                 NoticeId = notice.NoticeId,
-                Title = notice.Title,
+                Title = StripNoticeBannerPrefix(notice.Title),
                 Content = notice.Content,
                 Audience = notice.Audience.ToString(),
                 IsHidden = notice.IsHidden,
+                IsBanner = HasNoticeBannerPrefix(notice.Title),
                 CreatedAt = notice.CreatedAt
             });
+        }
+
+        private const string NoticeBannerPrefix = "[BANNER] ";
+
+        private static bool HasNoticeBannerPrefix(string? value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.StartsWith(NoticeBannerPrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string StripNoticeBannerPrefix(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return HasNoticeBannerPrefix(value) ? value.Substring(NoticeBannerPrefix.Length).TrimStart() : value;
+        }
+
+        private static string AddNoticeBannerPrefix(string? value)
+        {
+            var normalized = StripNoticeBannerPrefix(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return string.Empty;
+
+            return NoticeBannerPrefix + normalized;
         }
         
         [HttpPut("Notice/{id}/toggle-visibility")]
@@ -3734,6 +3820,50 @@ Job Fair Team
             }
 
             return fallbackReps > 0 ? fallbackReps : 1;
+        }
+
+        private async Task<Room?> FindBestVacantRoomAsync(int jobFairId, int representativeCount)
+        {
+            if (jobFairId <= 0 || representativeCount <= 0)
+                return null;
+
+            return await _context.Rooms
+                .Where(r => r.JobFairId == jobFairId && r.Status == RoomStatus.Vacant && r.Capacity >= representativeCount)
+                .OrderBy(r => r.Capacity)
+                .ThenBy(r => r.RoomName)
+                .FirstOrDefaultAsync();
+        }
+
+        private static string GenerateOnSpotPassword()
+        {
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghijkmnopqrstuvwxyz";
+            const string digits = "23456789";
+            const string special = "@#$%!&*";
+            const string all = upper + lower + digits + special;
+
+            char Pick(string charset) => charset[System.Security.Cryptography.RandomNumberGenerator.GetInt32(charset.Length)];
+
+            var chars = new List<char>
+            {
+                Pick(upper),
+                Pick(lower),
+                Pick(digits),
+                Pick(special)
+            };
+
+            while (chars.Count < 10)
+            {
+                chars.Add(Pick(all));
+            }
+
+            for (var i = chars.Count - 1; i > 0; i--)
+            {
+                var swapIndex = System.Security.Cryptography.RandomNumberGenerator.GetInt32(i + 1);
+                (chars[i], chars[swapIndex]) = (chars[swapIndex], chars[i]);
+            }
+
+            return new string(chars.ToArray());
         }
 
         private void QueueManualRoomAllotmentNotifications(Company company, Room room, int repsCount, bool isConfirmed)

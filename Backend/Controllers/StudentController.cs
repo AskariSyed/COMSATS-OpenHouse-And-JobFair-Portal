@@ -3142,9 +3142,9 @@ namespace JobFairPortal.Controllers
             }
 
             // 5. Execute and Return
-            var notices = await query
+            var rawNotices = await query
                 .OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NoticeResponseDto
+                .Select(n => new
                 {
                     NoticeId = n.NoticeId,
                     Title = n.Title,
@@ -3154,7 +3154,34 @@ namespace JobFairPortal.Controllers
                 })
                 .ToListAsync();
 
+            var notices = rawNotices
+                .Select(n => new NoticeResponseDto
+                {
+                    NoticeId = n.NoticeId,
+                    Title = StripNoticeBannerPrefix(n.Title),
+                    Content = n.Content,
+                    Audience = n.Audience,
+                    IsBanner = HasNoticeBannerPrefix(n.Title),
+                    CreatedAt = n.CreatedAt
+                })
+                .ToList();
+
             return Ok(notices);
+        }
+
+        private const string NoticeBannerPrefix = "[BANNER] ";
+
+        private static bool HasNoticeBannerPrefix(string? value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.StartsWith(NoticeBannerPrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string StripNoticeBannerPrefix(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return HasNoticeBannerPrefix(value) ? value.Substring(NoticeBannerPrefix.Length).TrimStart() : value;
         }
         [HttpGet("participation-history")]
         public async Task<IActionResult> GetParticipationHistory()
