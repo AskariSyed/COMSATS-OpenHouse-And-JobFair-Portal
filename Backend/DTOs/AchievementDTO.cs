@@ -8,7 +8,7 @@ namespace JobFairPortal.DTOs
         public int AchievementId { get; set; }
         public string Title { get; set; } = null!;
         public string? Description { get; set; }
-        public DateTime? DateAchieved { get; set; }
+        public DateTime?  DateAchieved { get; set; }
     }
     public class AchievementUpdateDto
     {
