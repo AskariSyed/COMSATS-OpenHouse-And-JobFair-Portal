@@ -803,13 +803,13 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-down my-2 sm:my-6 max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-3rem)] flex flex-col">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
            <h3 className="text-lg font-bold text-gray-900">{title}</h3>
            <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
            {showContact && (
              <>
                <Input label="Official Email" value={formData.contactInfo.email} onChange={e => setFormData({...formData, contactInfo: {...formData.contactInfo, email: e.target.value}})} />
@@ -964,7 +964,7 @@ function ProfileModal({ profile, section, onClose, onSave, onError }) {
               </div> 
                    </div>}
 
-           <div className="pt-4 flex gap-3">
+            <div className="pt-4 flex gap-3 sticky bottom-0 bg-white">
               <button type="button" onClick={onClose} className="flex-1 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-colors">Cancel</button>
               <button disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex justify-center gap-2 transition-colors shadow-lg shadow-blue-200">
                  {loading ? <Loader2 className="animate-spin w-5 h-5"/> : 'Save Changes'}
