@@ -14,7 +14,7 @@ namespace JobFairPortal.Models
         public string SessionToken { get; set; } = null!;
 
         [Required]
-        public int JobFairId { get; set; }
+        public int  JobFairId { get; set; }
 
         public string? CreatedByAdmin { get; set; }
 

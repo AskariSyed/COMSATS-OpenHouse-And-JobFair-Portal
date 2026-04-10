@@ -37,7 +37,7 @@
 }
 
 .animate-fade-in-down {
-  animation: fadeInDown 0.5s ease-out forwards;
+  animation: fadeInDown  0.5s ease-out forwards;
 }
 
 @keyframes companySurveyMarquee {
