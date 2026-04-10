@@ -326,10 +326,33 @@ jobs:
 
         sudo chown www-data:www-data /var/www/api/config/firebase.json
 
-        echo "==> Restarting Backend..."
-        sudo pkill dotnet || true
-        cd /var/www/api
-        nohup dotnet JobFairPortal.dll > app.log 2>&1 &
+        echo "==> Configuring Backend systemd service..."
+        if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          printf '%s\n' \
+            '[Unit]' \
+            'Description=JobFair Backend API' \
+            'After=network.target' \
+            '' \
+            '[Service]' \
+            'WorkingDirectory=/var/www/api' \
+            'ExecStart=/usr/bin/dotnet /var/www/api/JobFairPortal.dll' \
+            'Restart=always' \
+            'RestartSec=5' \
+            'KillSignal=SIGINT' \
+            'SyslogIdentifier=jobfair-backend' \
+            'User=www-data' \
+            'Environment=ASPNETCORE_ENVIRONMENT=Production' \
+            'Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false' \
+            '' \
+            '[Install]' \
+            'WantedBy=multi-user.target' \
+            | sudo tee /etc/systemd/system/jobfair-backend.service > /dev/null
+
+          sudo systemctl daemon-reload
+          sudo systemctl enable jobfair-backend
+          sudo systemctl restart jobfair-backend
+          sudo systemctl status jobfair-backend --no-pager -l || true
+        fi
         
         # Set proper permissions
         sudo find /var/www/admin /var/www/company /var/www/student /var/www/jfair -type d -exec chmod 755 {} \;
