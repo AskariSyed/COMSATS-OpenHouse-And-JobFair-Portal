@@ -2,13 +2,14 @@ import React from 'react';
 
 const Footer = () => {
   return (
+    
     <footer className="bg-slate-800 text-gray-300 mt-auto">
       {/* Top Section with Links */}
       <div className="border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex flex-col items-center">
             <h3 className="text-white text-lg font-semibold mb-4">
-              COMSATS University Islamabad, Wah Campus
+              COMSATS University Islamabad, Wah Campus 
             </h3>
             <div className="flex flex-wrap justify-center gap-6 text-sm">
               <a 

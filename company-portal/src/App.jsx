@@ -9,6 +9,7 @@ import { requestFcmToken, subscribeToForegroundMessages } from './lib/firebase';
 import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair, getPendingInterviewRequests, getAnalytics } from './lib/api';
 
 export default function App() {
+  
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
   const [activeTab, setActiveTab] = useState('overview');

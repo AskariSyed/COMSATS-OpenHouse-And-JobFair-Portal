@@ -1349,7 +1349,7 @@ namespace JobFairPortal.Controllers
                 AvailableJobFairs = availableJobFairs,
                 SelectedJobFairId = selectedJobFairId,
                 CurrentJobFairId = currentJobFairId,
-                CanExportToCurrentJobFair = canExportToCurrentJobFair,
+                CanExportToCurrentJobFair =  canExportToCurrentJobFair,
                 Summary = new
                 {
                     TotalJobsPosted = jobs.Count,

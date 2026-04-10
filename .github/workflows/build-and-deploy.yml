@@ -213,10 +213,15 @@ jobs:
         dotnet restore
         dotnet build --configuration Release
         dotnet publish --configuration Release --output publish
+        if [ ! -f "publish/JobFairPortal.dll" ]; then
+          echo "Backend publish output missing: Backend/publish/JobFairPortal.dll"
+          ls -la publish || true
+          exit 1
+        fi
     
     # Create deployment artifacts
     - name: Package artifacts
-      if: always()
+      if: success()
       run: |
         mkdir -p deploy-artifacts
         
@@ -234,7 +239,15 @@ jobs:
           cp student-portal/build/app/outputs/flutter-apk/app-release.apk deploy-artifacts/student-portal.apk
         fi
         if [ "${{ steps.changes.outputs.backend }}" = "true" ]; then
+          if [ ! -d "Backend/publish" ]; then
+            echo "Backend publish directory missing: Backend/publish"
+            exit 1
+          fi
           tar -czf deploy-artifacts/backend.tar.gz -C Backend/publish .
+          if [ ! -s "deploy-artifacts/backend.tar.gz" ]; then
+            echo "Failed to create backend artifact: deploy-artifacts/backend.tar.gz"
+            exit 1
+          fi
         fi
         
         echo "Artifacts packaged:"
@@ -242,7 +255,7 @@ jobs:
     
     # Setup SSH and deploy to EC2
     - name: Deploy to EC2
-      if: always()
+      if: success()
       env:
         EC2_PEM_KEY: ${{ secrets.EC2_PEM_KEY }}
         FIREBASE_CONFIG_JSON: ${{ secrets.FIREBASE_CONFIG_JSON }}
@@ -322,7 +335,7 @@ jobs:
 
           # Keep uploads persistent across backend deployments.
           sudo mkdir -p /var/www/uploads /var/www/api/wwwroot
-          sudo rm -rf /var/www/api/uploads /var/www/api/wwwroot/uploads
+          sudo rm -rf /var/www/api/uploads /var/www/api/wwwroot/uploads 
           sudo ln -sfn /var/www/uploads /var/www/api/uploads
           sudo ln -sfn /var/www/uploads /var/www/api/wwwroot/uploads
 
