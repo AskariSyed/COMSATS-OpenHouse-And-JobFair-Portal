@@ -68,12 +68,22 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
         return;
     }
 
-    // Local development defaults
-    serverOptions.ListenAnyIP(5158); // HTTP
-    serverOptions.ListenAnyIP(7050, listenOptions =>
+    var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+    
+    if (environment == "Production")
     {
-        listenOptions.UseHttps();    // HTTPS
-    });
+        // Production: HTTP only through reverse proxy (Nginx handles HTTPS)
+        serverOptions.ListenAnyIP(5158);
+    }
+    else
+    {
+        // Local development: HTTP + HTTPS
+        serverOptions.ListenAnyIP(5158); // HTTP
+        serverOptions.ListenAnyIP(7050, listenOptions =>
+        {
+            listenOptions.UseHttps();    // HTTPS
+        });
+    }
 });
 builder.Services.AddCors(options =>
 {
