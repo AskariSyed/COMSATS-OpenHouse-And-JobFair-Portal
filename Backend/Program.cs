@@ -35,7 +35,7 @@ builder.Services.AddSignalR();
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    throw new InvalidOperationException("Configuration key 'Jwt:Key' is missing or empty.");
+    throw new InvalidOperationException("Configuration key 'Jwt:Key' is still missing or empty.");
 }
 
 var firebaseServiceAccountJson = builder.Configuration["Firebase:ServiceAccountJson"];

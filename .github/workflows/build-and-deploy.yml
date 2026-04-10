@@ -241,6 +241,7 @@ jobs:
       if: always()
       env:
         EC2_PEM_KEY: ${{ secrets.EC2_PEM_KEY }}
+        FIREBASE_CONFIG_JSON: ${{ secrets.FIREBASE_CONFIG_JSON }}
       run: |
         # Setup SSH
         mkdir -p ~/.ssh
@@ -322,12 +323,12 @@ jobs:
 
         sudo mkdir -p /var/www/api/config
 
-        if [ -z "${{ secrets.FIREBASE_CONFIG_JSON }}" ]; then
+        if [ -z "$FIREBASE_CONFIG_JSON" ]; then
           echo "ERROR: FIREBASE_CONFIG_JSON secret is missing."
           exit 1
         fi
 
-        printf '%s' "${{ secrets.FIREBASE_CONFIG_JSON }}" | sudo tee /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json > /dev/null
+        printf '%s' "$FIREBASE_CONFIG_JSON" | sudo tee /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json > /dev/null
         sudo cp /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json /var/www/api/config/firebase.json
 
         sudo chown www-data:www-data /var/www/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json /var/www/api/config/firebase.json
