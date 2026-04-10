@@ -11,6 +11,7 @@ const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])
 
 export default function CompanyProfile({ onError, onSuccess, onProfileCompletionChange }) {
   const onErrorRef = useRef(onError);
+  const onProfileCompletionChangeRef = useRef(onProfileCompletionChange);
   const autoOpenedIncompleteRef = useRef(false);
   const [profile, setProfile] = useState(null);
   const [attendance, setAttendance] = useState(null);
@@ -34,6 +35,10 @@ export default function CompanyProfile({ onError, onSuccess, onProfileCompletion
   }, [onError]);
 
   useEffect(() => {
+    onProfileCompletionChangeRef.current = onProfileCompletionChange;
+  }, [onProfileCompletionChange]);
+
+  useEffect(() => {
     setLoading(true);
     Promise.all([
       getCompanyProfile(),
@@ -43,16 +48,16 @@ export default function CompanyProfile({ onError, onSuccess, onProfileCompletion
         setProfile(profileData);
         setAttendance(attendanceData);
 
-        if (onProfileCompletionChange) {
+        if (onProfileCompletionChangeRef.current) {
           const completion = profileData?.profileCompletion || profileData?.ProfileCompletion || {};
           const isComplete = Boolean(completion.isComplete ?? completion.IsComplete ?? true);
           const missingFields = completion.missingFields || completion.MissingFields || [];
-          onProfileCompletionChange({ isComplete, missingFields });
+          onProfileCompletionChangeRef.current({ isComplete, missingFields });
         }
       })
       .catch(err => onErrorRef.current?.(err.message))
       .finally(() => setLoading(false));
-  }, [refreshKey, onProfileCompletionChange]);
+  }, [refreshKey]);
 
   const contactInfo = profile?.contactInfo || {};
   const focalPerson = profile?.focalPerson || {};

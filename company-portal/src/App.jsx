@@ -9,7 +9,7 @@ import { requestFcmToken, subscribeToForegroundMessages } from './lib/firebase';
 import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair, getPendingInterviewRequests, getAnalytics } from './lib/api';
 
 export default function App() {
-  
+
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
   const [activeTab, setActiveTab] = useState('overview');
@@ -18,6 +18,7 @@ export default function App() {
   const [participationLoading, setParticipationLoading] = useState(false);
   const [participationRepsCount, setParticipationRepsCount] = useState(1);
   const [studentProfileContext, setStudentProfileContext] = useState('current');
+  const [surveySubmitted, setSurveySubmitted] = useState(false);
   const [notificationCounts, setNotificationCounts] = useState({ interviews: 0, overview: 0 });
   const [nextIncomingInterview, setNextIncomingInterview] = useState(null);
   const [fcmPopup, setFcmPopup] = useState(null);
@@ -388,6 +389,7 @@ export default function App() {
           onTabChange={setActiveTab}
           notificationCounts={notificationCounts}
           nextIncomingInterview={nextIncomingInterview}
+          surveySubmitted={surveySubmitted}
         >
           <CompanyDashboard
             user={user}
@@ -397,6 +399,7 @@ export default function App() {
             onProfileContextChange={setStudentProfileContext}
             onSuccess={(m) => showNotification(m, 'success')}
             onError={(m) => showNotification(m, 'error')}
+            onSurveySubmittedChange={setSurveySubmitted}
           />
         </DashboardLayout>
       )}

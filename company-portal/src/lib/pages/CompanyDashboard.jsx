@@ -53,7 +53,7 @@ const isAfterMandatorySurveyTimePkt = (jobFairDate) => {
   return now.hour > 14 || (now.hour === 14 && now.minute >= 0);
 };
 
-export default function CompanyDashboard({ user, onError, onSuccess, activeTab, onTabChange, profileContext, onProfileContextChange }) {
+export default function CompanyDashboard({ user, onError, onSuccess, activeTab, onTabChange, profileContext, onProfileContextChange, onSurveySubmittedChange }) {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [showAttendanceScanner, setShowAttendanceScanner] = useState(false);
@@ -204,6 +204,12 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
     reminderStorageKey,
   ]);
 
+  useEffect(() => {
+    if (onSurveySubmittedChange) {
+      onSurveySubmittedChange(surveySubmitted);
+    }
+  }, [surveySubmitted, onSurveySubmittedChange]);
+
   const refreshAttendanceStatus = () => {
     getConfirmationStatus()
       .then((status) => setAttendanceStatus(status))
@@ -223,6 +229,10 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
 
   if (showSurveyHeadline) {
     bannerMessages.push('Fill both CDC and Department surveys today to be eligible for your Job Fair participation certificate.');
+  }
+
+  if (surveySubmitted && isJobFairDay && Boolean(normalizedAttendance?.isPresent)) {
+    bannerMessages.push('🎉 Congratulations! You have successfully completed the surveys. You are now eligible to collect your Job Fair participation certificate from the authorized personnel.');
   }
 
   if (companyBannerNotices.length > 0) {
@@ -350,7 +360,7 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
         <CompanyProfile
           onError={onError}
           onSuccess={onSuccess}
-          onProfileCompletionChange={(completion) => setProfileCompletion(completion)}
+          onProfileCompletionChange={setProfileCompletion}
         />
       )}
       {activeTab === 'students' && (

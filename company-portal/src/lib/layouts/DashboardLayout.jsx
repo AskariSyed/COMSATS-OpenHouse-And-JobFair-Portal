@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2, Package, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2, Package, ClipboardList, CheckCircle } from 'lucide-react';
 import logo from '../../assets/CuiWahJobFairLogo.png';
 
-export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children, notificationCounts = {}, nextIncomingInterview = null }) {
+export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children, notificationCounts = {}, nextIncomingInterview = null, surveySubmitted = false }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -39,6 +39,8 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
   const NavItem = ({ item }) => {
     const isActive = activeTab === item.id;
+    const isSubmittedSurvey = item.id === 'surveys' && surveySubmitted;
+    
     return (
       <button 
         onClick={() => { onTabChange(item.id); setIsMobileMenuOpen(false); }}
@@ -51,6 +53,9 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
         <div className="flex items-center gap-3">
           <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
           <span className="font-medium text-sm">{item.label}</span>
+          {isSubmittedSurvey && (
+            <CheckCircle className={`w-4 h-4 ml-1 flex-shrink-0 ${isActive ? 'text-green-300' : 'text-green-500'}`} />
+          )}
           {item.badge > 0 && (
             <span className="ml-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
               {item.badge > 99 ? '99+' : item.badge}
