@@ -3451,15 +3451,29 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             // Respect custom start time if provided.
             var defaultStartTime = nowUtc > dayStart ? nowUtc : dayStart;
             var startTime = requestedStartTimeUtc ?? defaultStartTime;
+            string? startTimeAdjustmentReason = null;
 
-            if (startTime < defaultStartTime)
+            if (requestedStartTimeUtc.HasValue && startTime < defaultStartTime)
+            {
+                startTimeAdjustmentReason = "Requested start time is in the past. Scheduling started from the earliest allowed current time.";
                 startTime = defaultStartTime;
+            }
 
             if (startTime < dayStart)
+            {
+                startTimeAdjustmentReason ??= "Requested start time is before the interview working window.";
                 startTime = dayStart;
+            }
 
             if (startTime > hardStop)
-                return BadRequest("Requested start time is outside the allowed working window.");
+                return BadRequest(new
+                {
+                    Message = "Requested start time is outside the allowed working window.",
+                    RequestedStartTimeUtc = requestedStartTimeUtc,
+                    EarliestAllowedStartUtc = defaultStartTime,
+                    WorkingWindowStartUtc = dayStart,
+                    WorkingWindowEndUtc = hardStop
+                });
 
             var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
             if (interviewDurationMinutes <= 0) return BadRequest("Interview duration is not configured for this company.");
@@ -3494,7 +3508,14 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                 requestsToSchedule.Count);
 
             if (!requestsToSchedule.Any())
-                return Ok(new { Message = "No accepted requests to schedule." });
+                return Ok(new
+                {
+                    Message = "No accepted requests to schedule.",
+                    RequestedStartTimeUtc = requestedStartTimeUtc,
+                    AppliedStartTimeUtc = startTime,
+                    StartTimeAdjusted = startTimeAdjustmentReason != null,
+                    StartTimeAdjustmentReason = startTimeAdjustmentReason
+                });
 
             var studentIds = requestsToSchedule.Select(r => r.StudentId).Distinct().ToList();
 
@@ -3865,7 +3886,16 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
                         ScheduledTime = i.ScheduledTime
                     }).ToList();
 
-                    return Ok(new { Message = "Interviews scheduled successfully.", Count = result.Count, Scheduled = result });
+                    return Ok(new
+                    {
+                        Message = "Interviews scheduled successfully.",
+                        Count = result.Count,
+                        Scheduled = result,
+                        RequestedStartTimeUtc = requestedStartTimeUtc,
+                        AppliedStartTimeUtc = startTime,
+                        StartTimeAdjusted = startTimeAdjustmentReason != null,
+                        StartTimeAdjustmentReason = startTimeAdjustmentReason
+                    });
                 }
                 catch (Exception ex)
                 {
