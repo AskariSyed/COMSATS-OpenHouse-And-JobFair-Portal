@@ -3411,7 +3411,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             if (participation == null) return BadRequest("Company is not registered for the active job fair.");
             if (!participation.IsPresent) return BadRequest("Company is not marked present for the active job fair.");
 
-            var scheduleDate = (date ?? activeJobFair.date).Date;
+            var requestedStartTimeUtc = date.HasValue
+                ? DateTime.SpecifyKind(date.Value, DateTimeKind.Utc)
+                : (DateTime?)null;
+
+            var scheduleDate = (requestedStartTimeUtc ?? activeJobFair.date).Date;
 
             // Boundaries (kept simple — adjust timezone handling as needed)
             var buffer = TimeSpan.FromSeconds(90);
@@ -3419,9 +3423,15 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(scheduleDate);
             var (lunchStart, lunchEnd) = GetLunchBreakWindowUtc(scheduleDate);
             
-            // Respect custom start time if provided and in the future relative to now/dayStart
+            // Respect custom start time if provided.
             var defaultStartTime = nowUtc > dayStart ? nowUtc : dayStart;
-            var startTime = (date.HasValue && date.Value > defaultStartTime) ? date.Value : defaultStartTime;
+            var startTime = requestedStartTimeUtc ?? defaultStartTime;
+
+            if (startTime < dayStart)
+                startTime = dayStart;
+
+            if (startTime > hardStop)
+                return BadRequest("Requested start time is outside the allowed working window.");
 
             var interviewDurationMinutes = participation.InterviewDurationMinutes > 0 ? participation.InterviewDurationMinutes : company.InterviewDurationMinutes;
             if (interviewDurationMinutes <= 0) return BadRequest("Interview duration is not configured for this company.");

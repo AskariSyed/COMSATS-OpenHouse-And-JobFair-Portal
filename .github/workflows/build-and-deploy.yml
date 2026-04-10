@@ -66,6 +66,54 @@ jobs:
         echo "Landing: ${{ steps.changes.outputs.landing }}"
         echo "Student: ${{ steps.changes.outputs.student }}"
         echo "Backend: ${{ steps.changes.outputs.backend }}"
+
+    - name: Validate Firebase web secrets
+      run: |
+        set -e
+
+        fail=false
+
+        if [ -z "${VITE_FIREBASE_API_KEY}" ]; then
+          echo "ERROR: FIREBASE_API_KEY secret is missing."
+          fail=true
+        fi
+
+        if [ -z "${VITE_FIREBASE_APP_ID}" ]; then
+          echo "ERROR: FIREBASE_APP_ID secret is missing."
+          fail=true
+        fi
+
+        if [ -z "${VITE_FIREBASE_PROJECT_ID}" ]; then
+          echo "ERROR: FIREBASE_PROJECT_ID secret is missing."
+          fail=true
+        fi
+
+        if [ -z "${VITE_FIREBASE_VAPID_KEY}" ]; then
+          echo "ERROR: FIREBASE_VAPID_KEY secret is missing."
+          fail=true
+        fi
+
+        if ! printf '%s' "${VITE_FIREBASE_API_KEY}" | grep -Eq '^AIza[0-9A-Za-z_-]{20,}$'; then
+          echo "ERROR: FIREBASE_API_KEY format looks invalid for a Firebase Web API key."
+          fail=true
+        fi
+
+        if ! printf '%s' "${VITE_FIREBASE_APP_ID}" | grep -Eq '^[0-9]+:[0-9]+:web:[0-9a-f]+$'; then
+          echo "ERROR: FIREBASE_APP_ID format looks invalid. Expected <projectNumber>:<senderId>:web:<hash>."
+          fail=true
+        fi
+
+        if ! printf '%s' "${VITE_FIREBASE_VAPID_KEY}" | tr -d '\r\n\t ' | grep -Eq '^[A-Za-z0-9_-]{80,}$'; then
+          echo "ERROR: FIREBASE_VAPID_KEY format looks invalid."
+          fail=true
+        fi
+
+        if [ "$fail" = true ]; then
+          echo "Firebase secret validation failed. Fix GitHub Secrets and rerun."
+          exit 1
+        fi
+
+        echo "Firebase secret validation passed."
     
     # Setup Node.js for React apps
     - name: Setup Node.js
