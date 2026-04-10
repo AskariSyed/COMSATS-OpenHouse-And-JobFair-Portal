@@ -1057,7 +1057,23 @@ function JobModal({ job, onClose, onSave, onError }) {
   const [formData, setFormData] = useState(job || { JobTitle: '', JobDescription: '', JobCount: 1, JobType: 0, RequiredSkills: [] });
   const [skillInput, setSkillInput] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
+  const [skillSuggestions, setSkillSuggestions] = useState([]);
+  const [showSkillSuggestions, setShowSkillSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const query = skillInput.trim().toLowerCase();
+    if (!query) {
+      setSkillSuggestions([]);
+      setShowSkillSuggestions(false);
+      return;
+    }
+
+    const skills = (formData.RequiredSkills || formData.requiredSkills || []).map((skill) => String(skill).toLowerCase());
+    const matches = allSkillsList.filter((skill) => skill.toLowerCase().includes(query) && !skills.includes(skill.toLowerCase()));
+    setSkillSuggestions(matches.slice(0, 8));
+    setShowSkillSuggestions(true);
+  }, [skillInput, formData.RequiredSkills, formData.requiredSkills]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1091,6 +1107,8 @@ function JobModal({ job, onClose, onSave, onError }) {
        }
        setSkillInput('');
        setSelectedSkill('');
+       setSkillSuggestions([]);
+       setShowSkillSuggestions(false);
     }
   };
 
@@ -1125,19 +1143,58 @@ function JobModal({ job, onClose, onSave, onError }) {
            
            <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Required Skills</label>
-              <div className="flex gap-2 mb-3">
-                 <select
-                   className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
-                   value={selectedSkill}
-                   onChange={e => setSelectedSkill(e.target.value)}
-                 >
-                   <option value="">Select skill from list...</option>
-                   {allSkillsList.map(skill => (
-                     <option key={skill} value={skill}>{skill}</option>
-                   ))}
-                 </select>
-                 <input className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" value={skillInput} onChange={e => setSkillInput(e.target.value)} placeholder="Or type custom skill..." />
-                 <button onClick={addSkill} className="bg-blue-50 text-blue-600 px-4 rounded-lg text-sm font-bold hover:bg-blue-100 border border-blue-100">Add</button>
+              <div className="relative mb-3">
+                <div className="flex gap-2">
+                   <select
+                     className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                     value={selectedSkill}
+                     onChange={e => {
+                       const value = e.target.value;
+                       setSelectedSkill(value);
+                       if (value) {
+                         setSkillInput('');
+                         setSkillSuggestions([]);
+                         setShowSkillSuggestions(false);
+                       }
+                     }}
+                   >
+                     <option value="">Select skill from list...</option>
+                     {allSkillsList.map(skill => (
+                       <option key={skill} value={skill}>{skill}</option>
+                     ))}
+                   </select>
+                   <input
+                     className="flex-1 border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500"
+                     value={skillInput}
+                     onChange={e => {
+                       setSkillInput(e.target.value);
+                       setSelectedSkill('');
+                     }}
+                     onFocus={() => skillInput.trim() && setShowSkillSuggestions(true)}
+                     onBlur={() => setTimeout(() => setShowSkillSuggestions(false), 180)}
+                     placeholder="Type to search skills..."
+                   />
+                   <button onClick={addSkill} className="bg-blue-50 text-blue-600 px-4 rounded-lg text-sm font-bold hover:bg-blue-100 border border-blue-100">Add</button>
+                </div>
+
+                {showSkillSuggestions && skillSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                    {skillSuggestions.map((skill) => (
+                      <button
+                        key={skill}
+                        type="button"
+                        onMouseDown={() => {
+                          setSkillInput(skill);
+                          setSelectedSkill(skill);
+                          setShowSkillSuggestions(false);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                      >
+                        {skill}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-gray-50 rounded-lg border border-gray-100">
                  {(formData.RequiredSkills || formData.requiredSkills || []).map((s, i) => (

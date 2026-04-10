@@ -17,6 +17,7 @@
         public int TotalInterviews { get; set; }
         public int InterviewsScheduled { get; set; }
         public int InterviewsQueued { get; set; }
+        public int InterviewsDidNotAppear { get; set; }
         public int InterviewsRejected { get; set; }
         public int CDCSurveysReceived { get; set; }
         public int DepartmentSurveysReceived { get; set; }

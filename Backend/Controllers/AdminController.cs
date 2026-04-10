@@ -1342,6 +1342,7 @@ namespace JobFairPortal.Controllers
                     // Scheduled and queued are made exclusive for clearer dashboard stage reporting.
                     InterviewsScheduled = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Queued && i.ScheduledTime.HasValue),
                     InterviewsQueued = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Queued && !i.ScheduledTime.HasValue),
+                    InterviewsDidNotAppear = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.DidNotAppear),
                     StudentsHired = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Hired),
                     StudentsShortlisted = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Shortlisted),
                     InterviewsRejected = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Rejected),
@@ -2823,6 +2824,7 @@ namespace JobFairPortal.Controllers
                 {
                     Scheduled = interviews.Count(i => i.Status == InterviewStatus.Queued && i.ScheduledTime.HasValue),
                     Queued = interviews.Count(i => i.Status == InterviewStatus.Queued && !i.ScheduledTime.HasValue),
+                    DidNotAppear = interviews.Count(i => i.Status == InterviewStatus.DidNotAppear),
                     Hired = interviews.Count(i => i.Status == InterviewStatus.Hired),
                     Shortlisted = interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
                     Rejected = interviews.Count(i => i.Status == InterviewStatus.Rejected),

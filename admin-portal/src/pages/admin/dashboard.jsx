@@ -110,6 +110,7 @@ const Dashboard = () => {
     { name: 'Total', count: stats?.totalInterviews || 0, color: '#0EA5E9' },
     { name: 'Scheduled', count: stats?.interviewsScheduled || 0, color: '#8B5CF6' },
     { name: 'Queued', count: stats?.interviewsQueued || 0, color: '#F59E0B' },
+    { name: 'Did Not Appear', count: stats?.interviewsDidNotAppear || 0, color: '#6B7280' },
     { name: 'Hired', count: stats?.studentsHired || 0, color: '#10B981' },
     { name: 'Shortlisted', count: stats?.studentsShortlisted || 0, color: '#6366F1' },
     { name: 'Rejected', count: stats?.interviewsRejected || 0, color: '#EF4444' },

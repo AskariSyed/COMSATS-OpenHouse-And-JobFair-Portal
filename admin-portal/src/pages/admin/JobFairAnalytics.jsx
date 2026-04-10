@@ -680,6 +680,7 @@ const JobFairAnalytics = () => {
     { name: 'Total', count: data?.overallStats?.totalInterviews || 0, color: '#0EA5E9' },
     { name: 'Scheduled', count: data?.interviewStats?.scheduled || 0, color: '#8B5CF6' },
     { name: 'Queued', count: (data?.interviewStats?.queued ?? data?.interviewStats?.pending) || 0, color: '#F59E0B' },
+    { name: 'Did Not Appear', count: data?.interviewStats?.didNotAppear || 0, color: '#6B7280' },
     { name: 'Hired', count: data?.interviewStats?.hired || 0, color: '#10B981' },
     { name: 'Shortlisted', count: data?.interviewStats?.shortlisted || 0, color: '#6366F1' },
     { name: 'Rejected', count: data?.interviewStats?.rejected || 0, color: '#EF4444' }
