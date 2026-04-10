@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { getAllJobFairs, blockCompany, unblockCompany, getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
-import { Eye, Ban, CheckCircle, Building2, Mail, Phone, Globe, Users, MapPin } from 'lucide-react';
+import { Eye, Ban, CheckCircle, Building2, Mail, Phone, Globe, Users, MapPin, ArrowUpDown } from 'lucide-react';
 
 const normalizeCompany = (company) => {
   const companyId = company.companyId || company.CompanyId || company.id || company.Id;
@@ -51,6 +51,7 @@ const AllCompaniesList = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('participated'); // 'participated' | 'all'
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
 
   // Move function declarations above useEffect to avoid hoisting errors
@@ -107,6 +108,28 @@ const AllCompaniesList = () => {
     }
   };
 
+  const sortedCompanies = useMemo(() => {
+    return [...companies].sort((a, b) => {
+      const directionFactor = sortConfig.direction === 'asc' ? 1 : -1;
+      if (sortConfig.key === 'industry') {
+        return ((a.industry || '').localeCompare(b.industry || '') * directionFactor);
+      }
+      if (sortConfig.key === 'roomName') {
+        return ((a.roomName || '').localeCompare(b.roomName || '') * directionFactor);
+      }
+      return ((a.name || '').localeCompare(b.name || '') * directionFactor);
+    });
+  }, [companies, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">All Companies Directory</h1>
@@ -145,21 +168,33 @@ const AllCompaniesList = () => {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-4 text-left">Company</th>
-              <th className="px-6 py-4 text-left">Industry</th>
+              <th className="px-6 py-4 text-left">
+                <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                  Company <ArrowUpDown size={12} />
+                </button>
+              </th>
+              <th className="px-6 py-4 text-left">
+                <button type="button" onClick={() => toggleSort('industry')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                  Industry <ArrowUpDown size={12} />
+                </button>
+              </th>
               <th className="px-6 py-4 text-left">Company Contact</th>
               <th className="px-6 py-4 text-left">Focal Person</th>
-              <th className="px-6 py-4 text-left">Room Status</th>
+              <th className="px-6 py-4 text-left">
+                <button type="button" onClick={() => toggleSort('roomName')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                  Room Status <ArrowUpDown size={12} />
+                </button>
+              </th>
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr><td colSpan="6" className="text-center py-8">Loading...</td></tr>
-            ) : companies.length === 0 ? (
+            ) : sortedCompanies.length === 0 ? (
               <tr><td colSpan="6" className="text-center py-8">No companies found.</td></tr>
             ) : (
-              companies.map(company => (
+              sortedCompanies.map(company => (
                 <tr
                   key={company.companyId}
                   className="border-b hover:bg-indigo-50 cursor-pointer"

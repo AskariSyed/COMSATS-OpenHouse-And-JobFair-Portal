@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from 'react';
-import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download, Bell, ChevronDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Clock, CheckCircle2, XCircle, Calendar, Loader2, Inbox, Send, History, User, ArrowDownLeft, ArrowUpRight, Download, Bell, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { getPendingInterviewRequests, getAllInterviewRequests, getAnalytics, acceptInterviewRequest, rejectInterviewRequest, getFileUrl, getStudentAvailability, scheduleStudentInterview, startInterview, completeInterview, getStudentProfile, scheduleAllInterviews, rescheduleInterview, notifyStudent } from '../api';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 
@@ -86,6 +86,40 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
   const [notifyBody, setNotifyBody] = useState('');
   const [sendingNotification, setSendingNotification] = useState(false);
   const [quickNotifyKey, setQuickNotifyKey] = useState('');
+  const [acceptedSort, setAcceptedSort] = useState({ key: 'studentName', direction: 'asc' });
+  const [scheduledSort, setScheduledSort] = useState({ key: 'studentName', direction: 'asc' });
+  const [completedSort, setCompletedSort] = useState({ key: 'studentName', direction: 'asc' });
+
+  const toggleSort = (setter, current, key) => {
+    setter({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' });
+  };
+
+  const sortedAcceptedRequests = useMemo(() => {
+    return [...acceptedRequests].sort((a, b) => {
+      const factor = acceptedSort.direction === 'asc' ? 1 : -1;
+      if (acceptedSort.key === 'studentDepartment') return String(a.studentDepartment || '').localeCompare(String(b.studentDepartment || '')) * factor;
+      if (acceptedSort.key === 'studentCGPA') return ((a.studentCGPA || 0) - (b.studentCGPA || 0)) * factor;
+      return String(a.studentName || '').localeCompare(String(b.studentName || '')) * factor;
+    });
+  }, [acceptedRequests, acceptedSort]);
+
+  const sortedScheduledInterviews = useMemo(() => {
+    return [...scheduledInterviews].sort((a, b) => {
+      const factor = scheduledSort.direction === 'asc' ? 1 : -1;
+      if (scheduledSort.key === 'scheduledTime') return ((new Date(a.scheduledTime).getTime() || 0) - (new Date(b.scheduledTime).getTime() || 0)) * factor;
+      if (scheduledSort.key === 'status') return String(a.status || '').localeCompare(String(b.status || '')) * factor;
+      return String(a.studentName || '').localeCompare(String(b.studentName || '')) * factor;
+    });
+  }, [scheduledInterviews, scheduledSort]);
+
+  const sortedCompletedInterviews = useMemo(() => {
+    return [...completedInterviews].sort((a, b) => {
+      const factor = completedSort.direction === 'asc' ? 1 : -1;
+      if (completedSort.key === 'scheduledTime') return ((new Date(a.scheduledTime).getTime() || 0) - (new Date(b.scheduledTime).getTime() || 0)) * factor;
+      if (completedSort.key === 'status') return String(a.status || '').localeCompare(String(b.status || '')) * factor;
+      return String(a.studentName || '').localeCompare(String(b.studentName || '')) * factor;
+    });
+  }, [completedInterviews, completedSort]);
 
   useEffect(() => {
     const intervalId = setInterval(() => setNowTick(Date.now()), 1000);
@@ -888,17 +922,29 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
               <table className="w-full min-w-[980px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
-                    <th className="p-4">Candidate</th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setAcceptedSort, acceptedSort, 'studentName')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Candidate <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
                     <th className="p-4">Email</th>
-                    <th className="p-4">Department</th>
-                    <th className="p-4">CGPA</th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setAcceptedSort, acceptedSort, 'studentDepartment')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Department <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setAcceptedSort, acceptedSort, 'studentCGPA')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        CGPA <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
                     <th className="p-4">Request Date</th>
                     <th className="p-4">Response Date</th>
                     <th className="p-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {acceptedRequests.map(req => (
+                  {sortedAcceptedRequests.map(req => (
                     <tr key={req.requestId} className="border-b last:border-0 hover:bg-gray-50">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -978,14 +1024,26 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
               <table className="w-full min-w-[900px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
-                    <th className="p-4">Candidate</th>
-                    <th className="p-4">Date & Time</th>
-                    <th className="p-4">Status</th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setScheduledSort, scheduledSort, 'studentName')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Candidate <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setScheduledSort, scheduledSort, 'scheduledTime')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Date & Time <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setScheduledSort, scheduledSort, 'status')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Status <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {scheduledInterviews.map(int => (
+                  {sortedScheduledInterviews.map(int => (
                     <tr key={int.interviewId} className="border-b last:border-0 hover:bg-gray-50">
                       <td className="p-4 font-medium">
                           {int.studentName} 
@@ -1245,15 +1303,27 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
               <table className="w-full min-w-[900px] text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b">
                   <tr>
-                    <th className="p-4">Candidate</th>
-                    <th className="p-4">Scheduled</th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setCompletedSort, completedSort, 'studentName')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Candidate <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setCompletedSort, completedSort, 'scheduledTime')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Scheduled <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
                     <th className="p-4">Ended</th>
-                    <th className="p-4">Result</th>
+                    <th className="p-4">
+                      <button type="button" onClick={() => toggleSort(setCompletedSort, completedSort, 'status')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                        Result <ArrowUpDown className="w-3 h-3" />
+                      </button>
+                    </th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {completedInterviews.map((item) => (
+                  {sortedCompletedInterviews.map((item) => (
                     <tr key={item.requestId} className="border-b last:border-0 hover:bg-gray-50">
                       <td className="p-4 font-medium">
                         {item.studentName}

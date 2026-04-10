@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -17,7 +17,8 @@ import {
   Edit2,
   Eye,
   Ban,
-  CheckCircle
+  CheckCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import api, { getFileUrl } from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -134,11 +135,11 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:p-6 bg-black/50 backdrop-blur-sm overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[92vh]"
       >
         <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
           <h3 className="font-bold text-gray-800">Add On-Spot Company</h3>
@@ -147,8 +148,9 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[calc(92vh-76px)]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
             <input 
               type="text" 
@@ -158,9 +160,9 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
               value={formData.name}
               onChange={(e) => setFormData({...formData, name: e.target.value})}
             />
-          </div>
-          
-          <div>
+            </div>
+
+            <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
             <select 
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
@@ -175,10 +177,9 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
               <option value="Telecommunications">Telecommunications</option>
               <option value="Business & Finance">Business & Finance</option>
             </select>
-          </div>
+            </div>
 
-          {/* NEW FIELDS */}
-          <div>
+            <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Focal Person Name *</label>
             <input 
               type="text" 
@@ -188,9 +189,8 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
               value={formData.focalPersonName}
               onChange={(e) => setFormData({...formData, focalPersonName: e.target.value})}
             />
-          </div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
               <input 
@@ -202,6 +202,7 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
               />
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
               <input 
@@ -216,19 +217,19 @@ const AddCompanyModal = ({ onClose, onSuccess }) => {
                 onChange={(e) => setFormData({...formData, focalPersonPhone: e.target.value})}
               />
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Number of Representatives *</label>
-            <input 
-              type="number"
-              min="1"
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              placeholder="e.g. 3"
-              value={formData.repsCount}
-              onChange={(e) => setFormData({...formData, repsCount: e.target.value})}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Number of Representatives *</label>
+              <input 
+                type="number"
+                min="1"
+                required
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                placeholder="e.g. 3"
+                value={formData.repsCount}
+                onChange={(e) => setFormData({...formData, repsCount: e.target.value})}
+              />
+            </div>
           </div>
 
           <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
@@ -411,6 +412,7 @@ const CompaniesList = () => {
   const [assignRoomModal, setAssignRoomModal] = useState({ open: false, company: null });
   const [notifyModal, setNotifyModal] = useState({ open: false, company: null }); // New State
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   const fetchCompanies = async (page = 1) => {
     setLoading(true);
@@ -443,6 +445,28 @@ const CompaniesList = () => {
     c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.industry?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const sortedFilteredCompanies = useMemo(() => {
+    return [...filteredCompanies].sort((a, b) => {
+      const directionFactor = sortConfig.direction === 'asc' ? 1 : -1;
+      if (sortConfig.key === 'industry') {
+        return ((a.industry || '').localeCompare(b.industry || '') * directionFactor);
+      }
+      if (sortConfig.key === 'roomName') {
+        return ((a.roomName || '').localeCompare(b.roomName || '') * directionFactor);
+      }
+      return ((a.name || '').localeCompare(b.name || '') * directionFactor);
+    });
+  }, [filteredCompanies, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -502,11 +526,23 @@ const CompaniesList = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Company</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Industry</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Company <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => toggleSort('industry')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Industry <ArrowUpDown size={12} />
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Company Contact</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Focal Person</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Room Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => toggleSort('roomName')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Room Status <ArrowUpDown size={12} />
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -522,9 +558,9 @@ const CompaniesList = () => {
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"></div></td>
                   </tr>
                 ))
-              ) : filteredCompanies.length > 0 ? (
+              ) : sortedFilteredCompanies.length > 0 ? (
                 <AnimatePresence>
-                  {filteredCompanies.map((company) => (
+                  {sortedFilteredCompanies.map((company) => (
                     <motion.tr
                       layout
                       initial={{ opacity: 0 }}

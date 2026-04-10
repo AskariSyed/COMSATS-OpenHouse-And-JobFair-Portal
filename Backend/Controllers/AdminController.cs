@@ -186,6 +186,8 @@ namespace JobFairPortal.Controllers
                     RegistrationNo = s.RegistrationNo,
                     Department = s.Department,
                     CGPA = s.CGPA,
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    ProfilePic = s.ProfilePicUrl,
                     CvUrl = s.CvUrl,
                     // Check if they have a participation record for the active job fair
                     Participation = activeJobFairId.HasValue
@@ -206,6 +208,8 @@ namespace JobFairPortal.Controllers
                 s.RegistrationNo,
                 s.Department,
                 s.CGPA,
+                s.ProfilePicUrl,
+                s.ProfilePic,
                 s.CvUrl,
                 IsRegistered = s.Participation != null,
                 ParticipationId = s.Participation?.ParticipationId,
@@ -370,7 +374,7 @@ namespace JobFairPortal.Controllers
            // 3. Get All Rooms
            // -----------------------------
         [HttpGet("rooms")]
-        public async Task<IActionResult> GetRooms([FromQuery] int? jobFairId = null)
+        public async Task<IActionResult> GetRooms([FromQuery] int? jobFairId = null, [FromQuery] string? search = null)
         {
             // Default to active job fair if not specified
             jobFairId ??= await GetActiveJobFairIdAsync();
@@ -378,9 +382,20 @@ namespace JobFairPortal.Controllers
             if (jobFairId == null)
                 return BadRequest("No active job fair found.");
 
-            var rooms = await _context.Rooms
+            var roomsQuery = _context.Rooms
                 .Include(r => r.Company)
-                .Where(r => r.JobFairId == jobFairId.Value) // âœ… Filter by JobFairId
+                .Where(r => r.JobFairId == jobFairId.Value); // âœ… Filter by JobFairId
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                roomsQuery = roomsQuery.Where(r =>
+                    (r.RoomName ?? string.Empty).ToLower().Contains(searchLower) ||
+                    (r.Company != null && (r.Company.Name ?? string.Empty).ToLower().Contains(searchLower))
+                );
+            }
+
+            var rooms = await roomsQuery
                 .Select(r => new RoomResponseDto
                 {
                     RoomId = r.RoomId,
@@ -1238,9 +1253,13 @@ namespace JobFairPortal.Controllers
         {
             var activeJobFairId = await GetActiveJobFairIdAsync();
             if (activeJobFairId == null) return Ok(new DashboardOverviewDto());
+            var activeFairId = activeJobFairId.Value;
 
             // 1. Define a unique cache key per active fair
-            string cacheKey = $"dashboard_stats_{activeJobFairId.Value}";
+            string cacheKey = $"dashboard_stats_{activeFairId}";
+
+            // Always refresh dashboard to avoid stale interview-stage values.
+            _cache.Remove(cacheKey);
 
             // 2. Check if data is already in cache
             if (!_cache.TryGetValue(cacheKey, out DashboardOverviewDto? dashboard) || dashboard == null)
@@ -1249,7 +1268,7 @@ namespace JobFairPortal.Controllers
                 _logger.LogInformation("Fetching dashboard stats from DB...");
 
                 var topRequestedCandidates = await _context.InterviewRequests
-                    .Where(r => r.JobFairId == activeJobFairId.Value)
+                    .Where(r => r.JobFairId == activeFairId)
                     .GroupBy(r => r.StudentId)
                     .Select(g => new DashboardTopCandidateDto
                     {
@@ -1268,7 +1287,7 @@ namespace JobFairPortal.Controllers
                 if (!topRequestedCandidates.Any())
                 {
                     topRequestedCandidates = await _context.Interviews
-                        .Where(i => i.JobFairId == activeJobFairId.Value)
+                        .Where(i => i.JobFairId == activeFairId)
                         .GroupBy(i => i.StudentId)
                         .Select(g => new DashboardTopCandidateDto
                         {
@@ -1288,7 +1307,7 @@ namespace JobFairPortal.Controllers
                 var topRequestedCandidate = topRequestedCandidates.FirstOrDefault();
 
                 var topHiredCandidates = await _context.Interviews
-                    .Where(i => i.JobFairId == activeJobFairId.Value && i.Status == InterviewStatus.Hired)
+                    .Where(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Hired)
                     .GroupBy(i => i.StudentId)
                     .Select(g => new DashboardTopCandidateDto
                     {
@@ -1306,17 +1325,33 @@ namespace JobFairPortal.Controllers
 
                 var topHiredCandidate = topHiredCandidates.FirstOrDefault();
 
+                var totalInterviewRequests = await _context.InterviewRequests
+                    .CountAsync(r => r.JobFairId == activeFairId);
+
+                var totalAcceptedRequests = await _context.InterviewRequests
+                    .CountAsync(r => r.JobFairId == activeFairId && r.Status == RequestStatus.Accepted);
+
                 // âœ… FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
                 {
                     // FIX: Count from Participation table to get accurate attendee count
-                    TotalStudents = await _context.StudentJobFairParticipations.CountAsync(s => s.JobFairId == activeJobFairId),
-                    TotalCompanies = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == activeJobFairId),
-                    TotalRooms = await _context.Rooms.CountAsync(r => r.JobFairId == activeJobFairId),
-                    StudentsHired = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Hired),
-                    StudentsShortlisted = await _context.Interviews.CountAsync(i => i.JobFairId == activeJobFairId && i.Status == InterviewStatus.Shortlisted),
-                    CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.CDC),
-                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeJobFairId && s.Type == SurveyType.Department),
+                    TotalStudents = await _context.StudentJobFairParticipations.CountAsync(s => s.JobFairId == activeFairId),
+                    TotalCompanies = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == activeFairId),
+                    TotalRooms = await _context.Rooms.CountAsync(r => r.JobFairId == activeFairId),
+                    TotalInterviews = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId),
+                    // Scheduled and queued are made exclusive for clearer dashboard stage reporting.
+                    InterviewsScheduled = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Queued && i.ScheduledTime.HasValue),
+                    InterviewsQueued = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Queued && !i.ScheduledTime.HasValue),
+                    StudentsHired = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Hired),
+                    StudentsShortlisted = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Shortlisted),
+                    InterviewsRejected = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId && i.Status == InterviewStatus.Rejected),
+                    CDCSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeFairId && s.Type == SurveyType.CDC),
+                    DepartmentSurveysReceived = await _context.Surveys.CountAsync(s => s.JobFairId == activeFairId && s.Type == SurveyType.Department),
+                    TotalInterviewRequests = totalInterviewRequests,
+                    TotalAcceptedRequests = totalAcceptedRequests,
+                    RequestAcceptanceRatio = totalInterviewRequests > 0
+                        ? Math.Round((double)totalAcceptedRequests / totalInterviewRequests * 100, 2)
+                        : 0,
                     TopRequestedCandidateId = topRequestedCandidate?.StudentId,
                     TopRequestedCandidateName = topRequestedCandidate?.CandidateName,
                     TopRequestedCandidateRequestCount = topRequestedCandidate?.Count ?? 0,
@@ -1804,6 +1839,9 @@ namespace JobFairPortal.Controllers
                 .Include(p => p.Student)
                     .ThenInclude(s => s.User)
                 .Include(p => p.Student)
+                    .ThenInclude(s => s.Interviews)
+                        .ThenInclude(i => i.Company)
+                .Include(p => p.Student)
                     .ThenInclude(s => s.StudentProjects)
                         .ThenInclude(sp => sp.Project)
                 .Include(p => p.Student)
@@ -1850,6 +1888,21 @@ namespace JobFairPortal.Controllers
                 TotalAchievements = p.Student.Achievements.Count,
                 TotalCertifications = p.Student.Certifications.Count,
                 TotalEducations = p.Student.Educations.Count,
+                InterviewHistory = p.Student.Interviews
+                    .Where(i => i.JobFairId == selectedJobFairId.Value)
+                    .OrderByDescending(i => i.UpdatedAt)
+                    .Select(i => new
+                    {
+                        i.InterviewId,
+                        CompanyId = i.CompanyId,
+                        CompanyName = i.Company != null ? i.Company.Name : null,
+                        Result = i.Status.ToString(),
+                        i.Status,
+                        i.ScheduledTime,
+                        i.EndedAt,
+                        i.UpdatedAt
+                    })
+                    .ToList(),
                 CreatedAt = p.Student.CreatedAt,
                 UpdatedAt = p.Student.UpdatedAt,
                 RegisteredAt = p.RegisteredAt // Include when they registered for this fair
@@ -2759,15 +2812,21 @@ namespace JobFairPortal.Controllers
                     // Count jobs specifically linked to this fair
                     TotalJobs = companyParticipations.Sum(p => p.Company.Jobs.Count(j => j.JobFairId == jobFairId)),
                     TotalInterviews = interviews.Count,
-                    TotalInterviewRequests = requests.Count
+                    TotalInterviewRequests = requests.Count,
+                    TotalAcceptedRequests = requests.Count(r => r.Status == RequestStatus.Accepted),
+                    RequestAcceptanceRatio = requests.Count > 0
+                        ? Math.Round((double)requests.Count(r => r.Status == RequestStatus.Accepted) / requests.Count * 100, 2)
+                        : 0
                 },
 
                 InterviewStats = new
                 {
+                    Scheduled = interviews.Count(i => i.Status == InterviewStatus.Queued && i.ScheduledTime.HasValue),
+                    Queued = interviews.Count(i => i.Status == InterviewStatus.Queued && !i.ScheduledTime.HasValue),
                     Hired = interviews.Count(i => i.Status == InterviewStatus.Hired),
                     Shortlisted = interviews.Count(i => i.Status == InterviewStatus.Shortlisted),
                     Rejected = interviews.Count(i => i.Status == InterviewStatus.Rejected),
-                    Pending = interviews.Count(i => i.Status == InterviewStatus.Queued),
+                    Pending = interviews.Count(i => i.Status == InterviewStatus.Queued && !i.ScheduledTime.HasValue),
                     HiringRate = interviews.Count > 0
                         ? Math.Round((double)interviews.Count(i => i.Status == InterviewStatus.Hired) / interviews.Count * 100, 2)
                         : 0

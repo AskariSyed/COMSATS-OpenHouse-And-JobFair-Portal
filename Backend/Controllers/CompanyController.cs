@@ -297,8 +297,17 @@ namespace JobFairPortal.Controllers
         }
 
         [HttpGet("finalyear-projects")]
-        public async Task<IActionResult> GetFinalYearProjects()
+        public async Task<IActionResult> GetFinalYearProjects(
+            [FromQuery] string studentQuery = "",
+            [FromQuery] string department = "",
+            [FromQuery] string fypQuery = "",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 9)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 9;
+            if (pageSize > 100) pageSize = 100;
+
             var activeJobFair = await _context.JobFairs
                 .AsNoTracking()
                 .FirstOrDefaultAsync(j => j.IsActive);
@@ -312,7 +321,7 @@ namespace JobFairPortal.Controllers
                 });
             }
 
-            var projects = await _context.Projects
+            var projectsQuery = _context.Projects
                 .Where(p => p.Type == ProjectType.FinalYear)
                 .Where(p => p.StudentProjects.Any(sp =>
                     sp.Status == ProjectInviteStatus.Accepted &&
@@ -320,6 +329,44 @@ namespace JobFairPortal.Controllers
                 .Include(p => p.StudentProjects)
                     .ThenInclude(sp => sp.Student)
                         .ThenInclude(s => s.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(fypQuery))
+            {
+                var fypNeedle = fypQuery.Trim().ToLower();
+                projectsQuery = projectsQuery.Where(p => (p.Title ?? "").ToLower().Contains(fypNeedle));
+            }
+
+            if (!string.IsNullOrWhiteSpace(studentQuery))
+            {
+                var studentNeedle = studentQuery.Trim().ToLower();
+                var studentRegNeedle = new string(studentNeedle.Where(char.IsLetterOrDigit).ToArray());
+
+                projectsQuery = projectsQuery.Where(p => p.StudentProjects.Any(sp =>
+                    sp.Status == ProjectInviteStatus.Accepted &&
+                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered) &&
+                    (
+                        (sp.Student.User.FullName ?? "").ToLower().Contains(studentNeedle) ||
+                        ((sp.Student.RegistrationNo ?? "").Replace("-", "").ToLower().Contains(studentRegNeedle))
+                    )));
+            }
+
+            if (!string.IsNullOrWhiteSpace(department))
+            {
+                var deptNeedle = department.Trim().ToLower();
+                projectsQuery = projectsQuery.Where(p => p.StudentProjects.Any(sp =>
+                    sp.Status == ProjectInviteStatus.Accepted &&
+                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered) &&
+                    (sp.Student.Department ?? "").ToLower().Contains(deptNeedle)));
+            }
+
+            var totalCount = await projectsQuery.CountAsync();
+            var skip = (page - 1) * pageSize;
+
+            var projects = await projectsQuery
+                .OrderByDescending(p => p.ProjectId)
+                .Skip(skip)
+                .Take(pageSize)
                 .Select(p => new
                 {
                     ProjectId = p.ProjectId,
@@ -345,7 +392,12 @@ namespace JobFairPortal.Controllers
                             StudentId = sp.Student.StudentId,
                             Name = sp.Student.User.FullName,
                             RegistrationNo = sp.Student.RegistrationNo,
+                            Department = sp.Student.Department,
                             CGPA = sp.Student.CGPA,
+                            StudentGitHubUrl = sp.Student.ContactLinks
+                                .Where(cl => cl.Platform == ContactPlatform.GitHub)
+                                .Select(cl => cl.Url)
+                                .FirstOrDefault(),
                             Role = sp.role,
                             IsCreator = sp.IsCreator
                         }).ToList()
@@ -354,8 +406,13 @@ namespace JobFairPortal.Controllers
 
             return Ok(new
             {
-                TotalProjects = projects.Count,
-                Projects = projects
+                TotalProjects = totalCount,
+                Projects = projects,
+                items = projects,
+                totalCount = totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
             });
         }
         [HttpGet("students")]
@@ -637,6 +694,161 @@ namespace JobFairPortal.Controllers
                 .ToListAsync();
 
             return Ok(students);
+        }
+
+        [HttpGet("students/search")]
+        public async Task<IActionResult> SearchStudents([FromQuery] string search = "", [FromQuery] string department = "", [FromQuery] string skills = "", [FromQuery] string status = "", [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            // Validate pagination parameters
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100; // Max page size to prevent abuse
+
+            var companyIdClaim = GetUserIdFromToken();
+            if (companyIdClaim <= 0)
+                return Unauthorized();
+
+            var currentCompany = await _context.Companies
+                .FirstOrDefaultAsync(c => c.UserId == companyIdClaim);
+
+            if (currentCompany == null)
+                return NotFound("Company not found.");
+
+            var activeJobFair = await _context.JobFairs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(j => j.IsActive);
+
+            if (activeJobFair == null)
+                return BadRequest("No active job fair found.");
+
+            var query = _context.Students
+                .Include(s => s.User)
+                .Include(s => s.InterviewRequests)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project)
+                .Where(s => s.JobFairParticipations.Any(p => p.JobFairId == activeJobFair.JobFairId && p.HasRegistered));
+
+            // Apply search filter (by name or registration)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(s => 
+                    (s.User.FullName ?? "").ToLower().Contains(searchLower) || 
+                    (s.RegistrationNo ?? "").ToLower().Contains(searchLower));
+            }
+
+            // Apply department filter
+            if (!string.IsNullOrWhiteSpace(department))
+            {
+                var deptLower = department.ToLower();
+                query = query.Where(s => s.Department != null && s.Department.ToLower().Contains(deptLower));
+            }
+
+            // Apply interview status filter (hired / shortlisted / rejected)
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Enum.TryParse<InterviewStatus>(status, true, out var targetStatus) ||
+                    (targetStatus != InterviewStatus.Hired && targetStatus != InterviewStatus.Shortlisted && targetStatus != InterviewStatus.Rejected))
+                {
+                    return BadRequest("Status must be one of: Hired, Shortlisted, Rejected");
+                }
+
+                query = query.Where(s => _context.Interviews
+                    .Where(i => i.CompanyId == currentCompany.CompanyId && i.StudentId == s.StudentId && i.JobFairId == activeJobFair.JobFairId)
+                    .OrderByDescending(i => i.UpdatedAt)
+                    .Select(i => i.Status)
+                    .FirstOrDefault() == targetStatus);
+            }
+
+            // Get total count before pagination (skills filtering will be done client-side)
+            var totalCount = await query.CountAsync();
+
+            // Apply pagination
+            var skip = (page - 1) * pageSize;
+            var paginatedQuery = query
+                .Skip(skip)
+                .Take(pageSize);
+
+            // Fetch paginated results with AsEnumerable for client-side skill filtering
+            var paginatedStudents = await paginatedQuery
+                .ToListAsync();
+
+            // Apply skills filter on client-side (comma-separated, student must have ALL specified skills)
+            if (!string.IsNullOrWhiteSpace(skills))
+            {
+                var skillList = skills.Split(',')
+                    .Select(s => s.Trim().ToLower())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+
+                if (skillList.Any())
+                {
+                    paginatedStudents = paginatedStudents
+                        .Where(s => 
+                            skillList.All(skill => 
+                                (s.Skills != null && s.Skills.Any(sk => sk.ToLower().Equals(skill)))
+                            )
+                        )
+                        .ToList();
+                }
+            }
+
+            var students = paginatedStudents
+                .Select(s => new
+                {
+                    StudentId = s.StudentId,
+                    Name = s.User.FullName,
+                    RegistrationNo = s.RegistrationNo,
+                    Department = s.Department,
+                    CGPA = (float)s.CGPA,
+                    Skills = s.Skills,
+                    ProfilePicUrl = s.ProfilePicUrl,
+                    FypTitle = s.StudentProjects
+                        .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                        .Select(sp => sp.Project.Title)
+                        .FirstOrDefault(),
+                    CurrentInterviewStatus = _context.Interviews
+                        .Where(i => i.CompanyId == currentCompany.CompanyId && i.StudentId == s.StudentId && i.JobFairId == activeJobFair.JobFairId)
+                        .OrderByDescending(i => i.UpdatedAt)
+                        .Select(i => i.Status.ToString())
+                        .FirstOrDefault(),
+                    
+                    InterviewRequest = new
+                    {
+                        HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId),
+                        Status = s.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                            .Select(ir => ir.Status.ToString())
+                            .FirstOrDefault(),
+                        RequestId = s.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                            .Select(ir => (int?)ir.RequestId)
+                            .FirstOrDefault(),
+                        RequestDate = s.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                            .Select(ir => ir.CreatedAt)
+                            .FirstOrDefault(),
+                        ResponseDate = s.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                            .Select(ir => ir.UpdatedAt)
+                            .FirstOrDefault(),
+                        RequestedBy = s.InterviewRequests
+                            .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                            .Select(ir => ir.RequestedBy)
+                            .FirstOrDefault()
+                    }
+                })
+                .ToList();
+
+            // Return paginated response
+            return Ok(new
+            {
+                items = students,
+                totalCount = totalCount,
+                page = page,
+                pageSize = pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
         }
 
         [Authorize(Roles = "Company")]

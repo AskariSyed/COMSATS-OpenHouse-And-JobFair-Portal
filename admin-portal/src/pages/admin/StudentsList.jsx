@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Search, Filter, Eye, BookOpen, Award, XCircle, Bell, Edit2, X, Save
+  Search, Filter, Eye, BookOpen, Award, XCircle, Bell, Edit2, X, Save, ArrowUpDown, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
@@ -22,12 +22,14 @@ const StudentsList = () => {
   const [editingId, setEditingId] = useState(null);
   const [editFormData, setEditFormData] = useState({ email: '', password: '' });
   const [editLoading, setEditLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
   
   // Notification Modal State
   const [notifyModal, setNotifyModal] = useState({ open: false, student: null });
 
   // Fetch Students (Accepts page AND search query)
-  const fetchStudents = useCallback(async (page = 1, search = '', jobFairId = selectedJobFairId) => {
+  const fetchStudents = useCallback(async (page = 1, search = '', jobFairId = '') => {
     setLoading(true);
     try {
       // Append search param if it exists
@@ -47,7 +49,7 @@ const StudentsList = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedJobFairId]);
+  }, []);
 
   const fetchJobFairs = useCallback(async () => {
     try {
@@ -123,6 +125,35 @@ const StudentsList = () => {
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const sortedStudents = useMemo(() => {
+    return [...students].sort((a, b) => {
+      const directionFactor = sortConfig.direction === 'asc' ? 1 : -1;
+
+      if (sortConfig.key === 'cgpa') {
+        return (((a.cgpa ?? 0) - (b.cgpa ?? 0)) * directionFactor);
+      }
+
+      if (sortConfig.key === 'registrationNo') {
+        return ((a.registrationNo || '').localeCompare(b.registrationNo || '') * directionFactor);
+      }
+
+      if (sortConfig.key === 'department') {
+        return ((a.department || '').localeCompare(b.department || '') * directionFactor);
+      }
+
+      return ((a.name || '').localeCompare(b.name || '') * directionFactor);
+    });
+  }, [students, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
   };
 
   return (
@@ -205,10 +236,26 @@ const StudentsList = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Student</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Reg No</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Dept</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">CGPA</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Student <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('registrationNo')} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Reg No <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('department')} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Dept <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('cgpa')} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    CGPA <ArrowUpDown size={12} />
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
               </tr>
             </thead>
@@ -219,121 +266,185 @@ const StudentsList = () => {
                       <td colSpan="7" className="px-6 py-4"><div className="h-10 bg-gray-100 rounded w-full"></div></td>
                    </tr>
                  ))
-              ) : students.length > 0 ? (
-                students.map((s) => (
-                  <tr
-                    key={s.studentId}
-                    className="hover:bg-indigo-50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/admin/students/${s.studentId}`)}
-                    title="View Profile"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden">
-                          {(s.profilePicUrl || s.profilePic || s.profilePicPath) ? (
-                            <img
-                              src={getFileUrl(s.profilePicUrl || s.profilePic || s.profilePicPath)}
-                              className="w-full h-full object-cover"
-                              alt={s.name}
-                              onError={e => { e.target.onerror = null; e.target.src = '/default-profile.png'; }}
-                            />
-                          ) : (
-                            s.name?.charAt(0)
-                          )}
-                        </div>
-                        <div>
-                           <p className="font-medium text-indigo-700 underline underline-offset-2">{s.name}</p>
-                           <p className="text-xs text-gray-500 truncate max-w-[150px]">{s.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-600">{s.registrationNo}</td>
-                    <td className="px-6 py-4"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{s.department}</span></td>
-                    <td className="px-6 py-4"><span className={`font-bold ${s.cgpa >= 3.0 ? 'text-emerald-600' : 'text-gray-600'}`}>{s.cgpa?.toFixed(2)}</span></td>
-                    
-                    <td className="px-6 py-4 text-right">
-                      {editingId === s.studentId ? (
-                        <div className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg -mr-3">
-                          <input
-                            type="email"
-                            placeholder="New Email"
-                            value={editFormData.email}
-                            onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                            className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                          />
-                          <input
-                            type="password"
-                            placeholder="New Password (optional)"
-                            value={editFormData.password}
-                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                            className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={e => { e.stopPropagation(); handleEditSave(s.studentId); }}
-                              disabled={editLoading}
-                              className="flex-1 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 disabled:opacity-60"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={e => { e.stopPropagation(); setEditingId(null); }}
-                              className="flex-1 text-xs bg-gray-400 text-white px-2 py-1 rounded hover:bg-gray-500"
-                            >
-                              Cancel
-                            </button>
+              ) : sortedStudents.length > 0 ? (
+                sortedStudents.map((s) => (
+                  <React.Fragment key={s.studentId}>
+                    <tr
+                      className="hover:bg-indigo-50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/admin/students/${s.studentId}`)}
+                      title="View Profile"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0 overflow-hidden">
+                            {(s.profilePicUrl || s.profilePic || s.profilePicPath) ? (
+                              <img
+                                src={getFileUrl(s.profilePicUrl || s.profilePic || s.profilePicPath)}
+                                className="w-full h-full object-cover"
+                                alt={s.name}
+                                onError={e => { e.target.onerror = null; e.target.src = '/default-profile.png'; }}
+                              />
+                            ) : (
+                              s.name?.charAt(0)
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-indigo-700 underline underline-offset-2">{s.name}</p>
+                            <p className="text-xs text-gray-500 truncate max-w-[150px]">{s.email}</p>
                           </div>
                         </div>
-                      ) : (
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={e => { e.stopPropagation(); navigate(`/admin/students/${s.studentId}?edit=profile`); }}
-                            className="text-emerald-600 hover:text-emerald-900 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100 transition"
-                            title="Edit Full Profile"
-                          >
-                            <BookOpen size={16} />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); handleEditClick(s); }}
-                            className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition"
-                            title="Edit Credentials"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); setNotifyModal({ open: true, student: s }); }}
-                            className="text-amber-600 hover:text-amber-900 bg-amber-50 p-2 rounded-lg hover:bg-amber-100 transition"
-                            title="Notify Student"
-                          >
-                            <Bell size={16} />
-                          </button>
-                          {s.cvUrl && (
-                            <>
-                              <a
-                                href={getFileUrl(s.cvUrl)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-fuchsia-600 hover:text-fuchsia-900 bg-fuchsia-50 p-2 rounded-lg hover:bg-fuchsia-100 transition"
-                                title="View CV"
-                                onClick={e => e.stopPropagation()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-mono text-gray-600">{s.registrationNo}</td>
+                      <td className="px-6 py-4"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{s.department}</span></td>
+                      <td className="px-6 py-4"><span className={`font-bold ${s.cgpa >= 3.0 ? 'text-emerald-600' : 'text-gray-600'}`}>{s.cgpa?.toFixed(2)}</span></td>
+
+                      <td className="px-6 py-4 text-right">
+                        {editingId === s.studentId ? (
+                          <div className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg -mr-3">
+                            <input
+                              type="email"
+                              placeholder="New Email"
+                              value={editFormData.email}
+                              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                              className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                            <input
+                              type="password"
+                              placeholder="New Password (optional)"
+                              value={editFormData.password}
+                              onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                              className="px-2 py-1 border rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={e => { e.stopPropagation(); handleEditSave(s.studentId); }}
+                                disabled={editLoading}
+                                className="flex-1 text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 disabled:opacity-60"
                               >
-                                <Eye size={16} />
-                              </a>
-                              <a
-                                href={getFileUrl(s.cvUrl)}
-                                download
-                                className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-lg hover:bg-green-100 transition"
-                                title="Download CV"
-                                onClick={e => e.stopPropagation()}
+                                Save
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation(); setEditingId(null); }}
+                                className="flex-1 text-xs bg-gray-400 text-white px-2 py-1 rounded hover:bg-gray-500"
                               >
-                                <BookOpen size={16} />
-                              </a>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                setExpandedStudentId(expandedStudentId === s.studentId ? null : s.studentId);
+                              }}
+                              className="text-violet-600 hover:text-violet-900 bg-violet-50 p-2 rounded-lg hover:bg-violet-100 transition"
+                              title="Toggle Interview History"
+                            >
+                              {expandedStudentId === s.studentId ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/admin/students/${s.studentId}?edit=profile`); }}
+                              className="text-emerald-600 hover:text-emerald-900 bg-emerald-50 p-2 rounded-lg hover:bg-emerald-100 transition"
+                              title="Edit Full Profile"
+                            >
+                              <BookOpen size={16} />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); handleEditClick(s); }}
+                              className="text-blue-600 hover:text-blue-900 bg-blue-50 p-2 rounded-lg hover:bg-blue-100 transition"
+                              title="Edit Credentials"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setNotifyModal({ open: true, student: s }); }}
+                              className="text-amber-600 hover:text-amber-900 bg-amber-50 p-2 rounded-lg hover:bg-amber-100 transition"
+                              title="Notify Student"
+                            >
+                              <Bell size={16} />
+                            </button>
+                            {s.cvUrl && (
+                              <>
+                                <a
+                                  href={getFileUrl(s.cvUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-fuchsia-600 hover:text-fuchsia-900 bg-fuchsia-50 p-2 rounded-lg hover:bg-fuchsia-100 transition"
+                                  title="View CV"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <Eye size={16} />
+                                </a>
+                                <a
+                                  href={getFileUrl(s.cvUrl)}
+                                  download
+                                  className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-lg hover:bg-green-100 transition"
+                                  title="Download CV"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <BookOpen size={16} />
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+
+                    {expandedStudentId === s.studentId && (
+                      <tr className="bg-gray-50">
+                        <td colSpan="5" className="px-6 py-4">
+                          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                            <div className="px-4 py-3 border-b bg-gray-50">
+                              <p className="text-sm font-semibold text-gray-700">Interview History</p>
+                            </div>
+
+                            {Array.isArray(s.interviewHistory) && s.interviewHistory.length > 0 ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-100 text-gray-600">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left">Company</th>
+                                      <th className="px-4 py-2 text-left">Result</th>
+                                      <th className="px-4 py-2 text-left">Scheduled</th>
+                                      <th className="px-4 py-2 text-left">Last Updated</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {s.interviewHistory.map((item) => (
+                                      <tr key={item.interviewId}>
+                                        <td className="px-4 py-2 font-medium text-gray-800">{item.companyName || 'Unknown Company'}</td>
+                                        <td className="px-4 py-2">
+                                          <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${
+                                            item.result === 'Hired'
+                                              ? 'bg-emerald-100 text-emerald-700'
+                                              : item.result === 'Shortlisted'
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : item.result === 'Rejected'
+                                                  ? 'bg-rose-100 text-rose-700'
+                                                  : 'bg-gray-100 text-gray-700'
+                                          }`}>
+                                            {item.result}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-gray-600">{item.scheduledTime ? new Date(item.scheduledTime).toLocaleString() : 'Not Scheduled'}</td>
+                                        <td className="px-4 py-2 text-gray-600">{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="px-4 py-4 text-sm text-gray-500">
+                                No interview record found for this student in the selected job fair.
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>

@@ -822,7 +822,7 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                                  </div>
                               </div>
 
-                              <div className="mt-8">
+                              <div className="mt-8 flex justify-center">
                                  {renderHeaderAction()}
                               </div>
                            </div>
@@ -833,7 +833,9 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                         return (
                            <div className="mt-6">
                               <p className="text-gray-600 mb-6">The interview request was accepted, but it hasn't been scheduled into a specific time slot yet.</p>
-                              {renderHeaderAction()}
+                              <div className="flex justify-center">
+                                 {renderHeaderAction()}
+                              </div>
                            </div>
                         );
                      }
@@ -852,7 +854,9 @@ export default function StudentProfile({ studentId, onBack, onViewFYP, onNavigat
                      return (
                         <div className="mt-6">
                            <p className="text-gray-600 mb-6">No active interview or request found for this student.</p>
-                           {renderHeaderAction()}
+                           <div className="flex justify-center">
+                              {renderHeaderAction()}
+                           </div>
                         </div>
                      );
                   })()}

@@ -1,37 +1,118 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye, Send, Calendar, Download, X } from 'lucide-react';
-import { getStudents, getStudentsByInterviewStatus, getFileUrl, sendInterviewRequest, getAnalytics } from '../api';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye, Send, Calendar, Download, X, Plus, ArrowUpDown } from 'lucide-react';
+import { getStudents, getFileUrl, sendInterviewRequest, getAnalytics } from '../api';
 import { allSkillsList, skillsData } from '../../data/skills';
 
 export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ name: '', registration: '', department: '', skills: [] });
-  const [sortBy, setSortBy] = useState('name'); // Default sort by name
+  const [filters, setFilters] = useState({ search: '', department: '', skills: [] });
+  const [sortBy, setSortBy] = useState('name');
   const [listMode, setListMode] = useState('all');
   const [requestingStudentId, setRequestingStudentId] = useState(null);
   const [skillToAdd, setSkillToAdd] = useState('');
   const [isInterviewWindowClosed, setIsInterviewWindowClosed] = useState(false);
+  const [backendSearchLoading, setBackendSearchLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const searchDebounceRef = useRef(null);
+  const deptDebounceRef = useRef(null);
+  const backendSearchRef = useRef({});
 
-  const fetchStudents = async () => {
-    setLoading(true);
+  const fetchStudents = async (queryParams = {}, page = 1) => {
+    setBackendSearchLoading(true);
+    setCurrentPage(page);
     try {
-      let data;
-      if (listMode === 'all') {
-        // Fetch full list and apply filters on client to support richer search combinations.
-        data = await getStudents();
-      } else {
-        data = await getStudentsByInterviewStatus(listMode);
+      // Call backend with all active query parameters, including tab status filter
+      const paginatedParams = { ...queryParams, page, pageSize };
+      if (listMode !== 'all') {
+        paginatedParams.status = listMode;
       }
-      setStudents(data || []);
+      const data = await getStudents(paginatedParams);
+      
+      // Handle paginated response
+      if (data?.items) {
+        setStudents(data.items || []);
+        setTotalCount(data.totalCount || 0);
+      } else {
+        // Handle legacy non-paginated response (backward compatibility)
+        setStudents(data || []);
+        setTotalCount(data?.length || 0);
+      }
+      backendSearchRef.current = queryParams;
     } catch (err) {
       onError(err.message);
     } finally {
-      setLoading(false);
+      setBackendSearchLoading(false);
     }
   };
 
-  useEffect(() => { fetchStudents(); }, [listMode]);
+  // Debounce backend search when search field changes
+  const handleSearchInputChange = (value) => {
+    setFilters((prev) => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+
+      if (!value.trim()) {
+        // If search is cleared, fetch with department and skills filters if set
+        searchDebounceRef.current = setTimeout(() => {
+          const queryParams = {};
+          if (prev.department) queryParams.department = prev.department;
+          if (prev.skills.length > 0) queryParams.skills = prev.skills;
+          fetchStudents(queryParams, 1); // Reset to page 1
+        }, 300);
+      } else {
+        // Debounce backend search by 500ms
+        searchDebounceRef.current = setTimeout(() => {
+          const queryParams = { search: value };
+          if (prev.department) queryParams.department = prev.department;
+          if (prev.skills.length > 0) queryParams.skills = prev.skills;
+          fetchStudents(queryParams, 1); // Reset to page 1
+        }, 500);
+      }
+
+      return { ...prev, search: value };
+    });
+  };
+
+  // Debounce backend search when department changes
+  const handleDepartmentChange = (dept) => {
+    setFilters((prev) => {
+      // Build query params with the new department and current search
+      const queryParams = {};
+      if (prev.search) queryParams.search = prev.search;
+      if (dept) queryParams.department = dept;
+      if (prev.skills.length > 0) queryParams.skills = prev.skills;
+      
+      // Trigger backend search
+      if (deptDebounceRef.current) {
+        clearTimeout(deptDebounceRef.current);
+      }
+      deptDebounceRef.current = setTimeout(() => {
+        fetchStudents(queryParams, 1); // Reset to page 1
+      }, 300);
+      
+      return { ...prev, department: dept };
+    });
+  };
+
+  useEffect(() => { 
+    fetchStudents({});
+  }, [listMode]);
+
+  useEffect(() => {
+    // Cleanup debounce on unmount
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+      if (deptDebounceRef.current) {
+        clearTimeout(deptDebounceRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const loadInterviewWindow = async () => {
@@ -87,13 +168,13 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
     .replace(/[^A-Z0-9-]/g, '')
     .replace(/-{2,}/g, '-');
 
-  const departmentOptions = useMemo(() => {
-    const fromStudents = (students || [])
-      .map((s) => s.Department || s.department || '')
-      .filter(Boolean);
-    const fromSkillsData = (skillsData?.departments || []).map((d) => d.name).filter(Boolean);
-    return [...new Set([...fromSkillsData, ...fromStudents])].sort((a, b) => a.localeCompare(b));
-  }, [students]);
+  const departmentOptions = [
+    "Computer Science",
+    "Civil Engineering",
+    "Mechanical Engineering",
+    "Electrical Engineering",
+    "Management Sciences"
+  ];
 
   const availableSkills = useMemo(
     () => allSkillsList.filter((skill) => !filters.skills.includes(skill)),
@@ -101,8 +182,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   );
 
   const filteredStudents = useMemo(() => {
-    const nameQuery = normalize(filters.name);
-    const regQuery = cleanReg(filters.registration);
+    const searchQuery = normalize(filters.search);
     const deptQuery = normalize(filters.department);
     const selectedSkills = (filters.skills || []).map(normalize).filter(Boolean);
 
@@ -112,36 +192,59 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       const studentDept = normalize(s.Department || s.department);
       const studentSkills = (s.Skills || s.skills || []).map(normalize);
 
-      const matchesName = !nameQuery || studentName.includes(nameQuery);
-      const matchesRegistration = !regQuery || studentReg.includes(regQuery);
+      // Search both name and registration number
+      const matchesSearch = !searchQuery || studentName.includes(searchQuery) || studentReg.includes(searchQuery);
       const matchesDepartment = !deptQuery || studentDept === deptQuery;
       const matchesSkills = selectedSkills.length === 0 || selectedSkills.every((skill) => studentSkills.includes(skill));
 
-      return matchesName && matchesRegistration && matchesDepartment && matchesSkills;
+      return matchesSearch && matchesDepartment && matchesSkills;
     });
   }, [students, filters, listMode]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchStudents();
+    // Now automatic via debounce, but keep this for manual refresh if needed
   };
 
   const handleAddSkill = (skill) => {
     if (!skill) return;
     setFilters((prev) => {
       if (prev.skills.includes(skill)) return prev;
-      return { ...prev, skills: [...prev.skills, skill] };
+      const newSkills = [...prev.skills, skill];
+      
+      // Build query params and fetch with updated skills
+      const queryParams = {};
+      if (prev.search) queryParams.search = prev.search;
+      if (prev.department) queryParams.department = prev.department;
+      if (newSkills.length > 0) queryParams.skills = newSkills;
+      
+      fetchStudents(queryParams, 1); // Reset to page 1
+      
+      return { ...prev, skills: newSkills };
     });
     setSkillToAdd('');
   };
 
   const handleRemoveSkill = (skill) => {
-    setFilters((prev) => ({ ...prev, skills: prev.skills.filter((s) => s !== skill) }));
+    setFilters((prev) => {
+      const newSkills = prev.skills.filter((s) => s !== skill);
+      
+      // Build query params and fetch with updated skills
+      const queryParams = {};
+      if (prev.search) queryParams.search = prev.search;
+      if (prev.department) queryParams.department = prev.department;
+      if (newSkills.length > 0) queryParams.skills = newSkills;
+      
+      fetchStudents(queryParams, 1); // Reset to page 1
+      
+      return { ...prev, skills: newSkills };
+    });
   };
 
   const handleClearFilters = () => {
-    setFilters({ name: '', registration: '', department: '', skills: [] });
+    setFilters({ search: '', department: '', skills: [] });
     setSkillToAdd('');
+    fetchStudents({});
   };
 
   const getInterviewMeta = (student) => {
@@ -178,7 +281,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
     setRequestingStudentId(studentId);
     try {
       await sendInterviewRequest(studentId);
-      await fetchStudents();
+      await fetchStudents(backendSearchRef.current);
       if (onSuccess) onSuccess('Interview request sent successfully.');
     } catch (err) {
       onError(err.message);
@@ -416,87 +519,120 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Student Name</label>
-            <input
-              className="w-full border rounded-lg p-2"
-              value={filters.name}
-              placeholder="e.g. Ali"
-              onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-            />
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Search Student <span className="text-gray-400">(Name or Registration)</span></label>
+              <input
+                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={filters.search}
+                placeholder="e.g. Ali or SP22-BCS-001"
+                onChange={(e) => handleSearchInputChange(e.target.value)}
+              />
+              {backendSearchLoading && <p className="text-xs text-blue-600 mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Searching...</p>}
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
+              <select
+                value={filters.department}
+                onChange={(e) => handleDepartmentChange(e.target.value)}
+                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Departments</option>
+                {departmentOptions.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Add Skill</label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  className="flex-1 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={skillToAdd}
+                  placeholder="Type to search skills..."
+                  onChange={(e) => setSkillToAdd(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && skillToAdd.trim()) {
+                      e.preventDefault();
+                      handleAddSkill(skillToAdd);
+                    }
+                  }}
+                  list="skills-list"
+                />
+                <button
+                  type="button"
+                  onClick={() => skillToAdd.trim() && handleAddSkill(skillToAdd)}
+                  disabled={!skillToAdd.trim()}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  title="Add skill (or press Enter)"
+                  aria-label="Add skill"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              <datalist id="skills-list">
+                {availableSkills.map((skill) => (
+                  <option key={skill} value={skill}>{skill}</option>
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Sort By</label>
+              <select 
+                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="name">Name (A-Z)</option>
+                <option value="cgpa">CGPA (High to Low)</option>
+                <option value="department">Department</option>
+                <option value="registration">Registration No</option>
+              </select>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+                <Search className="w-4 h-4" /> Refresh
+              </button>
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Registration No</label>
-            <input
-              className="w-full border rounded-lg p-2"
-              value={filters.registration}
-              placeholder="e.g. SP22-BCS-001"
-              onChange={(e) => setFilters((prev) => ({ ...prev, registration: formatRegistrationInput(e.target.value) }))}
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
-            <select
-              value={filters.department}
-              onChange={(e) => setFilters((prev) => ({ ...prev, department: e.target.value }))}
-              className="w-full border rounded-lg p-2"
-            >
-              <option value="">All Departments</option>
-              {departmentOptions.map((dept) => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Add Skill</label>
-            <select
-              className="w-full border rounded-lg p-2"
-              value={skillToAdd}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSkillToAdd(value);
-                if (value) handleAddSkill(value);
-              }}
-            >
-              <option value="">Select skill...</option>
-              {availableSkills.map((skill) => (
-                <option key={skill} value={skill}>{skill}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Sort By</label>
-            <select 
-              className="w-full border rounded-lg p-2" 
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="name">Name (A-Z)</option>
-              <option value="cgpa">CGPA (High to Low)</option>
-              <option value="department">Department</option>
-              <option value="registration">Registration No</option>
-            </select>
-          </div>
-
-          <div className="flex items-end gap-2">
-            <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
-              <Search className="w-4 h-4" /> Refresh
-            </button>
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Clear
-            </button>
-          </div>
+          {/* Skill suggestions with side-by-side display */}
+          {skillToAdd.trim() && availableSkills.filter(s => s.toLowerCase().includes(skillToAdd.toLowerCase())).length > 0 && (
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Suggestions</p>
+              <div className="flex flex-wrap gap-2">
+                {availableSkills
+                  .filter(s => s.toLowerCase().includes(skillToAdd.toLowerCase()))
+                  .slice(0, 8)
+                  .map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => handleAddSkill(skill)}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                    >
+                      <span className="text-lg">+</span> {skill}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
         </form>
 
+        {/* Selected Skills */}
         <div className="mt-3 min-h-7">
           {filters.skills.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -520,7 +656,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       </div>
 
       {/* Students Table */}
-      {loading ? (
+      {loading || backendSearchLoading ? (
         <div className="text-center py-12"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>
       ) : sortedStudents.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
@@ -600,9 +736,21 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
             <table className="w-full min-w-full text-sm table-fixed">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[23%]">Student</th>
-                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[13%]">Department</th>
-                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[8%]">CGPA</th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[23%]">
+                    <button type="button" onClick={() => setSortBy('name')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                      Student <ArrowUpDown className="w-3 h-3" />
+                    </button>
+                  </th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[13%]">
+                    <button type="button" onClick={() => setSortBy('department')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                      Department <ArrowUpDown className="w-3 h-3" />
+                    </button>
+                  </th>
+                  <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[8%]">
+                    <button type="button" onClick={() => setSortBy('cgpa')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                      CGPA <ArrowUpDown className="w-3 h-3" />
+                    </button>
+                  </th>
                   <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[19%]">FYP Title</th>
                   <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[10%]">Skills</th>
                   <th className="bg-gray-50 text-center px-2 py-2 text-xs font-semibold text-gray-600 uppercase w-[17%]">Status</th>
@@ -688,6 +836,73 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {students.length > 0 && totalCount > pageSize && (
+        <div className="mt-4 flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200">
+          <div className="text-sm text-gray-600">
+            Showing <span className="font-semibold">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-semibold">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-semibold">{totalCount}</span> students
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchStudents(backendSearchRef.current, Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1 || backendSearchLoading}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.ceil(totalCount / pageSize) }, (_, i) => i + 1)
+                .filter(page => {
+                  const maxVisible = 5;
+                  const start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                  const end = Math.min(Math.ceil(totalCount / pageSize), start + maxVisible - 1);
+                  return page >= start && page <= end;
+                })
+                .map(page => (
+                  <button
+                    key={page}
+                    onClick={() => fetchStudents(backendSearchRef.current, page)}
+                    disabled={backendSearchLoading}
+                    className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                      page === currentPage
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+            </div>
+
+            <button
+              onClick={() => fetchStudents(backendSearchRef.current, Math.min(Math.ceil(totalCount / pageSize), currentPage + 1))}
+              disabled={currentPage >= Math.ceil(totalCount / pageSize) || backendSearchLoading}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const newPageSize = Number(e.target.value);
+              setPageSize(newPageSize);
+              fetchStudents(backendSearchRef.current, 1);
+            }}
+            disabled={backendSearchLoading}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <option value={5}>5 per page</option>
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+          </select>
         </div>
       )}
     </div>

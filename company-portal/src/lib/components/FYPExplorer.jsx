@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Github, Users, Code2, PlayCircle, Search } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, Github, Code2, PlayCircle, Search } from 'lucide-react';
 import { getFinalYearProjects } from '../api';
 import { getThumbnailUrl } from '../utils/videoUtils';
 
@@ -9,74 +9,52 @@ export default function FYPExplorer({ onSelectProject, onError }) {
   const [studentQuery, setStudentQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [fypQuery, setFypQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+  const [totalCount, setTotalCount] = useState(0);
+  const debounceRef = useRef(null);
+
+  const departmentOptions = [
+    'Computer Science',
+    'Civil Engineering',
+    'Mechanical Engineering',
+    'Electrical Engineering',
+    'Management Sciences'
+  ];
+
+  const fetchProjects = async () => {
+    setLoading(true);
+    try {
+      const data = await getFinalYearProjects({
+        studentQuery,
+        department: departmentFilter,
+        fypQuery,
+        page: currentPage,
+        pageSize
+      });
+      setProjects(data.items || data.projects || []);
+      setTotalCount(data.totalCount || data.totalProjects || 0);
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getFinalYearProjects()
-      .then(data => setProjects(data.projects || []))
-      .catch(err => onError(err.message))
-      .finally(() => setLoading(false));
-  }, [onError]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchProjects();
+    }, 350);
 
-  const normalize = (value) => String(value || '').trim().toLowerCase();
-  const cleanReg = (value) => normalize(value).replace(/[^a-z0-9]/g, '');
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [studentQuery, departmentFilter, fypQuery, currentPage, pageSize]);
 
-  const getProjectStudents = (project) => project.students || project.teamMembers || project.members || [];
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  const departmentOptions = useMemo(() => {
-    const buckets = new Set();
-    projects.forEach((project) => {
-      const projectDepartment = project.department || project.Department;
-      if (projectDepartment) buckets.add(projectDepartment);
-
-      getProjectStudents(project).forEach((student) => {
-        const dept = student.department || student.Department;
-        if (dept) buckets.add(dept);
-      });
-    });
-
-    return [...buckets].sort((a, b) => a.localeCompare(b));
-  }, [projects]);
-
-  const filteredProjects = useMemo(() => {
-    const studentNeedle = normalize(studentQuery);
-    const studentRegNeedle = cleanReg(studentQuery);
-    const fypNeedle = normalize(fypQuery);
-    const departmentNeedle = normalize(departmentFilter);
-
-    return projects.filter((project) => {
-      const title = normalize(project.title || project.name);
-      const students = getProjectStudents(project);
-      const projectDepartment = normalize(project.department || project.Department);
-
-      const projectLevelStudentNames = Array.isArray(project.studentNames)
-        ? project.studentNames.map((n) => normalize(n)).join(' ')
-        : normalize(project.studentNames || project.studentNameList);
-      const projectLevelRegistrations = Array.isArray(project.studentRegistrations)
-        ? project.studentRegistrations.map((r) => cleanReg(r)).join(' ')
-        : cleanReg(project.studentRegistrations || project.studentRegistrationNos || '');
-
-      const matchesFyp = !fypNeedle || title.includes(fypNeedle);
-
-      const matchesStudent = !studentNeedle || (
-        students.some((student) => {
-          const studentName = normalize(student.fullName || student.name || student.studentName);
-          const studentReg = cleanReg(student.registrationNo || student.registration || student.regNo);
-          return studentName.includes(studentNeedle) || (studentRegNeedle && studentReg.includes(studentRegNeedle));
-        })
-        || projectLevelStudentNames.includes(studentNeedle)
-        || (studentRegNeedle && projectLevelRegistrations.includes(studentRegNeedle))
-      );
-
-      const matchesDepartment = !departmentNeedle || (
-        projectDepartment === departmentNeedle
-        || students.some((student) => normalize(student.department || student.Department) === departmentNeedle)
-      );
-
-      return matchesFyp && matchesStudent && matchesDepartment;
-    });
-  }, [projects, studentQuery, departmentFilter, fypQuery]);
-
-  if (loading) return <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>;
+  if (loading && projects.length === 0) return <div className="p-12 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" /></div>;
 
   return (
     <div className="animate-fade-in">
@@ -86,7 +64,7 @@ export default function FYPExplorer({ onSelectProject, onError }) {
           <p className="text-gray-500 text-sm">Discover innovative projects built by graduating students</p>
         </div>
         <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
-          {filteredProjects.length} / {projects.length} Projects
+          {projects.length} / {totalCount} Projects
         </span>
       </div>
 
@@ -98,7 +76,10 @@ export default function FYPExplorer({ onSelectProject, onError }) {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={studentQuery}
-                onChange={(e) => setStudentQuery(e.target.value)}
+                onChange={(e) => {
+                  setStudentQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="e.g. SP22-BCS-011 or Ali"
                 className="w-full border rounded-lg p-2 pl-9"
               />
@@ -109,7 +90,10 @@ export default function FYPExplorer({ onSelectProject, onError }) {
             <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
             <select
               value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
+              onChange={(e) => {
+                setDepartmentFilter(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full border rounded-lg p-2"
             >
               <option value="">All Departments</option>
@@ -125,7 +109,10 @@ export default function FYPExplorer({ onSelectProject, onError }) {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={fypQuery}
-                onChange={(e) => setFypQuery(e.target.value)}
+                onChange={(e) => {
+                  setFypQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search by project title"
                 className="w-full border rounded-lg p-2 pl-9"
               />
@@ -134,15 +121,28 @@ export default function FYPExplorer({ onSelectProject, onError }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProjects.map(project => (
+      {loading && projects.length > 0 && (
+        <div className="mb-4 text-sm text-blue-600 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Updating results...
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {projects.map(project => (
+          (() => {
+            const projectGithubUrl = String(project.gitHubUrl || project.githubUrl || project.GitHubUrl || '').trim();
+            const firstStudentGithub = (project.students || [])
+              .map((student) => student.studentGitHubUrl || student.studentGithubUrl || student.githubUrl)
+              .find(Boolean);
+            const projectGithubLink = projectGithubUrl || firstStudentGithub;
+            return (
           <div 
             key={project.projectId} 
             onClick={() => onSelectProject(project.projectId)}
             className="group bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer"
           >
             {/* Thumbnail Section */}
-            <div className="h-48 bg-slate-100 relative overflow-hidden">
+            <div className="h-36 bg-slate-100 relative overflow-hidden">
               {project.demoUrl && getThumbnailUrl(project.demoUrl) ? (
                 <>
                   <img 
@@ -164,36 +164,89 @@ export default function FYPExplorer({ onSelectProject, onError }) {
               </div>
             </div>
 
-            <div className="p-5 flex-1 flex flex-col">
-              <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
+            <div className="p-4 flex-1 flex flex-col">
+              <h3 className="font-bold text-base text-gray-900 mb-1.5 line-clamp-1 group-hover:text-blue-600 transition-colors">
                 {project.title}
               </h3>
               
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-1">{project.description}</p>
+              <p className="text-gray-600 text-xs mb-3 line-clamp-2 flex-1">{project.description}</p>
 
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {project.skills?.slice(0, 3).map((skill, i) => (
+              <div className="flex flex-wrap gap-1 mb-3">
+                {project.skills?.slice(0, 2).map((skill, i) => (
                   <span key={i} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-[10px] font-medium border border-blue-100">
                     {skill}
                   </span>
                 ))}
-                {project.skills?.length > 3 && <span className="text-xs text-gray-400 flex items-center">+{project.skills.length - 3}</span>}
+                {project.skills?.length > 2 && <span className="text-xs text-gray-400 flex items-center">+{project.skills.length - 2}</span>}
               </div>
 
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                <div className="flex items-center gap-1">
-                  <Users className="w-3 h-3" /> {project.totalStudents} Students
-                </div>
-                {project.gitHubUrl && <Github className="w-3 h-3" />}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-end text-xs text-gray-500">
+                {projectGithubLink && (
+                  <a
+                    href={projectGithubLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center justify-center p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                    title="Open GitHub"
+                    aria-label="Open GitHub"
+                  >
+                    <Github className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </div>
             </div>
           </div>
+            );
+          })()
         ))}
       </div>
 
-      {filteredProjects.length === 0 && (
+      {projects.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200 mt-6">
           <p className="text-gray-500">No projects match the selected filters.</p>
+        </div>
+      )}
+
+      {totalCount > pageSize && (
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border border-gray-200 rounded-xl p-3">
+          <div className="text-sm text-gray-600">
+            Showing page {currentPage} of {totalPages} ({totalCount} projects)
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="border rounded-md px-2 py-1 text-sm"
+            >
+              <option value={6}>6 / page</option>
+              <option value={9}>9 / page</option>
+              <option value={12}>12 / page</option>
+              <option value={18}>18 / page</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Previous
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-md border text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

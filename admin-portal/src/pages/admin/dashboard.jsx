@@ -31,15 +31,15 @@ import api from '../../lib/api';
 const StatCard = ({ title, value, icon: Icon, color, bgColor, onClick }) => (
   <div 
     onClick={onClick}
-    className={`bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 ${onClick ? 'cursor-pointer hover:scale-105' : ''}`}
+    className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
   >
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-        <h3 className="text-3xl font-bold text-gray-900">{value}</h3>
+        <p className="text-xs font-medium text-gray-500 mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-gray-900 leading-none">{value}</h3>
       </div>
-      <div className={`p-3 rounded-lg ${bgColor}`}>
-        <Icon className={`w-6 h-6 ${color}`} />
+      <div className={`p-2.5 rounded-lg ${bgColor}`}>
+        <Icon className={`w-5 h-5 ${color}`} />
       </div>
     </div>
   </div>
@@ -91,6 +91,30 @@ const Dashboard = () => {
     { name: 'Dept Surveys', count: stats?.departmentSurveysReceived || 0 },
   ];
 
+  const totalRequests = stats?.totalInterviewRequests || 0;
+  const acceptedRequests = stats?.totalAcceptedRequests || 0;
+  const notAcceptedRequests = Math.max(0, totalRequests - acceptedRequests);
+  const requestAcceptanceData = [
+    { name: 'Accepted', value: acceptedRequests },
+    { name: 'Not Accepted', value: notAcceptedRequests },
+  ];
+  const requestAcceptanceHasData = totalRequests > 0;
+  const requestAcceptancePieData = requestAcceptanceHasData
+    ? requestAcceptanceData
+    : [{ name: 'No Data', value: 1 }];
+  const REQUEST_RATIO_COLORS = ['#10B981', '#EF4444'];
+
+  const requestAcceptanceRatio = stats?.requestAcceptanceRatio || 0;
+
+  const interviewStageData = [
+    { name: 'Total', count: stats?.totalInterviews || 0, color: '#0EA5E9' },
+    { name: 'Scheduled', count: stats?.interviewsScheduled || 0, color: '#8B5CF6' },
+    { name: 'Queued', count: stats?.interviewsQueued || 0, color: '#F59E0B' },
+    { name: 'Hired', count: stats?.studentsHired || 0, color: '#10B981' },
+    { name: 'Shortlisted', count: stats?.studentsShortlisted || 0, color: '#6366F1' },
+    { name: 'Rejected', count: stats?.interviewsRejected || 0, color: '#EF4444' },
+  ];
+
   const topRequestedCandidates = stats?.topRequestedCandidates?.length
     ? stats.topRequestedCandidates
     : (stats?.topRequestedCandidateId
@@ -111,17 +135,22 @@ const Dashboard = () => {
         }]
       : []);
 
+  const recruitmentHasData = (stats?.studentsHired || 0) + (stats?.studentsShortlisted || 0) > 0;
+  const recruitmentPieData = recruitmentHasData
+    ? recruitmentData
+    : [{ name: 'No Data', value: 1 }];
+
   return (
-    <div className="w-full max-w-full space-y-8 animate-fade-in overflow-x-hidden">
+    <div className="w-full max-w-full space-y-4 animate-fade-in overflow-x-hidden pb-2">
       
       {/* 1. Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-500 mt-1">Overview of the current Job Fair statistics and activities.</p>
+        <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p className="text-gray-500 text-sm mt-1">Overview of the current Job Fair statistics and activities.</p>
       </div>
 
       {/* 2. Key Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard 
           title="Total Students" 
           value={stats?.totalStudents} 
@@ -156,78 +185,93 @@ const Dashboard = () => {
       </div>
 
       {/* 3. Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Company Requests</p>
-          <div className="mt-3 space-y-3">
-            {topRequestedCandidates.length > 0 ? topRequestedCandidates.slice(0, 5).map((candidate, index) => (
-              <div key={`top-requested-${candidate.studentId || index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
-                  <p className="text-xs text-gray-500">{candidate.count || 0} company requests</p>
-                </div>
-                {candidate.studentId && (
-                  <button
-                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                  >
-                    View Profile
-                  </button>
-                )}
-              </div>
-            )) : (
-              <p className="text-sm text-gray-500">No data yet</p>
-            )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-bold text-gray-800">Request to Acceptance Ratio</h3>
+            <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+              {requestAcceptanceRatio}% Accepted
+            </span>
           </div>
+
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={requestAcceptancePieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={42}
+                  outerRadius={62}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
+                  {requestAcceptancePieData.map((entry, index) => (
+                    <Cell
+                      key={`request-ratio-cell-${index}`}
+                      fill={requestAcceptanceHasData ? REQUEST_RATIO_COLORS[index % REQUEST_RATIO_COLORS.length] : '#D1D5DB'}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius: '8px' }} />
+                <Legend verticalAlign="bottom" height={26} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          {!requestAcceptanceHasData && (
+            <p className="text-[11px] text-gray-400 text-center mt-1">No request data available</p>
+          )}
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Hires</p>
-          <div className="mt-3 space-y-3">
-            {topHiredCandidates.length > 0 ? topHiredCandidates.slice(0, 5).map((candidate, index) => (
-              <div key={`top-hired-${candidate.studentId || index}`} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
-                  <p className="text-xs text-gray-500">{candidate.count || 0} hired outcomes</p>
-                </div>
-                {candidate.studentId && (
-                  <button
-                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  >
-                    View Profile
-                  </button>
-                )}
-              </div>
-            )) : (
-              <p className="text-sm text-gray-500">No data yet</p>
-            )}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-bold text-gray-800">Interview Stage Snapshot</h3>
+            <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-700 rounded-full">Current Job Fair</span>
+          </div>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={interviewStageData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} />
+                <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={44}>
+                  {interviewStageData.map((entry, index) => (
+                    <Cell key={`interview-stage-cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         
         {/* Recruitment Progress (Pie Chart) */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-gray-800">Recruitment Impact</h3>
+        <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-bold text-gray-800">Recruitment Impact</h3>
             <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">Live Data</span>
           </div>
-          <div className="h-72">
+          <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={recruitmentData}
+                  data={recruitmentPieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80}
-                  outerRadius={110}
+                  innerRadius={52}
+                  outerRadius={74}
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {recruitmentData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  {recruitmentPieData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={recruitmentHasData ? PIE_COLORS[index % PIE_COLORS.length] : '#D1D5DB'}
+                    />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
@@ -235,24 +279,27 @@ const Dashboard = () => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-4 text-center">
-            <div className="p-3 bg-gray-50 rounded-lg">
+          {!recruitmentHasData && (
+            <p className="text-[11px] text-gray-400 text-center mt-1">No recruitment data available</p>
+          )}
+          <div className="grid grid-cols-2 gap-2 mt-2 text-center">
+            <div className="p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-500">Total Shortlisted</p>
-              <p className="text-xl font-bold text-indigo-600">{stats?.studentsShortlisted}</p>
+              <p className="text-lg font-bold text-indigo-600">{stats?.studentsShortlisted}</p>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="p-2 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-500">Total Hired</p>
-              <p className="text-xl font-bold text-emerald-600">{stats?.studentsHired}</p>
+              <p className="text-lg font-bold text-emerald-600">{stats?.studentsHired}</p>
             </div>
           </div>
         </div>
 
         {/* Survey Feedback (Bar Chart or List) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="text-lg font-bold text-gray-800 mb-6">Feedback Received</h3>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+          <h3 className="text-base font-bold text-gray-800 mb-2">Feedback Received</h3>
           
           {/* Small Bar Chart for Surveys */}
-          <div className="flex-1 min-h-[200px]">
+          <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={surveyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -265,15 +312,15 @@ const Dashboard = () => {
           </div>
 
           {/* Text Summary */}
-          <div className="mt-6 space-y-4">
-            <div className="flex items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
+          <div className="mt-2 space-y-2">
+            <div className="flex items-center p-2 bg-blue-50 rounded-lg border border-blue-100">
               <FileText className="w-5 h-5 text-blue-600 mr-3" />
               <div>
                 <p className="text-xs text-blue-600 font-semibold uppercase">CDC Feedback</p>
                 <p className="text-sm text-gray-600">{stats?.cdcSurveysReceived} forms submitted</p>
               </div>
             </div>
-            <div className="flex items-center p-3 bg-purple-50 rounded-lg border border-purple-100">
+            <div className="flex items-center p-2 bg-purple-50 rounded-lg border border-purple-100">
               <UserCheck className="w-5 h-5 text-purple-600 mr-3" />
               <div>
                 <p className="text-xs text-purple-600 font-semibold uppercase">Dept. Feedback</p>
@@ -283,6 +330,57 @@ const Dashboard = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Bottom Section: Top Candidates */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Company Requests</p>
+          <div className="mt-2 space-y-2">
+            {topRequestedCandidates.length > 0 ? topRequestedCandidates.slice(0, 5).map((candidate, index) => (
+              <div key={`top-requested-${candidate.studentId || index}`} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50">
+                <div>
+                  <p className="text-xs font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
+                  <p className="text-xs text-gray-500">{candidate.count || 0} company requests</p>
+                </div>
+                {candidate.studentId && (
+                  <button
+                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  >
+                    View Profile
+                  </button>
+                )}
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500">No data yet</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Hires</p>
+          <div className="mt-2 space-y-2">
+            {topHiredCandidates.length > 0 ? topHiredCandidates.slice(0, 5).map((candidate, index) => (
+              <div key={`top-hired-${candidate.studentId || index}`} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50">
+                <div>
+                  <p className="text-xs font-semibold text-gray-900">{index + 1}. {candidate.candidateName || 'Unknown Candidate'}</p>
+                  <p className="text-xs text-gray-500">{candidate.count || 0} hired outcomes</p>
+                </div>
+                {candidate.studentId && (
+                  <button
+                    onClick={() => navigate(`/admin/students/${candidate.studentId}`)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  >
+                    View Profile
+                  </button>
+                )}
+              </div>
+            )) : (
+              <p className="text-sm text-gray-500">No data yet</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

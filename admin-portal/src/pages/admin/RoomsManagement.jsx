@@ -138,8 +138,9 @@ const RoomsManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const searchQuery = filters.search ? `?search=${encodeURIComponent(filters.search)}` : '';
       const [roomsRes, companiesRes] = await Promise.all([
-        api.get('/admin/rooms'),
+        api.get(`/admin/rooms${searchQuery}`),
         api.get('/admin/companies?pageSize=1000') // Fetch all companies for dropdown
       ]);
       setRooms(roomsRes.data);
@@ -161,6 +162,14 @@ const RoomsManagement = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      fetchData();
+    }, 350);
+
+    return () => clearTimeout(id);
+  }, [filters.search]);
 
   // 2. Process Rooms (Filter + Sort)
   const processedRooms = useMemo(() => {
@@ -533,9 +542,21 @@ const RoomsManagement = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Room</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Capacity</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => setSortConfig({ key: 'name', direction: sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Room <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => setSortConfig({ key: 'capacity', direction: sortConfig.key === 'capacity' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Capacity <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  <button type="button" onClick={() => setSortConfig({ key: 'status', direction: sortConfig.key === 'status' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-900">
+                    Status <ArrowUpDown size={12} />
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Company</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>

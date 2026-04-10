@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import signalrSvc from '../../services/signalr';
+import { ArrowUpDown } from 'lucide-react';
 
 const STATUSES = [
   'Pending',
@@ -19,6 +20,7 @@ const CompanyRequests = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'CreatedAt', direction: 'desc' });
   const activeJobFairIdRef = useRef(null);
 
   const handleSessionExpiry = (error) => {
@@ -37,6 +39,22 @@ const CompanyRequests = () => {
       ),
     [requests, searchTerm]
   );
+
+  const sortedFilteredRequests = useMemo(() => {
+    return [...filteredRequests].sort((a, b) => {
+      const factor = sortConfig.direction === 'asc' ? 1 : -1;
+      if (sortConfig.key === 'CompanyName') return String(a.CompanyName || '').localeCompare(String(b.CompanyName || '')) * factor;
+      if (sortConfig.key === 'Type') return String(a.Type || '').localeCompare(String(b.Type || '')) * factor;
+      if (sortConfig.key === 'Quantity') return ((a.Quantity || 0) - (b.Quantity || 0)) * factor;
+      if (sortConfig.key === 'Status') return String(a.Status || '').localeCompare(String(b.Status || '')) * factor;
+      if (sortConfig.key === 'CompanyRequestId') return ((a.CompanyRequestId || 0) - (b.CompanyRequestId || 0)) * factor;
+      return ((new Date(a.CreatedAt || 0).getTime() || 0) - (new Date(b.CreatedAt || 0).getTime() || 0)) * factor;
+    });
+  }, [filteredRequests, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
 
   useEffect(() => {
     fetchActiveJobFairAndList();
@@ -328,13 +346,25 @@ const CompanyRequests = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">ID</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Date/Time</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Company</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Type</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('CompanyRequestId')} className="inline-flex items-center gap-1 hover:text-gray-700">ID <ArrowUpDown size={12} /></button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('CreatedAt')} className="inline-flex items-center gap-1 hover:text-gray-700">Date/Time <ArrowUpDown size={12} /></button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('CompanyName')} className="inline-flex items-center gap-1 hover:text-gray-700">Company <ArrowUpDown size={12} /></button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('Type')} className="inline-flex items-center gap-1 hover:text-gray-700">Type <ArrowUpDown size={12} /></button>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Description</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Qty</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('Quantity')} className="inline-flex items-center gap-1 hover:text-gray-700">Qty <ArrowUpDown size={12} /></button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => toggleSort('Status')} className="inline-flex items-center gap-1 hover:text-gray-700">Status <ArrowUpDown size={12} /></button>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Fulfilled</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
               </tr>
@@ -346,8 +376,8 @@ const CompanyRequests = () => {
                     <td colSpan="9" className="px-6 py-4"><div className="h-10 bg-gray-100 rounded w-full"></div></td>
                   </tr>
                 ))
-              ) : filteredRequests.length > 0 ? (
-                filteredRequests.map(r => {
+              ) : sortedFilteredRequests.length > 0 ? (
+                sortedFilteredRequests.map(r => {
                     const createdDateTime = r.CreatedAt ? new Date(r.CreatedAt) : null;
                     const createdDate = createdDateTime ? createdDateTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
                     const createdTime = createdDateTime ? createdDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';

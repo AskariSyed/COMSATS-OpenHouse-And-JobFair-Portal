@@ -106,6 +106,11 @@ const AllStudentsList = () => {
         ? (a.registrationNo || '').localeCompare(b.registrationNo || '')
         : (b.registrationNo || '').localeCompare(a.registrationNo || '');
     }
+    if (sortConfig.key === 'department') {
+       return sortConfig.direction === 'asc'
+      ? (a.department || '').localeCompare(b.department || '')
+      : (b.department || '').localeCompare(a.department || '');
+    }
     return 0;
   });
 
@@ -208,10 +213,26 @@ const AllStudentsList = () => {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Student</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Reg No</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Dept</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">CGPA</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => setSortConfig({ key: 'name', direction: sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Student <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => setSortConfig({ key: 'regNo', direction: sortConfig.key === 'regNo' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Reg No <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => setSortConfig({ key: 'department', direction: sortConfig.key === 'department' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    Dept <ArrowUpDown size={12} />
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  <button type="button" onClick={() => setSortConfig({ key: 'cgpa', direction: sortConfig.key === 'cgpa' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="inline-flex items-center gap-1 hover:text-gray-700">
+                    CGPA <ArrowUpDown size={12} />
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
               </tr>

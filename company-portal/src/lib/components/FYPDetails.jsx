@@ -19,6 +19,12 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
   if (!project) return <div className="text-center text-red-500 p-12">Project not found.</div>;
 
   const embedUrl = getEmbedUrl(project.demoUrl);
+  const projectGithubUrl = String(project.gitHubUrl || project.githubUrl || project.GitHubUrl || '').trim();
+  const getStudentGithubUrl = (student) => {
+    const links = student?.contactLinks?.links || [];
+    const githubLink = links.find((link) => String(link.platform || '').toLowerCase() === 'github');
+    return githubLink?.url || null;
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in flex flex-col h-full">
@@ -33,6 +39,18 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
             <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide w-fit">
               {project.type}
             </span>
+            {projectGithubUrl && (
+              <a
+                href={projectGithubUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center p-1.5 rounded-md border border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 w-fit"
+                title="Open GitHub"
+                aria-label="Open GitHub"
+              >
+                <Github className="w-4 h-4" />
+              </a>
+            )}
           </div>
           
           <div className="flex flex-wrap gap-4 text-sm text-gray-500">
@@ -66,24 +84,12 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
               <p className="text-gray-600 leading-relaxed whitespace-pre-line">{project.description || "No description provided."}</p>
             </div>
 
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 mb-3">Technologies</h3>
-              <div className="flex flex-wrap gap-2">
-                {/* The controller returns Skills as a List<string> now */}
-                {project.skills?.map((skill, i) => (
-                  <span key={i} className="bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
-                    <Code2 className="w-3.5 h-3.5 text-blue-500" /> {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-            
             <div className="flex flex-wrap gap-4 pt-4 border-t border-gray-100">
               {project.demoUrl && !getYoutubeId(project.demoUrl) && (
                  <a href={project.demoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"><ExternalLink className="w-4 h-4" /> Live Demo</a>
               )}
-              {project.gitHubUrl && (
-                <a href={project.gitHubUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 shadow-sm"><Github className="w-4 h-4" /> Source Code</a>
+              {projectGithubUrl && (
+                <a href={projectGithubUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 shadow-sm"><Github className="w-4 h-4" /> Source Code</a>
               )}
             </div>
           </div>
@@ -97,24 +103,43 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
               </div>
               
               <div className="space-y-3">
-                {project.students?.map(student => (
+                {project.students?.map(student => {
+                  const studentGithubUrl = getStudentGithubUrl(student);
+                  return (
                   <div key={student.studentId} onClick={() => onSelectStudent(student)} className="bg-white p-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex items-start gap-3">
                     <div className="w-10 h-10 min-w-[2.5rem] bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200">
                        {student.profilePicUrl ? <img src={getFileUrl(student.profilePicUrl)} alt="" className="w-full h-full object-cover" /> : <span>{student.fullName?.charAt(0)}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
+                      <div className="flex justify-between items-start gap-2">
                         {/* Note: Controller uses 'fullName' now */}
                         <h4 className="font-bold text-gray-800 text-sm group-hover:text-blue-600 truncate pr-2">{student.fullName}</h4>
-                        {/* Accessing nested ProjectRole object */}
-                        {student.projectRole?.isCreator && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">Lead</span>}
+                        <div className="flex items-center gap-1">
+                          {studentGithubUrl && (
+                            <a
+                              href={studentGithubUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center justify-center p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                              title="Open student GitHub"
+                              aria-label="Open student GitHub"
+                            >
+                              <Github className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {/* Accessing nested ProjectRole object */}
+                          {student.projectRole?.isCreator && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">Lead</span>}
+                        </div>
                       </div>
                       <p className="text-xs text-gray-500 truncate">{student.registrationNo}</p>
+                      <p className="text-xs text-green-700 font-semibold mt-1">CGPA: {student.cgpa ?? student.CGPA ?? 'N/A'}</p>
                       {/* Accessing nested ProjectRole object */}
                       <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wide font-medium">{student.projectRole?.role || 'Member'}</p>
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
 
                {/* New Stats Section from full-details */}

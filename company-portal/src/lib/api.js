@@ -204,15 +204,64 @@ export const getCompanyHistoricalAnalytics = (jobFairId = null) => {
 };
 
 // --- COMPANY: STUDENTS ---
-export const getStudents = (filterType, filterValue) => {
+export const getStudents = (params = {}) => {
   let endpoint = '/Company/students';
-  if (filterType === 'skill' && filterValue) {
-    endpoint = `/Company/students/search-by-skill?skill=${encodeURIComponent(filterValue)}`;
-  } else if (filterType === 'registration' && filterValue) {
-    endpoint = `/Company/students/search-by-registration?registrationNo=${encodeURIComponent(filterValue)}`;
-  } else if (filterType === 'department' && filterValue) {
-    endpoint = `/Company/students/search-by-department?department=${encodeURIComponent(filterValue)}`;
+  
+  // Handle legacy parameters (filterType, filterValue)
+  if (typeof params === 'string') {
+    const filterType = params;
+    const filterValue = arguments[1];
+    if (filterType === 'skill' && filterValue) {
+      endpoint = `/Company/students/search-by-skill?skill=${encodeURIComponent(filterValue)}`;
+    } else if (filterType === 'registration' && filterValue) {
+      endpoint = `/Company/students/search-by-registration?registrationNo=${encodeURIComponent(filterValue)}`;
+    } else if (filterType === 'department' && filterValue) {
+      endpoint = `/Company/students/search-by-department?department=${encodeURIComponent(filterValue)}`;
+    }
+    return request(endpoint);
   }
+  
+  // Handle new object-based parameters
+  const queryParts = [];
+  if (params.search) {
+    queryParts.push(`search=${encodeURIComponent(params.search)}`);
+    endpoint = '/Company/students/search';
+  }
+  
+  if (params.department) {
+    queryParts.push(`department=${encodeURIComponent(params.department)}`);
+    if (!endpoint.includes('search')) {
+      endpoint = '/Company/students/search';
+    }
+  }
+
+  if (params.status) {
+    queryParts.push(`status=${encodeURIComponent(params.status)}`);
+    if (!endpoint.includes('search')) {
+      endpoint = '/Company/students/search';
+    }
+  }
+
+  // Add skills filter (comma-separated)
+  if (params.skills && Array.isArray(params.skills) && params.skills.length > 0) {
+    queryParts.push(`skills=${encodeURIComponent(params.skills.join(','))}`);
+    if (!endpoint.includes('search')) {
+      endpoint = '/Company/students/search';
+    }
+  }
+
+  // Add pagination parameters
+  if (params.page) {
+    queryParts.push(`page=${params.page}`);
+  }
+  if (params.pageSize) {
+    queryParts.push(`pageSize=${params.pageSize}`);
+  }
+  
+  if (queryParts.length > 0) {
+    endpoint += '?' + queryParts.join('&');
+  }
+  
   return request(endpoint);
 };
 
@@ -225,8 +274,30 @@ export const getStudentProfile = (studentId) => {
 };
 
 // --- COMPANY: PROJECTS (FYP) ---
-export const getFinalYearProjects = () => {
-  return request('/Company/finalyear-projects');
+export const getFinalYearProjects = (params = {}) => {
+  const queryParts = [];
+
+  if (params.studentQuery) {
+    queryParts.push(`studentQuery=${encodeURIComponent(params.studentQuery)}`);
+  }
+  if (params.department) {
+    queryParts.push(`department=${encodeURIComponent(params.department)}`);
+  }
+  if (params.fypQuery) {
+    queryParts.push(`fypQuery=${encodeURIComponent(params.fypQuery)}`);
+  }
+  if (params.page) {
+    queryParts.push(`page=${params.page}`);
+  }
+  if (params.pageSize) {
+    queryParts.push(`pageSize=${params.pageSize}`);
+  }
+
+  const endpoint = queryParts.length > 0
+    ? `/Company/finalyear-projects?${queryParts.join('&')}`
+    : '/Company/finalyear-projects';
+
+  return request(endpoint);
 };
 
 // Updated to use the new "Full Details" endpoint

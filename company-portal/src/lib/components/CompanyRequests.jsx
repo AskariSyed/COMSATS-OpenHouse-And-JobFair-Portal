@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Loader2, AlertCircle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Loader2, AlertCircle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { createCompanyRequest, getMyRequests, cancelCompanyRequest } from '../api';
 
 const REQUEST_TYPES = ['Supplies', 'Cleaning', 'Info', 'Equipment', 'Other'];
@@ -45,6 +45,7 @@ export default function CompanyRequests({ onError, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [expandedRequestId, setExpandedRequestId] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
   const [formData, setFormData] = useState({
     type: 'Supplies',
     description: '',
@@ -110,6 +111,37 @@ export default function CompanyRequests({ onError, onSuccess }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const sortedRequests = useMemo(() => {
+    return [...requests].sort((a, b) => {
+      const directionFactor = sortConfig.direction === 'asc' ? 1 : -1;
+      if (sortConfig.key === 'quantity') {
+        return (((a.quantity || 0) - (b.quantity || 0)) * directionFactor);
+      }
+      if (sortConfig.key === 'type') {
+        const aType = REQUEST_TYPE_MAP[a.type] || a.type || '';
+        const bType = REQUEST_TYPE_MAP[b.type] || b.type || '';
+        return (String(aType).localeCompare(String(bType)) * directionFactor);
+      }
+      if (sortConfig.key === 'status') {
+        const aStatus = normalizeStatus(a.status);
+        const bStatus = normalizeStatus(b.status);
+        return (aStatus.localeCompare(bStatus) * directionFactor);
+      }
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return ((aTime - bTime) * directionFactor);
+    });
+  }, [requests, sortConfig]);
+
+  const toggleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'asc' };
+    });
   };
 
   return (
@@ -220,16 +252,24 @@ export default function CompanyRequests({ onError, onSuccess }) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Quantity</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Status</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Submitted</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                    <button type="button" onClick={() => toggleSort('type')} className="inline-flex items-center gap-1 hover:text-gray-900">Type <ArrowUpDown className="w-3 h-3" /></button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                    <button type="button" onClick={() => toggleSort('quantity')} className="inline-flex items-center gap-1 hover:text-gray-900">Quantity <ArrowUpDown className="w-3 h-3" /></button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                    <button type="button" onClick={() => toggleSort('status')} className="inline-flex items-center gap-1 hover:text-gray-900">Status <ArrowUpDown className="w-3 h-3" /></button>
+                  </th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">
+                    <button type="button" onClick={() => toggleSort('createdAt')} className="inline-flex items-center gap-1 hover:text-gray-900">Submitted <ArrowUpDown className="w-3 h-3" /></button>
+                  </th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-700">Description</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {requests.map((req) => {
+                {sortedRequests.map((req) => {
                   const normalizedStatus = normalizeStatus(req.status);
                   const statusConfig = REQUEST_STATUSES[normalizedStatus] || REQUEST_STATUSES.Pending;
                   const StatusIcon = statusConfig.icon;

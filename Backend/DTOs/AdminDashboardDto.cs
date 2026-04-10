@@ -14,8 +14,15 @@
         public int TotalRooms { get; set; }
         public int StudentsHired { get; set; }
         public int StudentsShortlisted { get; set; }
+        public int TotalInterviews { get; set; }
+        public int InterviewsScheduled { get; set; }
+        public int InterviewsQueued { get; set; }
+        public int InterviewsRejected { get; set; }
         public int CDCSurveysReceived { get; set; }
         public int DepartmentSurveysReceived { get; set; }
+        public int TotalInterviewRequests { get; set; }
+        public int TotalAcceptedRequests { get; set; }
+        public double RequestAcceptanceRatio { get; set; }
         public int? TopRequestedCandidateId { get; set; }
         public string? TopRequestedCandidateName { get; set; }
         public int TopRequestedCandidateRequestCount { get; set; }

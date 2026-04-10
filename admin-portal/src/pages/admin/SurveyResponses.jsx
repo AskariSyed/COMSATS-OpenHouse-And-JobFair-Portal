@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Download, Filter, Search, Calendar, Building2, FileText,
-  ChevronDown, BarChart3, Eye, RotateCcw, MessageSquare, Coffee, Layout, Award, Bell, Mail
+  ChevronDown, BarChart3, Eye, RotateCcw, MessageSquare, Coffee, Layout, Award, Bell, Mail, ArrowUpDown
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -154,6 +154,8 @@ const SurveyResponses = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [activeView, setActiveView] = useState('list'); // list, pending, cdc-stats, dept-stats
   const [notifyModal, setNotifyModal] = useState({ open: false, company: null });
+  const [listSortConfig, setListSortConfig] = useState({ key: 'latestSubmittedAt', direction: 'desc' });
+  const [pendingSortConfig, setPendingSortConfig] = useState({ key: 'companyName', direction: 'asc' });
   const cdcChartsRef = useRef(null);
   const deptChartsRef = useRef(null);
   const cdcExportRef = useRef(null);
@@ -269,6 +271,16 @@ const SurveyResponses = () => {
     );
   }, [processedSurveys]);
 
+  const sortedCompanyResponseRows = useMemo(() => {
+    return [...companyResponseRows].sort((a, b) => {
+      const factor = listSortConfig.direction === 'asc' ? 1 : -1;
+      if (listSortConfig.key === 'companyName') return String(a.companyName || '').localeCompare(String(b.companyName || '')) * factor;
+      if (listSortConfig.key === 'cdc') return ((a.cdc ? 1 : 0) - (b.cdc ? 1 : 0)) * factor;
+      if (listSortConfig.key === 'department') return ((a.department ? 1 : 0) - (b.department ? 1 : 0)) * factor;
+      return ((new Date(a.latestSubmittedAt || 0).getTime() || 0) - (new Date(b.latestSubmittedAt || 0).getTime() || 0)) * factor;
+    });
+  }, [companyResponseRows, listSortConfig]);
+
   const pendingCompanies = useMemo(() => {
     const responseMap = new Map();
 
@@ -337,6 +349,24 @@ const SurveyResponses = () => {
       return a.companyName.localeCompare(b.companyName);
     });
   }, [companies, surveys, filters.search, filters.companyId]);
+
+  const sortedPendingCompanies = useMemo(() => {
+    return [...pendingCompanies].sort((a, b) => {
+      const factor = pendingSortConfig.direction === 'asc' ? 1 : -1;
+      if (pendingSortConfig.key === 'email') return String(a.email || '').localeCompare(String(b.email || '')) * factor;
+      if (pendingSortConfig.key === 'room') return String(a.room || '').localeCompare(String(b.room || '')) * factor;
+      if (pendingSortConfig.key === 'missing') return ((a.missing?.length || 0) - (b.missing?.length || 0)) * factor;
+      return String(a.companyName || '').localeCompare(String(b.companyName || '')) * factor;
+    });
+  }, [pendingCompanies, pendingSortConfig]);
+
+  const toggleListSort = (key) => {
+    setListSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
+
+  const togglePendingSort = (key) => {
+    setPendingSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
 
   const submissionStatusRows = useMemo(() => {
     const responseMap = new Map();
@@ -1949,10 +1979,10 @@ const SurveyResponses = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Company</th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">CDC</th>
-                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Submitted</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => toggleListSort('companyName')} className="inline-flex items-center gap-1 hover:text-gray-900">Company <ArrowUpDown size={12} /></button></th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => toggleListSort('cdc')} className="inline-flex items-center gap-1 hover:text-gray-900">CDC <ArrowUpDown size={12} /></button></th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => toggleListSort('department')} className="inline-flex items-center gap-1 hover:text-gray-900">Department <ArrowUpDown size={12} /></button></th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => toggleListSort('latestSubmittedAt')} className="inline-flex items-center gap-1 hover:text-gray-900">Submitted <ArrowUpDown size={12} /></button></th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -1966,8 +1996,8 @@ const SurveyResponses = () => {
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"></div></td>
                   </tr>
                 ))
-              ) : companyResponseRows.length > 0 ? (
-                companyResponseRows.map((row) => (
+              ) : sortedCompanyResponseRows.length > 0 ? (
+                sortedCompanyResponseRows.map((row) => (
                   <tr key={`${row.companyId || row.companyName}`} className="bg-white hover:bg-gray-50 transition-colors group">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{row.companyName}</p>
@@ -2049,12 +2079,12 @@ const SurveyResponses = () => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Room No</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => togglePendingSort('companyName')} className="inline-flex items-center gap-1 hover:text-gray-900">Company <ArrowUpDown size={12} /></button></th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => togglePendingSort('email')} className="inline-flex items-center gap-1 hover:text-gray-900">Email <ArrowUpDown size={12} /></button></th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => togglePendingSort('room')} className="inline-flex items-center gap-1 hover:text-gray-900">Room No <ArrowUpDown size={12} /></button></th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">CDC</th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Missing</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider"><button type="button" onClick={() => togglePendingSort('missing')} className="inline-flex items-center gap-1 hover:text-gray-900">Missing <ArrowUpDown size={12} /></button></th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -2071,8 +2101,8 @@ const SurveyResponses = () => {
                       <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-40 ml-auto"></div></td>
                     </tr>
                   ))
-                ) : pendingCompanies.length > 0 ? (
-                  pendingCompanies.map((company) => (
+                ) : sortedPendingCompanies.length > 0 ? (
+                  sortedPendingCompanies.map((company) => (
                     <tr key={`pending-${company.companyId || company.companyName}`} className="bg-white hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-gray-900">{company.companyName}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{company.email}</td>

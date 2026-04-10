@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Loader2, Briefcase, Users, CheckCircle, XCircle, Award, Upload } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Loader2, Briefcase, Users, CheckCircle, XCircle, Award, Upload, ArrowUpDown } from 'lucide-react';
 import { copyJobToCurrentJobFair, getCompanyHistoricalAnalytics } from '../api';
 
 export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectStudent }) {
@@ -7,6 +7,11 @@ export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectS
   const [loading, setLoading] = useState(true);
   const [selectedJobFairId, setSelectedJobFairId] = useState('');
   const [exportingJobId, setExportingJobId] = useState(null);
+  const [tableSort, setTableSort] = useState({
+    hired: { key: 'studentName', direction: 'asc' },
+    shortlisted: { key: 'studentName', direction: 'asc' },
+    rejected: { key: 'studentName', direction: 'asc' }
+  });
 
   const fetchHistory = async (jobFairId = null) => {
     setLoading(true);
@@ -52,24 +57,60 @@ export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectS
     }
   };
 
-  const renderStudentsTable = (title, list, colorClass) => (
+  const getSortedOutcomeList = (outcomeKey, list) => {
+    const config = tableSort[outcomeKey] || { key: 'studentName', direction: 'asc' };
+    return [...list].sort((a, b) => {
+      const directionFactor = config.direction === 'asc' ? 1 : -1;
+      if (config.key === 'registrationNo') {
+        return ((String(a.registrationNo || '').localeCompare(String(b.registrationNo || ''))) * directionFactor);
+      }
+      if (config.key === 'department') {
+        return ((String(a.department || '').localeCompare(String(b.department || ''))) * directionFactor);
+      }
+      return ((String(a.studentName || '').localeCompare(String(b.studentName || ''))) * directionFactor);
+    });
+  };
+
+  const toggleOutcomeSort = (outcomeKey, key) => {
+    setTableSort((prev) => {
+      const current = prev[outcomeKey] || { key: 'studentName', direction: 'asc' };
+      const direction = current.key === key && current.direction === 'asc' ? 'desc' : 'asc';
+      return { ...prev, [outcomeKey]: { key, direction } };
+    });
+  };
+
+  const renderStudentsTable = (title, list, colorClass, outcomeKey) => {
+    const sortedList = getSortedOutcomeList(outcomeKey, list);
+    return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className={`border-b px-4 py-3 text-sm font-semibold ${colorClass}`}>{title} ({list.length})</div>
       <div className="max-h-72 overflow-auto">
-        {list.length === 0 ? (
+        {sortedList.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">No students in this category.</p>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Reg No</th>
-                <th className="px-4 py-2">Dept</th>
+                <th className="px-4 py-2">
+                  <button type="button" onClick={() => toggleOutcomeSort(outcomeKey, 'studentName')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                    Name <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+                <th className="px-4 py-2">
+                  <button type="button" onClick={() => toggleOutcomeSort(outcomeKey, 'registrationNo')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                    Reg No <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+                <th className="px-4 py-2">
+                  <button type="button" onClick={() => toggleOutcomeSort(outcomeKey, 'department')} className="inline-flex items-center gap-1 hover:text-gray-800">
+                    Dept <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
                 <th className="px-4 py-2 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {list.map((student) => (
+              {sortedList.map((student) => (
                 <tr key={`${title}-${student.studentId}-${student.interviewId}`}>
                   <td className="px-4 py-2 font-medium text-gray-900">{student.studentName}</td>
                   <td className="px-4 py-2 text-gray-600">{student.registrationNo}</td>
@@ -90,6 +131,7 @@ export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectS
       </div>
     </div>
   );
+  };
 
   return (
     <div className="space-y-6 pb-10">
@@ -183,9 +225,9 @@ export default function PreviousJobFairAnalytics({ onError, onSuccess, onSelectS
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {renderStudentsTable('Hired', outcomes.hired || [], 'text-green-700')}
-        {renderStudentsTable('Shortlisted', outcomes.shortlisted || [], 'text-yellow-700')}
-        {renderStudentsTable('Rejected', outcomes.rejected || [], 'text-red-700')}
+        {renderStudentsTable('Hired', outcomes.hired || [], 'text-green-700', 'hired')}
+        {renderStudentsTable('Shortlisted', outcomes.shortlisted || [], 'text-yellow-700', 'shortlisted')}
+        {renderStudentsTable('Rejected', outcomes.rejected || [], 'text-red-700', 'rejected')}
       </div>
     </div>
   );

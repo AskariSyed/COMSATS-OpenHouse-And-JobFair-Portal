@@ -470,6 +470,9 @@ const JobFairAnalytics = () => {
         ['Participating Companies', data.overallStats.totalCompanies],
         ['Total Job Openings', data.overallStats.totalJobs],
         ['Interviews Conducted', data.overallStats.totalInterviews],
+        ['Interview Requests', data.overallStats.totalInterviewRequests],
+        ['Accepted Requests', data.overallStats.totalAcceptedRequests],
+        ['Request Acceptance Ratio', `${data.overallStats.requestAcceptanceRatio}%`],
         ['Students Hired', data.interviewStats.hired],
         ['Students Shortlisted', data.interviewStats.shortlisted],
         ['Hiring Rate', `${data.interviewStats.hiringRate}%`]
@@ -669,6 +672,18 @@ const JobFairAnalytics = () => {
     (detailPage - 1) * detailPageSize,
     detailPage * detailPageSize
   );
+  const requestAcceptanceChartData = [
+    { name: 'Requests', count: data?.overallStats?.totalInterviewRequests || 0 },
+    { name: 'Accepted', count: data?.overallStats?.totalAcceptedRequests || 0 }
+  ];
+  const interviewStageChartData = [
+    { name: 'Total', count: data?.overallStats?.totalInterviews || 0, color: '#0EA5E9' },
+    { name: 'Scheduled', count: data?.interviewStats?.scheduled || 0, color: '#8B5CF6' },
+    { name: 'Queued', count: (data?.interviewStats?.queued ?? data?.interviewStats?.pending) || 0, color: '#F59E0B' },
+    { name: 'Hired', count: data?.interviewStats?.hired || 0, color: '#10B981' },
+    { name: 'Shortlisted', count: data?.interviewStats?.shortlisted || 0, color: '#6366F1' },
+    { name: 'Rejected', count: data?.interviewStats?.rejected || 0, color: '#EF4444' }
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
@@ -797,6 +812,50 @@ const JobFairAnalytics = () => {
                     <Legend />
                     <Bar dataKey="count" name="Total Students" fill="#E5E7EB" radius={[4,4,0,0]} />
                     <Bar dataKey="hired" name="Hired" fill="#10B981" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800">Interview Request to Acceptance Ratio</h3>
+                <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                  {data.overallStats.requestAcceptanceRatio}% Accepted
+                </span>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={requestAcceptanceChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                    <Bar dataKey="count" fill="#4F46E5" radius={[6, 6, 0, 0]} barSize={70} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800">Interview Stage Snapshot</h3>
+                <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-700 rounded-full">Selected Job Fair</span>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={interviewStageChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={52}>
+                      {interviewStageChartData.map((entry, index) => (
+                        <Cell key={`interview-stage-cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
