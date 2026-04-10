@@ -22,7 +22,7 @@ class BackendConfig {
 
   static String get serverBaseUrl {
     if (_isInsecureBackendOnSecurePage) {
-      final origin = html.window.location.origin ?? '';
+      final origin = html.window.location.origin;
       if (origin.isNotEmpty) {
         return origin;
       }

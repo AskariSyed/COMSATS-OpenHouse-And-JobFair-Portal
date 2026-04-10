@@ -300,7 +300,9 @@ class _QueueScreenState extends State<QueueScreen> {
                     interview: interview,
                     isMobile: isMobile,
                     isDark: isDark,
-                    isExpanded: _expandedCardIds.contains(interview.interviewId),
+                    isExpanded: _expandedCardIds.contains(
+                      interview.interviewId,
+                    ),
                   ),
                 );
               },
@@ -378,6 +380,8 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Widget _buildInterviewQueueCard({
+    required Interview interview,
+    required bool isMobile,
     required bool isDark,
     bool isExpanded = false,
   }) {
@@ -432,7 +436,9 @@ class _QueueScreenState extends State<QueueScreen> {
                                   style: TextStyle(
                                     fontSize: isMobile ? 16 : 18,
                                     fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                                    color: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -441,7 +447,9 @@ class _QueueScreenState extends State<QueueScreen> {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 2),
                                     child: Text(
-                                      _getFormattedCountdown(interview.scheduledTime),
+                                      _getFormattedCountdown(
+                                        interview.scheduledTime,
+                                      ),
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -476,9 +484,13 @@ class _QueueScreenState extends State<QueueScreen> {
                               ),
                               if (isMobile)
                                 Icon(
-                                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                                  isExpanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
                                   size: 20,
-                                  color: Theme.of(context).textTheme.bodySmall?.color,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.color,
                                 ),
                             ],
                           ),
@@ -500,7 +512,11 @@ class _QueueScreenState extends State<QueueScreen> {
     );
   }
 
-  Widget _buildMobileCardContent(Interview interview, bool isExpanded, bool isDark) {
+  Widget _buildMobileCardContent(
+    Interview interview,
+    bool isExpanded,
+    bool isDark,
+  ) {
     return Column(
       children: [
         Container(
@@ -559,7 +575,10 @@ class _QueueScreenState extends State<QueueScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Text("Actions", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text(
+                "Actions",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
               _buildNotificationMenu(interview),
             ],
           ),
@@ -625,8 +644,6 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   Widget _buildNotificationMenu(Interview interview) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 20),
       tooltip: 'Send Update to Company',
@@ -634,20 +651,36 @@ class _QueueScreenState extends State<QueueScreen> {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'StudentArrivingSoon',
-          child: _buildPopupItem(Icons.directions_walk, 'I am Coming', Colors.green),
+          child: _buildPopupItem(
+            Icons.directions_walk,
+            'I am Coming',
+            Colors.green,
+          ),
         ),
         PopupMenuItem(
           value: 'StudentArrived',
-          child: _buildPopupItem(Icons.how_to_reg, 'I have Arrived', Colors.blue),
+          child: _buildPopupItem(
+            Icons.how_to_reg,
+            'I have Arrived',
+            Colors.blue,
+          ),
         ),
         PopupMenuItem(
           value: 'StudentRunningLate',
-          child: _buildPopupItem(Icons.timer_out_of_sync, 'Running Late', Colors.orange),
+          child: _buildPopupItem(
+            Icons.watch_later_outlined,
+            'Running Late',
+            Colors.orange,
+          ),
         ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'StudentRescheduleRequest',
-          child: _buildPopupItem(Icons.notification_important_outlined, 'Request Reschedule', Colors.red),
+          child: _buildPopupItem(
+            Icons.notification_important_outlined,
+            'Request Reschedule',
+            Colors.red,
+          ),
         ),
       ],
     );
@@ -817,11 +850,6 @@ class _QueueScreenState extends State<QueueScreen> {
     }
   }
 
-  int? _minutesLeft(Interview interview) {
-    if (interview.scheduledTime == null) return null;
-    return interview.scheduledTime!.difference(DateTime.now()).inMinutes;
-  }
-
   bool _showQuickStudentActions(Interview interview) {
     final status = interview.status.toLowerCase();
     // Show actions for queued (upcoming) or currently interviewing students
@@ -846,12 +874,13 @@ class _QueueScreenState extends State<QueueScreen> {
     final isComing = type == 'StudentArrivingSoon';
     final isArrived = type == 'StudentArrived';
     final isLate = type == 'StudentRunningLate';
-    
+
     String successText = 'Notification sent to company.';
     if (isComing) successText = 'Company notified that you are on your way.';
     if (isArrived) successText = 'Company notified that you have arrived.';
     if (isLate) successText = 'Company notified that you are running late.';
-    if (type == 'StudentRescheduleRequest') successText = 'Reschedule request sent to company.';
+    if (type == 'StudentRescheduleRequest')
+      successText = 'Reschedule request sent to company.';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -860,7 +889,6 @@ class _QueueScreenState extends State<QueueScreen> {
       ),
     );
   }
-
 
   String _formatActualDateTime(DateTime dateTime) {
     final local = dateTime.toLocal();
