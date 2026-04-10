@@ -16,7 +16,9 @@ const app = initializeApp(firebaseConfig);
 let messagingInstance = null;
 
 // 2. VAPID key from environment variables
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+const normalizeVapidKey = (value) => String(value || '').trim().replace(/^['"]|['"]$/g, '').replace(/\s+/g, '');
+
+const VAPID_KEY = normalizeVapidKey(import.meta.env.VITE_FIREBASE_VAPID_KEY);
 export const requestFcmToken = async () => {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
     return null;
@@ -41,6 +43,16 @@ export const requestFcmToken = async () => {
 
     if (!messagingInstance) {
       messagingInstance = getMessaging(app);
+    }
+
+    if (!VAPID_KEY) {
+      console.warn('FCM VAPID key is missing. Check VITE_FIREBASE_VAPID_KEY in the company portal environment.');
+      return null;
+    }
+
+    if (!/^[A-Za-z0-9_-]+$/.test(VAPID_KEY)) {
+      console.warn('FCM VAPID key is malformed. It should be the public Web Push certificate from Firebase Cloud Messaging.');
+      return null;
     }
 
     // Ensure our messaging service worker is registered and used
