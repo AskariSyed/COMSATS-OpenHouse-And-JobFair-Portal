@@ -230,14 +230,22 @@ const Dashboard = () => {
             <h3 className="text-base font-bold text-gray-800">Interview Stage Snapshot</h3>
             <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-700 rounded-full">Current Job Fair</span>
           </div>
-          <div className="h-44">
+          <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={interviewStageData} margin={{ bottom: 80 }}>
+              <BarChart data={interviewStageData} margin={{ bottom: 48 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={80} />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  angle={-30}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fontSize: 11 }}
+                />
                 <YAxis allowDecimals={false} />
                 <Tooltip cursor={{ fill: '#f3f4f6' }} />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={44}>
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={34}>
                   {interviewStageData.map((entry, index) => (
                     <Cell key={`interview-stage-cell-${index}`} fill={entry.color} />
                   ))}
