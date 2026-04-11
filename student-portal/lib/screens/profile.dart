@@ -153,17 +153,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               controller: phoneCtrl,
               decoration: const InputDecoration(
                 labelText: "Phone Number",
-                hintText: "+92 300 1234567",
+                hintText: "e.g. 03001234567",
               ),
               keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
             ),
           ],
         ),
         onSave: () async {
-          if (phoneCtrl.text.trim().isEmpty) {
-            throw Exception("Phone number cannot be empty.");
+          final phone = phoneCtrl.text.trim();
+          if (!RegExp(r'^03\d{9}$').hasMatch(phone)) {
+            throw Exception(
+              "Phone number must be 11 digits and start with 03.",
+            );
           }
-          await provider.updatePhoneNumber(phoneCtrl.text.trim());
+          await provider.updatePhoneNumber(phone);
         },
       );
       student = provider.student;

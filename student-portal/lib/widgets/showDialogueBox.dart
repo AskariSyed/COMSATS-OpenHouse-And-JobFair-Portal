@@ -462,8 +462,8 @@ void showUpdatePhoneDialog(BuildContext context) {
     ),
     onSave: () async {
       final phone = phoneCtrl.text.trim();
-      if (!RegExp(r'^\d{11}$').hasMatch(phone)) {
-        throw Exception("Phone number must be exactly 11 digits.");
+      if (!RegExp(r'^03\d{9}$').hasMatch(phone)) {
+        throw Exception("Phone number must be 11 digits and start with 03.");
       }
       await Provider.of<StudentProvider>(
         context,
