@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -184,10 +185,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 10),
             TextField(
               controller: cgpaCtrl,
-              decoration: const InputDecoration(labelText: "CGPA (e.g. 3.5)"),
+              decoration: const InputDecoration(
+                labelText: "CGPA (e.g. 3.5)",
+                hintText: "0.0 - 4.0",
+              ),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
+                signed: false,
               ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'^\d*\.?\d*$'),
+                ),
+              ],
             ),
           ],
         ),
@@ -286,8 +296,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final croppedImage = await ImageUtils.cropImage(image, context);
-      if (croppedImage != null && mounted) {
-        await _validateAndUploadImage(croppedImage);
+      // Fallback to original image if crop returns null or fails (iOS Safari web issue)
+      final imageToUpload = croppedImage ?? image;
+      if (mounted) {
+        await _validateAndUploadImage(imageToUpload);
       }
     } catch (e) {
       if (mounted) {

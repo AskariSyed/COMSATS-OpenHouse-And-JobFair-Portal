@@ -132,13 +132,16 @@ class ImageUtils {
   }
 
   /// Crop image with user interaction using image_editor_plus.
-  /// Returns the cropped image file or null if cancelled.
+  /// Returns the cropped image file or null if cancelled or on error.
   /// Works on both web and mobile platforms.
+  /// On iOS Safari web, if crop fails, returns null and caller should use original image.
   static Future<XFile?> cropImage(XFile xFile, BuildContext context) async {
     try {
-      debugPrint("🔍 Starting image crop for: ${xFile.name}");
+      debugPrint("🔍 Starting image crop for: ${xFile.name} (kIsWeb: $kIsWeb)");
 
       final sourceBytes = await xFile.readAsBytes();
+      debugPrint("📦 Source image size: ${getFileSizeDisplay(sourceBytes.length)}");
+      
       final editedResult = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ImageCropper(
@@ -151,9 +154,11 @@ class ImageUtils {
       );
 
       if (editedResult == null) {
-        debugPrint("⚠️ Crop cancelled by user");
+        debugPrint("⚠️ Crop cancelled by user or returned null");
         return null;
       }
+
+      debugPrint("✅ Crop confirmed, result type: ${editedResult.runtimeType}");
 
       Uint8List croppedBytes;
       if (editedResult is Uint8List) {
@@ -162,15 +167,21 @@ class ImageUtils {
         croppedBytes = Uint8List.fromList(editedResult);
       } else {
         debugPrint(
-          "❌ Unsupported crop result type: ${editedResult.runtimeType}",
+          "❌ Unsupported crop result type: ${editedResult.runtimeType}, expected Uint8List or List<int>",
         );
         return null;
       }
 
-      debugPrint("✅ Image cropped successfully");
+      if (croppedBytes.isEmpty) {
+        debugPrint("❌ Cropped bytes are empty");
+        return null;
+      }
+
+      debugPrint("✅ Image cropped successfully, size: ${getFileSizeDisplay(croppedBytes.length)}");
 
       // Compress the cropped image to ensure it's under 1MB
       final compressedBytes = await compressImage(croppedBytes);
+      debugPrint("🗜️ Compressed image size: ${getFileSizeDisplay(compressedBytes.length)}");
 
       // Return as XFile from bytes to ensure compatibility.
       return XFile.fromData(
@@ -180,7 +191,8 @@ class ImageUtils {
       );
     } catch (e) {
       debugPrint("❌ Error cropping image: $e");
-      // On error, return null to let user proceed with original image
+      debugPrint("📍 Stack trace: ${StackTrace.current}");
+      // On error, return null to let caller proceed with original image
       return null;
     }
   }

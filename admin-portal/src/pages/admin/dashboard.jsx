@@ -232,9 +232,9 @@ const Dashboard = () => {
           </div>
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={interviewStageData}>
+              <BarChart data={interviewStageData} margin={{ bottom: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} angle={-45} textAnchor="end" height={80} />
                 <YAxis allowDecimals={false} />
                 <Tooltip cursor={{ fill: '#f3f4f6' }} />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={44}>

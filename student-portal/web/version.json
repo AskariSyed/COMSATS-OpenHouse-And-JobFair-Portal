@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.0.2",
-  "build_number": 3,
+  "latest_version": "1.0.3",
+  "build_number": 4,
   "apk_url": "https://student.jfair.tech/downloads/student-portal.apk",
   "force_update": false,
   "whats_new": "• Interactive Live CV Preview\n• Overlay edit flow on Android"
