@@ -140,8 +140,10 @@ class ImageUtils {
       debugPrint("🔍 Starting image crop for: ${xFile.name} (kIsWeb: $kIsWeb)");
 
       final sourceBytes = await xFile.readAsBytes();
-      debugPrint("📦 Source image size: ${getFileSizeDisplay(sourceBytes.length)}");
-      
+      debugPrint(
+        "📦 Source image size: ${getFileSizeDisplay(sourceBytes.length)}",
+      );
+
       final editedResult = await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ImageCropper(
@@ -177,11 +179,15 @@ class ImageUtils {
         return null;
       }
 
-      debugPrint("✅ Image cropped successfully, size: ${getFileSizeDisplay(croppedBytes.length)}");
+      debugPrint(
+        "✅ Image cropped successfully, size: ${getFileSizeDisplay(croppedBytes.length)}",
+      );
 
       // Compress the cropped image to ensure it's under 1MB
       final compressedBytes = await compressImage(croppedBytes);
-      debugPrint("🗜️ Compressed image size: ${getFileSizeDisplay(compressedBytes.length)}");
+      debugPrint(
+        "🗜️ Compressed image size: ${getFileSizeDisplay(compressedBytes.length)}",
+      );
 
       // Return as XFile from bytes to ensure compatibility.
       return XFile.fromData(

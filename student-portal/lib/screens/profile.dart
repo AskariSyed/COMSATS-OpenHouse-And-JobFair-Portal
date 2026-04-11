@@ -194,9 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 signed: false,
               ),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d*\.?\d*$'),
-                ),
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
               ],
             ),
           ],
