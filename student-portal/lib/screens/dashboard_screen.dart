@@ -546,13 +546,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : "${studentProvider.imageBaseUrl}${profile.profilePicUrl!}")
         : null;
 
-    final int? daysUntilFair = marketOverview.upcomingFair?.daysUntil ??
-      marketOverview.currentFairDaysUntil ??
-      (marketOverview.currentFairDate != null
-        ? marketOverview.currentFairDate!
-            .difference(DateTime.now())
-            .inDays
-        : null);
+    final int? daysUntilFair =
+        marketOverview.upcomingFair?.daysUntil ??
+        marketOverview.currentFairDaysUntil ??
+        (marketOverview.currentFairDate != null
+            ? marketOverview.currentFairDate!.difference(DateTime.now()).inDays
+            : null);
 
     return _buildDashboardCard(
       context,
@@ -674,9 +673,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         child: Text(
                           daysUntilFair != null && daysUntilFair >= 0
-                          ? 'Please complete your profile well in time. '
-                            '$daysUntilFair day${daysUntilFair == 1 ? '' : 's'} left until the Job Fair.'
-                          : 'Please complete your profile well in time for the Job Fair to improve visibility for recruiters.',
+                              ? 'Please complete your profile well in time. '
+                                    '$daysUntilFair day${daysUntilFair == 1 ? '' : 's'} left until the Job Fair.'
+                              : 'Please complete your profile well in time for the Job Fair to improve visibility for recruiters.',
                           style: TextStyle(
                             color:
                                 Theme.of(context).brightness == Brightness.dark
