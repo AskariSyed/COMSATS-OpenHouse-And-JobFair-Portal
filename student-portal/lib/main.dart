@@ -656,7 +656,9 @@ class _MyAppState extends State<MyApp> {
           title: 'Job Fair Portal',
           navigatorKey: navigatorKey,
           builder: (context, child) {
-            if (kIsWeb && child != null) {
+            final isIOSWeb =
+                kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+            if (kIsWeb && !isIOSWeb && child != null) {
               return Overlay(
                 initialEntries: [
                   OverlayEntry(builder: (_) => SelectionArea(child: child)),

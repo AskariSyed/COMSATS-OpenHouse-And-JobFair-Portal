@@ -1127,7 +1127,7 @@ namespace JobFairPortal.Controllers
             var random = new Random();
             var password = new StringBuilder();
 
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < PASSWORD_MIN_LENGTH; i++)
             {
                 password.Append(chars[random.Next(chars.Length)]);
             }

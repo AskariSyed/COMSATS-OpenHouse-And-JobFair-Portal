@@ -359,6 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _buildProfileSection(
                           context,
                           dashboardData.studentProfile,
+                          dashboardData.marketOverview,
                           isWide,
                         ),
                         const SizedBox(height: 24),
@@ -440,6 +441,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               _buildProfileSection(
                                                 context,
                                                 dashboardData.studentProfile,
+                                                dashboardData.marketOverview,
                                                 isWide,
                                               ),
                                               const SizedBox(height: 24),
@@ -530,6 +532,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildProfileSection(
     BuildContext context,
     StudentProfileSummary profile,
+    MarketOverview marketOverview,
     bool isWide,
   ) {
     final studentProvider = Provider.of<StudentProvider>(
@@ -542,6 +545,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ? profile.profilePicUrl
               : "${studentProvider.imageBaseUrl}${profile.profilePicUrl!}")
         : null;
+
+    final int? daysUntilFair = marketOverview.upcomingFair?.daysUntil ??
+      marketOverview.currentFairDaysUntil ??
+      (marketOverview.currentFairDate != null
+        ? marketOverview.currentFairDate!
+            .difference(DateTime.now())
+            .inDays
+        : null);
 
     return _buildDashboardCard(
       context,
@@ -662,7 +673,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           border: Border.all(color: Colors.amber.shade700),
                         ),
                         child: Text(
-                          'Please complete your profile to improve visibility for recruiters.',
+                          daysUntilFair != null && daysUntilFair >= 0
+                          ? 'Please complete your profile well in time. '
+                            '$daysUntilFair day${daysUntilFair == 1 ? '' : 's'} left until the Job Fair.'
+                          : 'Please complete your profile well in time for the Job Fair to improve visibility for recruiters.',
                           style: TextStyle(
                             color:
                                 Theme.of(context).brightness == Brightness.dark

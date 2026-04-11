@@ -185,7 +185,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TextField(
               controller: cgpaCtrl,
               decoration: const InputDecoration(labelText: "CGPA (e.g. 3.5)"),
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
           ],
         ),
