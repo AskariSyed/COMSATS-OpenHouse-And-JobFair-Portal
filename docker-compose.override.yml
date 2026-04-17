@@ -2,7 +2,6 @@
 # This file extends docker-compose.yml with development-specific settings
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.override.yml up
 
-version: '3.8'
 
 services:
   postgres:
@@ -18,9 +17,9 @@ services:
   backend:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Server=postgres;Port=5432;Database=jobfair_dev;User Id=devuser;Password=devpassword;"
+      ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=RecruitmentDB;Username=postgres;Password=syed;"
       CORS_AllowedOrigins: "http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:5173"
-      JWT_SecretKey: "dev-secret-key-change-in-production-12345"
+      JWT_SecretKey: "IqELyVPxB4amDeKifXEr0RKCP2Z3JRLKBLG1Rr4hR0g="
     ports:
       - "5158:5158"
     volumes:
