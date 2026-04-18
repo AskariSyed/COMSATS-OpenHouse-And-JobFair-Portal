@@ -11,7 +11,7 @@ namespace JobFairPortal.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthTokenService> _logger;
 
-        public AuthTokenService(IConfiguration configuration, ILogger<AuthTokenService> logger)
+        public  AuthTokenService(IConfiguration configuration, ILogger<AuthTokenService> logger)
         {
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));

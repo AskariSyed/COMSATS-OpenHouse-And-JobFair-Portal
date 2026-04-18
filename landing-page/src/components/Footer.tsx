@@ -8,9 +8,10 @@ export function Footer() {
             <p className="font-bold">COMSATS Job Fair and Open House Solution</p>
             <p className="text-sm text-slate-600">Central portal for students, companies, and admins.</p>
           </div>
+          
         </div>
 
-        <div>
+        <div> 
           <p className="text-sm font-bold text-slate-900">Portal Links</p>
           <div className="mt-3 space-y-2 text-sm text-slate-600">
             <a className="block hover:text-blue-600" href="https://student.jfair.tech">student.jfair.tech</a>

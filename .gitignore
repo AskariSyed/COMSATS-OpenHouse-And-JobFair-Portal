@@ -8,3 +8,8 @@ obj/
 /Backend/wwwroot/uploads/companies\logo
 .deploy-artifacts/admin.zip
 .deploy-artifacts/company.zip
+Test_Cases_Detailed_All_Portals.csv
+Test_Cases_JobFair_Portal.csv
+Test_Cases_Exhaustive_Passed.csv
+Test_Cases_Hundreds_Exhaustive.csv
+Test_Cases_JobFair_Portal.csv   
