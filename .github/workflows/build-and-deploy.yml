@@ -192,7 +192,7 @@ jobs:
       run: |
         cd student-portal
         flutter pub get
-        flutter build web --release --no-wasm-dry-run \
+        flutter build web --release --web-renderer canvaskit \
           --dart-define=BACKEND_BASE_URL=${{ env.BACKEND_URL }} \
           --dart-define=APP_ENV=production
         if [ ! -d "build/web" ]; then

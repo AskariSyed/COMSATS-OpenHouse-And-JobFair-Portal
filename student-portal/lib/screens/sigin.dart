@@ -18,7 +18,7 @@ import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:student_job_fair_portal/screens/signup.dart'
     deferred as signup_screen;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:universal_html/html.dart' as html;
+import 'package:student_job_fair_portal/utils/web_file_downloader.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({super.key});
@@ -45,19 +45,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     if (uri == null) return;
 
     if (kIsWeb) {
-      try {
-        final anchor = html.AnchorElement(href: _apkDownloadUrl)
-          ..setAttribute('download', 'student-portal.apk')
-          ..style.display = 'none';
-
-        html.document.body?.append(anchor);
-        anchor.click();
-        anchor.remove();
-
-        return;
-      } catch (_) {
-        // Fallback to default launch behavior below.
-      }
+      WebFileDownloader.downloadFromUrl(_apkDownloadUrl, 'student-portal.apk');
+      return;
     }
 
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -296,18 +285,21 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                               Row(
                                 children: [
                                   Container(
-                                    height: 54,
-                                    width: 54,
+                                    height: 70,
+                                    width: 70,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(14),
-                                      color: Colors.white.withOpacity(0.15),
+                                      color: Colors.transparent,
                                     ),
                                     child: Image.asset(
                                       'assets/LogoWithoutBg.png',
                                       fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.high,
+                                      isAntiAlias: true,
                                       errorBuilder: (_, __, ___) => const Icon(
                                         Icons.school,
                                         color: Colors.white,
+                                        size: 70,
                                       ),
                                     ),
                                   ),
@@ -405,6 +397,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                       child: Image.asset(
                                         'assets/LogoWithoutBg.png',
                                         fit: BoxFit.contain,
+                                        filterQuality: FilterQuality.high,
+                                        isAntiAlias: true,
                                         errorBuilder: (_, __, ___) => Icon(
                                           Icons.school,
                                           color: titleColor,

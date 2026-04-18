@@ -29,6 +29,8 @@ import 'package:student_job_fair_portal/screens/cv_live_preview.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  static const String _cvEditCancelled = '__cv_edit_cancelled__';
+
   final List<Map<String, String>> _developers = const [
     {
       "name": "Shumaim Zafar",
@@ -38,7 +40,7 @@ class SettingsScreen extends StatelessWidget {
     {
       "name": "Hassan Askari",
       "id": "FA22-BCS-155",
-      "role": "Backend & Database",
+      "role": "Full Stack Developer",
     },
     {"name": "Sulimana Huma", "id": "FA22-BCS-073", "role": "UI/UX Designer"},
   ];
@@ -60,6 +62,7 @@ class SettingsScreen extends StatelessWidget {
     required String message,
     required String primaryAction,
     required String secondaryAction,
+    bool cancelOnEditorClose = false,
   }) async {
     final shouldEdit = await showDialog<bool>(
       context: context,
@@ -80,10 +83,16 @@ class SettingsScreen extends StatelessWidget {
     );
 
     if (shouldEdit == true && context.mounted) {
-      return await showDialog<String>(
+      final result = await showDialog<String>(
         context: context,
         builder: (ctx) => const CVEditorDialog(),
       );
+
+      if (result == null && cancelOnEditorClose) {
+        return _cvEditCancelled;
+      }
+
+      return result;
     }
 
     return null;
@@ -315,7 +324,10 @@ class SettingsScreen extends StatelessWidget {
           'Would you like to review and edit your CV before uploading for companies?',
       primaryAction: 'Upload Now',
       secondaryAction: 'Edit First',
+      cancelOnEditorClose: true,
     );
+
+    if (customEmail == _cvEditCancelled) return;
 
     if (!context.mounted) return;
 
@@ -1133,7 +1145,20 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 30),
 
         // ----------------------------------------------------------------
-        // NOTIFICATIONS
+        // 2. JOB FAIR INFORMATION
+        // ----------------------------------------------------------------
+        _buildJobFairSection(
+          context,
+          cardColor,
+          textColor,
+          dividerColor,
+          isMobile: isMobile,
+        ),
+
+        const SizedBox(height: 30),
+
+        // ----------------------------------------------------------------
+        // 3. NOTIFICATIONS
         // ----------------------------------------------------------------
         _buildSectionHeader(context, "Notifications"),
         Consumer<NotificationProvider>(
@@ -2643,8 +2668,9 @@ class SettingsScreen extends StatelessWidget {
     BuildContext context,
     Color cardColor,
     Color? textColor,
-    Color dividerColor,
-  ) {
+    Color dividerColor, {
+    bool isMobile = false,
+  }) {
     final dashboardProvider = Provider.of<StudentProvider>(context);
     final marketOverview = dashboardProvider.dashboardData?.marketOverview;
     final isRegistered =
@@ -2671,217 +2697,373 @@ class SettingsScreen extends StatelessWidget {
       return "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}";
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(
-          color: dividerColor.withValues(alpha: 0.1),
-          width: 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader(context, "Job Fair Information"),
-            const SizedBox(height: 20),
-            // Current Fair
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
-                  width: 1,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool compactLayout = isMobile || constraints.maxWidth < 420;
+
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Current Registration",
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+            ],
+            border: Border.all(
+              color: dividerColor.withValues(alpha: 0.1),
+              width: 1,
+            ),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(compactLayout ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader(context, "Job Fair Information"),
+                SizedBox(height: compactLayout ? 16 : 20),
+                // Current Fair
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(compactLayout ? 14 : 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.3),
+                      width: 1,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            fairName,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "$companyCount Companies • $jobCount Positions",
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      Chip(
-                        label: Text(
-                          isRegistered ? "Registered" : "Not Registered",
-                        ),
-                        backgroundColor: isRegistered
-                            ? Colors.green.withValues(alpha: 0.2)
-                            : Colors.orange.withValues(alpha: 0.2),
-                        labelStyle: TextStyle(
-                          color: isRegistered
-                              ? Colors.green.shade700
-                              : Colors.orange.shade700,
+                      Text(
+                        "Current Registration",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.deepPurple.withValues(alpha: 0.25),
-                  width: 1,
-                ),
-              ),
-              child: upcomingFair == null
-                  ? Row(
-                      children: [
-                        Icon(
-                          Icons.event_busy_outlined,
-                          color: Colors.deepPurple.shade400,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "No upcoming job fair announced after current fair.",
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Upcoming Job Fair",
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    upcomingFair.semester,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Chip(
-                              label: Text(
-                                upcomingFair.isRegistered
-                                    ? "Registered"
-                                    : "Not Registered",
-                              ),
-                              backgroundColor: upcomingFair.isRegistered
-                                  ? Colors.green.withValues(alpha: 0.2)
-                                  : Colors.orange.withValues(alpha: 0.2),
-                              labelStyle: TextStyle(
-                                color: upcomingFair.isRegistered
-                                    ? Colors.green.shade700
-                                    : Colors.orange.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!upcomingFair.isRegistered) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
+                      const SizedBox(height: 8),
+                      compactLayout
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: Colors.orange.shade700,
-                                  size: 18,
+                                Text(
+                                  fairName,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "$companyCount Companies • $jobCount Positions",
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 10),
+                                Chip(
+                                  label: Text(
+                                    isRegistered
+                                        ? "Registered"
+                                        : "Not Registered",
+                                  ),
+                                  backgroundColor: isRegistered
+                                      ? Colors.green.withValues(alpha: 0.2)
+                                      : Colors.orange.withValues(alpha: 0.2),
+                                  labelStyle: TextStyle(
+                                    color: isRegistered
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
                                 Expanded(
-                                  child: Text(
-                                    "If you want to register for this fair, please contact IT Center.",
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: Colors.orange.shade800,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        fairName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "$companyCount Companies • $jobCount Positions",
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Chip(
+                                  label: Text(
+                                    isRegistered
+                                        ? "Registered"
+                                        : "Not Registered",
+                                  ),
+                                  backgroundColor: isRegistered
+                                      ? Colors.green.withValues(alpha: 0.2)
+                                      : Colors.orange.withValues(alpha: 0.2),
+                                  labelStyle: TextStyle(
+                                    color: isRegistered
+                                        ? Colors.green.shade700
+                                        : Colors.orange.shade700,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(compactLayout ? 14 : 16),
+                  decoration: BoxDecoration(
+                    color: Colors.deepPurple.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.deepPurple.withValues(alpha: 0.25),
+                      width: 1,
                     ),
+                  ),
+                  child: upcomingFair == null
+                      ? (compactLayout
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.event_busy_outlined,
+                                    color: Colors.deepPurple.shade400,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "No upcoming job fair announced after current fair.",
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Icon(
+                                    Icons.event_busy_outlined,
+                                    color: Colors.deepPurple.shade400,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      "No upcoming job fair announced after current fair.",
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ],
+                              ))
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Upcoming Job Fair",
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            compactLayout
+                                ? Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        upcomingFair.semester,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Chip(
+                                        label: Text(
+                                          upcomingFair.isRegistered
+                                              ? "Registered"
+                                              : "Not Registered",
+                                        ),
+                                        backgroundColor:
+                                            upcomingFair.isRegistered
+                                            ? Colors.green.withValues(
+                                                alpha: 0.2,
+                                              )
+                                            : Colors.orange.withValues(
+                                                alpha: 0.2,
+                                              ),
+                                        labelStyle: TextStyle(
+                                          color: upcomingFair.isRegistered
+                                              ? Colors.green.shade700
+                                              : Colors.orange.shade700,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              upcomingFair.semester,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Chip(
+                                        label: Text(
+                                          upcomingFair.isRegistered
+                                              ? "Registered"
+                                              : "Not Registered",
+                                        ),
+                                        backgroundColor:
+                                            upcomingFair.isRegistered
+                                            ? Colors.green.withValues(
+                                                alpha: 0.2,
+                                              )
+                                            : Colors.orange.withValues(
+                                                alpha: 0.2,
+                                              ),
+                                        labelStyle: TextStyle(
+                                          color: upcomingFair.isRegistered
+                                              ? Colors.green.shade700
+                                              : Colors.orange.shade700,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                            if (!upcomingFair.isRegistered) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.orange.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.orange.shade700,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        "If you want to register for this fair, please contact IT Center.",
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.orange.shade800,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

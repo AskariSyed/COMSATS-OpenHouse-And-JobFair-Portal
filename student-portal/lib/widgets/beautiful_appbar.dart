@@ -34,6 +34,7 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
                   'assets/LogoWithoutBg.png',
                   height: 24,
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                 ),
                 const SizedBox(width: 8),
                 Flexible(

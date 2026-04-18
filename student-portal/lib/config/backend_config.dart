@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:universal_html/html.dart' as html;
 
 class BackendConfig {
   const BackendConfig._();
@@ -22,7 +21,7 @@ class BackendConfig {
 
   static String get serverBaseUrl {
     if (_isInsecureBackendOnSecurePage) {
-      final origin = html.window.location.origin.toString();
+      final origin = Uri.base.origin;
       if (origin.isNotEmpty && origin != 'null') {
         return origin;
       }

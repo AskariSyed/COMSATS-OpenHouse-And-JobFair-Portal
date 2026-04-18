@@ -21,6 +21,8 @@ import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:student_job_fair_portal/config/backend_config.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -193,6 +195,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _promptUploadCv() async {
+    final studentProvider = Provider.of<StudentProvider>(
+      context,
+      listen: false,
+    );
+
     final shouldUploadNow = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -212,7 +219,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-
+    if (shouldUploadNow != true || !mounted) {
+      studentProvider.markCvUploadPromptSkippedForSession();
+      return;
+    }
     if (shouldUploadNow != true || !mounted) return;
 
     final uploadChoice = await showDialog<String>(
@@ -233,7 +243,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
 
-    if (!mounted || uploadChoice == null) return;
+    if (!mounted || uploadChoice == null) {
+      studentProvider.markCvUploadPromptSkippedForSession();
+      return;
+    }
 
     if (uploadChoice == 'own') {
       await _pickAndUploadOwnCv();
@@ -244,7 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (ctx) => const CVEditorDialog(),
     );
-    if (!mounted) return;
+    if (!mounted || cvEmail == null) return;
     await _uploadGeneratedCvFlow(cvEmail: cvEmail);
   }
 
@@ -257,6 +270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final studentCvMissing = providerCv.isEmpty;
 
       if (!_hasShownCvPrompt &&
+          !studentProvider.hasSkippedCvUploadPromptThisSession &&
           dashboardData.studentProfile.completeness >= 100 &&
           studentCvMissing) {
         _hasShownCvPrompt = true;
@@ -549,9 +563,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final int? daysUntilFair =
         marketOverview.upcomingFair?.daysUntil ??
         marketOverview.currentFairDaysUntil ??
-        (marketOverview.currentFairDate != null
-            ? marketOverview.currentFairDate!.difference(DateTime.now()).inDays
-            : null);
+        marketOverview.currentFairDate?.difference(DateTime.now()).inDays;
 
     return _buildDashboardCard(
       context,
@@ -567,17 +579,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundImage: fullProfileUrl != null
-                    ? NetworkImage(fullProfileUrl)
-                    : null,
-                child: fullProfileUrl == null
-                    ? Text(
-                        profile.name.isNotEmpty ? profile.name[0] : '?',
-                        style: const TextStyle(fontSize: 24),
-                      )
-                    : null,
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                child: ClipOval(
+                  child: fullProfileUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: fullProfileUrl,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
+                          errorWidget: (context, url, error) => Center(
+                            child: Text(
+                              profile.name.isNotEmpty ? profile.name[0] : '?',
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            profile.name.isNotEmpty ? profile.name[0] : '?',
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -925,12 +950,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   )
                 : Column(
                     children: jobs.map((job) {
+                      final logoUrl =
+                          job.companyLogo != null && job.companyLogo!.isNotEmpty
+                          ? (job.companyLogo!.startsWith('http')
+                                ? job.companyLogo!
+                                : BackendConfig.absoluteUrl(job.companyLogo))
+                          : '';
+
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 4,
                         ),
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.work_outline),
+                        leading: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                          ),
+                          child: logoUrl.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: CachedNetworkImage(
+                                    imageUrl: logoUrl,
+                                    fit: BoxFit.contain,
+                                    filterQuality: FilterQuality.medium,
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(Icons.business),
+                                  ),
+                                )
+                              : const Icon(Icons.work_outline),
                         ),
                         title: Text(job.jobTitle),
                         subtitle: Text(

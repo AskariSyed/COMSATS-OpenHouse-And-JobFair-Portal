@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 // Providers
 import 'package:student_job_fair_portal/provider/student_provider.dart';
@@ -81,8 +82,14 @@ class BeautifulWebNavBar extends StatelessWidget {
               builder: (context, constraints) {
                 final isCompact = constraints.maxWidth < 1250;
                 final isUltraCompact = constraints.maxWidth < 1020;
+                final isVerySmall = constraints.maxWidth < 880;
                 final showNavLabels = constraints.maxWidth >= 1360;
                 final showSecondaryActions = constraints.maxWidth >= 1120;
+                final navLabelMode = showNavLabels
+                    ? _NavLabelMode.full
+                    : isVerySmall
+                    ? _NavLabelMode.hidden
+                    : _NavLabelMode.compact;
 
                 return Padding(
                   padding: EdgeInsets.symmetric(
@@ -113,7 +120,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   title: "Dashboard",
                                   icon: Icons.dashboard_outlined,
                                   isActive: currentRoute == 'Dashboard',
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const DashboardScreen()),
                                 ),
@@ -122,7 +129,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   title: "Profile",
                                   icon: Icons.person_outline,
                                   isActive: currentRoute == 'Profile',
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const ProfileScreen()),
                                 ),
@@ -131,7 +138,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   title: "Jobs",
                                   icon: Icons.work_outline,
                                   isActive: currentRoute == 'Jobs',
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const JobsScreen()),
                                 ),
@@ -140,7 +147,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   title: "Companies",
                                   icon: Icons.business_outlined,
                                   isActive: currentRoute == 'Companies',
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const CompaniesScreen()),
                                 ),
@@ -150,7 +157,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   icon: Icons.list_alt_outlined,
                                   isActive: currentRoute == 'Interviews',
                                   badgeCount: upcomingCount,
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const QueueScreen()),
                                 ),
@@ -160,7 +167,7 @@ class BeautifulWebNavBar extends StatelessWidget {
                                   icon: Icons.inbox_outlined,
                                   isActive: currentRoute == 'Requests',
                                   badgeCount: requestReminderCount,
-                                  showLabel: showNavLabels,
+                                  labelMode: navLabelMode,
                                   onTap: () =>
                                       _nav(context, const RequestsScreen()),
                                 ),
@@ -208,6 +215,7 @@ class BeautifulWebNavBar extends StatelessWidget {
         Image.asset(
           'assets/LogoWithoutBg.png',
           height: compact ? 34 : 40,
+          filterQuality: FilterQuality.high,
           errorBuilder: (_, __, ___) => Icon(Icons.school, color: primary),
         ),
         if (!compact) ...[
@@ -273,20 +281,49 @@ class BeautifulWebNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
         ],
-        CircleAvatar(
-          radius: compact ? 17 : 20,
-          backgroundColor: Theme.of(
-            context,
-          ).dividerColor.withValues(alpha: 0.1),
-          backgroundImage: profileImageUrl != null
-              ? NetworkImage(profileImageUrl!)
-              : null,
-          child: profileImageUrl == null
-              ? Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : "U",
-                  style: TextStyle(color: primary, fontWeight: FontWeight.bold),
+        Container(
+          width: compact ? 34 : 40,
+          height: compact ? 34 : 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+          ),
+          child: profileImageUrl != null
+              ? ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: profileImageUrl!,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                    errorWidget: (context, url, error) => Center(
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : "U",
+                        style: TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    placeholder: (context, url) => Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(primary),
+                        ),
+                      ),
+                    ),
+                  ),
                 )
-              : null,
+              : Center(
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : "U",
+                    style: TextStyle(
+                      color: primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
         ),
         const SizedBox(width: 6),
 
@@ -332,13 +369,15 @@ class BeautifulWebNavBar extends StatelessWidget {
   }
 }
 
+enum _NavLabelMode { full, compact, hidden }
+
 // Helper Widget for Web Nav Items with Hover Effect
 class _NavBarItem extends StatefulWidget {
   final String title;
   final IconData icon;
   final bool isActive;
   final int badgeCount;
-  final bool showLabel;
+  final _NavLabelMode labelMode;
   final VoidCallback onTap;
 
   const _NavBarItem({
@@ -346,7 +385,7 @@ class _NavBarItem extends StatefulWidget {
     required this.icon,
     required this.isActive,
     this.badgeCount = 0,
-    this.showLabel = true,
+    this.labelMode = _NavLabelMode.full,
     required this.onTap,
   });
 
@@ -366,6 +405,8 @@ class _NavBarItemState extends State<_NavBarItem> {
     final hoverBg = Theme.of(context).hoverColor;
 
     final fgColor = widget.isActive || _isHovered ? primary : inactiveColor;
+    final showLabel = widget.labelMode != _NavLabelMode.hidden;
+    final isCompactLabel = widget.labelMode == _NavLabelMode.compact;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -376,7 +417,7 @@ class _NavBarItemState extends State<_NavBarItem> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.symmetric(
-            horizontal: widget.showLabel ? 16 : 10,
+            horizontal: showLabel ? 14 : 10,
             vertical: 10,
           ),
           decoration: BoxDecoration(
@@ -387,45 +428,102 @@ class _NavBarItemState extends State<_NavBarItem> {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 20, color: fgColor),
-              if (widget.showLabel) ...[
-                const SizedBox(width: 8),
-                Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: fgColor,
-                    fontWeight: widget.isActive
-                        ? FontWeight.bold
-                        : FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-              if (widget.badgeCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    widget.badgeCount > 99 ? '99+' : '${widget.badgeCount}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+          child: isCompactLabel
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(widget.icon, size: 20, color: fgColor),
+                        if (widget.badgeCount > 0)
+                          Positioned(
+                            right: -10,
+                            top: -8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              constraints: const BoxConstraints(minWidth: 16),
+                              child: Text(
+                                widget.badgeCount > 99
+                                    ? '99+'
+                                    : '${widget.badgeCount}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: widget.isActive
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        fontSize: 11,
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(widget.icon, size: 20, color: fgColor),
+                    if (showLabel) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.title,
+                        style: TextStyle(
+                          color: fgColor,
+                          fontWeight: widget.isActive
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                    if (widget.badgeCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          widget.badgeCount > 99
+                              ? '99+'
+                              : '${widget.badgeCount}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
-          ),
         ),
       ),
     );

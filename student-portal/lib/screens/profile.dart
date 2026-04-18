@@ -219,6 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // 4. Check Profile Picture
     if (student != null &&
+        !provider.hasSkippedProfilePicturePromptThisSession &&
         (student.profilePicUrl == null || student.profilePicUrl!.isEmpty)) {
       await showDialog(
         context: context,
@@ -242,7 +243,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
+              onPressed: () {
+                provider.markProfilePicturePromptSkippedForSession();
+                Navigator.pop(dialogCtx);
+              },
               child: const Text("Skip for Now"),
             ),
             ElevatedButton(
@@ -693,7 +697,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       context: context,
                       builder: (ctx) => const CVEditorDialog(),
                     );
-                    if (!mounted) return;
+                    if (!mounted || cvEmail == null) return;
                     await _uploadGeneratedCvFlow(cvEmail: cvEmail);
                   },
                   icon: const Icon(Icons.auto_awesome),

@@ -10,6 +10,7 @@ import 'package:student_job_fair_portal/model/achievement.dart';
 import 'package:student_job_fair_portal/model/contact_link.dart';
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
 import 'package:student_job_fair_portal/mixins/date_picker.dart';
+import 'package:student_job_fair_portal/services/skill_service.dart';
 
 class CVEditorDialog extends StatefulWidget {
   const CVEditorDialog({super.key});
@@ -26,6 +27,39 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
   final _phoneController = TextEditingController();
   final _skillController = TextEditingController();
   String? cvEmail; // CV-specific email that doesn't update backend
+  List<String> _allKnownSkills = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _skillController.addListener(_onSkillInputChanged);
+    _loadKnownSkills();
+  }
+
+  Future<void> _loadKnownSkills() async {
+    final categories = await SkillService().loadSkills();
+    final uniqueSkills = <String>[];
+    final seen = <String>{};
+
+    for (final category in categories) {
+      for (final skill in category.skills) {
+        final value = skill.trim();
+        if (value.isEmpty) continue;
+        final key = value.toLowerCase();
+        if (seen.add(key)) uniqueSkills.add(value);
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _allKnownSkills = uniqueSkills;
+    });
+  }
+
+  void _onSkillInputChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   String _formatNumber(double value) {
     return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
@@ -70,6 +104,7 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _skillController.removeListener(_onSkillInputChanged);
     _skillController.dispose();
     super.dispose();
   }
@@ -91,11 +126,25 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
   Future<void> _addSkill(StudentProvider provider) async {
     final text = _skillController.text.trim();
     if (text.isEmpty) return;
+
+    final existing = provider.student?.skills ?? [];
+    final alreadyExists = existing.any(
+      (skill) => skill.trim().toLowerCase() == text.toLowerCase(),
+    );
+    if (alreadyExists) {
+      _skillController.clear();
+      setState(() {});
+      return;
+    }
+
     final newList = List<String>.from(provider.student?.skills ?? [])
       ..add(text);
     setState(() => loading = true);
     final ok = await provider.putSkills(newList);
-    if (ok) _skillController.clear();
+    if (ok) {
+      _skillController.clear();
+      setState(() {});
+    }
     await provider.fetchProfile();
     setState(() => loading = false);
   }
@@ -875,11 +924,16 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
       _initialized = true;
     }
 
+    final screenSize = MediaQuery.of(context).size;
+
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900, maxHeight: 760),
+        constraints: BoxConstraints(
+          maxWidth: 900,
+          maxHeight: screenSize.height * 0.92,
+        ),
         child: Column(
           children: [
             Container(
@@ -916,128 +970,622 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    // Left column
-                    Expanded(
-                      flex: 1,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Personal',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Full name',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Email (CV Display Only)',
-                                helperText:
-                                    'This email will only appear on your CV',
-                                helperMaxLines: 2,
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                              onChanged: (value) {
-                                setState(() {
-                                  cvEmail = value.trim();
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _phoneController,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            const Text(
-                              'Skills',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              child: Wrap(
-                                key: ValueKey<int>(student.skills.length),
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: student.skills
-                                    .map(
-                                      (s) => Chip(
-                                        label: Text(s),
-                                        onDeleted: () =>
-                                            _removeSkill(provider, s),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _skillController,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Add skill',
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 820;
+                    final query = _skillController.text.trim().toLowerCase();
+                    final currentSkillsLower = student.skills
+                        .map((s) => s.trim().toLowerCase())
+                        .toSet();
+                    final suggestedSkills = query.isEmpty
+                        ? const <String>[]
+                        : _allKnownSkills
+                              .where(
+                                (s) =>
+                                    s.toLowerCase().contains(query) &&
+                                    !currentSkillsLower.contains(
+                                      s.trim().toLowerCase(),
                                     ),
+                              )
+                              .take(8)
+                              .toList();
+
+                    return Flex(
+                      direction: isNarrow ? Axis.vertical : Axis.horizontal,
+                      children: [
+                        // Left column
+                        Expanded(
+                          flex: isNarrow ? 5 : 1,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Personal',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                ElevatedButton(
-                                  onPressed: () => _addSkill(provider),
-                                  child: const Text('Add'),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _nameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Full name',
+                                  ),
                                 ),
-                              ],
-                            ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _emailController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Email (CV Display Only)',
+                                    helperText:
+                                        'This email will only appear on your CV',
+                                    helperMaxLines: 2,
+                                  ),
+                                  keyboardType: TextInputType.emailAddress,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      cvEmail = value.trim();
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _phoneController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Phone',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
 
-                            const SizedBox(height: 18),
-
-                            _sectionHeaderWithAction(
-                              context,
-                              title: 'Experiences',
-                              actionLabel: 'Add',
-                              onAction: () => _showExperienceEditor(provider),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                children:
-                                    (student.experiences.toList()..sort(
-                                          (a, b) => b.startDate.compareTo(
-                                            a.startDate,
-                                          ),
-                                        ))
+                                const Text(
+                                  'Skills',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Wrap(
+                                    key: ValueKey<int>(student.skills.length),
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: student.skills
                                         .map(
-                                          (e) => Card(
+                                          (s) => Chip(
+                                            label: Text(s),
+                                            onDeleted: () =>
+                                                _removeSkill(provider, s),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _skillController,
+                                        decoration: const InputDecoration(
+                                          hintText:
+                                              'Add skill (type to get suggestions)',
+                                        ),
+                                        onSubmitted: (_) => _addSkill(provider),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      onPressed: () => _addSkill(provider),
+                                      child: const Text('Add'),
+                                    ),
+                                  ],
+                                ),
+                                if (suggestedSkills.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: suggestedSkills
+                                        .map(
+                                          (skill) => ActionChip(
+                                            label: Text(skill),
+                                            onPressed: () {
+                                              _skillController.text = skill;
+                                              _addSkill(provider);
+                                            },
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ],
+
+                                const SizedBox(height: 18),
+
+                                _sectionHeaderWithAction(
+                                  context,
+                                  title: 'Experiences',
+                                  actionLabel: 'Add',
+                                  onAction: () =>
+                                      _showExperienceEditor(provider),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    children:
+                                        (student.experiences.toList()..sort(
+                                              (a, b) => b.startDate.compareTo(
+                                                a.startDate,
+                                              ),
+                                            ))
+                                            .map(
+                                              (e) => Card(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: ListTile(
+                                                  title: Text(
+                                                    '${e.role} @ ${e.companyName}',
+                                                  ),
+                                                  subtitle: Text(
+                                                    e.description ?? '',
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _showExperienceEditor(
+                                                              provider,
+                                                              experience: e,
+                                                            ),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final ok = await showDialog<bool>(
+                                                            context: context,
+                                                            builder: (ctx) => AlertDialog(
+                                                              title: const Text(
+                                                                'Remove Experience',
+                                                              ),
+                                                              content: const Text(
+                                                                'Remove this experience entry?',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        false,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        true,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Remove',
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                          if (ok == true &&
+                                                              mounted) {
+                                                            setState(
+                                                              () => loading =
+                                                                  true,
+                                                            );
+                                                            await provider
+                                                                .deleteExperience(
+                                                                  e.experienceId,
+                                                                );
+                                                            await provider
+                                                                .fetchExperiences();
+                                                            await provider
+                                                                .fetchProfile();
+                                                            setState(
+                                                              () => loading =
+                                                                  false,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                _sectionHeaderWithAction(
+                                  context,
+                                  title: 'Education',
+                                  actionLabel: 'Add',
+                                  onAction: () =>
+                                      _showEducationEditor(provider),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    children:
+                                        (student.educations.toList()..sort(
+                                              (a, b) =>
+                                                  (b.startDate ??
+                                                          DateTime(1900))
+                                                      .compareTo(
+                                                        a.startDate ??
+                                                            DateTime(1900),
+                                                      ),
+                                            ))
+                                            .map(
+                                              (ed) => Card(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: ListTile(
+                                                  title: Text(
+                                                    ed.institutionName,
+                                                  ),
+                                                  subtitle: Text(
+                                                    '${ed.degree} • ${ed.fieldOfStudy}',
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _showEducationEditor(
+                                                              provider,
+                                                              education: ed,
+                                                            ),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final ok = await showDialog<bool>(
+                                                            context: context,
+                                                            builder: (ctx) => AlertDialog(
+                                                              title: const Text(
+                                                                'Remove Education',
+                                                              ),
+                                                              content: const Text(
+                                                                'Remove this education entry?',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        false,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        true,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Remove',
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                          if (ok == true &&
+                                                              mounted) {
+                                                            setState(
+                                                              () => loading =
+                                                                  true,
+                                                            );
+                                                            await provider
+                                                                .deleteEducation(
+                                                                  ed.educationId,
+                                                                );
+                                                            await provider
+                                                                .fetchProfile();
+                                                            setState(
+                                                              () => loading =
+                                                                  false,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                _sectionHeaderWithAction(
+                                  context,
+                                  title: 'Certifications',
+                                  actionLabel: 'Add',
+                                  onAction: () =>
+                                      _showCertificationEditor(provider),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    children:
+                                        (student.certifications.toList()..sort(
+                                              (a, b) =>
+                                                  (b.issueDate ??
+                                                          DateTime(1900))
+                                                      .compareTo(
+                                                        a.issueDate ??
+                                                            DateTime(1900),
+                                                      ),
+                                            ))
+                                            .map(
+                                              (c) => Card(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: ListTile(
+                                                  title: Text(c.title),
+                                                  subtitle: Text(
+                                                    c.issuer ?? '',
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _showCertificationEditor(
+                                                              provider,
+                                                              certification: c,
+                                                            ),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final ok = await showDialog<bool>(
+                                                            context: context,
+                                                            builder: (ctx) => AlertDialog(
+                                                              title: const Text(
+                                                                'Remove Certification',
+                                                              ),
+                                                              content: const Text(
+                                                                'Remove this certification?',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        false,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        true,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Remove',
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                          if (ok == true &&
+                                                              mounted) {
+                                                            setState(
+                                                              () => loading =
+                                                                  true,
+                                                            );
+                                                            await provider
+                                                                .deleteCertification(
+                                                                  c.certificationId,
+                                                                );
+                                                            await provider
+                                                                .fetchProfile();
+                                                            setState(
+                                                              () => loading =
+                                                                  false,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                _sectionHeaderWithAction(
+                                  context,
+                                  title: 'Achievements',
+                                  actionLabel: 'Add',
+                                  onAction: () =>
+                                      _showAchievementEditor(provider),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    children:
+                                        (student.achievements.toList()..sort(
+                                              (a, b) => b.dateAchieved
+                                                  .compareTo(a.dateAchieved),
+                                            ))
+                                            .map(
+                                              (a) => Card(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                child: ListTile(
+                                                  title: Text(a.title),
+                                                  subtitle: Text(
+                                                    a.description ?? '',
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _showAchievementEditor(
+                                                              provider,
+                                                              achievement: a,
+                                                            ),
+                                                      ),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final ok = await showDialog<bool>(
+                                                            context: context,
+                                                            builder: (ctx) => AlertDialog(
+                                                              title: const Text(
+                                                                'Remove Achievement',
+                                                              ),
+                                                              content: const Text(
+                                                                'Remove this achievement?',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        false,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.pop(
+                                                                        ctx,
+                                                                        true,
+                                                                      ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Remove',
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          );
+                                                          if (ok == true &&
+                                                              mounted) {
+                                                            setState(
+                                                              () => loading =
+                                                                  true,
+                                                            );
+                                                            await provider
+                                                                .deleteAchievement(
+                                                                  a.achievementId,
+                                                                );
+                                                            await provider
+                                                                .fetchProfile();
+                                                            setState(
+                                                              () => loading =
+                                                                  false,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                _sectionHeaderWithAction(
+                                  context,
+                                  title: 'Contact Links',
+                                  actionLabel: 'Add',
+                                  onAction: () =>
+                                      _showContactLinkEditor(provider),
+                                ),
+                                const SizedBox(height: 8),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Column(
+                                    children: student.contactLinks
+                                        .map(
+                                          (link) => Card(
                                             margin: const EdgeInsets.only(
                                               bottom: 8,
                                             ),
                                             child: ListTile(
                                               title: Text(
-                                                '${e.role} @ ${e.companyName}',
+                                                contactPlatformToString(
+                                                  link.platform,
+                                                ),
                                               ),
-                                              subtitle: Text(
-                                                e.description ?? '',
-                                              ),
+                                              subtitle: Text(link.url),
                                               trailing: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
@@ -1046,9 +1594,9 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                                       Icons.edit,
                                                     ),
                                                     onPressed: () =>
-                                                        _showExperienceEditor(
+                                                        _showContactLinkEditor(
                                                           provider,
-                                                          experience: e,
+                                                          contactLink: link,
                                                         ),
                                                   ),
                                                   IconButton(
@@ -1060,10 +1608,10 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                                         context: context,
                                                         builder: (ctx) => AlertDialog(
                                                           title: const Text(
-                                                            'Remove Experience',
+                                                            'Remove Link',
                                                           ),
                                                           content: const Text(
-                                                            'Remove this experience entry?',
+                                                            'Remove this contact link?',
                                                           ),
                                                           actions: [
                                                             TextButton(
@@ -1095,118 +1643,8 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                                           () => loading = true,
                                                         );
                                                         await provider
-                                                            .deleteExperience(
-                                                              e.experienceId,
-                                                            );
-                                                        await provider
-                                                            .fetchExperiences();
-                                                        await provider
-                                                            .fetchProfile();
-                                                        setState(
-                                                          () => loading = false,
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            _sectionHeaderWithAction(
-                              context,
-                              title: 'Education',
-                              actionLabel: 'Add',
-                              onAction: () => _showEducationEditor(provider),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                children:
-                                    (student.educations.toList()..sort(
-                                          (a, b) =>
-                                              (b.startDate ?? DateTime(1900))
-                                                  .compareTo(
-                                                    a.startDate ??
-                                                        DateTime(1900),
-                                                  ),
-                                        ))
-                                        .map(
-                                          (ed) => Card(
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
-                                            ),
-                                            child: ListTile(
-                                              title: Text(ed.institutionName),
-                                              subtitle: Text(
-                                                '${ed.degree} • ${ed.fieldOfStudy}',
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.edit,
-                                                    ),
-                                                    onPressed: () =>
-                                                        _showEducationEditor(
-                                                          provider,
-                                                          education: ed,
-                                                        ),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.delete,
-                                                    ),
-                                                    onPressed: () async {
-                                                      final ok = await showDialog<bool>(
-                                                        context: context,
-                                                        builder: (ctx) => AlertDialog(
-                                                          title: const Text(
-                                                            'Remove Education',
-                                                          ),
-                                                          content: const Text(
-                                                            'Remove this education entry?',
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    false,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Cancel',
-                                                              ),
-                                                            ),
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    true,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Remove',
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                      if (ok == true &&
-                                                          mounted) {
-                                                        setState(
-                                                          () => loading = true,
-                                                        );
-                                                        await provider
-                                                            .deleteEducation(
-                                                              ed.educationId,
+                                                            .deleteContactLink(
+                                                              link.linkId,
                                                             );
                                                         await provider
                                                             .fetchProfile();
@@ -1222,255 +1660,40 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                           ),
                                         )
                                         .toList(),
-                              ),
-                            ),
+                                  ),
+                                ),
 
-                            const SizedBox(height: 12),
+                                const SizedBox(height: 18),
 
-                            _sectionHeaderWithAction(
-                              context,
-                              title: 'Certifications',
-                              actionLabel: 'Add',
-                              onAction: () =>
-                                  _showCertificationEditor(provider),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                children:
-                                    (student.certifications.toList()..sort(
-                                          (a, b) =>
-                                              (b.issueDate ?? DateTime(1900))
-                                                  .compareTo(
-                                                    a.issueDate ??
-                                                        DateTime(1900),
-                                                  ),
-                                        ))
-                                        .map(
-                                          (c) => Card(
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
-                                            ),
-                                            child: ListTile(
-                                              title: Text(c.title),
-                                              subtitle: Text(c.issuer ?? ''),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.edit,
-                                                    ),
-                                                    onPressed: () =>
-                                                        _showCertificationEditor(
-                                                          provider,
-                                                          certification: c,
-                                                        ),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.delete,
-                                                    ),
-                                                    onPressed: () async {
-                                                      final ok = await showDialog<bool>(
-                                                        context: context,
-                                                        builder: (ctx) => AlertDialog(
-                                                          title: const Text(
-                                                            'Remove Certification',
-                                                          ),
-                                                          content: const Text(
-                                                            'Remove this certification?',
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    false,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Cancel',
-                                                              ),
-                                                            ),
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    true,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Remove',
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                      if (ok == true &&
-                                                          mounted) {
-                                                        setState(
-                                                          () => loading = true,
-                                                        );
-                                                        await provider
-                                                            .deleteCertification(
-                                                              c.certificationId,
-                                                            );
-                                                        await provider
-                                                            .fetchProfile();
-                                                        setState(
-                                                          () => loading = false,
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            _sectionHeaderWithAction(
-                              context,
-                              title: 'Achievements',
-                              actionLabel: 'Add',
-                              onAction: () => _showAchievementEditor(provider),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                children:
-                                    (student.achievements.toList()..sort(
-                                          (a, b) => b.dateAchieved.compareTo(
-                                            a.dateAchieved,
-                                          ),
-                                        ))
-                                        .map(
-                                          (a) => Card(
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
-                                            ),
-                                            child: ListTile(
-                                              title: Text(a.title),
-                                              subtitle: Text(
-                                                a.description ?? '',
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.edit,
-                                                    ),
-                                                    onPressed: () =>
-                                                        _showAchievementEditor(
-                                                          provider,
-                                                          achievement: a,
-                                                        ),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.delete,
-                                                    ),
-                                                    onPressed: () async {
-                                                      final ok = await showDialog<bool>(
-                                                        context: context,
-                                                        builder: (ctx) => AlertDialog(
-                                                          title: const Text(
-                                                            'Remove Achievement',
-                                                          ),
-                                                          content: const Text(
-                                                            'Remove this achievement?',
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    false,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Cancel',
-                                                              ),
-                                                            ),
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                    true,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Remove',
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                      if (ok == true &&
-                                                          mounted) {
-                                                        setState(
-                                                          () => loading = true,
-                                                        );
-                                                        await provider
-                                                            .deleteAchievement(
-                                                              a.achievementId,
-                                                            );
-                                                        await provider
-                                                            .fetchProfile();
-                                                        setState(
-                                                          () => loading = false,
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            _sectionHeaderWithAction(
-                              context,
-                              title: 'Contact Links',
-                              actionLabel: 'Add',
-                              onAction: () => _showContactLinkEditor(provider),
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedSize(
-                              duration: const Duration(milliseconds: 300),
-                              child: Column(
-                                children: student.contactLinks
-                                    .map(
-                                      (link) => Card(
-                                        margin: const EdgeInsets.only(
-                                          bottom: 8,
-                                        ),
-                                        child: ListTile(
-                                          title: Text(
-                                            contactPlatformToString(
-                                              link.platform,
-                                            ),
-                                          ),
-                                          subtitle: Text(link.url),
+                                const Text(
+                                  'Projects',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton.icon(
+                                  onPressed: () => _showProjectEditor(provider),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Add Project'),
+                                ),
+                                const SizedBox(height: 8),
+                                Column(
+                                  children: student.projects
+                                      .map(
+                                        (p) => ListTile(
+                                          title: Text(p.title),
+                                          subtitle: Text(p.description ?? ''),
                                           trailing: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               IconButton(
                                                 icon: const Icon(Icons.edit),
                                                 onPressed: () =>
-                                                    _showContactLinkEditor(
+                                                    _showProjectEditor(
                                                       provider,
-                                                      contactLink: link,
+                                                      project: p,
                                                     ),
                                               ),
                                               IconButton(
@@ -1480,10 +1703,10 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                                     context: context,
                                                     builder: (ctx) => AlertDialog(
                                                       title: const Text(
-                                                        'Remove Link',
+                                                        'Remove Project',
                                                       ),
                                                       content: const Text(
-                                                        'Remove this contact link?',
+                                                        'Do you want to remove this project from your profile?',
                                                       ),
                                                       actions: [
                                                         TextButton(
@@ -1513,10 +1736,9 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                                     setState(
                                                       () => loading = true,
                                                     );
-                                                    await provider
-                                                        .deleteContactLink(
-                                                          link.linkId,
-                                                        );
+                                                    await provider.leaveProject(
+                                                      p.projectId,
+                                                    );
                                                     await provider
                                                         .fetchProfile();
                                                     setState(
@@ -1528,356 +1750,287 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                             ],
                                           ),
                                         ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-
-                            const SizedBox(height: 18),
-
-                            const Text(
-                              'Projects',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              onPressed: () => _showProjectEditor(provider),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add Project'),
-                            ),
-                            const SizedBox(height: 8),
-                            Column(
-                              children: student.projects
-                                  .map(
-                                    (p) => ListTile(
-                                      title: Text(p.title),
-                                      subtitle: Text(p.description ?? ''),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.edit),
-                                            onPressed: () => _showProjectEditor(
-                                              provider,
-                                              project: p,
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete),
-                                            onPressed: () async {
-                                              final ok = await showDialog<bool>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Text(
-                                                    'Remove Project',
-                                                  ),
-                                                  content: const Text(
-                                                    'Do you want to remove this project from your profile?',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            ctx,
-                                                            false,
-                                                          ),
-                                                      child: const Text(
-                                                        'Cancel',
-                                                      ),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            ctx,
-                                                            true,
-                                                          ),
-                                                      child: const Text(
-                                                        'Remove',
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                              if (ok == true && mounted) {
-                                                setState(() => loading = true);
-                                                await provider.leaveProject(
-                                                  p.projectId,
-                                                );
-                                                await provider.fetchProfile();
-                                                setState(() => loading = false);
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 16),
-
-                    // Right column: preview + actions
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'Preview',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                                      )
+                                      .toList(),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Theme.of(context).dividerColor,
+                        ),
+
+                        SizedBox(
+                          width: isNarrow ? 0 : 16,
+                          height: isNarrow ? 12 : 0,
+                        ),
+
+                        // Right column: preview + actions
+                        Expanded(
+                          flex: isNarrow ? 4 : 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Preview',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _nameController.text.trim(),
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Theme.of(context).dividerColor,
                                     ),
-                                    const SizedBox(height: 6),
-                                    Text((cvEmail ?? '').trim()),
-                                    if (_phoneController.text.trim().isNotEmpty)
-                                      Text(_phoneController.text.trim()),
-                                    const Divider(),
-                                    if (student.experiences.isNotEmpty) ...[
-                                      const Text(
-                                        'Experience',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...student.experiences.map(
-                                        (e) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 6,
-                                          ),
-                                          child: Text(
-                                            '${e.role} at ${e.companyName}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                    if (student.educations.isNotEmpty) ...[
-                                      const Text(
-                                        'Education',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...student.educations.map(
-                                        (ed) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 8,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '${ed.degree} - ${ed.institutionName}',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              if ((ed.fieldOfStudy ?? '')
-                                                  .isNotEmpty)
-                                                Text(
-                                                  ed.fieldOfStudy!,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              if (_buildEducationGradeText(
-                                                    ed,
-                                                  ) !=
-                                                  null)
-                                                Text(
-                                                  _buildEducationGradeText(ed)!,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                    ],
-                                    const Text(
-                                      'Skills',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      children: student.skills
-                                          .map((s) => Chip(label: Text(s)))
-                                          .toList(),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    if (student.certifications.isNotEmpty) ...[
-                                      const Text(
-                                        'Certifications',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...student.certifications.map(
-                                        (c) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 6,
-                                          ),
-                                          child: Text(
-                                            c.issuer != null &&
-                                                    c.issuer!.isNotEmpty
-                                                ? '${c.title} - ${c.issuer}'
-                                                : c.title,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                    ],
-                                    if (student.achievements.isNotEmpty) ...[
-                                      const Text(
-                                        'Awards & Achievements',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...student.achievements.map(
-                                        (a) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 6,
-                                          ),
-                                          child: Text(
-                                            a.description != null &&
-                                                    a.description!.isNotEmpty
-                                                ? '${a.title} - ${a.description}'
-                                                : a.title,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                    ],
-                                    const Text(
-                                      'Projects',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Column(
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
-                                      children: student.projects
-                                          .map(
-                                            (p) => Padding(
+                                      children: [
+                                        Text(
+                                          _nameController.text.trim(),
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text((cvEmail ?? '').trim()),
+                                        if (_phoneController.text
+                                            .trim()
+                                            .isNotEmpty)
+                                          Text(_phoneController.text.trim()),
+                                        const Divider(),
+                                        if (student.experiences.isNotEmpty) ...[
+                                          const Text(
+                                            'Experience',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          ...student.experiences.map(
+                                            (e) => Padding(
                                               padding: const EdgeInsets.only(
-                                                bottom: 8.0,
+                                                bottom: 6,
+                                              ),
+                                              child: Text(
+                                                '${e.role} at ${e.companyName}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                        ],
+                                        if (student.educations.isNotEmpty) ...[
+                                          const Text(
+                                            'Education',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          ...student.educations.map(
+                                            (ed) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 8,
                                               ),
                                               child: Column(
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    p.title,
+                                                    '${ed.degree} - ${ed.institutionName}',
                                                     style: const TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w600,
+                                                          FontWeight.w500,
                                                     ),
                                                   ),
-                                                  if (p.description != null)
-                                                    Text(p.description!),
+                                                  if ((ed.fieldOfStudy ?? '')
+                                                      .isNotEmpty)
+                                                    Text(
+                                                      ed.fieldOfStudy!,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  if (_buildEducationGradeText(
+                                                        ed,
+                                                      ) !=
+                                                      null)
+                                                    Text(
+                                                      _buildEducationGradeText(
+                                                        ed,
+                                                      )!,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
                                                 ],
                                               ),
                                             ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, cvEmail),
-                                  child: const Text('Close'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: loading
-                                      ? null
-                                      : () async {
-                                          await _savePersonal(provider);
-                                          if (mounted) {
-                                            Navigator.pop(context, cvEmail);
-                                          }
-                                        },
-                                  child: loading
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
                                           ),
-                                        )
-                                      : const Text('Save & Close'),
+                                          const SizedBox(height: 10),
+                                        ],
+                                        const Text(
+                                          'Skills',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          spacing: 6,
+                                          children: student.skills
+                                              .map((s) => Chip(label: Text(s)))
+                                              .toList(),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        if (student
+                                            .certifications
+                                            .isNotEmpty) ...[
+                                          const Text(
+                                            'Certifications',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          ...student.certifications.map(
+                                            (c) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
+                                              child: Text(
+                                                c.issuer != null &&
+                                                        c.issuer!.isNotEmpty
+                                                    ? '${c.title} - ${c.issuer}'
+                                                    : c.title,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        if (student
+                                            .achievements
+                                            .isNotEmpty) ...[
+                                          const Text(
+                                            'Awards & Achievements',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          ...student.achievements.map(
+                                            (a) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
+                                              child: Text(
+                                                a.description != null &&
+                                                        a
+                                                            .description!
+                                                            .isNotEmpty
+                                                    ? '${a.title} - ${a.description}'
+                                                    : a.title,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        const Text(
+                                          'Projects',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: student.projects
+                                              .map(
+                                                (p) => Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 8.0,
+                                                      ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        p.title,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                      if (p.description != null)
+                                                        Text(p.description!),
+                                                    ],
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Close'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: loading
+                                          ? null
+                                          : () async {
+                                              await _savePersonal(provider);
+                                              if (mounted) {
+                                                Navigator.pop(context, cvEmail);
+                                              }
+                                            },
+                                      child: loading
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Save & Close'),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),

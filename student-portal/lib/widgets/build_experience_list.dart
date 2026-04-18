@@ -5,7 +5,7 @@ import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/mixins/dateFormatter.dart';
 import 'package:student_job_fair_portal/widgets/build_empty_state.dart';
 import 'package:student_job_fair_portal/widgets/show_gerenicpopup.dart';
-import 'package:student_job_fair_portal/widgets/showDialogueBox.dart'; // 🎯 Import this!
+import 'package:student_job_fair_portal/widgets/showDialogueBox.dart'; 
 import 'package:student_job_fair_portal/mixins/date_picker.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
@@ -26,6 +26,7 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
 
     final startCtrl = TextEditingController(text: toDateString(exp.startDate));
     final endCtrl = TextEditingController(text: toDateString(exp.endDate));
+    bool isCurrent = exp.isCurrent || endCtrl.text.isEmpty;
 
     showGenericDialog(
       context: context,
@@ -44,8 +45,6 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
               decoration: const InputDecoration(labelText: "Role"),
             ),
             const SizedBox(height: 10),
-
-            // 🎯 Updated Location Field here too
             TextField(
               controller: locationCtrl,
               readOnly: true,
@@ -55,7 +54,6 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
                 suffixIcon: Icon(Icons.arrow_drop_down),
               ),
             ),
-
             const SizedBox(height: 10),
             TextField(
               controller: startCtrl,
@@ -67,14 +65,42 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
               ),
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: endCtrl,
-              readOnly: true,
-              onTap: () => selectDate(context, endCtrl),
-              decoration: const InputDecoration(
-                labelText: "End Date",
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
+            StatefulBuilder(
+              builder: (context, setState) {
+                return Column(
+                  children: [
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: isCurrent,
+                      onChanged: (value) {
+                        setState(() {
+                          isCurrent = value ?? false;
+                          if (isCurrent) {
+                            endCtrl.clear();
+                          }
+                        });
+                      },
+                      title: const Text("I am currently working here"),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: endCtrl,
+                      readOnly: isCurrent,
+                      onTap: isCurrent
+                          ? null
+                          : () => selectDate(context, endCtrl),
+                      decoration: InputDecoration(
+                        labelText: isCurrent
+                            ? "End Date"
+                            : "End Date (Optional)",
+                        suffixIcon: const Icon(Icons.calendar_today),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             TextField(
@@ -97,11 +123,12 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
           "location": locationCtrl.text,
           "description": descCtrl.text,
           "startDate": "${startCtrl.text}T00:00:00Z",
-          "endDate": endCtrl.text.isNotEmpty
-              ? "${endCtrl.text}T00:00:00Z"
-              : null,
-          "isCurrent": endCtrl.text.isEmpty,
+          "endDate": isCurrent || endCtrl.text.isEmpty
+              ? null
+              : "${endCtrl.text}T00:00:00Z",
+          "isCurrent": isCurrent,
         };
+
         await Provider.of<StudentProvider>(
           context,
           listen: false,
@@ -129,7 +156,7 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
               TextButton(
                 onPressed: () async {
                   Navigator.of(ctx).pop(true);
-                  bool success = await Provider.of<StudentProvider>(
+                  final success = await Provider.of<StudentProvider>(
                     context,
                     listen: false,
                   ).deleteExperience(experienceId);
@@ -163,14 +190,16 @@ Widget buildExperienceList(List<dynamic>? experiences, BuildContext context) {
     builder: (context, constraints) {
       final double availableWidth = constraints.maxWidth;
       int columns = 1;
+
       if (availableWidth > 1350) {
         columns = 5;
-      } else if (availableWidth > 1000){
-        columns = 4;}
-      else if (availableWidth > 700){
-        columns = 3;}
-      else if (availableWidth > 450){
-        columns = 2;}
+      } else if (availableWidth > 1000) {
+        columns = 4;
+      } else if (availableWidth > 700) {
+        columns = 3;
+      } else if (availableWidth > 450) {
+        columns = 2;
+      }
 
       final double spacing = 16.0;
       final double totalSpacing = (columns - 1) * spacing;
@@ -251,9 +280,7 @@ class _ExperienceCardState extends State<ExperienceCard>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.grey.shade200,
+          color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade200,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -267,12 +294,13 @@ class _ExperienceCardState extends State<ExperienceCard>
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
                       padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.blue.shade900.withValues(alpha: 0.3)
+                            ? Colors.blue.shade900.withOpacity(0.3)
                             : Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -284,27 +312,55 @@ class _ExperienceCardState extends State<ExperienceCard>
                         size: isMobile ? 14 : 16,
                       ),
                     ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 6 : 8,
-                        vertical: isMobile ? 3 : 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        dateRange,
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.grey.shade300
-                              : Colors.grey.shade800,
-                          fontSize: isMobile ? 9 : 10,
-                          fontWeight: FontWeight.bold,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (exp.isCurrent)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 6 : 8,
+                              vertical: isMobile ? 3 : 4,
+                            ),
+                            margin: const EdgeInsets.only(bottom: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.14),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.25),
+                              ),
+                            ),
+                            child: Text(
+                              'Current',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: isMobile ? 9 : 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 8,
+                            vertical: isMobile ? 3 : 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            dateRange,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade800,
+                              fontSize: isMobile ? 9 : 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -378,15 +434,15 @@ class _ExperienceCardState extends State<ExperienceCard>
           Divider(
             height: 1,
             color: isDark
-                ? Colors.white.withValues(alpha: 0.1)
+                ? Colors.white.withOpacity(0.1)
                 : Colors.grey.shade100,
           ),
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             color: isDark
-                ? Colors.black.withValues(alpha: 0.2)
-                : Colors.grey.shade50.withValues(alpha: 0.3),
+                ? Colors.black.withOpacity(0.2)
+                : Colors.grey.shade50.withOpacity(0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -451,7 +507,7 @@ class _ExperienceCardState extends State<ExperienceCard>
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Icon(icon, size: 16, color: color.withValues(alpha: 0.8)),
+            child: Icon(icon, size: 16, color: color.withOpacity(0.8)),
           ),
         ),
       ),

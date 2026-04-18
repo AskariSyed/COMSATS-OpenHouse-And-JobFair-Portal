@@ -23,11 +23,17 @@ class StudentProvider with ChangeNotifier {
   Student? _student;
   String? _token;
   bool _isLoading = false;
+  bool _hasSkippedCvUploadPromptThisSession = false;
+  bool _hasSkippedProfilePicturePromptThisSession = false;
 
   Student? get student => _student;
   String? get token => _token;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _student != null && _token != null;
+  bool get hasSkippedCvUploadPromptThisSession =>
+      _hasSkippedCvUploadPromptThisSession;
+  bool get hasSkippedProfilePicturePromptThisSession =>
+      _hasSkippedProfilePicturePromptThisSession;
 
   DashboardData? _dashboardData;
   DashboardData? get dashboardData => _dashboardData;
@@ -102,6 +108,19 @@ class StudentProvider with ChangeNotifier {
 
   // --- 1. AUTH & SESSION ---
 
+  void markCvUploadPromptSkippedForSession() {
+    _hasSkippedCvUploadPromptThisSession = true;
+  }
+
+  void markProfilePicturePromptSkippedForSession() {
+    _hasSkippedProfilePicturePromptThisSession = true;
+  }
+
+  void clearSessionPromptSkips() {
+    _hasSkippedCvUploadPromptThisSession = false;
+    _hasSkippedProfilePicturePromptThisSession = false;
+  }
+
   void setStudent(Student student) {
     _student = student;
     notifyListeners();
@@ -122,6 +141,7 @@ class StudentProvider with ChangeNotifier {
     _interviewRequests = [];
     _scheduledInterviews = [];
     _invitations = [];
+    clearSessionPromptSkips();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
     notifyListeners();

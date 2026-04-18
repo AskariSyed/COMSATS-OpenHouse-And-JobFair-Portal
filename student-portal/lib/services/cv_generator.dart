@@ -4,10 +4,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:student_job_fair_portal/model/student.dart';
 import 'package:intl/intl.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:student_job_fair_portal/utils/web_file_downloader.dart';
 
 class CVGenerator {
   static Future<void> generateAndSaveCV(
@@ -571,7 +572,7 @@ class CVGenerator {
                     padding: pw.EdgeInsets.only(bottom: 4),
                     child: pw.Text(
                       '${link.platform.name.toUpperCase()}: ${link.url}',
-                      style: pw.TextStyle(fontSize: 9, font: pw.Font.times()),
+                      style: pw.TextStyle(fontSize: 9, font: regularFont),
                     ),
                   );
                 }),
@@ -634,13 +635,8 @@ class CVGenerator {
   }) async {
     if (!kIsWeb) return;
 
-    final blob = html.Blob([pdfBytes], 'application/pdf');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    html.window.open(url, '_blank');
-
-    Future.delayed(const Duration(seconds: 30), () {
-      html.Url.revokeObjectUrl(url);
-    });
+    final url = Uri.dataFromBytes(pdfBytes, mimeType: 'application/pdf');
+    await launchUrl(url, webOnlyWindowName: '_blank');
   }
 
   /// Internal method to generate PDF bytes
@@ -1195,7 +1191,7 @@ class CVGenerator {
                     padding: pw.EdgeInsets.only(bottom: 4),
                     child: pw.Text(
                       '${link.platform.name.toUpperCase()}: ${link.url}',
-                      style: pw.TextStyle(fontSize: 9, font: pw.Font.times()),
+                      style: pw.TextStyle(fontSize: 9, font: regularFont),
                     ),
                   );
                 }),
@@ -1210,16 +1206,13 @@ class CVGenerator {
 
   /// Download PDF on web platform
   static void _downloadPdfWeb(Uint8List pdfBytes, String fileName) {
-    final blob = html.Blob([pdfBytes], 'application/pdf');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final link = html.document.createElement('a') as html.AnchorElement;
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    html.Url.revokeObjectUrl(url);
+    WebFileDownloader.download(pdfBytes, fileName, mimeType: 'application/pdf');
   }
 
-  static pw.Widget _buildSectionHeader(String title, {pw.Font? headerFont}) {
+  static pw.Widget _buildSectionHeader(
+    String title, {
+    required pw.Font headerFont,
+  }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -1229,7 +1222,7 @@ class CVGenerator {
             fontSize: 12,
             fontWeight: pw.FontWeight.bold,
             color: PdfColors.blue900,
-            font: headerFont ?? pw.Font.times(),
+            font: headerFont,
           ),
         ),
         pw.SizedBox(height: 4),

@@ -1348,6 +1348,7 @@ void showAddExperienceDialog(BuildContext context) {
   final descCtrl = TextEditingController();
   final startCtrl = TextEditingController();
   final endCtrl = TextEditingController();
+  bool isCurrent = false;
 
   showGenericDialog(
     context: context,
@@ -1389,14 +1390,40 @@ void showAddExperienceDialog(BuildContext context) {
             ),
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: endCtrl,
-            readOnly: true,
-            onTap: () => selectDate(context, endCtrl),
-            decoration: const InputDecoration(
-              labelText: "End Date (Leave empty if Current)",
-              suffixIcon: Icon(Icons.calendar_today),
-            ),
+          StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                children: [
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: isCurrent,
+                    onChanged: (value) {
+                      setState(() {
+                        isCurrent = value ?? false;
+                        if (isCurrent) {
+                          endCtrl.clear();
+                        }
+                      });
+                    },
+                    title: const Text("I am currently working here"),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: endCtrl,
+                    readOnly: isCurrent,
+                    onTap: isCurrent
+                        ? null
+                        : () => selectDate(context, endCtrl),
+                    decoration: InputDecoration(
+                      labelText: isCurrent ? "End Date" : "End Date (Optional)",
+                      suffixIcon: const Icon(Icons.calendar_today),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           TextField(
@@ -1419,8 +1446,10 @@ void showAddExperienceDialog(BuildContext context) {
         "location": locationCtrl.text,
         "description": descCtrl.text,
         "startDate": "${startCtrl.text}T00:00:00Z",
-        "endDate": endCtrl.text.isNotEmpty ? "${endCtrl.text}T00:00:00Z" : null,
-        "isCurrent": endCtrl.text.isEmpty,
+        "endDate": isCurrent || endCtrl.text.isEmpty
+            ? null
+            : "${endCtrl.text}T00:00:00Z",
+        "isCurrent": isCurrent,
       });
     },
   );

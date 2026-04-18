@@ -18,7 +18,7 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="COMSATS University Islamabad Wah Campus Job Fair Student Portal">
 
   <!-- iOS meta tags & icons -->
@@ -49,10 +49,13 @@
     html,
     body {
       margin: 0;
+      padding: 0;
       width: 100%;
       height: 100%;
       background: var(--loader-bg);
       font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     #app-loader {
@@ -75,12 +78,31 @@
     }
 
     .loader-card {
-      width: min(92vw, 360px);
-      background: var(--loader-card);
-      border-radius: 14px;
-      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
-      padding: 20px;
+      width: min(94vw, 440px);
+      background: transparent;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 0;
       box-sizing: border-box;
+      text-align: center;
+    }
+
+    .loader-logo-wrap {
+      width: auto;
+      height: auto;
+      margin: 0 auto 16px;
+      border-radius: 0;
+      background: transparent;
+      display: block;
+      box-shadow: none;
+    }
+
+    .loader-logo {
+      width: clamp(120px, 18vw, 190px);
+      height: clamp(120px, 18vw, 190px);
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
     }
 
     .loader-title {
@@ -92,78 +114,32 @@
     }
 
     .loader-subtitle {
-      margin: 6px 0 14px;
+      margin: 8px 0 0;
       color: var(--loader-subtext);
-      font-size: 13px;
+      font-size: 14px;
+      font-weight: 500;
     }
 
-    .loader-meta {
-      margin: 0;
-      color: var(--loader-subtext);
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+    .loader-spinner {
+      width: 40px;
+      height: 40px;
+      margin: 20px auto 0;
+      border-radius: 50%;
+      border: 3px solid var(--loader-accent-soft);
+      border-top-color: var(--loader-accent);
+      animation: spin 0.95s linear infinite;
     }
 
-    .loader-percent {
-      color: var(--loader-text);
-      font-size: 12px;
-      font-weight: 700;
-      min-width: 42px;
-      text-align: right;
+    @media (max-width: 560px) {
+      .loader-logo {
+        width: clamp(96px, 28vw, 128px);
+        height: clamp(96px, 28vw, 128px);
+      }
     }
 
-    .shimmer-line {
-      position: relative;
-      overflow: hidden;
-      border-radius: 8px;
-      background: #e5e7eb;
-      margin-top: 10px;
-      height: 12px;
-    }
-
-    .shimmer-line.big {
-      height: 48px;
-      border-radius: 12px;
-      margin-top: 14px;
-      background: #e8edf5;
-    }
-
-    .shimmer-line::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.62),
-        transparent
-      );
-      animation: shimmer 1.1s infinite;
-    }
-
-    .progress-track {
-      margin-top: 14px;
-      height: 6px;
-      border-radius: 999px;
-      background: var(--loader-accent-soft);
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      width: 8%;
-      height: 100%;
-      border-radius: inherit;
-      background: var(--loader-accent);
-      transition: width 220ms ease;
-    }
-
-    @keyframes shimmer {
+    @keyframes spin {
       to {
-        transform: translateX(100%);
+        transform: rotate(360deg);
       }
     }
 
@@ -172,50 +148,23 @@
 <body>
   <div id="app-loader" role="status" aria-live="polite" aria-label="Loading student portal">
     <div class="loader-card">
-      <h1 class="loader-title">Opening Student Portal</h1>
-      <p class="loader-subtitle" id="loader-stage">Preparing interview dashboard...</p>
-      <p class="loader-meta">
-        <span id="loader-meta-text">Starting web app bootstrap</span>
-        <span class="loader-percent" id="loader-percent">8%</span>
-      </p>
-      <div class="shimmer-line" style="width: 70%;"></div>
-      <div class="shimmer-line" style="width: 100%;"></div>
-      <div class="shimmer-line" style="width: 85%;"></div>
-      <div class="shimmer-line big"></div>
-      <div class="progress-track"><div class="progress-bar" id="loader-progress"></div></div>
+      <div class="loader-logo-wrap">
+        <img class="loader-logo" src="icons/Icon-192.png" alt="Student Portal Logo" />
+      </div>
+      <h1 class="loader-title">Student Portal</h1>
+      <p class="loader-subtitle">Loading, please wait...</p>
+      <div class="loader-spinner" aria-hidden="true"></div>
     </div>
   </div>
 
   <script>
     (function () {
       var loader = document.getElementById('app-loader');
-      var progressEl = document.getElementById('loader-progress');
-      var percentEl = document.getElementById('loader-percent');
-      var stageEl = document.getElementById('loader-stage');
-      var metaEl = document.getElementById('loader-meta-text');
-      var progress = 8;
       var hidden = false;
-
-      function setProgress(nextProgress, stageText, metaText) {
-        progress = Math.max(progress, Math.min(100, nextProgress));
-        if (progressEl) {
-          progressEl.style.width = progress + '%';
-        }
-        if (percentEl) {
-          percentEl.textContent = progress + '%';
-        }
-        if (stageEl && stageText) {
-          stageEl.textContent = stageText;
-        }
-        if (metaEl && metaText) {
-          metaEl.textContent = metaText;
-        }
-      }
 
       function hideLoader() {
         if (hidden || !loader) return;
         hidden = true;
-        setProgress(100, 'Ready', 'Launching portal');
         loader.classList.add('hidden');
         window.setTimeout(function () {
           if (loader && loader.parentNode) {
@@ -230,36 +179,11 @@
           document.querySelector('flt-glass-pane') ||
           document.querySelector('canvas')
         ) {
-          setProgress(88, 'Rendering dashboard', 'Flutter UI mounted');
           hideLoader();
           return true;
         }
         return false;
       }
-
-      setProgress(12, 'Preparing interview dashboard...', 'Starting web app bootstrap');
-
-      var bootstrapScript = document.getElementById('flutter-bootstrap-script');
-      if (bootstrapScript) {
-        bootstrapScript.addEventListener('load', function () {
-          setProgress(42, 'Loading app core...', 'Flutter bootstrap script loaded');
-        });
-      }
-
-      document.addEventListener('DOMContentLoaded', function () {
-        setProgress(18, 'Preparing interview dashboard...', 'DOM ready');
-      });
-
-      var bootstrapPoller = window.setInterval(function () {
-        if (hidden) {
-          window.clearInterval(bootstrapPoller);
-          return;
-        }
-        if (window._flutter && window._flutter.loader) {
-          setProgress(58, 'Starting Flutter engine...', 'Engine loader initialized');
-          window.clearInterval(bootstrapPoller);
-        }
-      }, 150);
 
       if (!maybeAppReady()) {
         var observer = new MutationObserver(function () {
@@ -275,18 +199,13 @@
 
         window.setTimeout(function () {
           observer.disconnect();
-          setProgress(95, 'Almost there...', 'Taking longer than usual');
           hideLoader();
         }, 15000);
       }
 
-      window.addEventListener('flutter-first-frame', function () {
-        setProgress(100, 'Ready', 'First frame rendered');
-        hideLoader();
-      }, { once: true });
+      window.addEventListener('flutter-first-frame', hideLoader, { once: true });
 
       window.addEventListener('load', function () {
-        setProgress(30, 'Loading app core...', 'Browser load complete');
         window.setTimeout(maybeAppReady, 0);
       });
     })();

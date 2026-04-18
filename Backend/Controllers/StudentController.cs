@@ -472,6 +472,67 @@ namespace JobFairPortal.Controllers
             return Ok(new { Message = "Experience added successfully", Experience = responseDto });
         }
 
+        [HttpPut("experiences/{experienceId}")]
+        public async Task<IActionResult> UpdateExperience(int experienceId, [FromBody] ExperienceUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var experience = await _context.Experiences
+                .Include(e => e.Student)
+                .FirstOrDefaultAsync(e => e.ExperienceId == experienceId && e.Student != null && e.Student.UserId == userId);
+
+            if (experience == null)
+                return NotFound("Experience not found or does not belong to you.");
+
+            if (!string.IsNullOrWhiteSpace(dto.CompanyName))
+                experience.CompanyName = dto.CompanyName;
+
+            if (!string.IsNullOrWhiteSpace(dto.Role))
+                experience.Role = dto.Role;
+
+            if (dto.Location != null)
+                experience.Location = dto.Location;
+
+            if (dto.Description != null)
+                experience.Description = dto.Description;
+
+            if (dto.StartDate.HasValue)
+                experience.StartDate = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+
+            if (dto.IsCurrent.HasValue)
+                experience.IsCurrent = dto.IsCurrent.Value;
+
+            if (experience.IsCurrent)
+            {
+                experience.EndDate = null;
+            }
+            else if (dto.EndDate.HasValue)
+            {
+                experience.EndDate = DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc);
+            }
+
+            await _context.SaveChangesAsync();
+
+            var responseDto = new
+            {
+                experience.ExperienceId,
+                experience.CompanyName,
+                experience.Location,
+                experience.StartDate,
+                experience.EndDate,
+                experience.Description,
+                experience.IsCurrent,
+                experience.Role,
+            };
+
+            return Ok(new { Message = "Experience updated successfully", Experience = responseDto });
+        }
+
         [HttpDelete("experiences/{experienceId}")]
         public async Task<IActionResult> DeleteExperience(int experienceId)
         {

@@ -46,6 +46,15 @@ class WebFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     const brandNavy = Color(0xFF0F172A);
     const brandBlue = Color(0xFF2563EB);
+    const footerFontFamily = 'Arial';
+
+    final baseFooterText = TextStyle(
+      fontFamily: footerFontFamily,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      color: Colors.white.withValues(alpha: 0.86),
+      height: 1.35,
+    );
 
     return Container(
       width: double.infinity,
@@ -63,6 +72,7 @@ class WebFooter extends StatelessWidget {
           const Text(
             "COMSATS University Islamabad, Wah Campus",
             style: TextStyle(
+              fontFamily: footerFontFamily,
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -80,14 +90,7 @@ class WebFooter extends StatelessWidget {
             children: _footerLinks.map((link) {
               return InkWell(
                 onTap: () => _launchURL(context, link['url']!),
-                child: Text(
-                  link['title']!,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.86),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: Text(link['title']!, style: baseFooterText),
               );
             }).toList(),
           ),
@@ -100,8 +103,8 @@ class WebFooter extends StatelessWidget {
               Text(
                 "Developed by FYP Team"
                     .toUpperCase(), // Fixed: Applied to string
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
+                style: baseFooterText.copyWith(
+                  color: Colors.white.withValues(alpha: 0.76),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -122,10 +125,8 @@ class WebFooter extends StatelessWidget {
                         onTap: () => _launchURL(context, member['portfolio']!),
                         child: Text(
                           member['name']!,
-                          style: TextStyle(
+                          style: baseFooterText.copyWith(
                             color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
                             decoration: TextDecoration.underline,
                           ),
                         ),
@@ -135,10 +136,8 @@ class WebFooter extends StatelessWidget {
 
                   return Text(
                     member['name']!,
-                    style: TextStyle(
+                    style: baseFooterText.copyWith(
                       color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
                     ),
                   );
                 }).toList(),
@@ -153,7 +152,7 @@ class WebFooter extends StatelessWidget {
           // 4. Copyright Section
           Text(
             "© ${DateTime.now().year} Student Job Fair Portal. All rights reserved.",
-            style: TextStyle(
+            style: baseFooterText.copyWith(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 12,
             ),
@@ -162,7 +161,7 @@ class WebFooter extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             "Version 1.0.0",
-            style: TextStyle(
+            style: baseFooterText.copyWith(
               color: Colors.white.withValues(alpha: 0.6),
               fontSize: 11,
               fontWeight: FontWeight.w500,
