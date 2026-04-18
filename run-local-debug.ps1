@@ -93,7 +93,7 @@ if (-not $NoStudent) {
     Write-Step "Starting Student Portal (Debug)"
     $studentCommand = @(
         "flutter pub get",
-        "flutter run -d chrome --web-hostname $LocalIp --web-port 5175 --web-renderer canvaskit --dart-define=BACKEND_BASE_URL=$backendUrl --debug"
+        "flutter run -d chrome --web-hostname $LocalIp --web-port 5175 --dart-define=BACKEND_BASE_URL=$backendUrl --debug"
     ) -join "; "
     Start-RepoProcess -Title "Student Portal (Flutter Web Debug)" -WorkingDirectory $studentDir -Command $studentCommand -Dry:$DryRun
 }

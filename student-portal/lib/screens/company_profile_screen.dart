@@ -8,8 +8,8 @@ import 'package:shimmer/shimmer.dart';
 // Providers & Models
 import 'package:student_job_fair_portal/provider/company_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
-import 'package:student_job_fair_portal/model/company.dart';
 import 'package:student_job_fair_portal/model/job.dart';
+import 'package:student_job_fair_portal/model/company.dart';
 
 // Widgets
 import 'package:student_job_fair_portal/widgets/web_footer.dart';
