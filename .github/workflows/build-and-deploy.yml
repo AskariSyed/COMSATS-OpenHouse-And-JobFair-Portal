@@ -192,8 +192,7 @@ jobs:
       run: |
         cd student-portal
         flutter pub get
-        export FLUTTER_WEB_RENDERER=canvaskit
-        flutter build web --release \
+        flutter build web --release --wasm \
           --dart-define=BACKEND_BASE_URL=${{ env.BACKEND_URL }} \
           --dart-define=APP_ENV=production
         if [ ! -d "build/web" ]; then
