@@ -34,8 +34,264 @@
 
   <title>CUI Wah Job Fair Student Portal</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      color-scheme: light;
+      --loader-bg: #f4f7fb;
+      --loader-card: #ffffff;
+      --loader-text: #1f2937;
+      --loader-subtext: #6b7280;
+      --loader-accent: #0ea5e9;
+      --loader-accent-soft: rgba(14, 165, 233, 0.14);
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--loader-bg);
+      font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(14, 165, 233, 0.14), transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(34, 197, 94, 0.12), transparent 36%),
+        var(--loader-bg);
+      transition: opacity 220ms ease;
+    }
+
+    #app-loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-card {
+      width: min(92vw, 360px);
+      background: var(--loader-card);
+      border-radius: 14px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .loader-title {
+      margin: 0;
+      color: var(--loader-text);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .loader-subtitle {
+      margin: 6px 0 14px;
+      color: var(--loader-subtext);
+      font-size: 13px;
+    }
+
+    .loader-meta {
+      margin: 0;
+      color: var(--loader-subtext);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .loader-percent {
+      color: var(--loader-text);
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    .shimmer-line {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #e5e7eb;
+      margin-top: 10px;
+      height: 12px;
+    }
+
+    .shimmer-line.big {
+      height: 48px;
+      border-radius: 12px;
+      margin-top: 14px;
+      background: #e8edf5;
+    }
+
+    .shimmer-line::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.62),
+        transparent
+      );
+      animation: shimmer 1.1s infinite;
+    }
+
+    .progress-track {
+      margin-top: 14px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--loader-accent-soft);
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      width: 8%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--loader-accent);
+      transition: width 220ms ease;
+    }
+
+    @keyframes shimmer {
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+  </style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <div id="app-loader" role="status" aria-live="polite" aria-label="Loading student portal">
+    <div class="loader-card">
+      <h1 class="loader-title">Opening Student Portal</h1>
+      <p class="loader-subtitle" id="loader-stage">Preparing interview dashboard...</p>
+      <p class="loader-meta">
+        <span id="loader-meta-text">Starting web app bootstrap</span>
+        <span class="loader-percent" id="loader-percent">8%</span>
+      </p>
+      <div class="shimmer-line" style="width: 70%;"></div>
+      <div class="shimmer-line" style="width: 100%;"></div>
+      <div class="shimmer-line" style="width: 85%;"></div>
+      <div class="shimmer-line big"></div>
+      <div class="progress-track"><div class="progress-bar" id="loader-progress"></div></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var loader = document.getElementById('app-loader');
+      var progressEl = document.getElementById('loader-progress');
+      var percentEl = document.getElementById('loader-percent');
+      var stageEl = document.getElementById('loader-stage');
+      var metaEl = document.getElementById('loader-meta-text');
+      var progress = 8;
+      var hidden = false;
+
+      function setProgress(nextProgress, stageText, metaText) {
+        progress = Math.max(progress, Math.min(100, nextProgress));
+        if (progressEl) {
+          progressEl.style.width = progress + '%';
+        }
+        if (percentEl) {
+          percentEl.textContent = progress + '%';
+        }
+        if (stageEl && stageText) {
+          stageEl.textContent = stageText;
+        }
+        if (metaEl && metaText) {
+          metaEl.textContent = metaText;
+        }
+      }
+
+      function hideLoader() {
+        if (hidden || !loader) return;
+        hidden = true;
+        setProgress(100, 'Ready', 'Launching portal');
+        loader.classList.add('hidden');
+        window.setTimeout(function () {
+          if (loader && loader.parentNode) {
+            loader.parentNode.removeChild(loader);
+          }
+        }, 260);
+      }
+
+      function maybeAppReady() {
+        if (
+          document.querySelector('flutter-view') ||
+          document.querySelector('flt-glass-pane') ||
+          document.querySelector('canvas')
+        ) {
+          setProgress(88, 'Rendering dashboard', 'Flutter UI mounted');
+          hideLoader();
+          return true;
+        }
+        return false;
+      }
+
+      setProgress(12, 'Preparing interview dashboard...', 'Starting web app bootstrap');
+
+      var bootstrapScript = document.getElementById('flutter-bootstrap-script');
+      if (bootstrapScript) {
+        bootstrapScript.addEventListener('load', function () {
+          setProgress(42, 'Loading app core...', 'Flutter bootstrap script loaded');
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        setProgress(18, 'Preparing interview dashboard...', 'DOM ready');
+      });
+
+      var bootstrapPoller = window.setInterval(function () {
+        if (hidden) {
+          window.clearInterval(bootstrapPoller);
+          return;
+        }
+        if (window._flutter && window._flutter.loader) {
+          setProgress(58, 'Starting Flutter engine...', 'Engine loader initialized');
+          window.clearInterval(bootstrapPoller);
+        }
+      }, 150);
+
+      if (!maybeAppReady()) {
+        var observer = new MutationObserver(function () {
+          if (maybeAppReady()) {
+            observer.disconnect();
+          }
+        });
+
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+
+        window.setTimeout(function () {
+          observer.disconnect();
+          setProgress(95, 'Almost there...', 'Taking longer than usual');
+          hideLoader();
+        }, 15000);
+      }
+
+      window.addEventListener('flutter-first-frame', function () {
+        setProgress(100, 'Ready', 'First frame rendered');
+        hideLoader();
+      }, { once: true });
+
+      window.addEventListener('load', function () {
+        setProgress(30, 'Loading app core...', 'Browser load complete');
+        window.setTimeout(maybeAppReady, 0);
+      });
+    })();
+  </script>
+
+  <script id="flutter-bootstrap-script" src="flutter_bootstrap.js" async></script>
 </body>
 </html>
