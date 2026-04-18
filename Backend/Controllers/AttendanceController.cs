@@ -11,6 +11,7 @@ namespace JobFairPortal.Controllers
 { 
     [ApiController]
     [Route("api/[controller]")]
+    
     public class AttendanceController : ControllerBase
     {
         private readonly JobFairRecruitmentDbContext _context;
