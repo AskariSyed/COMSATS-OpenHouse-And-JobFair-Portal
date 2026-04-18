@@ -1,10 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
-class WebFooter extends StatelessWidget {
+class WebFooter extends StatefulWidget {
   const WebFooter({super.key});
+
+  @override
+  State<WebFooter> createState() => _WebFooterState();
+}
+
+class _WebFooterState extends State<WebFooter> {
+  String _versionLabel = 'Version';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersionInfo();
+  }
+
+  Future<void> _loadVersionInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _versionLabel =
+            info.buildNumber.isNotEmpty
+            ? 'Version ${info.version}+${info.buildNumber}'
+            : 'Version ${info.version}';
+      });
+    } catch (_) {
+      // Keep a graceful fallback when package info cannot be read.
+      if (!mounted) return;
+      setState(() {
+        _versionLabel = 'Version';
+      });
+    }
+  }
 
   // Link Data
   final List<Map<String, String>> _footerLinks = const [
@@ -160,7 +193,7 @@ class WebFooter extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "Version 1.0.0",
+            _versionLabel,
             style: baseFooterText.copyWith(
               color: Colors.white.withValues(alpha: 0.6),
               fontSize: 11,

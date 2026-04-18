@@ -7,8 +7,8 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/services/cv_generator.dart';
-import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
 
 class CVLivePreviewScreen extends StatefulWidget {
   final String? customEmail;
@@ -35,10 +35,13 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
   Future<void> _generatePdf() async {
     setState(() => _isLoading = true);
     try {
-      final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
       await studentProvider.fetchProfile();
       final updatedStudent = studentProvider.student;
-      
+
       if (updatedStudent != null) {
         final bytes = await CVGenerator.generatePdfBytes(
           updatedStudent,
@@ -79,24 +82,31 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
 
   Future<void> _uploadToServer() async {
     if (_pdfBytes == null) return;
-    
+
     setState(() => _isUploading = true);
-    
+
     try {
-      final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
       final student = studentProvider.student;
       if (student == null) return;
 
       final uploaded = await studentProvider.uploadGeneratedCv(
         _pdfBytes!,
-        fileName: '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
+        fileName:
+            '${student.user.fullName?.replaceAll(' ', '_') ?? 'Student'}_CV.pdf',
       );
 
       if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
           uploaded
-              ? const CustomSnackBar.success(message: 'CV uploaded successfully. Companies can now view it!')
+              ? const CustomSnackBar.success(
+                  message:
+                      'CV uploaded successfully. Companies can now view it!',
+                )
               : const CustomSnackBar.error(message: 'Failed to upload CV.'),
         );
       }
@@ -127,10 +137,10 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _pdfBytes != null
-                      ? SfPdfViewer.memory(_pdfBytes!)
-                      : const Center(child: Text("Could not generate CV.")),
+                  ? SfPdfViewer.memory(_pdfBytes!)
+                  : const Center(child: Text("Could not generate CV.")),
             ),
-            
+
             // Interaction Bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -141,19 +151,23 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
                     color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, -2),
-                  )
+                  ),
                 ],
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading || _isUploading ? null : _openEditorDialog,
+                      onPressed: _isLoading || _isUploading
+                          ? null
+                          : _openEditorDialog,
                       icon: const Icon(Icons.edit_document),
                       label: const Text("Edit Profile"),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -161,16 +175,29 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: _isLoading || _isUploading || _pdfBytes == null ? null : _uploadToServer,
-                      icon: _isUploading 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      onPressed: _isLoading || _isUploading || _pdfBytes == null
+                          ? null
+                          : _uploadToServer,
+                      icon: _isUploading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
                           : const Icon(Icons.cloud_upload_rounded),
-                      label: Text(_isUploading ? "Uploading..." : "Upload Final CV"),
+                      label: Text(
+                        _isUploading ? "Uploading..." : "Upload Final CV",
+                      ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: Colors.blue.shade600,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),

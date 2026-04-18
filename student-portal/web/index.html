@@ -31,6 +31,10 @@
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="preload" href="flutter_bootstrap.js" as="script">
+  <link rel="preload" href="main.dart.js" as="script">
+  <link rel="preload" href="canvaskit/canvaskit.js" as="script">
+  <link rel="preload" href="canvaskit/canvaskit.wasm" as="fetch" type="application/wasm" crossorigin>
 
   <title>CUI Wah Job Fair Student Portal</title>
   <link rel="manifest" href="manifest.json">
@@ -176,8 +180,7 @@
       function maybeAppReady() {
         if (
           document.querySelector('flutter-view') ||
-          document.querySelector('flt-glass-pane') ||
-          document.querySelector('canvas')
+          document.querySelector('flt-glass-pane')
         ) {
           hideLoader();
           return true;
@@ -199,8 +202,7 @@
 
         window.setTimeout(function () {
           observer.disconnect();
-          hideLoader();
-        }, 15000);
+        }, 45000);
       }
 
       window.addEventListener('flutter-first-frame', hideLoader, { once: true });
