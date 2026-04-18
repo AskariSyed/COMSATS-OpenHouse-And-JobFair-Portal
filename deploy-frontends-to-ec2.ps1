@@ -203,6 +203,8 @@ set -e
 sudo mkdir -p /var/www/admin /var/www/company /var/www/student /var/www/jfair
 sudo apt-get update -y
 sudo apt-get install -y unzip
+# Install webp tools for icon conversion (safe to re-run, no-op if already installed)
+sudo apt-get install -y webp 2>/dev/null || true
 sudo rm -rf /var/www/admin/* /var/www/company/* /var/www/student/* /var/www/jfair/*
 sudo unzip -o /tmp/admin.zip -d /var/www/admin
 sudo unzip -o /tmp/company.zip -d /var/www/company
@@ -210,6 +212,34 @@ sudo unzip -o /tmp/student.zip -d /var/www/student
 sudo mkdir -p /var/www/student/downloads
 sudo cp /tmp/student-portal.apk /var/www/student/downloads/student-portal.apk
 sudo unzip -o /tmp/landing.zip -d /var/www/jfair
+
+# --- Performance optimisations for student portal ---
+
+# 1. Convert PNG icons to WebP so the LCP image is ~5x smaller
+echo "Converting icons to WebP..."
+if command -v cwebp >/dev/null 2>&1; then
+  for png in /var/www/student/icons/*.png; do
+    webp_path="${png%.png}.webp"
+    sudo cwebp -q 85 "$png" -o "$webp_path" 2>/dev/null || true
+    echo "  Created $webp_path"
+  done
+else
+  echo "  cwebp not available, skipping WebP conversion (PNG will be served)"
+fi
+
+# 2. Pre-compress heavy files with gzip so nginx gzip_static serves .gz directly
+#    (no per-request CPU cost, ~3-5x smaller download for WASM/JS)
+echo "Pre-compressing static assets..."
+find /var/www/student -type f \( -name "*.wasm" -o -name "*.js" -o -name "*.mjs" -o -name "*.css" -o -name "*.json" \) | while read f; do
+  sudo gzip -k -9 -f "$f"
+done
+echo "  Pre-compression complete"
+
+# 3. Delete source maps - they are never needed at runtime and waste bandwidth
+echo "Removing source maps from production..."
+sudo find /var/www/student -name "*.map" -delete
+echo "  Source maps removed"
+
 sudo chown -R www-data:www-data /var/www/admin /var/www/company /var/www/student /var/www/jfair
 sudo find /var/www/admin /var/www/company /var/www/student -type d -exec chmod 755 {} \;
 sudo find /var/www/admin /var/www/company /var/www/student -type f -exec chmod 644 {} \;
