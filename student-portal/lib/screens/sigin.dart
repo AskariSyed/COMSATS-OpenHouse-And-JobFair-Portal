@@ -40,6 +40,38 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     defaultValue: 'https://student.jfair.tech/downloads/student-portal.apk',
   );
 
+  String _friendlyLoginError(Object error) {
+    final message = error.toString();
+
+    if (message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('NetworkException') ||
+        message.contains('XMLHttpRequest error') ||
+        message.contains('ClientException')) {
+      return 'Cannot connect to server. Please check your internet, API URL, and CORS/proxy setup.';
+    }
+
+    if (message.contains('TimeoutException')) {
+      return 'Connection timeout. Server is not responding.';
+    }
+
+    if (message.contains('HandshakeException')) {
+      return 'Secure connection failed. Please check SSL/HTTPS configuration.';
+    }
+
+    if (error is FormatException ||
+        message.contains('type') ||
+        message.contains('NoSuchMethodError')) {
+      return 'Login succeeded but response parsing failed. Please refresh and try again.';
+    }
+
+    if (message.contains('loadLibrary')) {
+      return 'Login succeeded but app resources failed to load. Please hard refresh the page (Ctrl+F5).';
+    }
+
+    return 'Login failed unexpectedly. Please try again.';
+  }
+
   Future<void> _openApkDownload() async {
     final uri = Uri.tryParse(_apkDownloadUrl);
     if (uri == null) return;
@@ -127,19 +159,30 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final decoded = json.decode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('Invalid login response shape');
+        }
+        final data = decoded;
 
         if (fcmToken != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString("fcmToken", fcmToken);
         }
 
-        final studentJson = data['student'] ?? {};
+        final token = (data['token'] ?? '').toString();
+        if (token.isEmpty) {
+          throw const FormatException('Missing token in login response');
+        }
+
+        final studentJson = (data['student'] is Map<String, dynamic>)
+            ? data['student'] as Map<String, dynamic>
+            : <String, dynamic>{};
         final loggedInStudent = Student.fromJson(studentJson);
 
         if (mounted) {
           Provider.of<StudentProvider>(context, listen: false)
-            ..setToken(data['token'])
+            ..setToken(token)
             ..setStudent(loggedInStudent);
 
           // Fetch extra data for profile cards immediately.
@@ -176,26 +219,16 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           );
         }
       }
-    } catch (e) {
-      if (mounted) {
-        String errorMessage;
-        if (e.toString().contains('SocketException') ||
-            e.toString().contains('Failed host lookup') ||
-            e.toString().contains('NetworkException')) {
-          errorMessage =
-              "Cannot connect to server. Please check your internet connection or try again later.";
-        } else if (e.toString().contains('TimeoutException')) {
-          errorMessage = "Connection timeout. Server is not responding.";
-        } else if (e.toString().contains('HandshakeException')) {
-          errorMessage =
-              "Secure connection failed. Please check your network settings.";
-        } else {
-          errorMessage = "Unable to connect to server. Please try again later.";
-        }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('Login error: $e');
+        debugPrint('$stackTrace');
+      }
 
+      if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
-          CustomSnackBar.error(message: errorMessage),
+          CustomSnackBar.error(message: _friendlyLoginError(e)),
         );
       }
     } finally {
