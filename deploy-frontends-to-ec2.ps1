@@ -163,7 +163,7 @@ Compress-Archive -Path (Join-Path $companyDir "dist\*") -DestinationPath $compan
 Write-Step "Building Student portal (Web & APK)"
 Run-OrThrow "flutter pub get" $studentDir
 Run-OrThrow "flutter build web --release --dart-define=BACKEND_BASE_URL=$BackendUrl --dart-define=APP_ENV=production" $studentDir
-Run-OrThrow "flutter build apk --release" $studentDir
+Run-OrThrow "flutter build apk --release --dart-define=BACKEND_BASE_URL=$BackendUrl --dart-define=APP_ENV=production" $studentDir
 if (-not (Test-Path (Join-Path $studentDir "build\web"))) {
     throw "Student build output missing: student-portal/build/web"
 }

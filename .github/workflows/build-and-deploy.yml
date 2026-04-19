@@ -199,7 +199,9 @@ jobs:
           echo "Student build output missing"
           exit 1
         fi
-        flutter build apk --release
+        flutter build apk --release \
+          --dart-define=BACKEND_BASE_URL=${{ env.BACKEND_URL }} \
+          --dart-define=APP_ENV=production
         if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
           echo "Student APK output missing"
           exit 1
