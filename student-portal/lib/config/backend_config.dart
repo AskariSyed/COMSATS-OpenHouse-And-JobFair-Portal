@@ -5,7 +5,7 @@ class BackendConfig {
 
   static const String configuredServerBaseUrl = String.fromEnvironment(
     'BACKEND_BASE_URL',
-    defaultValue: '',
+    defaultValue: 'http://localhost:5158',
   );
 
   static bool get _isInsecureBackendOnSecurePage {

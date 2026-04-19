@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:lottie/lottie.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/student_provider.dart';
@@ -214,9 +215,6 @@ class _QueueScreenState extends State<QueueScreen> {
     // Theme-aware colors
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
     final subTextColor = Theme.of(context).textTheme.bodySmall?.color;
-    final warningBg = isDark
-        ? Colors.orange.withValues(alpha: 0.1)
-        : Colors.orange.shade50;
 
     // Show loading indicator
     if (isLoading && interviews.isEmpty) {
@@ -326,16 +324,13 @@ class _QueueScreenState extends State<QueueScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: warningBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.event_busy,
-                size: isMobile ? 60 : 80,
-                color: Colors.orange.shade800,
+            SizedBox(
+              width: isMobile ? 180 : 220,
+              height: isMobile ? 180 : 220,
+              child: Lottie.asset(
+                'assets/animations/no_result_found.json',
+                fit: BoxFit.contain,
+                repeat: true,
               ),
             ),
             const SizedBox(height: 24),
@@ -369,15 +364,28 @@ class _QueueScreenState extends State<QueueScreen> {
                   FadePageRoute(page: const CompaniesScreen()),
                 );
               },
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.business_center_rounded, size: 18),
               label: const Text("Browse Companies"),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
+                  horizontal: 16,
+                  vertical: 10,
                 ),
-                side: BorderSide(color: Theme.of(context).primaryColor),
+                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: const StadiumBorder(),
+                backgroundColor: Theme.of(
+                  context,
+                ).primaryColor.withValues(alpha: 0.08),
+                side: BorderSide(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.35),
+                ),
                 foregroundColor: Theme.of(context).primaryColor,
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
               ),
             ),
           ],

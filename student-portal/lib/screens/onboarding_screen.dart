@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
 
@@ -18,19 +19,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       "title": "Your Future Starts Here",
       "desc":
           "Browse hundreds of posted jobs from top companies. Filter by your skills and apply instantly to land your dream role.",
-      "icon": "🚀",
+      "animation": "assets/animations/job hunting.json",
     },
     {
       "title": "Stay in the Loop",
       "desc":
           "Receive real-time updates from admins and companies. Never miss important announcements or changes to the fair schedule.",
-      "icon": "🔔",
+      "animation": "assets/animations/Notifications.json",
     },
     {
       "title": "Track Your Interviews",
       "desc":
           "Get instant alerts for interview requests, acceptances, and rejections. Manage your schedule and know exactly when it's your turn.",
-      "icon": "📅",
+      "animation": "assets/animations/calendar.json",
     },
   ];
 
@@ -81,7 +82,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon Area
+                        // Animation Area
                         Container(
                           height: 200,
                           width: 200,
@@ -90,9 +91,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: Center(
-                            child: Text(
-                              _pages[index]['icon']!,
-                              style: const TextStyle(fontSize: 80),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18.0),
+                              child: Lottie.asset(
+                                _pages[index]['animation']!,
+                                fit: BoxFit.contain,
+                                repeat: true,
+                              ),
                             ),
                           ),
                         ),

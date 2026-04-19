@@ -263,6 +263,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
                   Flexible(
                     child: Text(
                       widget.companyName,
+                      maxLines: 1,
+                      softWrap: false,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Theme.of(context).textTheme.bodyLarge?.color,

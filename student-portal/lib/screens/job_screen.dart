@@ -139,7 +139,7 @@ class _JobsScreenState extends State<JobsScreen> {
 
         if (screenWidth < 800) {
           return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            backgroundColor: Colors.grey.shade50,
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Available Jobs"),
             body: BeautifulMobileNavBar.withSwipeNavigation(
@@ -163,14 +163,13 @@ class _JobsScreenState extends State<JobsScreen> {
                             // Show divider if recommended jobs exist
                             if (jobProvider.recommendedJobs.isNotEmpty) ...[
                               const SizedBox(height: 24),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
+                              Center(
                                 child: Text(
                                   "All Available Jobs",
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -243,7 +242,7 @@ class _JobsScreenState extends State<JobsScreen> {
         }
 
         return Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: Colors.grey.shade50,
           body: Stack(
             children: [
               Padding(
@@ -367,12 +366,10 @@ class _JobsScreenState extends State<JobsScreen> {
                                       const SizedBox(height: 30),
                                       Text(
                                         "All Available Jobs",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                       const SizedBox(height: 20),
                                     ],
@@ -449,35 +446,48 @@ class _JobsScreenState extends State<JobsScreen> {
   }
 
   Widget _buildSearchBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = MediaQuery.of(context).size.width < 700;
     return Row(
       children: [
         Expanded(
           child: Container(
-            height: isMobile ? 56 : 48,
+            height: isMobile ? 48 : 44,
             decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
+              color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: TextField(
               controller: _searchController,
               onChanged: _onSearchChanged,
+              textAlignVertical: const TextAlignVertical(y: 0.15),
+              strutStyle: const StrutStyle(
+                fontSize: 14,
+                height: 1.15,
+                leading: 0,
+                forceStrutHeight: true,
+              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
               decoration: InputDecoration(
                 hintText: "Search jobs, companies, skills...",
                 hintStyle: TextStyle(
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                  color: Colors.grey.shade500,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
                 ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Theme.of(context).primaryColor,
+                isDense: true,
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                prefixIcon: Align(
+                  alignment: const Alignment(0, 0.1),
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  child: Icon(
+                    Icons.search,
+                    color: Colors.grey.shade600,
+                    size: 20,
+                  ),
                 ),
                 filled: true,
                 fillColor: Colors.transparent,
@@ -486,8 +496,8 @@ class _JobsScreenState extends State<JobsScreen> {
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: EdgeInsets.symmetric(
-                  vertical: isMobile ? 12 : 8,
-                  horizontal: 20,
+                  vertical: 0,
+                  horizontal: isMobile ? 12 : 14,
                 ),
               ),
             ),
@@ -495,13 +505,12 @@ class _JobsScreenState extends State<JobsScreen> {
         ),
         const SizedBox(width: 12),
         Container(
-          height: isMobile ? 56 : 48,
+          height: isMobile ? 48 : 44,
+          width: isMobile ? 48 : 44,
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? Colors.white24 : Colors.grey.shade200,
-            ),
+            border: Border.all(color: Colors.grey.shade300),
           ),
           child: IconButton(
             onPressed: _showFilterDialog,
@@ -509,7 +518,7 @@ class _JobsScreenState extends State<JobsScreen> {
               Icons.filter_list,
               color: _selectedJobTypes.isNotEmpty
                   ? Theme.of(context).primaryColor
-                  : Theme.of(context).iconTheme.color,
+                  : Colors.grey.shade700,
             ),
             tooltip: "Filter & Sort Jobs",
           ),
@@ -670,29 +679,13 @@ class _JobsScreenState extends State<JobsScreen> {
   Widget _buildJobsGrid(List<List<Job>> groups, {required bool isMobile}) {
     if (groups.isEmpty) return const Center(child: Text("No jobs found."));
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double availableWidth = constraints.maxWidth;
-        int columns = 1;
-        if (availableWidth > 1350) {
-          columns = 3;
-        } else if (availableWidth > 900)
-          columns = 2;
-
-        final double spacing = 12.0;
-        final double totalSpacing = (columns - 1) * spacing;
-        final double cardWidth = (availableWidth - totalSpacing) / columns;
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: groups.map((companyJobs) {
-            return SizedBox(
-              width: columns > 1 ? cardWidth : availableWidth,
-              child: _buildCompanyGroupCard(companyJobs),
-            );
-          }).toList(),
-        );
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: groups.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        return _buildCompanyGroupCard(groups[index]);
       },
     );
   }
@@ -758,10 +751,7 @@ class _JobsScreenState extends State<JobsScreen> {
             const SizedBox(width: 10),
             Text(
               "Recommended For You",
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -769,30 +759,26 @@ class _JobsScreenState extends State<JobsScreen> {
         LayoutBuilder(
           builder: (context, constraints) {
             final double availableWidth = constraints.maxWidth;
-            int columns = 1;
-            if (!isMobile) {
-              if (availableWidth > 1350) {
-                columns = 3;
-              } else if (availableWidth > 900) {
-                columns = 2;
-              }
-            }
+            final double cardWidth = isMobile
+                ? availableWidth * 0.82
+                : availableWidth > 1200
+                ? availableWidth * 0.34
+                : availableWidth * 0.46;
 
-            final double spacing = 12.0;
-            final double totalSpacing = (columns - 1) * spacing;
-            final double cardWidth = columns > 1
-                ? (availableWidth - totalSpacing) / columns
-                : availableWidth;
-
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: recommendedJobs.map((job) {
-                return SizedBox(
-                  width: columns > 1 ? cardWidth : availableWidth,
-                  child: _buildRecommendedJobCard(job),
-                );
-              }).toList(),
+            return SizedBox(
+              height: 160,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: recommendedJobs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return SizedBox(
+                    width: cardWidth,
+                    child: _buildRecommendedJobCard(recommendedJobs[index]),
+                  );
+                },
+              ),
             );
           },
         ),
@@ -808,6 +794,7 @@ class _JobsScreenState extends State<JobsScreen> {
     final matchCount = jobData['matchCount'] ?? 0;
     final matchedSkills = jobData['matchedSkills'] as List<dynamic>? ?? [];
     final jobTypeLabel = _getRecommendedJobTypeLabel(jobData['jobType']);
+    final bool isMobile = MediaQuery.of(context).size.width < 700;
 
     final logoUrl = companyLogo != null && companyLogo.isNotEmpty
         ? (companyLogo.startsWith('http')
@@ -815,8 +802,8 @@ class _JobsScreenState extends State<JobsScreen> {
               : BackendConfig.absoluteUrl(companyLogo))
         : null;
 
-    return Card(
-      elevation: 4,
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: companyId == null
@@ -834,76 +821,93 @@ class _JobsScreenState extends State<JobsScreen> {
               },
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.amber.withOpacity(0.3),
-              width: 1.5,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).cardColor,
-                Theme.of(context).cardColor.withOpacity(0.8),
-              ],
-            ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (logoUrl != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: logoUrl,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.business),
-                          ),
-                        ),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.grey.shade100,
                       ),
-                    const SizedBox(width: 12),
+                      child: logoUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: CachedNetworkImage(
+                                imageUrl: logoUrl,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) =>
+                                    const Icon(Icons.business),
+                              ),
+                            )
+                          : const Icon(Icons.business),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            companyName,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey[600]),
+                            jobTitle,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                          Text(
+                            companyName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.amber[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '$matchCount/${matchedSkills.length} skills match',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber[800],
-                              ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            size: 14,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Matched $matchCount',
+                            style: TextStyle(
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
                             ),
                           ),
                         ],
@@ -911,65 +915,31 @@ class _JobsScreenState extends State<JobsScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  jobTitle,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    jobTypeLabel,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Theme.of(context).primaryColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 6,
-                  runSpacing: 6,
-                  children: matchedSkills.take(3).map((skill) {
-                    return Chip(
-                      label: Text(
-                        skill.toString(),
-                        style: const TextStyle(fontSize: 10),
-                      ),
-                      backgroundColor: Colors.green[100],
-                      labelStyle: TextStyle(color: Colors.green[800]),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                if (matchedSkills.length > 3)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      '+${matchedSkills.length - 3} more skills',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
+                  runSpacing: 4,
+                  children: [
+                    SoftTag(
+                      label: jobTypeLabel,
+                      background: Colors.blue.shade50,
                     ),
+                  ],
+                ),
+                if (matchedSkills.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 2,
+                    children: matchedSkills.take(isMobile ? 3 : 4).map((skill) {
+                      return SoftTag(
+                        label: skill.toString(),
+                        background: Colors.grey.shade100,
+                        textColor: Colors.grey.shade700,
+                      );
+                    }).toList(),
                   ),
+                ],
               ],
             ),
           ),
@@ -1038,7 +1008,6 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
   Widget build(BuildContext context) {
     final jobs = widget.jobs;
     final companyData = jobs.first;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final String? logoUrl =
         (companyData.companyLogoUrl != null &&
             companyData.companyLogoUrl!.isNotEmpty)
@@ -1049,282 +1018,235 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
 
     final isMobile = MediaQuery.of(context).size.width < 700;
     final hasMultipleJobs = jobs.length > 1;
-    return Card(
-      elevation: isDark ? 4 : 6,
-      shadowColor: isDark
-          ? const Color.fromARGB(255, 169, 190, 207).withValues(alpha: 0.3)
-          : const Color.fromARGB(255, 10, 149, 255).withValues(alpha: 0.15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [Colors.grey.shade900, Colors.grey.shade800]
-                : [Colors.white, Colors.blue.shade50.withValues(alpha: 0.3)],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          // 🔹 ADJUSTED PADDING: reduced bottom padding to ensure it's not too spacious
-          padding: EdgeInsets.only(
-            left: isMobile ? 10 : 16.0,
-            right: isMobile ? 10 : 16.0,
-            top: isMobile ? 10 : 16.0,
-            bottom: isMobile ? 8 : 8.0,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CompanyProfileScreen(
-                            companyId: companyData.companyId,
-                            companyName: companyData.companyName,
-                          ),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: isMobile ? 46 : 54,
-                      height: isMobile ? 46 : 54,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey.shade800 : Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isDark ? Colors.white24 : Colors.grey.shade200,
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CompanyProfileScreen(
+                          companyId: companyData.companyId,
+                          companyName: companyData.companyName,
                         ),
                       ),
-                      child: logoUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: CachedNetworkImage(
-                                imageUrl: logoUrl,
-                                fit: BoxFit.contain,
-                                errorWidget: (_, __, ___) => const Icon(
-                                  Icons.business,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.business, color: Colors.blueGrey),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: isMobile ? 44 : 52,
+                    height: isMobile ? 44 : 52,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CompanyProfileScreen(
-                              companyId: companyData.companyId,
-                              companyName: companyData.companyName,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            companyData.companyName,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            "${jobs.length} Open Position${jobs.length == 1 ? '' : 's'}",
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (hasMultipleJobs)
-                    IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _isExpanded = !_isExpanded;
-                        });
-                      },
-                      icon: Icon(
-                        _isExpanded ? Icons.expand_less : Icons.expand_more,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      tooltip: _isExpanded ? "Show Less" : "Show All Jobs",
-                    ),
-                  IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CompanyProfileScreen(
-                            companyId: companyData.companyId,
-                            companyName: companyData.companyName,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: Icon(
-                      Icons.arrow_forward,
-                      color: Theme.of(
-                        context,
-                      ).iconTheme.color?.withValues(alpha: 0.6),
-                    ),
-                    tooltip: "View Company Profile",
-                  ),
-                ],
-              ),
-              if (hasMultipleJobs || jobs.isNotEmpty) ...[
-                SizedBox(height: isMobile ? 8 : 12),
-                const Divider(height: 1),
-                SizedBox(height: isMobile ? 8 : 12),
-              ],
-
-              ListView.separated(
-                padding:
-                    EdgeInsets.zero, // 🔹 FIX: Removes internal List padding
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: hasMultipleJobs && !_isExpanded ? 1 : jobs.length,
-                separatorBuilder: (ctx, i) => const SizedBox(height: 2),
-                itemBuilder: (ctx, index) {
-                  final job = jobs[index];
-                  return InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CompanyProfileScreen(
-                            companyId: job.companyId,
-                            companyName: job.companyName,
-                          ),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: EdgeInsets.all(isMobile ? 6 : 8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.grey.shade900
-                            : Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isDark ? Colors.white12 : Colors.grey.shade100,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  job.jobTitle,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                if (job.requiredSkills.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2.0),
-                                    child: Text(
-                                      job.requiredSkills.take(3).join(", ") +
-                                          (job.requiredSkills.length > 3
-                                              ? "..."
-                                              : ""),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(fontSize: 11),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.blue.shade900.withValues(alpha: 0.3)
-                                  : Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              job.jobTypeString,
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.blue.shade300
-                                    : Colors.blue.shade700,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                    child: logoUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: CachedNetworkImage(
+                              imageUrl: logoUrl,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => const Icon(
+                                Icons.business,
+                                color: Colors.grey,
                               ),
                             ),
-                          ),
-                        ],
+                          )
+                        : const Icon(Icons.business, color: Colors.blueGrey),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        companyData.companyName,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  );
-                },
-              ),
-
-              if (hasMultipleJobs && !_isExpanded)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2.0),
-                  child: Center(
-                    child: TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isExpanded = true;
-                        });
-                      },
-                      icon: Icon(
-                        Icons.expand_more,
-                        size: 18,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                      label: Text(
-                        '+${jobs.length - 1} more position${jobs.length - 1 == 1 ? '' : 's'}',
+                      const SizedBox(height: 2),
+                      Text(
+                        "${jobs.length} Open Position${jobs.length == 1 ? '' : 's'}",
                         style: TextStyle(
                           color: Theme.of(context).primaryColor,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
                       ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 2,
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CompanyProfileScreen(
+                          companyId: companyData.companyId,
+                          companyName: companyData.companyName,
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    Icons.arrow_forward_ios,
+                    size: 18,
+                    color: Colors.grey.shade500,
+                  ),
+                  tooltip: "View Company Profile",
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Divider(color: Colors.grey.shade200, height: 1),
+            const SizedBox(height: 10),
+            ListView.separated(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: hasMultipleJobs && !_isExpanded ? 1 : jobs.length,
+              separatorBuilder: (ctx, i) =>
+                  Divider(color: Colors.grey.shade100, height: 14),
+              itemBuilder: (ctx, index) {
+                final job = jobs[index];
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CompanyProfileScreen(
+                          companyId: job.companyId,
+                          companyName: job.companyName,
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.jobTitle,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              if (job.requiredSkills.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
+                                  child: Text(
+                                    job.requiredSkills.take(3).join(", ") +
+                                        (job.requiredSkills.length > 3
+                                            ? "..."
+                                            : ""),
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SoftTag(label: job.jobTypeString),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (hasMultipleJobs && !_isExpanded)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Center(
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _isExpanded = true;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        '↓ +${jobs.length - 1} more position${jobs.length - 1 == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          color: Theme.of(context).primaryColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SoftTag extends StatelessWidget {
+  final String label;
+  final Color? background;
+  final Color? textColor;
+
+  const SoftTag({
+    super.key,
+    required this.label,
+    this.background,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color resolvedBackground = background ?? Colors.blue.shade50;
+    final Color resolvedText = textColor ?? Colors.blue.shade700;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: resolvedBackground,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: resolvedText,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

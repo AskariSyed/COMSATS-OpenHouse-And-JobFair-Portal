@@ -632,7 +632,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final hasCv = (student?.cvUrl?.trim().isNotEmpty ?? false);
 
     return Card(
-      elevation: 1,
+      elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -664,7 +664,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Text(
                     hasCv ? 'Current CV: Uploaded' : 'Current CV: Not Uploaded',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: hasCv
                           ? Colors.green.shade800
@@ -681,27 +681,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : 'Choose to upload your own PDF CV or generate one from your profile.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            const SizedBox(height: 8),
+            Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: _pickAndUploadOwnCv,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Upload My CV (PDF)'),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _pickAndUploadOwnCv,
+                    icon: const Icon(Icons.upload_file, size: 12),
+                    label: const Text(
+                      'Upload My CV',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                  ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final String? cvEmail = await showDialog<String>(
-                      context: context,
-                      builder: (ctx) => const CVEditorDialog(),
-                    );
-                    if (!mounted || cvEmail == null) return;
-                    await _uploadGeneratedCvFlow(cvEmail: cvEmail);
-                  },
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Generate & Upload CV'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final String? cvEmail = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) => const CVEditorDialog(),
+                      );
+                      if (!mounted || cvEmail == null) return;
+                      await _uploadGeneratedCvFlow(cvEmail: cvEmail);
+                    },
+                    icon: const Icon(Icons.auto_awesome, size: 15),
+                    label: const Text(
+                      'Generate & Upload CV',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                  ),
                 ),
               ],
             ),

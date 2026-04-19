@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 // Mixins & Models
@@ -806,16 +807,21 @@ class _RequestsScreenState extends State<RequestsScreen>
 
   Widget _buildEmptyState(String message) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 800;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 80,
-              color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+            SizedBox(
+              width: isMobile ? 180 : 220,
+              height: isMobile ? 180 : 220,
+              child: Lottie.asset(
+                'assets/animations/no_result_found.json',
+                fit: BoxFit.contain,
+                repeat: true,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
