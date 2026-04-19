@@ -1095,10 +1095,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                               ),
                             ),
                           )
-                        : Icon(
-                            Icons.business,
-                            color: theme.iconTheme.color,
-                          ),
+                        : Icon(Icons.business, color: theme.iconTheme.color),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1154,8 +1151,10 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: hasMultipleJobs && !_isExpanded ? 1 : jobs.length,
-              separatorBuilder: (ctx, i) =>
-                  Divider(color: theme.dividerColor.withValues(alpha: 0.5), height: 14),
+              separatorBuilder: (ctx, i) => Divider(
+                color: theme.dividerColor.withValues(alpha: 0.5),
+                height: 14,
+              ),
               itemBuilder: (ctx, index) {
                 final job = jobs[index];
                 return InkWell(
