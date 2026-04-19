@@ -496,13 +496,17 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
   Widget _buildSearchBar() {
     final isMobile = MediaQuery.of(context).size.width < 700;
+    final theme = Theme.of(context);
+    final fillColor =
+        theme.inputDecorationTheme.fillColor ??
+        theme.cardColor.withValues(alpha: 0.9);
     return Row(
       children: [
         Expanded(
           child: Container(
             height: isMobile ? 48 : 44,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: fillColor,
               borderRadius: BorderRadius.circular(16),
             ),
             child: TextField(
@@ -515,11 +519,15 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                 leading: 0,
                 forceStrutHeight: true,
               ),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
               decoration: InputDecoration(
                 hintText: "Search company name, industry...",
                 hintStyle: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: theme.textTheme.bodySmall?.color,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
@@ -534,7 +542,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                   heightFactor: 1,
                   child: Icon(
                     Icons.search,
-                    color: Colors.grey.shade600,
+                    color: theme.iconTheme.color,
                     size: 20,
                   ),
                 ),
@@ -557,9 +565,9 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
           height: isMobile ? 48 : 44,
           width: isMobile ? 48 : 44,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: theme.dividerColor),
           ),
           child: IconButton(
             onPressed: _showFilterDialog,
@@ -567,7 +575,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
               Icons.filter_list,
               color: (_selectedIndustries.isNotEmpty || _showOnlyHiring)
                   ? Theme.of(context).primaryColor
-                  : Colors.grey.shade700,
+                  : theme.iconTheme.color,
             ),
             tooltip: "Filter Companies",
           ),
@@ -624,6 +632,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -852,6 +861,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   Widget _buildRecommendedCompaniesSection({required bool isMobile}) {
     final companyProvider = Provider.of<CompanyProvider>(context);
     final recommendedCompanies = companyProvider.recommendedCompanies;
+    final theme = Theme.of(context);
 
     if (recommendedCompanies.isEmpty || companyProvider.isLoadingRecommended) {
       return const SizedBox.shrink();
@@ -867,7 +877,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
             const SizedBox(width: 10),
             Text(
               "Recommended For You",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
             ),
           ],
         ),
@@ -907,6 +921,8 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
   // ✅ NEW: Build individual recommended company card
   Widget _buildRecommendedCompanyCard(dynamic companyData) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final companyName = companyData['name'] ?? 'Unknown Company';
     final companyLogo = companyData['logoUrl'];
     final industry = companyData['industry'] ?? 'N/A';
@@ -941,11 +957,11 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: theme.shadowColor.withValues(alpha: 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -965,7 +981,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: theme.scaffoldBackgroundColor,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: logoUrl != null
@@ -987,9 +1003,10 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                         children: [
                           Text(
                             companyName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: theme.textTheme.bodyLarge?.color,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -999,7 +1016,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                             industry,
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey.shade600,
+                              color: theme.textTheme.bodySmall?.color,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1013,22 +1030,24 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: colorScheme.secondaryContainer.withValues(
+                          alpha: 0.6,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle,
                             size: 14,
-                            color: Colors.green,
+                            color: colorScheme.onSecondaryContainer,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Matched $matchCount',
                             style: TextStyle(
-                              color: Colors.green.shade800,
+                              color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w700,
                               fontSize: 11,
                             ),
@@ -1045,8 +1064,8 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                   children: [
                     _buildSoftTag(
                       '$jobCount Open Position${jobCount != 1 ? 's' : ''}',
-                      background: Colors.blue.shade50,
-                      textColor: Colors.blue.shade700,
+                      background: colorScheme.primary.withValues(alpha: 0.12),
+                      textColor: colorScheme.primary,
                     ),
                   ],
                 ),
@@ -1070,8 +1089,8 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                       children: matchedSkills.take(3).map((skill) {
                         return _buildSoftTag(
                           skill.toString(),
-                          background: Colors.grey.shade100,
-                          textColor: Colors.grey.shade700,
+                          background: theme.scaffoldBackgroundColor,
+                          textColor: theme.textTheme.bodySmall?.color,
                         );
                       }).toList(),
                     ),
@@ -1085,8 +1104,8 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
                       children: matchedSkills.map((skill) {
                         return _buildSoftTag(
                           skill.toString(),
-                          background: Colors.grey.shade100,
-                          textColor: Colors.grey.shade700,
+                          background: theme.scaffoldBackgroundColor,
+                          textColor: theme.textTheme.bodySmall?.color,
                         );
                       }).toList(),
                     ),
@@ -1100,17 +1119,18 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
   }
 
   Widget _buildSoftTag(String label, {Color? background, Color? textColor}) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: background ?? Colors.blue.shade50,
+        color: background ?? theme.colorScheme.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
-          color: textColor ?? Colors.blue.shade700,
+          color: textColor ?? theme.colorScheme.primary,
           fontWeight: FontWeight.w600,
         ),
       ),

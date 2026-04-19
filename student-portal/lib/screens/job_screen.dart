@@ -99,6 +99,7 @@ class _JobsScreenState extends State<JobsScreen> {
     final jobProvider = Provider.of<JobProvider>(context);
     final studentProvider = Provider.of<StudentProvider>(context);
     final student = studentProvider.student;
+    final theme = Theme.of(context);
 
     final String? profileImageUrl =
         (student?.profilePicUrl != null && student!.profilePicUrl!.isNotEmpty)
@@ -139,7 +140,7 @@ class _JobsScreenState extends State<JobsScreen> {
 
         if (screenWidth < 800) {
           return Scaffold(
-            backgroundColor: Colors.grey.shade50,
+            backgroundColor: theme.scaffoldBackgroundColor,
             extendBody: true,
             appBar: const BeautifulAppBar(title: "Available Jobs"),
             body: BeautifulMobileNavBar.withSwipeNavigation(
@@ -166,9 +167,10 @@ class _JobsScreenState extends State<JobsScreen> {
                               Center(
                                 child: Text(
                                   "All Available Jobs",
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
+                                    color: theme.textTheme.bodyLarge?.color,
                                   ),
                                 ),
                               ),
@@ -242,7 +244,7 @@ class _JobsScreenState extends State<JobsScreen> {
         }
 
         return Scaffold(
-          backgroundColor: Colors.grey.shade50,
+          backgroundColor: theme.scaffoldBackgroundColor,
           body: Stack(
             children: [
               Padding(
@@ -366,9 +368,11 @@ class _JobsScreenState extends State<JobsScreen> {
                                       const SizedBox(height: 30),
                                       Text(
                                         "All Available Jobs",
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600,
+                                          color:
+                                              theme.textTheme.bodyLarge?.color,
                                         ),
                                       ),
                                       const SizedBox(height: 20),
@@ -447,13 +451,17 @@ class _JobsScreenState extends State<JobsScreen> {
 
   Widget _buildSearchBar() {
     final isMobile = MediaQuery.of(context).size.width < 700;
+    final theme = Theme.of(context);
+    final fillColor =
+        theme.inputDecorationTheme.fillColor ??
+        theme.cardColor.withValues(alpha: 0.9);
     return Row(
       children: [
         Expanded(
           child: Container(
             height: isMobile ? 48 : 44,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: fillColor,
               borderRadius: BorderRadius.circular(16),
             ),
             child: TextField(
@@ -466,11 +474,15 @@ class _JobsScreenState extends State<JobsScreen> {
                 leading: 0,
                 forceStrutHeight: true,
               ),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: theme.textTheme.bodyMedium?.color,
+              ),
               decoration: InputDecoration(
                 hintText: "Search jobs, companies, skills...",
                 hintStyle: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: theme.textTheme.bodySmall?.color,
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
@@ -485,7 +497,7 @@ class _JobsScreenState extends State<JobsScreen> {
                   heightFactor: 1,
                   child: Icon(
                     Icons.search,
-                    color: Colors.grey.shade600,
+                    color: theme.iconTheme.color,
                     size: 20,
                   ),
                 ),
@@ -508,9 +520,9 @@ class _JobsScreenState extends State<JobsScreen> {
           height: isMobile ? 48 : 44,
           width: isMobile ? 48 : 44,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: theme.dividerColor),
           ),
           child: IconButton(
             onPressed: _showFilterDialog,
@@ -518,7 +530,7 @@ class _JobsScreenState extends State<JobsScreen> {
               Icons.filter_list,
               color: _selectedJobTypes.isNotEmpty
                   ? Theme.of(context).primaryColor
-                  : Colors.grey.shade700,
+                  : theme.iconTheme.color,
             ),
             tooltip: "Filter & Sort Jobs",
           ),
@@ -530,6 +542,7 @@ class _JobsScreenState extends State<JobsScreen> {
   void _showFilterDialog() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -737,6 +750,7 @@ class _JobsScreenState extends State<JobsScreen> {
   Widget _buildRecommendedJobsSection({required bool isMobile}) {
     final jobProvider = Provider.of<JobProvider>(context);
     final recommendedJobs = jobProvider.recommendedJobs;
+    final theme = Theme.of(context);
 
     if (recommendedJobs.isEmpty || jobProvider.isLoadingRecommended) {
       return const SizedBox.shrink();
@@ -751,7 +765,11 @@ class _JobsScreenState extends State<JobsScreen> {
             const SizedBox(width: 10),
             Text(
               "Recommended For You",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
             ),
           ],
         ),
@@ -787,6 +805,8 @@ class _JobsScreenState extends State<JobsScreen> {
   }
 
   Widget _buildRecommendedJobCard(dynamic jobData) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final jobTitle = jobData['jobTitle'] ?? 'Unknown Job';
     final companyName = jobData['companyName'] ?? 'Unknown Company';
     final int? companyId = int.tryParse(jobData['companyId']?.toString() ?? '');
@@ -821,11 +841,11 @@ class _JobsScreenState extends State<JobsScreen> {
               },
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: theme.shadowColor.withValues(alpha: 0.08),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -844,7 +864,7 @@ class _JobsScreenState extends State<JobsScreen> {
                       height: 42,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        color: Colors.grey.shade100,
+                        color: theme.scaffoldBackgroundColor,
                       ),
                       child: logoUrl != null
                           ? ClipRRect(
@@ -865,9 +885,10 @@ class _JobsScreenState extends State<JobsScreen> {
                         children: [
                           Text(
                             jobTitle,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: theme.textTheme.bodyLarge?.color,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -876,7 +897,7 @@ class _JobsScreenState extends State<JobsScreen> {
                             companyName,
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey.shade600,
+                              color: theme.textTheme.bodySmall?.color,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -890,22 +911,24 @@ class _JobsScreenState extends State<JobsScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: colorScheme.secondaryContainer.withValues(
+                          alpha: 0.6,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle,
                             size: 14,
-                            color: Colors.green,
+                            color: colorScheme.onSecondaryContainer,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Matched $matchCount',
                             style: TextStyle(
-                              color: Colors.green.shade800,
+                              color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w700,
                               fontSize: 11,
                             ),
@@ -922,7 +945,8 @@ class _JobsScreenState extends State<JobsScreen> {
                   children: [
                     SoftTag(
                       label: jobTypeLabel,
-                      background: Colors.blue.shade50,
+                      background: colorScheme.primary.withValues(alpha: 0.12),
+                      textColor: colorScheme.primary,
                     ),
                   ],
                 ),
@@ -934,8 +958,8 @@ class _JobsScreenState extends State<JobsScreen> {
                     children: matchedSkills.take(isMobile ? 3 : 4).map((skill) {
                       return SoftTag(
                         label: skill.toString(),
-                        background: Colors.grey.shade100,
-                        textColor: Colors.grey.shade700,
+                        background: theme.scaffoldBackgroundColor,
+                        textColor: theme.textTheme.bodySmall?.color,
                       );
                     }).toList(),
                   ),
@@ -1018,13 +1042,14 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
 
     final isMobile = MediaQuery.of(context).size.width < 700;
     final hasMultipleJobs = jobs.length > 1;
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: theme.shadowColor.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1055,7 +1080,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                     width: isMobile ? 44 : 52,
                     height: isMobile ? 44 : 52,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: theme.scaffoldBackgroundColor,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: logoUrl != null
@@ -1070,7 +1095,10 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                               ),
                             ),
                           )
-                        : const Icon(Icons.business, color: Colors.blueGrey),
+                        : Icon(
+                            Icons.business,
+                            color: theme.iconTheme.color,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1112,14 +1140,14 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                   icon: Icon(
                     Icons.arrow_forward_ios,
                     size: 18,
-                    color: Colors.grey.shade500,
+                    color: theme.iconTheme.color,
                   ),
                   tooltip: "View Company Profile",
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Divider(color: Colors.grey.shade200, height: 1),
+            Divider(color: theme.dividerColor, height: 1),
             const SizedBox(height: 10),
             ListView.separated(
               padding: EdgeInsets.zero,
@@ -1127,7 +1155,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: hasMultipleJobs && !_isExpanded ? 1 : jobs.length,
               separatorBuilder: (ctx, i) =>
-                  Divider(color: Colors.grey.shade100, height: 14),
+                  Divider(color: theme.dividerColor.withValues(alpha: 0.5), height: 14),
               itemBuilder: (ctx, index) {
                 final job = jobs[index];
                 return InkWell(
@@ -1165,7 +1193,7 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
                                             ? "..."
                                             : ""),
                                     style: TextStyle(
-                                      color: Colors.grey.shade600,
+                                      color: theme.textTheme.bodySmall?.color,
                                       fontSize: 12,
                                     ),
                                     maxLines: 1,
@@ -1232,8 +1260,10 @@ class SoftTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color resolvedBackground = background ?? Colors.blue.shade50;
-    final Color resolvedText = textColor ?? Colors.blue.shade700;
+    final theme = Theme.of(context);
+    final Color resolvedBackground =
+        background ?? theme.colorScheme.primary.withValues(alpha: 0.12);
+    final Color resolvedText = textColor ?? theme.colorScheme.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
