@@ -3,6 +3,8 @@ import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCirc
 import { getStudents, getFileUrl, sendInterviewRequest, getAnalytics } from '../api';
 import { allSkillsList, skillsData } from '../../data/skills';
 
+const DEFAULT_PAGE_SIZE = 10;
+
 export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -14,18 +16,25 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const [isInterviewWindowClosed, setIsInterviewWindowClosed] = useState(false);
   const [backendSearchLoading, setBackendSearchLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
   const searchDebounceRef = useRef(null);
   const deptDebounceRef = useRef(null);
   const backendSearchRef = useRef({});
+  const pageSizeRef = useRef(DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
 
   const fetchStudents = async (queryParams = {}, page = 1, pageSizeOverride = null) => {
     setBackendSearchLoading(true);
     setCurrentPage(page);
     try {
       // Use explicit pageSizeOverride when provided (e.g. when pageSize state hasn't updated yet)
-      const effectivePageSize = pageSizeOverride ?? pageSize;
+      const effectivePageSize =
+        Number(pageSizeOverride ?? pageSizeRef.current ?? DEFAULT_PAGE_SIZE) ||
+        DEFAULT_PAGE_SIZE;
       // Call backend with all active query parameters, including tab status filter
       const paginatedParams = { ...queryParams, page, pageSize: effectivePageSize };
       if (listMode !== 'all') {
@@ -63,7 +72,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
           const queryParams = {};
           if (prev.department) queryParams.department = prev.department;
           if (prev.skills.length > 0) queryParams.skills = prev.skills;
-          fetchStudents(queryParams, 1); // Reset to page 1
+          fetchStudents(queryParams, 1, pageSizeRef.current); // Reset to page 1
         }, 300);
       } else {
         // Debounce backend search by 500ms
@@ -71,7 +80,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
           const queryParams = { search: value };
           if (prev.department) queryParams.department = prev.department;
           if (prev.skills.length > 0) queryParams.skills = prev.skills;
-          fetchStudents(queryParams, 1); // Reset to page 1
+          fetchStudents(queryParams, 1, pageSizeRef.current); // Reset to page 1
         }, 500);
       }
 
@@ -93,7 +102,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
         clearTimeout(deptDebounceRef.current);
       }
       deptDebounceRef.current = setTimeout(() => {
-        fetchStudents(queryParams, 1); // Reset to page 1
+        fetchStudents(queryParams, 1, pageSizeRef.current); // Reset to page 1
       }, 300);
       
       return { ...prev, department: dept };
@@ -101,7 +110,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   };
 
   useEffect(() => { 
-    fetchStudents({});
+    fetchStudents({}, 1, pageSizeRef.current);
   }, [listMode]);
 
   useEffect(() => {
@@ -220,7 +229,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       if (prev.department) queryParams.department = prev.department;
       if (newSkills.length > 0) queryParams.skills = newSkills;
       
-      fetchStudents(queryParams, 1); // Reset to page 1
+      fetchStudents(queryParams, 1, pageSizeRef.current); // Reset to page 1
       
       return { ...prev, skills: newSkills };
     });
@@ -237,7 +246,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       if (prev.department) queryParams.department = prev.department;
       if (newSkills.length > 0) queryParams.skills = newSkills;
       
-      fetchStudents(queryParams, 1); // Reset to page 1
+      fetchStudents(queryParams, 1, pageSizeRef.current); // Reset to page 1
       
       return { ...prev, skills: newSkills };
     });
@@ -246,7 +255,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const handleClearFilters = () => {
     setFilters({ search: '', department: '', skills: [] });
     setSkillToAdd('');
-    fetchStudents({});
+    fetchStudents({}, 1, pageSizeRef.current);
   };
 
   const getInterviewMeta = (student) => {
@@ -386,6 +395,10 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   };
 
   const sortedStudents = getSortedStudents();
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (safeCurrentPage - 1) * pageSize;
+  const pagedStudents = sortedStudents.slice(pageStartIndex, pageStartIndex + pageSize);
 
   const getStudentId = (s) => s.StudentId || s.studentId || s.id;
 
@@ -668,7 +681,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="md:hidden p-2 space-y-2">
-            {sortedStudents.map((student, index) => {
+            {pagedStudents.map((student, index) => {
               const safeId = getStudentId(student);
               const key = safeId || index;
               const cgpa = student.CGPA ?? student.cgpa;
@@ -760,7 +773,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                 </tr>
               </thead>
               <tbody>
-                {sortedStudents.map((student, index) => {
+                {pagedStudents.map((student, index) => {
                   const safeId = getStudentId(student);
                   const key = safeId || index;
                   const cgpa = student.CGPA ?? student.cgpa;
@@ -845,24 +858,24 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       {students.length > 0 && totalCount > pageSize && (
         <div className="mt-4 flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200">
           <div className="text-sm text-gray-600">
-            Showing <span className="font-semibold">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-semibold">{Math.min(currentPage * pageSize, totalCount)}</span> of <span className="font-semibold">{totalCount}</span> students
+            Showing <span className="font-semibold">{pageStartIndex + 1}</span> to <span className="font-semibold">{Math.min(pageStartIndex + pageSize, totalCount)}</span> of <span className="font-semibold">{totalCount}</span> students
           </div>
           
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fetchStudents(backendSearchRef.current, Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1 || backendSearchLoading}
+              onClick={() => fetchStudents(backendSearchRef.current, Math.max(1, safeCurrentPage - 1))}
+              disabled={safeCurrentPage === 1 || backendSearchLoading}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Previous
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.ceil(totalCount / pageSize) }, (_, i) => i + 1)
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(page => {
                   const maxVisible = 5;
-                  const start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-                  const end = Math.min(Math.ceil(totalCount / pageSize), start + maxVisible - 1);
+                  const start = Math.max(1, safeCurrentPage - Math.floor(maxVisible / 2));
+                  const end = Math.min(totalPages, start + maxVisible - 1);
                   return page >= start && page <= end;
                 })
                 .map(page => (
@@ -871,7 +884,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                     onClick={() => fetchStudents(backendSearchRef.current, page)}
                     disabled={backendSearchLoading}
                     className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
-                      page === currentPage
+                      page === safeCurrentPage
                         ? 'bg-blue-600 text-white'
                         : 'border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50'
                     }`}
@@ -882,8 +895,8 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
             </div>
 
             <button
-              onClick={() => fetchStudents(backendSearchRef.current, Math.min(Math.ceil(totalCount / pageSize), currentPage + 1))}
-              disabled={currentPage >= Math.ceil(totalCount / pageSize) || backendSearchLoading}
+              onClick={() => fetchStudents(backendSearchRef.current, Math.min(totalPages, safeCurrentPage + 1))}
+              disabled={safeCurrentPage >= totalPages || backendSearchLoading}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
