@@ -3368,5 +3368,30 @@ namespace JobFairPortal.Controllers
                 Cgpa = student.CGPA
             });
         }
+
+        [Authorize(Roles = "Student")]
+        [HttpPost("register-fcm-token")]
+        public async Task<IActionResult> RegisterFcmToken([FromBody] StudentFcmTokenDto dto)
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId)) return Unauthorized("Invalid or missing user id in token.");
+
+            if (string.IsNullOrWhiteSpace(dto.Token))
+                return BadRequest("FCM token is required.");
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (student == null)
+                return NotFound("Student not found.");
+
+            student.FcmToken = dto.Token;
+            student.UpdatedAt = DateTime.UtcNow;
+            
+            _context.Students.Update(student);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "FCM token registered successfully." });
+        }
     }
+
+   
 }

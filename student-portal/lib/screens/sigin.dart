@@ -118,43 +118,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      String? fcmToken;
-      try {
-        if (kIsWeb) {
-          // Request permission first for web
-          NotificationSettings settings = await _firebaseMessaging
-              .requestPermission(alert: true, badge: true, sound: true);
-
-          if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional) {
-            // Get token for web browsers — VAPID key is required for web push
-            const vapidKey = String.fromEnvironment(
-              'FIREBASE_VAPID_KEY',
-              defaultValue:
-                  'BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s',
-            );
-            fcmToken = await _firebaseMessaging.getToken(vapidKey: vapidKey);
-            if (kDebugMode) {
-              print("🔑 Web FCM Token: ${fcmToken?.substring(0, 20)}...");
-            }
-          } else {
-            if (kDebugMode) print("⚠️ Notification permission denied on web");
-          }
-        } else {
-          // Mobile platforms
-          fcmToken = await _firebaseMessaging.getToken();
-        }
-      } catch (e) {
-        if (kDebugMode) print("FCM Error: $e");
-      }
-
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {"Content-Type": "application/json"},
         body: json.encode({
           "emailOrRegNo": regNo,
           "password": password,
-          "fcmToken": fcmToken,
         }),
       );
 
@@ -164,11 +133,6 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           throw const FormatException('Invalid login response shape');
         }
         final data = decoded;
-
-        if (fcmToken != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString("fcmToken", fcmToken);
-        }
 
         final token = (data['token'] ?? '').toString();
         if (token.isEmpty) {
@@ -192,6 +156,9 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           if (isProfileComplete) {
             Provider.of<StudentProvider>(context, listen: false).fetchProfile();
           }
+
+          // Run FCM setup in the background without blocking the UI navigation
+          _setupFCMAfterLogin(token);
 
           await dashboard_screen.loadLibrary();
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -233,6 +200,48 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  void _setupFCMAfterLogin(String authToken) async {
+    try {
+      String? fcmToken;
+      NotificationSettings settings = await _firebaseMessaging.requestPermission(
+        alert: true, badge: true, sound: true
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        if (kIsWeb) {
+          const vapidKey = String.fromEnvironment(
+            'FIREBASE_VAPID_KEY',
+            defaultValue: 'BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s',
+          );
+          fcmToken = await _firebaseMessaging.getToken(vapidKey: vapidKey);
+        } else {
+          fcmToken = await _firebaseMessaging.getToken();
+        }
+      }
+
+      if (fcmToken != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("fcmToken", fcmToken);
+
+        final registerUrl = "${BackendConfig.apiBaseUrl}/Student/register-fcm-token";
+        await http.post(
+          Uri.parse(registerUrl),
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer $authToken",
+          },
+          body: json.encode({"token": fcmToken}),
+        );
+        if (kDebugMode) print("✅ FCM Token registered in background.");
+      } else {
+        if (kDebugMode) print("⚠️ FCM Token is null or permission denied.");
+      }
+    } catch (e) {
+      if (kDebugMode) print("FCM Background Error: $e");
     }
   }
 

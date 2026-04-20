@@ -4543,7 +4543,7 @@ Job Fair Team
 
                 var totalCount = await query.CountAsync();
 
-                var projects = await query
+                var projectsData = await query
                     .OrderByDescending(p => p.CreatedAt)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
@@ -4556,7 +4556,7 @@ Job Fair Team
                         p.GitHubUrl,
                         p.Type,
                         p.CreatedAt,
-                        Skills = string.IsNullOrEmpty(p.Skills) ? new List<string>() : p.Skills.Split(',', StringSplitOptions.None).Select(s => s.Trim()).ToList(),
+                        p.Skills,
                         Students = p.StudentProjects.Select(sp => new
                         {
                             sp.Student.StudentId,
@@ -4571,6 +4571,19 @@ Job Fair Team
                         }).ToList()
                     })
                     .ToListAsync();
+
+                var projects = projectsData.Select(p => new
+                {
+                    p.ProjectId,
+                    p.Title,
+                    p.Description,
+                    p.DemoUrl,
+                    p.GitHubUrl,
+                    p.Type,
+                    p.CreatedAt,
+                    Skills = string.IsNullOrEmpty(p.Skills) ? new List<string>() : p.Skills.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+                    p.Students
+                }).ToList();
 
                 return Ok(new
                 {

@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -8,7 +8,9 @@ import {
   Trophy, 
   FileText, 
   TrendingUp, 
-  UserCheck 
+  UserCheck,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -52,22 +54,60 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isPresenting, setIsPresenting] = useState(false);
+  const dashboardRef = useRef(null);
+
+  const togglePresentationMode = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await dashboardRef.current?.requestFullscreen();
+      } catch (err) {
+        console.error("Error attempting to enable fullscreen:", err);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        // Connects to AdminController.cs -> GetDashboardOverview()
-        const response = await api.get('/admin/dashboard/overview');
-        setStats(response.data);
-      } catch (error) {
-        console.error("Error fetching dashboard stats:", error);
-      } finally {
-        setLoading(false);
-      }
+    const handleFullscreenChange = () => {
+      setIsPresenting(!!document.fullscreenElement);
     };
 
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const fetchDashboardData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const response = await api.get('/admin/dashboard/overview');
+      setStats(response.data);
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    let interval;
+    if (isPresenting) {
+      // Refresh every 1.5 minutes in presentation mode
+      interval = setInterval(() => {
+        fetchDashboardData(true);
+      }, 90000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPresenting]);
 
   if (loading) {
     return (
@@ -142,16 +182,32 @@ const Dashboard = () => {
     : [{ name: 'No Data', value: 1 }];
 
   return (
-    <div className="w-full max-w-full space-y-4 animate-fade-in overflow-x-hidden pb-2">
+    <div 
+      ref={dashboardRef}
+      className={`w-full max-w-full animate-fade-in ${
+        isPresenting 
+          ? 'h-screen w-screen bg-gray-50 flex flex-col p-4 gap-3 overflow-hidden text-sm' 
+          : 'space-y-4 pb-2 overflow-x-hidden'
+      }`}
+    >
       
       {/* 1. Header */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Overview of the current Job Fair statistics and activities.</p>
+      <div className={`flex justify-between items-center ${isPresenting ? 'flex-shrink-0' : ''}`}>
+        <div>
+          <h1 className={`${isPresenting ? 'text-2xl' : 'text-xl'} font-bold text-gray-900`}>Admin Dashboard</h1>
+          {!isPresenting && <p className="text-gray-500 text-sm mt-1">Overview of the current Job Fair statistics and activities.</p>}
+        </div>
+        <button 
+          onClick={togglePresentationMode} 
+          className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 flex items-center gap-2 font-medium"
+          title={isPresenting ? "Exit Presentation Mode (ESC)" : "Enter Presentation Mode"}
+        >
+          {isPresenting ? <><Minimize className="w-5 h-5" /> <span className="hidden sm:inline">Exit Presentation</span></> : <><Maximize className="w-5 h-5" /> <span className="hidden sm:inline">Presentation Mode</span></>}
+        </button>
       </div>
 
       {/* 2. Key Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${isPresenting ? 'gap-2 flex-shrink-0' : 'gap-3'}`}>
         <StatCard 
           title="Total Students" 
           value={stats?.totalStudents} 
@@ -186,9 +242,8 @@ const Dashboard = () => {
       </div>
 
       {/* 3. Charts Section */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${isPresenting ? 'gap-2 flex-1 min-h-0' : 'gap-3'}`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col ${isPresenting ? 'p-3' : 'p-4'}`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-bold text-gray-800">Request to Acceptance Ratio</h3>
             <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full">
@@ -196,7 +251,7 @@ const Dashboard = () => {
             </span>
           </div>
 
-          <div className="h-44">
+          <div className={`flex-1 min-h-0 ${isPresenting ? '' : 'h-44'}`}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -225,12 +280,12 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col ${isPresenting ? 'p-3' : 'p-4'}`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-bold text-gray-800">Interview Stage Snapshot</h3>
             <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-700 rounded-full">Current Job Fair</span>
           </div>
-          <div className="h-72">
+          <div className={`flex-1 min-h-0 ${isPresenting ? '' : 'h-72'}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={interviewStageData} margin={{ bottom: 48 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -256,15 +311,15 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className={`grid grid-cols-1 lg:grid-cols-3 ${isPresenting ? 'gap-2 flex-1 min-h-0' : 'gap-3'}`}>
         
         {/* Recruitment Progress (Pie Chart) */}
-        <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className={`lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col ${isPresenting ? 'p-3' : 'p-4'}`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-bold text-gray-800">Recruitment Impact</h3>
             <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">Live Data</span>
           </div>
-          <div className="h-52">
+          <div className={`flex-1 min-h-0 ${isPresenting ? '' : 'h-52'}`}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -304,11 +359,11 @@ const Dashboard = () => {
         </div>
 
         {/* Survey Feedback (Bar Chart or List) */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col ${isPresenting ? 'p-3' : 'p-4'}`}>
           <h3 className="text-base font-bold text-gray-800 mb-2">Feedback Received</h3>
           
           {/* Small Bar Chart for Surveys */}
-          <div className="h-40">
+          <div className={`flex-1 min-h-0 ${isPresenting ? '' : 'h-40'}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={surveyData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -342,10 +397,10 @@ const Dashboard = () => {
       </div>
 
       {/* Bottom Section: Top Candidates */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${isPresenting ? 'gap-2 flex-1 min-h-0' : 'gap-3'}`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden ${isPresenting ? 'p-3' : 'p-4'}`}>
           <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Company Requests</p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-1 overflow-y-auto flex-1 min-h-0">
             {topRequestedCandidates.length > 0 ? topRequestedCandidates.slice(0, 5).map((candidate, index) => (
               <div key={`top-requested-${candidate.studentId || index}`} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50">
                 <div>
@@ -367,9 +422,9 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden ${isPresenting ? 'p-3' : 'p-4'}`}>
           <p className="text-xs font-semibold text-gray-500 uppercase">Top 5 Candidates By Hires</p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-1 overflow-y-auto flex-1 min-h-0">
             {topHiredCandidates.length > 0 ? topHiredCandidates.slice(0, 5).map((candidate, index) => (
               <div key={`top-hired-${candidate.studentId || index}`} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-gray-50">
                 <div>

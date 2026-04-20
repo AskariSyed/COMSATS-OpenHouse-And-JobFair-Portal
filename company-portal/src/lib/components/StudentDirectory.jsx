@@ -5,7 +5,7 @@ import { allSkillsList, skillsData } from '../../data/skills';
 
 const DEFAULT_PAGE_SIZE = 10;
 
-export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews }) {
+export default function StudentDirectory({ onSelect, onError, onSuccess, onNavigateToInterviews, isJobFairDay = true, isCompanyPresent = true }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', department: '', skills: [] });
@@ -349,25 +349,38 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
           </button>
         )}
 
-        {canSchedule && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onNavigateToInterviews) {
-                onNavigateToInterviews();
-                return;
-              }
-              if (!safeId) return onError('Missing Student ID');
-              onSelect({ ...student, studentId: safeId });
-            }}
-            disabled={alreadyScheduled || isInterviewWindowClosed}
-            className={`${iconBtnBase} ${alreadyScheduled ? 'text-emerald-700 bg-emerald-50' : 'text-indigo-700 hover:bg-indigo-100'} disabled:opacity-50`}
-            title={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
-            aria-label={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
-          >
-            <Calendar className="w-4 h-4" />
-          </button>
-        )}
+        {canSchedule && (() => {
+          const isScheduleDisabledCondition = !alreadyScheduled && (!isJobFairDay || !isCompanyPresent || isInterviewWindowClosed);
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (alreadyScheduled) {
+                  if (onNavigateToInterviews) {
+                    onNavigateToInterviews();
+                  }
+                  return;
+                }
+                if (!isJobFairDay) {
+                  return onError('Scheduling is only available on the Job Fair day.');
+                }
+                if (!isCompanyPresent) {
+                  return onError('You must mark your company as present today to schedule interviews.');
+                }
+                if (isInterviewWindowClosed) {
+                  return onError('Interview scheduling window is closed.');
+                }
+                if (!safeId) return onError('Missing Student ID');
+                onSelect({ ...student, studentId: safeId });
+              }}
+              className={`${iconBtnBase} ${alreadyScheduled ? 'text-emerald-700 bg-emerald-50' : 'text-indigo-700 hover:bg-indigo-100'} ${isScheduleDisabledCondition ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
+              aria-label={alreadyScheduled ? 'Interview already scheduled' : 'Schedule Interview'}
+            >
+              <Calendar className="w-4 h-4" />
+            </button>
+          );
+        })()}
       </div>
     );
   };

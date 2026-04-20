@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
@@ -1222,6 +1223,12 @@ class SettingsScreen extends StatelessWidget {
               },
             );
           },
+        ),
+        NotificationPermissionWidget(
+          cardColor: cardColor,
+          textColor: textColor,
+          dividerColor: dividerColor,
+          isDark: isDark,
         ),
 
         const SizedBox(height: 16),
@@ -3067,3 +3074,117 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+
+class NotificationPermissionWidget extends StatefulWidget {
+  final Color cardColor;
+  final Color? textColor;
+  final Color dividerColor;
+  final bool isDark;
+
+  const NotificationPermissionWidget({
+    super.key,
+    required this.cardColor,
+    required this.textColor,
+    required this.dividerColor,
+    required this.isDark,
+  });
+
+  @override
+  State<NotificationPermissionWidget> createState() => _NotificationPermissionWidgetState();
+}
+
+class _NotificationPermissionWidgetState extends State<NotificationPermissionWidget> {
+  bool _isChecking = true;
+  bool _isGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.getNotificationSettings();
+    if (mounted) {
+      setState(() {
+        _isGranted = settings.authorizationStatus == AuthorizationStatus.authorized || 
+                     settings.authorizationStatus == AuthorizationStatus.provisional;
+        _isChecking = false;
+      });
+    }
+  }
+
+  Future<void> _requestPermission() async {
+    setState(() => _isChecking = true);
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+    if (mounted) {
+      setState(() {
+        _isGranted = settings.authorizationStatus == AuthorizationStatus.authorized || 
+                     settings.authorizationStatus == AuthorizationStatus.provisional;
+        _isChecking = false;
+      });
+      if (!_isGranted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          const CustomSnackBar.info(message: 'Please allow notifications from your browser/device settings.'),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      return const SizedBox.shrink();
+    }
+    if (_isGranted) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Notifications are disabled',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You will not be notified for your interview calls and admin calls unless you allow notifications.',
+            style: TextStyle(color: widget.textColor, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _requestPermission,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Allow Notifications'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

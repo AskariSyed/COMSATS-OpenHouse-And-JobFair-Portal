@@ -47,6 +47,7 @@ export default function StudentProfile({
    initialTab = 'profile',
    isJobFairDay = false,
    isCompanyPresent = false,
+   onError,
 }) {
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -344,8 +345,20 @@ export default function StudentProfile({
             return (
                <div className="flex items-center gap-2">
                   <button
-                     onClick={() => onNavigateToInterviews && onNavigateToInterviews()}
-                     className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 hover:bg-blue-700 text-white transition-all transform hover:-translate-y-0.5"
+                     onClick={() => {
+                        if (!isJobFairDay) {
+                           if (onError) onError('Scheduling is only available on the Job Fair day.');
+                           else alert('Scheduling is only available on the Job Fair day.');
+                           return;
+                        }
+                        if (!isCompanyPresent) {
+                           if (onError) onError('You must mark your company as present today to schedule interviews.');
+                           else alert('You must mark your company as present today to schedule interviews.');
+                           return;
+                        }
+                        onNavigateToInterviews && onNavigateToInterviews();
+                     }}
+                     className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold shadow-md bg-blue-600 text-white transition-all transform ${(!isJobFairDay || !isCompanyPresent) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 hover:-translate-y-0.5'}`}
                   >
                      <Calendar className="w-4 h-4" /> Schedule Interview
                   </button>

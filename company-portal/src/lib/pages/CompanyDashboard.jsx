@@ -371,6 +371,8 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
           onError={onError}
           onSuccess={onSuccess}
           onNavigateToInterviews={() => onTabChange && onTabChange('interviews')}
+          isJobFairDay={isJobFairDay}
+          isCompanyPresent={Boolean(normalizedAttendance?.isPresent)}
         />
       )}
       {activeTab === 'fyps' && <FYPExplorer onSelectProject={(id) => setSelectedProjectId(id)} onError={onError} />}
