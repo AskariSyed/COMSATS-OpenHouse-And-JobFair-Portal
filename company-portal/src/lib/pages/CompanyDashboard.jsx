@@ -303,6 +303,8 @@ export default function CompanyDashboard({ user, onError, onSuccess, activeTab, 
           onBack={() => setSelectedStudentId(null)} 
           readOnly={profileContext === 'history'}
           initialTab={profileTab}
+          isJobFairDay={isJobFairDay}
+          isCompanyPresent={Boolean(normalizedAttendance?.isPresent)}
           onNavigateToInterviews={() => {
             setSelectedStudentId(null);
             if (onTabChange) onTabChange('interviews');
