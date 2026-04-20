@@ -20,12 +20,14 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const deptDebounceRef = useRef(null);
   const backendSearchRef = useRef({});
 
-  const fetchStudents = async (queryParams = {}, page = 1) => {
+  const fetchStudents = async (queryParams = {}, page = 1, pageSizeOverride = null) => {
     setBackendSearchLoading(true);
     setCurrentPage(page);
     try {
+      // Use explicit pageSizeOverride when provided (e.g. when pageSize state hasn't updated yet)
+      const effectivePageSize = pageSizeOverride ?? pageSize;
       // Call backend with all active query parameters, including tab status filter
-      const paginatedParams = { ...queryParams, page, pageSize };
+      const paginatedParams = { ...queryParams, page, pageSize: effectivePageSize };
       if (listMode !== 'all') {
         paginatedParams.status = listMode;
       }
@@ -893,7 +895,9 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
             onChange={(e) => {
               const newPageSize = Number(e.target.value);
               setPageSize(newPageSize);
-              fetchStudents(backendSearchRef.current, 1);
+              // Pass newPageSize directly — React state update is async and pageSize
+              // would still be the old value if we relied on it inside fetchStudents.
+              fetchStudents(backendSearchRef.current, 1, newPageSize);
             }}
             disabled={backendSearchLoading}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"

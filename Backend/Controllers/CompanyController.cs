@@ -760,20 +760,7 @@ namespace JobFairPortal.Controllers
                     .FirstOrDefault() == targetStatus);
             }
 
-            // Get total count before pagination (skills filtering will be done client-side)
-            var totalCount = await query.CountAsync();
-
-            // Apply pagination
-            var skip = (page - 1) * pageSize;
-            var paginatedQuery = query
-                .Skip(skip)
-                .Take(pageSize);
-
-            // Fetch paginated results with AsEnumerable for client-side skill filtering
-            var paginatedStudents = await paginatedQuery
-                .ToListAsync();
-
-            // Apply skills filter on client-side (comma-separated, student must have ALL specified skills)
+            // Apply skills filter (must-have ALL skills)
             if (!string.IsNullOrWhiteSpace(skills))
             {
                 var skillList = skills.Split(',')
@@ -783,17 +770,22 @@ namespace JobFairPortal.Controllers
 
                 if (skillList.Any())
                 {
-                    paginatedStudents = paginatedStudents
-                        .Where(s => 
-                            skillList.All(skill => 
-                                (s.Skills != null && s.Skills.Any(sk => sk.ToLower().Equals(skill)))
-                            )
+                    query = query.Where(s =>
+                        skillList.All(skill =>
+                            (s.Skills != null && s.Skills.Any(sk => sk.ToLower() == skill))
                         )
-                        .ToList();
+                    );
                 }
             }
 
-            var students = paginatedStudents
+            // Get total count AFTER all filters (including skills) are applied
+            var totalCount = await query.CountAsync();
+
+            // Apply pagination
+            var skip = (page - 1) * pageSize;
+            var students = await query
+                .Skip(skip)
+                .Take(pageSize)
                 .Select(s => new
                 {
                     StudentId = s.StudentId,
@@ -838,7 +830,7 @@ namespace JobFairPortal.Controllers
                             .FirstOrDefault()
                     }
                 })
-                .ToList();
+                .ToListAsync();
 
             // Return paginated response
             return Ok(new
