@@ -3,6 +3,7 @@ using JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
 using JobFairPortal.Services;
+using JobFairPortal.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -29,12 +30,28 @@ namespace JobFairPortal.Controllers
         private static readonly TimeSpan LunchBreakStartLocal = new TimeSpan(13, 0, 0);
         private static readonly TimeSpan LunchBreakEndLocal = new TimeSpan(14, 0, 0);
 
-        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService)
+        private readonly IHubContext<CompanyRequestsHub> _hubContext;
+
+        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext)
         {
             _context = context;
             _logger = logger;
             _mailService = mailService;
+            _hubContext = hubContext;
         }
+
+        private async Task NotifyDashboardUpdate()
+        {
+            try
+            {
+                await _hubContext.Clients.Group("admins").SendAsync("DashboardUpdated");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR dashboard update notification");
+            }
+        }
+
         [HttpGet("finalyear-projects/with-students")]
         public async Task<IActionResult> GetFinalYearProjectsWithStudents()
         {
@@ -4717,6 +4734,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             interview.StartedAt ??= DateTime.UtcNow;
             interview.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             return Ok(new
             {
@@ -4875,6 +4893,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             }
 
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             return Ok(new
             {
@@ -4918,6 +4937,7 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             interview.EndedAt = DateTime.UtcNow;
             interview.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             try
             {

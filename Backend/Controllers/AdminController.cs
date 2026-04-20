@@ -1331,12 +1331,16 @@ namespace JobFairPortal.Controllers
                 var totalAcceptedRequests = await _context.InterviewRequests
                     .CountAsync(r => r.JobFairId == activeFairId && r.Status == RequestStatus.Accepted);
 
+                var jobFair = await _context.JobFairs.FindAsync(activeFairId);
+
                 // âœ… FIX: Filter all stats by Active Job Fair ID
                 dashboard = new DashboardOverviewDto
                 {
+                    JobFairTitle = jobFair != null ? $"Open House & Job Fair {jobFair.Semester}" : "COMSATS Open House & Job Fair",
                     // FIX: Count from Participation table to get accurate attendee count
                     TotalStudents = await _context.StudentJobFairParticipations.CountAsync(s => s.JobFairId == activeFairId),
                     TotalCompanies = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == activeFairId),
+                    PresentCompanies = await _context.CompanyJobFairParticipations.CountAsync(p => p.JobFairId == activeFairId && p.IsPresent),
                     TotalRooms = await _context.Rooms.CountAsync(r => r.JobFairId == activeFairId),
                     TotalInterviews = await _context.Interviews.CountAsync(i => i.JobFairId == activeFairId),
                     // Scheduled and queued are made exclusive for clearer dashboard stage reporting.

@@ -1,4 +1,4 @@
-﻿namespace JobFairPortal.DTOs
+namespace JobFairPortal.DTOs
 {
     public class DashboardTopCandidateDto
     {
@@ -9,8 +9,10 @@
 
     public class DashboardOverviewDto
     {
+        public string JobFairTitle { get; set; } = string.Empty;
         public int TotalStudents { get; set; }
         public int TotalCompanies { get; set; }
+        public int PresentCompanies { get; set; }
         public int TotalRooms { get; set; }
         public int StudentsHired { get; set; }
         public int StudentsShortlisted { get; set; }

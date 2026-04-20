@@ -14,5 +14,10 @@ namespace JobFairPortal.Hubs
         {
             return Groups.RemoveFromGroupAsync(Context.ConnectionId, "admins");
         }
+
+        public Task NotifyDashboardUpdate()
+        {
+            return Clients.Group("admins").SendAsync("DashboardUpdated");
+        }
     }
 }
