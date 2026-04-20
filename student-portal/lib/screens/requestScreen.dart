@@ -50,7 +50,25 @@ class _RequestsScreenState extends State<RequestsScreen>
   @override
   void initState() {
     super.initState();
-    final safeInitialIndex = widget.initialTabIndex.clamp(0, 1);
+    final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+    final requests = studentProvider.interviewRequests;
+    final sentRequests = requests.where((r) => r.requestedBy == RequestedBy.Student).toList();
+    final receivedRequests = requests.where((r) => r.requestedBy == RequestedBy.Company).toList();
+
+    int defaultIndex = widget.initialTabIndex;
+    
+    // Smart default logic if no explicit index was requested
+    if (widget.initialTabIndex == 0) {
+      if (sentRequests.isEmpty && receivedRequests.isNotEmpty) {
+        defaultIndex = 1;
+      } else if (receivedRequests.isEmpty && sentRequests.isNotEmpty) {
+        defaultIndex = 0;
+      } else if (sentRequests.isEmpty && receivedRequests.isEmpty) {
+        defaultIndex = 0;
+      }
+    }
+
+    final safeInitialIndex = defaultIndex.clamp(0, 1);
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -154,9 +172,45 @@ class _RequestsScreenState extends State<RequestsScreen>
                         indicatorSize: TabBarIndicatorSize.tab,
                         dividerColor: Colors.transparent,
                         padding: const EdgeInsets.all(4),
-                        tabs: const [
-                          Tab(text: "Sent Requests"),
-                          Tab(text: "Received Requests"),
+                        tabs: [
+                          Tab(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text("Sent Requests"),
+                                if (sentRequests.any((r) => r.status == RequestStatus.Pending)) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.redAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text("Received Requests"),
+                                if (receivedRequests.any((r) => r.status == RequestStatus.Pending)) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.redAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -257,11 +311,13 @@ class _RequestsScreenState extends State<RequestsScreen>
                                             "Sent Requests",
                                             sentRequests.length,
                                             0,
+                                            hasNotification: sentRequests.any((r) => r.status == RequestStatus.Pending),
                                           ),
                                           _buildWebTab(
                                             "Received Invites",
                                             receivedRequests.length,
                                             1,
+                                            hasNotification: receivedRequests.any((r) => r.status == RequestStatus.Pending),
                                           ),
                                         ],
                                       ),
@@ -303,7 +359,7 @@ class _RequestsScreenState extends State<RequestsScreen>
     );
   }
 
-  Widget _buildWebTab(String title, int count, int index) {
+  Widget _buildWebTab(String title, int count, int index, {bool hasNotification = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _webTabIndex == index;
     return InkWell(
@@ -336,6 +392,17 @@ class _RequestsScreenState extends State<RequestsScreen>
                     : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
               ),
             ),
+            if (hasNotification) ...[
+              const SizedBox(width: 6),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

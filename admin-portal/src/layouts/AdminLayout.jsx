@@ -13,7 +13,8 @@ import {
   QrCode,
   FileText,
   KeyRound,
-  Loader2
+  Loader2,
+  Code2
 } from 'lucide-react';
 import { useState } from 'react';
 import { Settings } from 'lucide-react';
@@ -308,6 +309,12 @@ const AdminLayout = () => {
             to="/admin/students" 
             icon={Users} 
             label="Active Students" 
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <SidebarItem 
+            to="/admin/fyps" 
+            icon={Code2} 
+            label="FYP Directory" 
             onClick={() => setIsSidebarOpen(false)}
           />
           <SidebarItem 

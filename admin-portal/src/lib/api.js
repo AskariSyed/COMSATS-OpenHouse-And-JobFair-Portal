@@ -163,4 +163,39 @@ export const unblockCompany = (companyId) => api.put(`/admin/companies/${company
 
 api.blockCompany = blockCompany;
 api.unblockCompany = unblockCompany;
+
+// --- Final Year Projects ---
+export const getFinalYearProjects = (params = {}) => {
+  const queryParts = [];
+
+  if (params.studentQuery) {
+    queryParts.push(`studentQuery=${encodeURIComponent(params.studentQuery)}`);
+  }
+  if (params.department) {
+    queryParts.push(`department=${encodeURIComponent(params.department)}`);
+  }
+  if (params.fypQuery) {
+    queryParts.push(`fypQuery=${encodeURIComponent(params.fypQuery)}`);
+  }
+  if (params.page) {
+    queryParts.push(`page=${params.page}`);
+  }
+  if (params.pageSize) {
+    queryParts.push(`pageSize=${params.pageSize}`);
+  }
+  if (params.jobFairId) {
+    queryParts.push(`jobFairId=${params.jobFairId}`);
+  }
+
+  const endpoint = queryParts.length > 0
+    ? `/admin/finalyear-projects?${queryParts.join('&')}`
+    : '/admin/finalyear-projects';
+
+  return api.get(endpoint).then(res => res.data);
+};
+
+export const getProjectDetails = (projectId) => {
+  return api.get(`/admin/finalyear-projects/${projectId}/full-details`).then(res => res.data);
+};
+
 export default api;

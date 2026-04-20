@@ -1,4 +1,4 @@
-﻿using CsvHelper;
+using CsvHelper;
 using CsvHelper.Configuration;
 using JobFairPortal.Data;
 using JobFairPortal.DTOs;
@@ -4487,6 +4487,165 @@ Job Fair Team
                     Message = "Unable to delete co-admin profile due to linked records. Block the profile instead."
                 });
             }
+        }
+
+        [HttpGet("finalyear-projects")]
+        public async Task<IActionResult> GetFinalYearProjects(
+            [FromQuery] string? studentQuery = null,
+            [FromQuery] string? department = null,
+            [FromQuery] string? fypQuery = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 9,
+            [FromQuery] int? jobFairId = null)
+        {
+            try
+            {
+                jobFairId ??= await GetActiveJobFairIdAsync();
+
+                var query = _context.Projects
+                    .Include(p => p.StudentProjects)
+                        .ThenInclude(sp => sp.Student)
+                            .ThenInclude(s => s.User)
+                    .Where(p => p.Type == ProjectType.FinalYear)
+                    .AsQueryable();
+
+                // Filter by jobFairId: Only show projects where at least one member is registered for this job fair
+                if (jobFairId.HasValue)
+                {
+                    query = query.Where(p => p.StudentProjects.Any(sp => 
+                        _context.StudentJobFairParticipations.Any(sjp => sjp.StudentId == sp.StudentId && sjp.JobFairId == jobFairId.Value)
+                    ));
+                }
+
+                // Apply filters
+                if (!string.IsNullOrWhiteSpace(studentQuery))
+                {
+                    var queryLower = studentQuery.ToLower();
+                    query = query.Where(p => p.StudentProjects.Any(sp =>
+                        sp.Student.RegistrationNo.ToLower().Contains(queryLower) ||
+                        (sp.Student.User != null && sp.Student.User.FullName.ToLower().Contains(queryLower))));
+                }
+
+                if (!string.IsNullOrWhiteSpace(department))
+                {
+                    var deptLower = department.ToLower();
+                    query = query.Where(p => p.StudentProjects.Any(sp =>
+                        sp.Student.Department.ToLower() == deptLower));
+                }
+
+                if (!string.IsNullOrWhiteSpace(fypQuery))
+                {
+                    var queryLower = fypQuery.ToLower();
+                    query = query.Where(p =>
+                        (p.Title != null && p.Title.ToLower().Contains(queryLower)) ||
+                        (p.Description != null && p.Description.ToLower().Contains(queryLower)));
+                }
+
+                var totalCount = await query.CountAsync();
+
+                var projects = await query
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(p => new
+                    {
+                        p.ProjectId,
+                        p.Title,
+                        p.Description,
+                        p.DemoUrl,
+                        p.GitHubUrl,
+                        p.Type,
+                        p.CreatedAt,
+                        Skills = string.IsNullOrEmpty(p.Skills) ? new List<string>() : p.Skills.Split(',', StringSplitOptions.None).Select(s => s.Trim()).ToList(),
+                        Students = p.StudentProjects.Select(sp => new
+                        {
+                            sp.Student.StudentId,
+                            sp.Student.RegistrationNo,
+                            Name = sp.Student.User != null ? sp.Student.User.FullName : null,
+                            sp.Student.Department,
+                            sp.Student.CGPA,
+                            StudentGithubUrl = sp.Student.ContactLinks
+                                .Where(cl => cl.Platform == ContactPlatform.GitHub)
+                                .Select(cl => cl.Url)
+                                .FirstOrDefault()
+                        }).ToList()
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                    Projects = projects
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching final year projects");
+                return StatusCode(500, new { Message = "An error occurred while fetching projects.", Details = ex.Message });
+            }
+        }
+
+        [HttpGet("finalyear-projects/{projectId}/full-details")]
+        public async Task<IActionResult> GetProjectFullDetails(int projectId)
+        {
+            var project = await _context.Projects
+                .Include(p => p.StudentProjects)
+                    .ThenInclude(sp => sp.Student)
+                        .ThenInclude(s => s.User)
+                .Include(p => p.StudentProjects)
+                    .ThenInclude(sp => sp.Student)
+                        .ThenInclude(s => s.ContactLinks)
+                .Include(p => p.StudentProjects)
+                    .ThenInclude(sp => sp.Student)
+                        .ThenInclude(s => s.Educations)
+                .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Type == ProjectType.FinalYear);
+
+            if (project == null)
+                return NotFound(new { Message = "Final year project not found." });
+
+            var result = new
+            {
+                project.ProjectId,
+                project.Title,
+                project.Description,
+                project.DemoUrl,
+                project.GitHubUrl,
+                project.Type,
+                project.CreatedAt,
+                Skills = string.IsNullOrEmpty(project.Skills) ? new List<string>() : project.Skills.Split(',', StringSplitOptions.None).Select(s => s.Trim()).ToList(),
+                Students = project.StudentProjects.Select(sp => new
+                {
+                    sp.Student.StudentId,
+                    sp.Student.RegistrationNo,
+                    Name = sp.Student.User != null ? sp.Student.User.FullName : null,
+                    Email = sp.Student.User != null ? sp.Student.User.Email : null,
+                    Phone = sp.Student.User != null ? sp.Student.User.Phone : null,
+                    sp.Student.Department,
+                    sp.Student.CGPA,
+                    sp.Student.ProfilePicUrl,
+                    sp.Student.CvUrl,
+                    ContactLinks = sp.Student.ContactLinks.Select(cl => new
+                    {
+                        Platform = cl.Platform.ToString(),
+                        cl.Url
+                    }).ToList(),
+                    Education = sp.Student.Educations.Select(e => new
+                    {
+                        DegreeName = e.Degree,
+                        Institution = e.InstitutionName,
+                        e.StartDate,
+                        e.EndDate,
+                        IsCurrentlyStudying = e.IsCurrent,
+                        GradeOrCGPA = e.CGPA ?? e.GradeValue
+                    }).ToList(),
+                    Skills = sp.Student.Skills ?? new List<string>()
+                }).ToList()
+            };
+
+            return Ok(result);
         }
     }
 }

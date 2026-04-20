@@ -27,6 +27,7 @@ import AttendanceManagement from './pages/admin/AttendanceManagement';
 import SurveyResponses from './pages/admin/SurveyResponses';
 import CompanySurveyDetail from './pages/admin/CompanySurveyDetail';
 import AdminManagement from './pages/admin/AdminManagement';
+import FYPDirectory from './pages/admin/FYPDirectory';
 
 
 // ----------------------------------------------------------------------
@@ -89,6 +90,7 @@ function App() {
           {/* 2. Add this line: */}
           <Route path="companies" element={<CompaniesList />} />
           <Route path="companies/all" element={<AllCompaniesList />} />
+          <Route path="fyps" element={<FYPDirectory />} />
           <Route path="company-requests" element={<CompanyRequests />} />
           <Route path="rooms" element={<RoomsManagement />} />
           <Route path="setup" element={<JobFairSetup />} />

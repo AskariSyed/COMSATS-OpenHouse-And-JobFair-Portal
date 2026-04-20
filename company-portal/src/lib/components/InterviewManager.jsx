@@ -170,7 +170,10 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
             studentId: req.studentId || req.StudentId,
             studentName: req.studentName || req.StudentName,
             studentRegistration: req.studentRegistration || req.StudentRegistration,
+            studentDepartment: req.studentDepartment || req.StudentDepartment,
+            studentCgpa: req.studentCgpa ?? req.StudentCgpa ?? req.studentCGPA ?? req.StudentCGPA,
             studentCvUrl: req.studentCvUrl || req.StudentCvUrl,
+            studentProfilePicUrl: req.studentProfilePicUrl || req.StudentProfilePicUrl || req.studentProfilePic || req.StudentProfilePic || req.profilePicUrl || req.ProfilePicUrl,
             status: interview?.interviewStatus || interview?.InterviewStatus || 'Completed',
             scheduledTime: interview?.scheduledTime || interview?.ScheduledTime,
             endedAt: interview?.endedAt || interview?.EndedAt,
@@ -1323,51 +1326,74 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedCompletedInterviews.map((item) => (
-                    <tr key={item.requestId} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="p-4 font-medium">
-                        {item.studentName}
-                        <span className="text-gray-400 font-normal text-xs block">{item.studentRegistration}</span>
-                      </td>
-                      <td className="p-4 text-gray-700">{formatDateTime(item.scheduledTime)}</td>
-                      <td className="p-4 text-gray-700">{formatDateTime(item.endedAt)}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(item.status)}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => onSelectStudent && onSelectStudent(item)}
-                            className="text-gray-600 hover:text-blue-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded inline-flex items-center gap-1"
-                            title="View Profile"
-                          >
-                            <User className="w-3.5 h-3.5" /> Profile
-                          </button>
-                          
-                          {String(item.status).toLowerCase() === 'didnotappear' && isJobFairDay && (
-                            <button
-                              onClick={() => openScheduleModal(item, 'reschedule')}
-                              className="text-amber-600 hover:text-amber-700 text-xs font-bold border border-amber-200 bg-amber-50 px-2 py-1 rounded inline-flex items-center gap-1"
-                              title="Reschedule this candidate"
+                  {sortedCompletedInterviews.map((item) => {
+                    const initials = (item.studentName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                    const picUrl = item.studentProfilePicUrl ? getFileUrl(item.studentProfilePicUrl) : null;
+                    return (
+                      <tr
+                        key={item.requestId}
+                        className="border-b last:border-0 hover:bg-blue-50 cursor-pointer transition-colors"
+                        onClick={() => onSelectStudent && onSelectStudent(item)}
+                        title={`View ${item.studentName}'s profile`}
+                      >
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            {picUrl ? (
+                              <img
+                                src={picUrl}
+                                alt={item.studentName}
+                                className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-gray-200"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0"
+                              style={{ display: picUrl ? 'none' : 'flex' }}
                             >
-                              <Calendar className="w-3.5 h-3.5" /> Reschedule
-                            </button>
-                          )}
+                              {initials}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-900 text-sm leading-tight">{item.studentName}</p>
+                              <p className="text-gray-400 text-xs">{item.studentRegistration}</p>
+                              {item.studentDepartment && <p className="text-gray-400 text-xs">{item.studentDepartment}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4 text-gray-700 text-sm">{formatDateTime(item.scheduledTime)}</td>
+                        <td className="p-4 text-gray-700 text-sm">{formatDateTime(item.endedAt)}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusBadgeClass(item.status)}`}>
+                            {normalizeStatusLabel(item.status)}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-2">
+                            {String(item.status).toLowerCase() === 'didnotappear' && isJobFairDay && (
+                              <button
+                                onClick={() => openScheduleModal(item, 'reschedule')}
+                                className="text-amber-600 hover:text-amber-700 text-xs font-bold border border-amber-200 bg-amber-50 px-2 py-1 rounded inline-flex items-center gap-1"
+                                title="Reschedule this candidate"
+                              >
+                                <Calendar className="w-3.5 h-3.5" /> Reschedule
+                              </button>
+                            )}
 
-                          <button
-                            onClick={() => handleDownloadCv(item)}
-                            disabled={!item.studentCvUrl}
-                            className="text-gray-600 hover:text-indigo-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded inline-flex items-center gap-1 disabled:opacity-50"
-                            title={item.studentCvUrl ? 'Download CV' : 'CV not available'}
-                          >
-                            <Download className="w-3.5 h-3.5" /> CV
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button
+                              onClick={() => handleDownloadCv(item)}
+                              disabled={!item.studentCvUrl}
+                              className="text-gray-600 hover:text-indigo-600 text-xs font-medium border border-gray-200 bg-white px-2 py-1 rounded inline-flex items-center gap-1 disabled:opacity-50"
+                              title={item.studentCvUrl ? 'Download CV' : 'CV not available'}
+                            >
+                              <Download className="w-3.5 h-3.5" /> CV
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
