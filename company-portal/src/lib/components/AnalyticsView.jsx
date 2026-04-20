@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar } from 'lucide-react';
+import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar, Star, XCircle, UserX, ClipboardList } from 'lucide-react';
 import { getAnalytics, scheduleAllInterviews, setWalkInInterviewing } from '../api';
 
 export default function AnalyticsView({ onError, onSuccess, onNavigateToInterviews, attendanceStatus = null }) {
@@ -73,6 +73,12 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
     Math.max((interviews?.acceptedRequestsCount || 0) - (interviews?.scheduledCount || 0), 0);
   const shouldShowScheduleAll = isJobFairDay && unscheduledInterviewsCount > 0;
   const shouldShowWalkInToggle = isJobFairDay || isWalkInInterviewing;
+  // Outcome counts – fall back to zero if not yet returned by backend
+  const completedCount = interviews?.completedCount ?? 0;
+  const shortlistedCount = interviews?.shortlistedCount ?? 0;
+  const hiredCount = interviews?.hiredCount ?? 0;
+  const rejectedCount = interviews?.rejectedCount ?? 0;
+  const didNotAppearCount = interviews?.didNotAppearCount ?? 0;
 
   return (
     <div className="space-y-8 pb-10">
@@ -134,7 +140,7 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
         <StatCard 
           icon={CheckCircle} title="Hired" 
           value={summary.totalHired} 
-          sub="Offers Accepted"
+          sub="Offers accepted"
           color="green" 
         />
         <StatCard 
@@ -143,6 +149,53 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
           sub="Projects Tracked"
           color="orange" 
         />
+      </div>
+
+      {/* Interview Outcomes Row */}
+      <div>
+        <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Interview Outcomes</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <OutcomeCard
+            icon={ClipboardList}
+            label="Completed"
+            value={completedCount}
+            color="slate"
+            onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+            tooltip="Total interviews that have a final outcome (Hired + Rejected + Shortlisted + Did Not Appear)"
+          />
+          <OutcomeCard
+            icon={Star}
+            label="Shortlisted"
+            value={shortlistedCount}
+            color="blue"
+            onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+            tooltip="Candidates currently shortlisted"
+          />
+          <OutcomeCard
+            icon={CheckCircle}
+            label="Hired"
+            value={hiredCount}
+            color="green"
+            onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+            tooltip="Candidates offered a job"
+          />
+          <OutcomeCard
+            icon={XCircle}
+            label="Rejected"
+            value={rejectedCount}
+            color="red"
+            onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+            tooltip="Candidates not selected after interview"
+          />
+          <OutcomeCard
+            icon={UserX}
+            label="Did Not Appear"
+            value={didNotAppearCount}
+            color="amber"
+            onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
+            tooltip="Candidates who accepted but did not appear for the interview"
+          />
+        </div>
       </div>
 
       {/* Main Content Grid */}
@@ -163,8 +216,9 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
               onClick={() => onNavigateToInterviews && onNavigateToInterviews('accepted')}
               className="text-left rounded-xl border border-green-200 bg-green-50 px-4 py-3 hover:bg-green-100"
             >
-              <p className="text-xs text-green-700 font-semibold">Accepted Requests</p>
+              <p className="text-xs text-green-700 font-semibold">Awaiting Interview</p>
               <p className="text-xl font-bold text-green-900">{interviews.acceptedRequestsCount || 0}</p>
+              <p className="text-xs text-green-600 mt-0.5">Accepted &amp; pending</p>
             </button>
             <button
               onClick={() => onNavigateToInterviews && onNavigateToInterviews('pending', 'inbox')}
@@ -230,6 +284,32 @@ function StatCard({ icon: Icon, title, value, sub, color }) {
         <p className="text-xs text-gray-500 mt-1">{sub}</p>
       </div>
     </div>
+  );
+}
+
+function OutcomeCard({ icon: Icon, label, value, color, onClick, tooltip }) {
+  const palettes = {
+    slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-600', text: 'text-slate-900', sub: 'text-slate-500' },
+    blue:  { bg: 'bg-blue-50',  border: 'border-blue-200',  icon: 'bg-blue-100 text-blue-600',  text: 'text-blue-900',  sub: 'text-blue-500'  },
+    green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'bg-green-100 text-green-600', text: 'text-green-900', sub: 'text-green-500' },
+    red:   { bg: 'bg-red-50',   border: 'border-red-200',   icon: 'bg-red-100 text-red-600',   text: 'text-red-900',   sub: 'text-red-500'   },
+    amber: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-600', text: 'text-amber-900', sub: 'text-amber-500' },
+  };
+  const p = palettes[color] || palettes.slate;
+  return (
+    <button
+      onClick={onClick}
+      title={tooltip}
+      className={`flex items-center gap-3 p-4 rounded-xl border ${p.bg} ${p.border} hover:shadow-md transition-shadow text-left w-full`}
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${p.icon}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className={`text-2xl font-bold ${p.text}`}>{value}</p>
+        <p className={`text-xs font-semibold ${p.sub}`}>{label}</p>
+      </div>
+    </button>
   );
 }
 

@@ -1266,6 +1266,48 @@ namespace JobFairPortal.Controllers
 
             var hiringRate = totalStudentsCalled > 0 ? ((double)totalHired / totalStudentsCalled) * 100 : 0;
 
+            // Count completed interview outcomes
+            var totalRejected = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Rejected)
+                .CountAsync();
+
+            var totalDidNotAppear = await _context.Interviews
+                .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.DidNotAppear)
+                .CountAsync();
+
+            // CompletedCount = interviews that have a final outcome (Hired + Rejected + Shortlisted + DidNotAppear)
+            var totalCompleted = totalHired + totalRejected + shortlistedInterviews.Count + totalDidNotAppear;
+
+            // AcceptedRequestsCount should only count accepted requests whose interview is still pending (Queued/InProgress)
+            // i.e. accepted but not yet completed
+            var acceptedAndPendingCount = await _context.InterviewRequests
+                .Where(ir => ir.CompanyId == company.CompanyId
+                    && ir.JobFairId == targetJobFairId.Value
+                    && ir.Status == RequestStatus.Accepted)
+                .Join(
+                    _context.Interviews.Where(i => i.CompanyId == company.CompanyId
+                        && i.JobFairId == targetJobFairId.Value
+                        && (i.Status == InterviewStatus.Queued || i.Status == InterviewStatus.InProgress)),
+                    ir => ir.RequestId,
+                    i => i.RequestId,
+                    (ir, i) => ir.RequestId)
+                .CountAsync();
+
+            // Unscheduled accepted = accepted interviews that haven't been scheduled yet
+            var unscheduledAcceptedCount = await _context.InterviewRequests
+                .Where(ir => ir.CompanyId == company.CompanyId
+                    && ir.JobFairId == targetJobFairId.Value
+                    && ir.Status == RequestStatus.Accepted)
+                .Join(
+                    _context.Interviews.Where(i => i.CompanyId == company.CompanyId
+                        && i.JobFairId == targetJobFairId.Value
+                        && !i.ScheduledTime.HasValue
+                        && (i.Status == InterviewStatus.Queued || i.Status == InterviewStatus.InProgress)),
+                    ir => ir.RequestId,
+                    i => i.RequestId,
+                    (ir, i) => ir.RequestId)
+                .CountAsync();
+
             var analytics = new
             {
                 CompanyId = company.CompanyId,
@@ -1296,13 +1338,17 @@ namespace JobFairPortal.Controllers
                     ScheduledInterviews = scheduledInterviews,
                     TotalStudentsCalled = totalStudentsCalled,
                     HiredCount = totalHired,
+                    RejectedCount = totalRejected,
+                    DidNotAppearCount = totalDidNotAppear,
+                    CompletedCount = totalCompleted,
                     HiringRate = Math.Round(hiringRate, 2) + "%",
+                    // Only requests that still have a pending (not-yet-done) interview
+                    AcceptedRequestsCount = acceptedAndPendingCount,
+                    // All accepted requests (including completed ones) - for reference
+                    TotalAcceptedRequestsCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.Status == RequestStatus.Accepted),
                     RequestsSentCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.RequestedBy == RequestedBy.Company && ir.Status == RequestStatus.Pending),
-                    AcceptedRequestsCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.Status == RequestStatus.Accepted),
                     PendingRequestsCount = company.InterviewRequests.Count(ir => ir.JobFairId == targetJobFairId.Value && ir.Status == RequestStatus.Pending),
-                    RejectedCount = await _context.Interviews
-                        .Where(i => i.CompanyId == company.CompanyId && i.JobFairId == targetJobFairId.Value && i.Status == InterviewStatus.Rejected)
-                        .CountAsync()
+                    UnscheduledAcceptedCount = unscheduledAcceptedCount,
                 },
 
                 // Summary Statistics
@@ -1313,6 +1359,9 @@ namespace JobFairPortal.Controllers
                     TotalScheduledInterviews = scheduledInterviews.Count,
                     TotalStudentsCalled = totalStudentsCalled,
                     TotalHired = totalHired,
+                    TotalRejected = totalRejected,
+                    TotalDidNotAppear = totalDidNotAppear,
+                    TotalCompleted = totalCompleted,
                     HiringRate = Math.Round(hiringRate, 2),
                     ConversionRate = totalStudentsCalled > 0 ? Math.Round(((double)shortlistedInterviews.Count / totalStudentsCalled) * 100, 2) : 0
                 }
