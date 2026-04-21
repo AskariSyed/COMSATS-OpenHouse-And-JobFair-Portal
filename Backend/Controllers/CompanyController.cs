@@ -1992,6 +1992,7 @@ namespace JobFairPortal.Controllers
 
             _context.Interviews.Add(interview);
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // Send FCM notification to student
             if (!string.IsNullOrWhiteSpace(request.Student.FcmToken))
@@ -2070,6 +2071,7 @@ public async Task<IActionResult> RejectInterviewRequest(int requestId, [FromBody
     request.UpdatedAt = DateTime.UtcNow;
 
     await _context.SaveChangesAsync();
+    await NotifyDashboardUpdate();
 
     // Send FCM notification to student
     if (!string.IsNullOrWhiteSpace(request.Student.FcmToken))
@@ -2376,6 +2378,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
 
             _context.InterviewRequests.Add(interviewRequest);
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // Send FCM notification to student
             if (!string.IsNullOrWhiteSpace(student.FcmToken))

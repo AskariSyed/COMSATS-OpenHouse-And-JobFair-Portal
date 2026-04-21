@@ -4,6 +4,8 @@ using JobFairPortal.DTOs;
 using JobFairPortal.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using JobFairPortal.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -16,13 +18,27 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<AttendanceController> _logger;
+        private readonly IHubContext<CompanyRequestsHub> _hubContext;
         private readonly MailKitMailService _mailService;
 
-        public AttendanceController(JobFairRecruitmentDbContext context, ILogger<AttendanceController> logger, MailKitMailService mailService)
+        public AttendanceController(JobFairRecruitmentDbContext context, ILogger<AttendanceController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext)
         {
             _context = context;
             _logger = logger;
             _mailService = mailService;
+            _hubContext = hubContext;
+        }
+
+        private async Task NotifyDashboardUpdate()
+        {
+            try
+            {
+                await _hubContext.Clients.Group("admins").SendAsync("DashboardUpdated");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR dashboard update notification");
+            }
         }
 
         // GET /attendance/scan?token=...
@@ -288,6 +304,7 @@ namespace JobFairPortal.Controllers
                 participation.AttendanceTokenExpiry = null;
 
                 await _context.SaveChangesAsync();
+                await NotifyDashboardUpdate();
 
                 var needsManualRoomAllotment = effectiveRoom == null || effectiveRoom.JobFairId != session.JobFairId;
 
@@ -623,6 +640,7 @@ namespace JobFairPortal.Controllers
                 }
 
                 await _context.SaveChangesAsync();
+                await NotifyDashboardUpdate();
 
                 return Ok(new
                 {
@@ -678,6 +696,7 @@ namespace JobFairPortal.Controllers
                 }
 
                 await _context.SaveChangesAsync();
+                await NotifyDashboardUpdate();
 
                 return Ok(new
                 {

@@ -1,8 +1,10 @@
-﻿using global::JobFairPortal.Data;
+using global::JobFairPortal.Data;
 using JobFairPortal.DTOs;
 using JobFairPortal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using JobFairPortal.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
@@ -16,9 +18,26 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
 
-        public SurveyController(JobFairRecruitmentDbContext context)
+        private readonly ILogger<SurveyController> _logger;
+        private readonly IHubContext<CompanyRequestsHub> _hubContext;
+
+        public SurveyController(JobFairRecruitmentDbContext context, ILogger<SurveyController> logger, IHubContext<CompanyRequestsHub> hubContext)
         {
             _context = context;
+            _logger = logger;
+            _hubContext = hubContext;
+        }
+
+        private async Task NotifyDashboardUpdate()
+        {
+            try
+            {
+                await _hubContext.Clients.Group("admins").SendAsync("DashboardUpdated");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR dashboard update notification");
+            }
         }
          
         public class CompanyFilter
@@ -237,6 +256,7 @@ namespace JobFairPortal.Controllers
 
             _context.Surveys.Add(survey);
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             return Ok(new { Message = "Survey submitted successfully.", survey.SurveyId });
         }
@@ -479,6 +499,7 @@ namespace JobFairPortal.Controllers
                     }
 
                     await tx.CommitAsync();
+                    await NotifyDashboardUpdate();
 
                     return Ok(new
                     {

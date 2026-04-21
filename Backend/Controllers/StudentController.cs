@@ -5,6 +5,8 @@ using JobFairPortal.Models;
 using JobFairPortal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using JobFairPortal.Hubs;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Claims;
@@ -21,19 +23,31 @@ namespace JobFairPortal.Controllers
     {
         private readonly JobFairRecruitmentDbContext _context;
         private readonly ILogger<StudentController> _logger;
+        private readonly IHubContext<CompanyRequestsHub> _hubContext;
         private readonly MailKitMailService _mailService;
         private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
         private static readonly TimeSpan InterviewCutoffLocal = TimeSpan.FromHours(16.5);
         private static readonly TimeSpan WalkInStartLocal = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan WalkInEndLocal = new TimeSpan(16, 30, 0);
 
-
-
-        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger, MailKitMailService mailService)
+        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext)
         {
             _context = context;
             _logger = logger;
             _mailService = mailService;
+            _hubContext = hubContext;
+        }
+
+        private async Task NotifyDashboardUpdate()
+        {
+            try
+            {
+                await _hubContext.Clients.Group("admins").SendAsync("DashboardUpdated");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR dashboard update notification");
+            }
         }
 
         [HttpDelete("interview-requests/{requestId}")]
@@ -63,6 +77,7 @@ namespace JobFairPortal.Controllers
 
             _context.InterviewRequests.Remove(interviewRequest);
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // Send FCM notification to company when student withdraws
             if (!string.IsNullOrWhiteSpace(interviewRequest.Company?.FcmToken))
@@ -140,6 +155,7 @@ namespace JobFairPortal.Controllers
             interviewRequest.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // Null-safe notification send
             var company = interviewRequest.Company;
@@ -217,6 +233,7 @@ namespace JobFairPortal.Controllers
             interviewRequest.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // Send FCM notification to company when student rejects
             if (!string.IsNullOrWhiteSpace(interviewRequest.Company.FcmToken))
@@ -2694,6 +2711,7 @@ namespace JobFairPortal.Controllers
 
             _context.InterviewRequests.Add(interviewRequest);
             await _context.SaveChangesAsync();
+            await NotifyDashboardUpdate();
 
             // FCM Notification
             if (!string.IsNullOrWhiteSpace(companyParticipation.Company.FcmToken))
