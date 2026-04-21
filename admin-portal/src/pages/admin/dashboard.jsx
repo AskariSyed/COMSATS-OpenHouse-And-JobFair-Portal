@@ -1,28 +1,28 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, 
-  Building2, 
-  DoorOpen, 
-  Trophy, 
-  FileText, 
-  TrendingUp, 
+import {
+  Users,
+  Building2,
+  DoorOpen,
+  Trophy,
+  FileText,
+  TrendingUp,
   UserCheck,
   Maximize,
   Minimize
 } from 'lucide-react';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip, 
-  Legend, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
   CartesianGrid,
   LabelList
 } from 'recharts';
@@ -30,11 +30,12 @@ import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { BACKEND_URL } from '../../lib/api';
 import logoImg from '../../assets/LogoWithoutBg.png';
 
+
 // ----------------------------------
 // Helper Component: Stat Card
 // ----------------------------------
 const StatCard = ({ title, value, icon: Icon, color, bgColor, onClick }) => (
-  <div 
+  <div
     onClick={onClick}
     className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
   >
@@ -135,14 +136,14 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    
+
     // Polling as a fallback (only when not presenting)
     const interval = setInterval(() => {
       if (!isPresenting) {
         fetchDashboardData(true);
       }
     }, 120000); // 2 minutes fallback
-    
+
     return () => clearInterval(interval);
   }, [isPresenting]);
 
@@ -197,20 +198,20 @@ const Dashboard = () => {
     ? stats.topRequestedCandidates
     : (stats?.topRequestedCandidateId
       ? [{
-          studentId: stats.topRequestedCandidateId,
-          candidateName: stats.topRequestedCandidateName,
-          count: stats.topRequestedCandidateRequestCount,
-        }]
+        studentId: stats.topRequestedCandidateId,
+        candidateName: stats.topRequestedCandidateName,
+        count: stats.topRequestedCandidateRequestCount,
+      }]
       : []);
 
   const topHiredCandidates = stats?.topHiredCandidates?.length
     ? stats.topHiredCandidates
     : (stats?.topHiredCandidateId
       ? [{
-          studentId: stats.topHiredCandidateId,
-          candidateName: stats.topHiredCandidateName,
-          count: stats.topHiredCandidateHireCount,
-        }]
+        studentId: stats.topHiredCandidateId,
+        candidateName: stats.topHiredCandidateName,
+        count: stats.topHiredCandidateHireCount,
+      }]
       : []);
 
   const recruitmentHasData = (stats?.studentsHired || 0) + (stats?.studentsShortlisted || 0) > 0;
@@ -219,22 +220,21 @@ const Dashboard = () => {
     : [{ name: 'No Data', value: 1 }];
 
   return (
-    <div 
+    <div
       ref={dashboardRef}
-      className={`w-full max-w-full animate-fade-in ${
-        isPresenting 
-          ? 'h-screen w-screen bg-gray-50 flex flex-col p-4 gap-2 overflow-hidden text-sm' 
-          : 'space-y-4 pb-2 overflow-x-hidden'
-      }`}
+      className={`w-full max-w-full animate-fade-in ${isPresenting
+        ? 'h-screen w-screen bg-gray-50 flex flex-col p-4 gap-2 overflow-hidden text-sm'
+        : 'space-y-4 pb-2 overflow-x-hidden'
+        }`}
     >
-      
+
       {/* 1. Header */}
       <div className={`flex justify-between items-end ${isPresenting ? 'flex-shrink-0 mb-1 pb-0' : ''}`}>
         <div className="flex items-center gap-6">
           {isPresenting && (
-            <img 
-              src={logoImg} 
-              alt="Logo" 
+            <img
+              src={logoImg}
+              alt="Logo"
               className="w-16 h-16 object-contain"
             />
           )}
@@ -248,13 +248,12 @@ const Dashboard = () => {
             {!isPresenting && <p className="text-gray-500 text-sm mt-1">Overview of the current Job Fair statistics and activities.</p>}
           </div>
         </div>
-        <button 
-          onClick={togglePresentationMode} 
-          className={`p-2 rounded-lg flex items-center gap-2 font-medium transition-all ${
-            isPresenting 
-              ? 'bg-white border border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm' 
-              : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-          }`}
+        <button
+          onClick={togglePresentationMode}
+          className={`p-2 rounded-lg flex items-center gap-2 font-medium transition-all ${isPresenting
+            ? 'bg-white border border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-200 shadow-sm'
+            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+            }`}
           title={isPresenting ? "Exit Presentation Mode (ESC)" : "Enter Presentation Mode"}
         >
           {isPresenting ? <><Minimize className="w-5 h-5" /> <span className="hidden sm:inline">Exit Presentation</span></> : <><Maximize className="w-5 h-5" /> <span className="hidden sm:inline">Presentation Mode</span></>}
@@ -264,7 +263,7 @@ const Dashboard = () => {
       {/* Presentation Mode Content (Stats Row + 3-Column Charts) */}
       {isPresenting ? (
         <div className="flex-1 min-h-0 flex flex-col gap-4 pb-2">
-          
+
           {/* Top Row: Key Statistics */}
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-around flex-shrink-0">
             <div className="flex items-center gap-4">
@@ -330,20 +329,20 @@ const Dashboard = () => {
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '12px', fontSize: '12px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <div className="bg-slate-50 p-1.5 rounded-lg text-center">
-                <p className="text-[9px] font-bold text-gray-400 uppercase">Accepted</p>
-                <p className="text-sm font-black text-emerald-600">{acceptedRequests || 0}</p>
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="bg-slate-50 p-1.5 rounded-lg text-center">
-                <p className="text-[9px] font-bold text-gray-400 uppercase">Pending/Denied</p>
-                <p className="text-sm font-black text-rose-600">{notAcceptedRequests || 0}</p>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div className="bg-slate-50 p-1.5 rounded-lg text-center">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Accepted</p>
+                  <p className="text-sm font-black text-emerald-600">{acceptedRequests || 0}</p>
+                </div>
+                <div className="bg-slate-50 p-1.5 rounded-lg text-center">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Pending/Denied</p>
+                  <p className="text-sm font-black text-rose-600">{notAcceptedRequests || 0}</p>
+                </div>
               </div>
             </div>
-          </div>
 
             {/* Box 2: Interview Stage Snapshot */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
@@ -362,9 +361,9 @@ const Dashboard = () => {
                       tick={{ fontSize: 11, fontWeight: 700, fill: '#1E293B' }}
                       height={40}
                     />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
                       tick={{ fontSize: 10, fontWeight: 700, fill: '#1E293B' }}
                       allowDecimals={false}
                     />
@@ -373,10 +372,10 @@ const Dashboard = () => {
                       {interviewStageData.map((entry, index) => (
                         <Cell key={`stage-cell-${index}`} fill={entry.color} />
                       ))}
-                      <LabelList 
-                        dataKey="count" 
-                        position="top" 
-                        style={{ fontSize: 13, fontWeight: 800, fill: '#1E293B' }} 
+                      <LabelList
+                        dataKey="count"
+                        position="top"
+                        style={{ fontSize: 13, fontWeight: 800, fill: '#1E293B' }}
                       />
                     </Bar>
                   </BarChart>
@@ -432,41 +431,41 @@ const Dashboard = () => {
         <>
           {/* Standard Mode Content */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard 
-              title="Total Students" 
-              value={stats?.totalStudents} 
-              icon={Users} 
-              color="text-blue-600" 
+            <StatCard
+              title="Total Students"
+              value={stats?.totalStudents}
+              icon={Users}
+              color="text-blue-600"
               bgColor="bg-blue-50"
               onClick={() => navigate('/admin/students')}
             />
-            <StatCard 
-              title="Companies (Total / Present)" 
+            <StatCard
+              title="Companies (Total / Present)"
               value={
                 <div className="flex items-baseline gap-2">
                   <span>{stats?.totalCompanies || 0}</span>
                   <span className="text-sm font-medium text-gray-500">/ {stats?.presentCompanies || 0}</span>
                 </div>
-              } 
-              icon={Building2} 
-              color="text-purple-600" 
+              }
+              icon={Building2}
+              color="text-purple-600"
               bgColor="bg-purple-50"
               onClick={() => navigate('/admin/companies')}
             />
-            <StatCard 
-              title="Total Rooms" 
-              value={stats?.totalRooms} 
-              icon={DoorOpen} 
-              color="text-orange-600" 
+            <StatCard
+              title="Total Rooms"
+              value={stats?.totalRooms}
+              icon={DoorOpen}
+              color="text-orange-600"
               bgColor="bg-orange-50"
               onClick={() => navigate('/admin/rooms')}
             />
-            <StatCard 
-              title="Success Rate (Hired)" 
-              value={stats?.studentsHired} 
-              icon={Trophy} 
-              color="text-emerald-600" 
-              bgColor="bg-emerald-50" 
+            <StatCard
+              title="Success Rate (Hired)"
+              value={stats?.studentsHired}
+              icon={Trophy}
+              color="text-emerald-600"
+              bgColor="bg-emerald-50"
             />
           </div>
 
@@ -564,7 +563,7 @@ const Dashboard = () => {
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -586,15 +585,15 @@ const Dashboard = () => {
             {/* Survey Feedback (Bar Chart or List) */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col p-4">
               <h3 className="text-base font-bold text-gray-800 mb-2">Feedback Received</h3>
-              
+
               {/* Small Bar Chart for Surveys */}
               <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={surveyData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" tick={{fontSize: 12}} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip cursor={{fill: '#f3f4f6'}} contentStyle={{ borderRadius: '8px' }} />
+                    <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px' }} />
                     <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
