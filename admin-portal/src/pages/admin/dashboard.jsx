@@ -26,7 +26,7 @@ import {
   CartesianGrid,
   LabelList
 } from 'recharts';
-import { HubConnectionBuilder } from '@microsoft/signalr';
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api, { BACKEND_URL } from '../../lib/api';
 import logoImg from '../../assets/LogoWithoutBg.png';
 
@@ -107,6 +107,7 @@ const Dashboard = () => {
           accessTokenFactory: () => token
         })
         .withAutomaticReconnect()
+        .configureLogging(LogLevel.Debug)
         .build();
 
       connection.on('DashboardUpdated', () => {
