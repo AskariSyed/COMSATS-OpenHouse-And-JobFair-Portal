@@ -63,15 +63,21 @@ const Dashboard = () => {
   const [hubConnection, setHubConnection] = useState(null);
 
   const togglePresentationMode = async () => {
-    if (!document.fullscreenElement) {
+    if (!isPresenting) {
       try {
         await dashboardRef.current?.requestFullscreen();
       } catch (err) {
-        console.error("Error attempting to enable fullscreen:", err);
+        console.warn("Fullscreen request denied, enabling presentation mode UI anyway:", err);
       }
+      setIsPresenting(true);
     } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
+      setIsPresenting(false);
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch (err) {
+          console.error("Error exiting fullscreen:", err);
+        }
       }
     }
   };
@@ -100,7 +106,7 @@ const Dashboard = () => {
   // SignalR Connection for Real-time Presentation Mode
   useEffect(() => {
     if (isPresenting) {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('token');
       if (!token) return;
 
       const connection = new HubConnectionBuilder()
