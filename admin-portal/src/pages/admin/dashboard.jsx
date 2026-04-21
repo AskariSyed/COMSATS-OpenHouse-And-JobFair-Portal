@@ -63,19 +63,38 @@ const Dashboard = () => {
   
   const [hubConnection, setHubConnection] = useState(null);
 
-  const togglePresentationMode = async () => {
+  const togglePresentationMode = () => {
     if (!isPresenting) {
-      try {
-        await dashboardRef.current?.requestFullscreen();
-      } catch (err) {
-        console.warn("Fullscreen request denied, enabling presentation mode UI anyway:", err);
+      const elem = dashboardRef.current || document.documentElement;
+      
+      const requestMethod = elem.requestFullscreen || 
+                            elem.webkitRequestFullscreen || 
+                            elem.webkitRequestFullScreen || 
+                            elem.mozRequestFullScreen || 
+                            elem.msRequestFullscreen;
+
+      if (requestMethod) {
+        try {
+          const promise = requestMethod.call(elem);
+          if (promise && promise.catch) {
+            promise.catch(err => {
+              console.warn("Fullscreen request denied:", err);
+            });
+          }
+        } catch (err) {
+          console.warn("Fullscreen error:", err);
+        }
       }
       setIsPresenting(true);
     } else {
       setIsPresenting(false);
-      if (document.fullscreenElement) {
+      const exitMethod = document.exitFullscreen || 
+                         document.webkitExitFullscreen || 
+                         document.mozCancelFullScreen || 
+                         document.msExitFullscreen;
+      if (exitMethod) {
         try {
-          await document.exitFullscreen();
+          exitMethod.call(document);
         } catch (err) {
           console.error("Error exiting fullscreen:", err);
         }
