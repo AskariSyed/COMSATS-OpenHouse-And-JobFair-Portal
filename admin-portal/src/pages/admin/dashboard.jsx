@@ -27,7 +27,8 @@ import {
   LabelList
 } from 'recharts';
 import { HubConnectionBuilder } from '@microsoft/signalr';
-import api from '../../lib/api';
+import api, { BACKEND_URL } from '../../lib/api';
+import logoImg from '../../assets/LogoWithoutBg.png';
 
 // ----------------------------------
 // Helper Component: Stat Card
@@ -102,7 +103,7 @@ const Dashboard = () => {
       if (!token) return;
 
       const connection = new HubConnectionBuilder()
-        .withUrl(`${import.meta.env.VITE_API_BASE_URL}/hubs/companyRequests`, {
+        .withUrl(`${BACKEND_URL || ''}/hubs/companyRequests`, {
           accessTokenFactory: () => token
         })
         .withAutomaticReconnect()
@@ -231,7 +232,7 @@ const Dashboard = () => {
         <div className="flex items-center gap-6">
           {isPresenting && (
             <img 
-              src="/src/assets/LogoWithoutBg.png" 
+              src={logoImg} 
               alt="Logo" 
               className="w-16 h-16 object-contain"
             />

@@ -59,11 +59,7 @@ export default function FYPExplorer({ onSelectProject, onError, jobFairId }) {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex justify-between items-end mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Final Year Projects</h2>
-          <p className="text-gray-500 text-sm">Discover innovative projects built by graduating students</p>
-        </div>
+      <div className="flex justify-end mb-3">
         <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
           {projects.length} / {totalCount} Projects
         </span>
