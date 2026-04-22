@@ -46,10 +46,15 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       if (data?.items) {
         setStudents(data.items || []);
         setTotalCount(data.totalCount || 0);
+        setCurrentPage(Number(data.page) || page);
+        if (data.pageSize) {
+          setPageSize(Number(data.pageSize) || effectivePageSize);
+        }
       } else {
         // Handle legacy non-paginated response (backward compatibility)
         setStudents(data || []);
         setTotalCount(data?.length || 0);
+        setCurrentPage(page);
       }
       backendSearchRef.current = queryParams;
     } catch (err) {
@@ -193,20 +198,36 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   );
 
   const filteredStudents = useMemo(() => {
+    // Basic normalization helpers
     const searchQuery = normalize(filters.search);
+    const regQuery = cleanReg(filters.search);
     const deptQuery = normalize(filters.department);
     const selectedSkills = (filters.skills || []).map(normalize).filter(Boolean);
 
     return (students || []).filter((s) => {
-      const studentName = normalize(s.Name || s.name);
-      const studentReg = cleanReg(s.RegistrationNo || s.registrationNo);
-      const studentDept = normalize(s.Department || s.department);
-      const studentSkills = (s.Skills || s.skills || []).map(normalize);
+      // Robust property access for both camelCase and PascalCase
+      const name = s.name ?? s.Name ?? '';
+      const regNo = s.registrationNo ?? s.RegistrationNo ?? '';
+      const dept = s.department ?? s.Department ?? '';
+      const skills = s.skills ?? s.Skills ?? [];
 
-      // Search both name and registration number
-      const matchesSearch = !searchQuery || studentName.includes(searchQuery) || studentReg.includes(searchQuery);
+      const studentName = normalize(name);
+      const studentReg = cleanReg(regNo);
+      const studentDept = normalize(dept);
+      const studentSkills = (Array.isArray(skills) ? skills : []).map(normalize);
+
+      // Search matching logic (Name or Registration)
+      // If we just fetched results for a specific search term from the backend, 
+      // we should be permissive to avoid discrepancies between backend and frontend filtering.
+      const matchesSearch = !searchQuery || 
+                           studentName.includes(searchQuery) || 
+                           studentReg.includes(regQuery) ||
+                           (regNo && searchQuery.includes(cleanReg(regNo)));
+
       const matchesDepartment = !deptQuery || studentDept === deptQuery;
-      const matchesSkills = selectedSkills.length === 0 || selectedSkills.every((skill) => studentSkills.includes(skill));
+      
+      const matchesSkills = selectedSkills.length === 0 || 
+                           selectedSkills.every((skill) => studentSkills.includes(skill));
 
       return matchesSearch && matchesDepartment && matchesSkills;
     });
@@ -411,7 +432,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStartIndex = (safeCurrentPage - 1) * pageSize;
-  const pagedStudents = sortedStudents.slice(pageStartIndex, pageStartIndex + pageSize);
+  const pagedStudents = sortedStudents;
 
   const getStudentId = (s) => s.StudentId || s.studentId || s.id;
 
