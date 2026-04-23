@@ -2,7 +2,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock } from 'lucide-react';
+import { Building2, MapPin, Globe, Phone, Mail, User, Edit2, Plus, Trash2, Briefcase, Users, CheckCircle, Link as LinkIcon, X, Loader2, Save, Clock, Linkedin, Github, Facebook, Instagram, Twitter } from 'lucide-react';
 import { getCompanyProfile, updateCompanyProfile, createJob, updateJob, deleteJob, addContactLink, deleteContactLink, getFileUrl, confirmAttendance, getConfirmationStatus, changePassword, getCompanyHistoricalAnalytics, copyJobToCurrentJobFair } from '../api';
 import { allSkillsList } from '../../data/skills';
 
@@ -282,11 +282,44 @@ export default function CompanyProfile({ onError, onSuccess, onProfileCompletion
                <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4 text-blue-500"/> {profile.industry}</span>
                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-blue-500"/> {profile.address}</span>
                {profile.website && (
-                 <a href={profile.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:underline">
-                   <Globe className="w-4 h-4"/> Website
-                 </a>
-               )}
-             </div>
+                  <a href={profile.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:underline">
+                    <Globe className="w-4 h-4"/> Website
+                  </a>
+                )}
+                
+                {/* Social Links as Icons */}
+                <div className="flex items-center gap-3 border-l pl-4 border-gray-200">
+                  {profile.socialLinks.map(link => {
+                    const platform = String(link.platform).toLowerCase();
+                    const url = link.url;
+                    return (
+                      <div key={link.linkId} className="flex items-center group/link relative">
+                        <a 
+                          href={url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-gray-400 hover:text-blue-600 transition-all hover:scale-110"
+                          title={link.platform}
+                        >
+                          {platform.includes('linkedin') && <Linkedin className="w-4 h-4" />}
+                          {platform.includes('github') && <Github className="w-4 h-4" />}
+                          {platform.includes('facebook') && <Facebook className="w-4 h-4" />}
+                          {platform.includes('instagram') && <Instagram className="w-4 h-4" />}
+                          {platform.includes('twitter') && <Twitter className="w-4 h-4" />}
+                          {(!platform.includes('linkedin') && !platform.includes('github') && !platform.includes('facebook') && !platform.includes('instagram') && !platform.includes('twitter')) && <LinkIcon className="w-4 h-4" />}
+                        </a>
+                        <button 
+                          onClick={() => handleLinkDelete(link.linkId)} 
+                          className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-gray-100 text-gray-400 hover:text-red-500 opacity-0 group-hover/link:opacity-100 transition-opacity"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <AddLinkButton onAdd={async (link) => { try { await addContactLink(link); setRefreshKey(k=>k+1); } catch(e){ onError(e.message); } }} />
+                </div>
+              </div>
                {profile.description && (
                  <p className="mt-2 text-sm text-gray-600 max-w-2xl">{profile.description}</p>
                )}
@@ -435,23 +468,7 @@ export default function CompanyProfile({ onError, onSuccess, onProfileCompletion
                 </div>
             </div>
 
-            {/* Social Links */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
-                    <h3 className="font-bold text-gray-900 flex items-center gap-2"><LinkIcon className="w-5 h-5 text-blue-600"/> Social Links</h3>
-                    <AddLinkButton onAdd={async (link) => { try { await addContactLink(link); setRefreshKey(k=>k+1); } catch(e){ onError(e.message); } }} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {profile.socialLinks.map(link => (
-                        <div key={link.linkId} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-colors hover:bg-gray-100">
-                            <Globe className="w-3 h-3 text-gray-400"/>
-                            <a href={link.url} target="_blank" rel="noreferrer" className="hover:text-blue-600 font-medium text-gray-700">{link.platform}</a>
-                            <button onClick={() => handleLinkDelete(link.linkId)} className="text-gray-400 hover:text-red-500 ml-1"><X className="w-3 h-3"/></button>
-                        </div>
-                    ))}
-                    {profile.socialLinks.length === 0 && <p className="text-sm text-gray-400 italic">No links added.</p>}
-                </div>
-            </div>
+
         </div>
 
         {/* --- RIGHT COLUMN: JOBS --- */}
@@ -664,11 +681,15 @@ function AddLinkButton({ onAdd }) {
     if(data.url) { onAdd(data); setIsOpen(false); setData({ platform: 0, url: '' }); }
   };
 
-  if(!isOpen) return <button onClick={() => setIsOpen(true)} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-lg font-bold hover:bg-blue-100 transition-colors flex items-center gap-1"><Plus className="w-3 h-3"/> Add Link</button>;
+  if(!isOpen) return <button onClick={() => setIsOpen(true)} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100 transition-colors flex items-center gap-1.5"><Plus className="w-3.5 h-3.5"/> Add Link</button>;
 
   return (
-    <div className="flex items-center gap-2 animate-fade-in bg-white border border-gray-200 rounded-lg p-1.5 absolute right-6 z-10 shadow-xl">
-       <select className="text-xs border border-gray-300 rounded p-1.5 outline-none focus:border-blue-500 bg-white" value={data.platform} onChange={e => setData({...data, platform: parseInt(e.target.value)})}>
+    <div className="flex items-center gap-2 animate-fade-in bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-inner">
+       <select 
+         className="text-[11px] border border-slate-200 rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white font-semibold text-slate-700" 
+         value={data.platform} 
+         onChange={e => setData({...data, platform: parseInt(e.target.value)})}
+       >
          <option value={0}>LinkedIn</option>
          <option value={1}>Website</option>
          <option value={2}>Twitter</option>
@@ -676,9 +697,28 @@ function AddLinkButton({ onAdd }) {
          <option value={4}>Instagram</option>
          <option value={5}>Other</option>
        </select>
-       <input className="text-xs border border-gray-300 rounded p-1.5 w-32 outline-none focus:border-blue-500" placeholder="https://..." value={data.url} onChange={e => setData({...data, url: e.target.value})} />
-       <button onClick={handleSubmit} className="bg-green-500 text-white p-1.5 rounded hover:bg-green-600"><CheckCircle className="w-3 h-3"/></button>
-       <button onClick={() => setIsOpen(false)} className="text-red-400 hover:text-red-600 p-1"><X className="w-3 h-3"/></button>
+       <input 
+         className="text-[11px] border border-slate-200 rounded-lg p-1.5 w-40 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white" 
+         placeholder="Enter URL..." 
+         value={data.url} 
+         onChange={e => setData({...data, url: e.target.value})} 
+       />
+       <div className="flex items-center gap-1 pl-1 border-l border-slate-200 ml-1">
+         <button 
+           onClick={handleSubmit} 
+           title="Save Link"
+           className="bg-emerald-500 text-white p-1.5 rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
+         >
+           <CheckCircle className="w-3.5 h-3.5"/>
+         </button>
+         <button 
+           onClick={() => setIsOpen(false)} 
+           title="Cancel"
+           className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+         >
+           <X className="w-3.5 h-3.5"/>
+         </button>
+       </div>
     </div>
   );
 }

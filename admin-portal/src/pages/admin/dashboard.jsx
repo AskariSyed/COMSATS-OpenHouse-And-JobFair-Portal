@@ -377,14 +377,16 @@ const Dashboard = () => {
               </div>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={interviewStageData} margin={{ left: -20, bottom: 10, top: 20 }}>
+                  <BarChart data={interviewStageData} margin={{ left: -20, bottom: 40, top: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                     <XAxis
                       dataKey="name"
                       axisLine={false}
                       tickLine={false}
+                      angle={-30}
+                      textAnchor="end"
                       tick={{ fontSize: 11, fontWeight: 700, fill: '#1E293B' }}
-                      height={40}
+                      height={60}
                     />
                     <YAxis
                       axisLine={false}
