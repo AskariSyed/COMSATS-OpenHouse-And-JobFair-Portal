@@ -156,9 +156,7 @@ export default function FYPExplorer({ onSelectProject, onError, jobFairId }) {
                   <Code2 className="w-12 h-12 opacity-20" />
                 </div>
               )}
-              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur text-xs font-bold px-2 py-1 rounded shadow-sm">
-                {project.type || 'FYP'}
-              </div>
+
             </div>
 
             <div className="p-4 flex-1 flex flex-col">

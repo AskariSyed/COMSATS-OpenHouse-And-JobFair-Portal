@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import FYPExplorer from '../../lib/components/FYPExplorer';
 import FYPDetails from '../../lib/components/FYPDetails';
 import { getAllJobFairs } from '../../lib/api';
 
 export default function FYPDirectory() {
+  const navigate = useNavigate();
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [jobFairs, setJobFairs] = useState([]);
   const [selectedJobFairId, setSelectedJobFairId] = useState('');
@@ -70,6 +72,7 @@ export default function FYPDirectory() {
           <FYPDetails 
             projectId={selectedProjectId} 
             onBack={() => setSelectedProjectId(null)} 
+            onSelectStudent={(student) => navigate(`/admin/students/${student.studentId}`)}
             onError={handleError} 
           />
         ) : (

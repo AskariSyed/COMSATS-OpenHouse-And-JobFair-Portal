@@ -10,7 +10,7 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
   useEffect(() => {
     // Hits the 'full-details' endpoint
     getProjectDetails(projectId)
-      .then(data => setProject(data.project))
+      .then(data => setProject(data))
       .catch(err => onError(err.message))
       .finally(() => setLoading(false));
   }, [projectId, onError]);
@@ -36,9 +36,7 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
         <div className="flex-1">
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
             <h1 className="text-2xl font-bold text-gray-900 leading-tight">{project.title}</h1>
-            <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wide w-fit">
-              {project.type}
-            </span>
+
             {projectGithubUrl && (
               <a
                 href={projectGithubUrl}
@@ -108,12 +106,12 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
                   return (
                   <div key={student.studentId} onClick={() => onSelectStudent(student)} className="bg-white p-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group flex items-start gap-3">
                     <div className="w-10 h-10 min-w-[2.5rem] bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200">
-                       {student.profilePicUrl ? <img src={getFileUrl(student.profilePicUrl)} alt="" className="w-full h-full object-cover" /> : <span>{student.fullName?.charAt(0)}</span>}
+                       {student.profilePicUrl ? <img src={getFileUrl(student.profilePicUrl)} alt="" className="w-full h-full object-cover" /> : <span>{(student.fullName || student.name)?.charAt(0)}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start gap-2">
                         {/* Note: Controller uses 'fullName' now */}
-                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-blue-600 truncate pr-2">{student.fullName}</h4>
+                        <h4 className="font-bold text-gray-800 text-sm group-hover:text-blue-600 truncate pr-2">{student.fullName || student.name}</h4>
                         <div className="flex items-center gap-1">
                           {studentGithubUrl && (
                             <a
