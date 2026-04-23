@@ -102,8 +102,7 @@ namespace JobFairPortal.Services
                     .Replace('/', '_');
 
                 participation.AttendanceToken = token;
-                // Set expiry to the end of jobfair day in UTC (you may adjust timezone if needed)
-                var dayEnd = activeJobFair.date.Date.AddDays(1).AddTicks(-1); // end of day
+                var dayEnd = activeJobFair.date.Date.AddDays(1).AddTicks(-1); 
                 participation.AttendanceTokenExpiry = dayEnd;
 
 

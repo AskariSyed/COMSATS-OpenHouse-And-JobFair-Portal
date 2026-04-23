@@ -3709,10 +3709,6 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
             }
         }
 
-        public class ParticipateActiveJobFairDto
-        {
-            public int? RepsCount { get; set; }
-        }
         [Authorize(Roles = "Company")]
         [HttpPost("interviews/schedule")]
         public async Task<IActionResult> OptimizeJobFairSchedule([FromQuery] DateTime? date = null)
@@ -3769,13 +3765,11 @@ public async Task<IActionResult> ExportFinalYearProjectDetails(int projectId, [F
 
             var scheduleDate = (requestedStartTimeUtc ?? activeJobFair.date).Date;
 
-            // Boundaries (kept simple — adjust timezone handling as needed)
             var buffer = TimeSpan.FromSeconds(90);
             var nowUtc = DateTime.UtcNow;
             var (dayStart, hardStop, dayEndExclusive) = GetWorkingWindowUtc(scheduleDate);
             var (lunchStart, lunchEnd) = GetLunchBreakWindowUtc(scheduleDate);
             
-            // Respect custom start time if provided.
             var defaultStartTime = nowUtc > dayStart ? nowUtc : dayStart;
             var startTime = requestedStartTimeUtc ?? defaultStartTime;
             string? startTimeAdjustmentReason = null;

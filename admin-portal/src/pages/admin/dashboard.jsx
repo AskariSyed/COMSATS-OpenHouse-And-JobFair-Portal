@@ -60,7 +60,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isPresenting, setIsPresenting] = useState(false);
   const dashboardRef = useRef(null);
-  c
   const [hubConnection, setHubConnection] = useState(null);
 
   const togglePresentationMode = () => {
