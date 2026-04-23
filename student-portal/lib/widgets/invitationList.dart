@@ -71,17 +71,31 @@ class InvitationsList extends StatelessWidget {
                       children: [
                         TextButton(
                           onPressed: () async {
-                            bool success = await provider.respondToInvitation(
-                              invite.id,
-                              false,
-                            );
-                            if (success && context.mounted) {
-                              showTopSnackBar(
-                                Overlay.of(context),
-                                const CustomSnackBar.info(
-                                  message: "Invitation Rejected",
-                                ),
+                            try {
+                              bool success = await provider.respondToInvitation(
+                                invite.id,
+                                false,
                               );
+                              if (success && context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  const CustomSnackBar.info(
+                                    message: "Invitation Rejected",
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  CustomSnackBar.error(
+                                    message: e.toString().replaceFirst(
+                                      'Exception: ',
+                                      '',
+                                    ),
+                                  ),
+                                );
+                              }
                             }
                           },
                           child: const Text(
@@ -92,17 +106,31 @@ class InvitationsList extends StatelessWidget {
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: () async {
-                            bool success = await provider.respondToInvitation(
-                              invite.id,
-                              true,
-                            );
-                            if (success && context.mounted) {
-                              showTopSnackBar(
-                                Overlay.of(context),
-                                const CustomSnackBar.success(
-                                  message: "Joined Project!",
-                                ),
+                            try {
+                              bool success = await provider.respondToInvitation(
+                                invite.id,
+                                true,
                               );
+                              if (success && context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  const CustomSnackBar.success(
+                                    message: "Joined Project!",
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  CustomSnackBar.error(
+                                    message: e.toString().replaceFirst(
+                                      'Exception: ',
+                                      '',
+                                    ),
+                                  ),
+                                );
+                              }
                             }
                           },
                           style: ElevatedButton.styleFrom(

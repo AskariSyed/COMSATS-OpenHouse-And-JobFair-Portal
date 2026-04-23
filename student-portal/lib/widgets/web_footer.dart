@@ -25,10 +25,7 @@ class _WebFooterState extends State<WebFooter> {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
       setState(() {
-        _versionLabel =
-            info.buildNumber.isNotEmpty
-            ? 'Version ${info.version}+${info.buildNumber}'
-            : 'Version ${info.version}';
+        _versionLabel = 'Version ${info.version}';
       });
     } catch (_) {
       // Keep a graceful fallback when package info cannot be read.

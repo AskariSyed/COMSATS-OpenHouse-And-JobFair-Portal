@@ -67,7 +67,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProfileData();
     });
-    Provider.of<StudentProvider>(context, listen: false).fetchInvitations();
+    final provider = Provider.of<StudentProvider>(context, listen: false);
+    provider.fetchInvitations();
+    provider.fetchIncomingJoinRequests();
   }
 
   Future<void> _loadProfileData() async {

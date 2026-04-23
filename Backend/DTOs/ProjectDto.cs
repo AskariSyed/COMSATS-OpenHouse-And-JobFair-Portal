@@ -30,6 +30,13 @@ namespace JobFairPortal.DTOs
         [Required]
         public string RegistrationNumber { get; set; } = null!;
     }
+
+    public class FypJoinRequestDto
+    {
+        [Required]
+        public string RegistrationNumber { get; set; } = null!;
+    }
+
     public class ProjectListDto
     {
         public int ProjectId { get; set; }

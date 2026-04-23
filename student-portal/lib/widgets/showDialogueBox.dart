@@ -956,6 +956,171 @@ void confirmLeaveProject(int projectId, BuildContext context) {
   );
 }
 
+void showRequestJoinFypDialog(BuildContext context) {
+  final provider = Provider.of<StudentProvider>(context, listen: false);
+  final regNoCtrl = TextEditingController();
+
+  bool lookupInProgress = false;
+  bool partnerFound = false;
+  bool partnerHasFyp = false;
+  String? validatedRegNo;
+  String? statusMessage;
+  final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
+
+  showGenericDialog(
+    context: context,
+    title: "Request To Join FYP",
+    successMessage: "Sent Successfully!",
+    content: StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> validateRegNo(String rawRegNo) async {
+          final normalized = rawRegNo.trim().toUpperCase();
+
+          setState(() {
+            lookupInProgress = true;
+            partnerFound = false;
+            partnerHasFyp = false;
+            validatedRegNo = null;
+            statusMessage = "Checking student in portal...";
+          });
+
+          try {
+            final result = await provider.lookupProjectPartnerByRegistration(
+              normalized,
+            );
+
+            if (regNoCtrl.text.trim().toUpperCase() != normalized) return;
+
+            final isAvailable =
+                (result['IsAvailable'] ?? result['isAvailable'] ?? false) ==
+                true;
+            final hasFyp =
+                (result['HasFinalYearProject'] ??
+                    result['hasFinalYearProject'] ??
+                    false) ==
+                true;
+            final fullName = (result['FullName'] ?? result['fullName'] ?? '')
+                .toString()
+                .trim();
+
+            setState(() {
+              lookupInProgress = false;
+              partnerFound = isAvailable;
+              partnerHasFyp = hasFyp;
+              validatedRegNo = normalized;
+
+              if (!isAvailable) {
+                statusMessage =
+                    "Student not found yet. Ask them to sign up first.";
+              } else if (hasFyp) {
+                statusMessage = fullName.isNotEmpty
+                    ? "$fullName already has an FYP. Request will ask to join existing team."
+                    : "Student already has an FYP. Request will ask to join existing team.";
+              } else {
+                statusMessage = fullName.isNotEmpty
+                    ? "$fullName is registered but has not created an FYP yet. Join request can only be sent to an existing FYP."
+                    : "Student is registered but has not created an FYP yet. Join request can only be sent to an existing FYP.";
+              }
+            });
+          } catch (e) {
+            if (regNoCtrl.text.trim().toUpperCase() != normalized) return;
+            setState(() {
+              lookupInProgress = false;
+              partnerFound = false;
+              partnerHasFyp = false;
+              validatedRegNo = null;
+              statusMessage = e.toString().replaceFirst('Exception: ', '');
+            });
+          }
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: regNoCtrl,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                UpperCaseHyphenFormatter(maxLength: 12),
+              ],
+              decoration: const InputDecoration(
+                labelText: "Partner Registration Number",
+                hintText: "FA22-BCS-155",
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+              onChanged: (value) async {
+                final normalized = value.trim().toUpperCase();
+                setState(() {
+                  lookupInProgress = false;
+                  partnerFound = false;
+                  partnerHasFyp = false;
+                  validatedRegNo = null;
+                  statusMessage = null;
+                });
+
+                if (normalized.length == 12 &&
+                    regNoPattern.hasMatch(normalized)) {
+                  await validateRegNo(normalized);
+                }
+              },
+            ),
+            if (lookupInProgress)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+            if (statusMessage != null && statusMessage!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    statusMessage!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: partnerFound
+                          ? (partnerHasFyp
+                                ? Colors.orange.shade800
+                                : Colors.green.shade700)
+                          : Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
+    onSave: () async {
+      final regNo = regNoCtrl.text.trim().toUpperCase();
+      if (!regNoPattern.hasMatch(regNo)) {
+        throw Exception("Use format AA00-AAA-000 (e.g. FA22-BCS-155).");
+      }
+
+      if (validatedRegNo != regNo || lookupInProgress) {
+        throw Exception(
+          "Wait for registration verification before sending request.",
+        );
+      }
+
+      if (!partnerFound) {
+        throw Exception(
+          "Student not found in portal. Ask them to sign up first.",
+        );
+      }
+
+      if (!partnerHasFyp) {
+        throw Exception(
+          "Join request can only be sent to a student who already has a Final Year Project.",
+        );
+      }
+
+      await provider.requestJoinPartnerFyp(regNo);
+      return "Sent Successfully!";
+    },
+  );
+}
+
 void showAddProjectDialog(BuildContext context) {
   final studentProvider = Provider.of<StudentProvider>(context, listen: false);
   final student = studentProvider.student;
@@ -966,6 +1131,17 @@ void showAddProjectDialog(BuildContext context) {
   final descCtrl = TextEditingController();
   final demoCtrl = TextEditingController();
   final githubCtrl = TextEditingController();
+  final partnerRegCtrl = TextEditingController();
+
+  bool addPartner = false;
+  bool partnerLookupInProgress = false;
+  bool partnerFound = false;
+  bool partnerHasFinalYearProject = false;
+  bool joinRequestInProgress = false;
+  String? partnerStatusMessage;
+  String? validatedPartnerRegNo;
+  final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
+
   int selectedType = 0;
 
   showGenericDialog(
@@ -973,6 +1149,78 @@ void showAddProjectDialog(BuildContext context) {
     title: "Add New Project",
     content: StatefulBuilder(
       builder: (context, setState) {
+        Future<void> validatePartnerRegNo(String rawRegNo) async {
+          final normalized = rawRegNo.trim().toUpperCase();
+
+          setState(() {
+            partnerLookupInProgress = true;
+            partnerStatusMessage = "Checking partner in portal...";
+            partnerFound = false;
+            partnerHasFinalYearProject = false;
+            validatedPartnerRegNo = null;
+          });
+
+          try {
+            final result = await studentProvider
+                .lookupProjectPartnerByRegistration(normalized);
+
+            final isAvailable =
+                (result['IsAvailable'] ?? result['isAvailable'] ?? false) ==
+                true;
+            final hasFypProject =
+                (result['HasFinalYearProject'] ??
+                    result['hasFinalYearProject'] ??
+                    false) ==
+                true;
+            final fullName = (result['FullName'] ?? result['fullName'] ?? '')
+                .toString()
+                .trim();
+            final message = (result['Message'] ?? result['message'] ?? '')
+                .toString()
+                .trim();
+
+            if (partnerRegCtrl.text.trim().toUpperCase() != normalized) {
+              return;
+            }
+
+            setState(() {
+              partnerLookupInProgress = false;
+              partnerFound = isAvailable;
+              partnerHasFinalYearProject = hasFypProject;
+              validatedPartnerRegNo = normalized;
+
+              if (!isAvailable) {
+                partnerStatusMessage = message.isNotEmpty
+                    ? message
+                    : "Student not found yet. Add partner later after signup.";
+              } else if (hasFypProject) {
+                partnerStatusMessage = message.isNotEmpty
+                    ? message
+                    : "This student already has an FYP. All partners must join one project.";
+              } else {
+                partnerStatusMessage = fullName.isNotEmpty
+                    ? "Partner found: $fullName"
+                    : "Partner found and eligible.";
+              }
+            });
+          } catch (e) {
+            if (partnerRegCtrl.text.trim().toUpperCase() != normalized) {
+              return;
+            }
+
+            setState(() {
+              partnerLookupInProgress = false;
+              partnerFound = false;
+              partnerHasFinalYearProject = false;
+              validatedPartnerRegNo = null;
+              partnerStatusMessage = e.toString().replaceFirst(
+                'Exception: ',
+                '',
+              );
+            });
+          }
+        }
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1004,7 +1252,18 @@ void showAddProjectDialog(BuildContext context) {
               ],
               onChanged: (value) {
                 if (value != null) {
-                  setState(() => selectedType = value);
+                  setState(() {
+                    selectedType = value;
+                    if (selectedType != 2) {
+                      addPartner = false;
+                      partnerRegCtrl.clear();
+                      partnerLookupInProgress = false;
+                      partnerFound = false;
+                      partnerHasFinalYearProject = false;
+                      partnerStatusMessage = null;
+                      validatedPartnerRegNo = null;
+                    }
+                  });
                 }
               },
             ),
@@ -1029,18 +1288,246 @@ void showAddProjectDialog(BuildContext context) {
               controller: githubCtrl,
               decoration: const InputDecoration(labelText: "GitHub URL"),
             ),
+            if (selectedType == 2) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      addPartner = !addPartner;
+                      if (!addPartner) {
+                        partnerRegCtrl.clear();
+                        partnerLookupInProgress = false;
+                        partnerFound = false;
+                        partnerHasFinalYearProject = false;
+                        partnerStatusMessage = null;
+                        validatedPartnerRegNo = null;
+                      }
+                    });
+                  },
+                  icon: Icon(
+                    addPartner
+                        ? Icons.person_remove_alt_1_outlined
+                        : Icons.person_add_alt_1,
+                  ),
+                  label: Text(addPartner ? "Remove Partner" : "Add Partner"),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "You can also add partner later from project members.",
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+            if (selectedType == 2 && addPartner) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: partnerRegCtrl,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9-]')),
+                  UpperCaseHyphenFormatter(maxLength: 12),
+                ],
+                decoration: const InputDecoration(
+                  labelText: "Partner Registration Number",
+                  hintText: "FA22-BCS-155",
+                  prefixIcon: Icon(Icons.badge_outlined),
+                ),
+                onChanged: (value) async {
+                  final normalized = value.trim().toUpperCase();
+
+                  setState(() {
+                    partnerFound = false;
+                    partnerHasFinalYearProject = false;
+                    validatedPartnerRegNo = null;
+                    partnerStatusMessage = null;
+                    partnerLookupInProgress = false;
+                  });
+
+                  if (normalized.length == 12 &&
+                      regNoPattern.hasMatch(normalized)) {
+                    await validatePartnerRegNo(normalized);
+                  }
+                },
+              ),
+              if (partnerLookupInProgress)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+              if (partnerStatusMessage != null &&
+                  partnerStatusMessage!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      partnerStatusMessage!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: partnerFound && !partnerHasFinalYearProject
+                            ? Colors.green.shade700
+                            : Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+                ),
+              if (partnerFound && partnerHasFinalYearProject) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: joinRequestInProgress
+                        ? null
+                        : () async {
+                            final regNo = partnerRegCtrl.text
+                                .trim()
+                                .toUpperCase();
+                            if (!regNoPattern.hasMatch(regNo)) {
+                              showTopSnackBar(
+                                Overlay.of(context),
+                                const CustomSnackBar.error(
+                                  message:
+                                      "Use format AA00-AAA-000 before sending request.",
+                                ),
+                              );
+                              return;
+                            }
+
+                            setState(() => joinRequestInProgress = true);
+                            try {
+                              final responseMessage = await studentProvider
+                                  .requestJoinPartnerFyp(regNo);
+
+                              if (context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  CustomSnackBar.success(
+                                    message: responseMessage,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                showTopSnackBar(
+                                  Overlay.of(context),
+                                  CustomSnackBar.error(
+                                    message: e.toString().replaceFirst(
+                                      'Exception: ',
+                                      '',
+                                    ),
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (context.mounted) {
+                                setState(() => joinRequestInProgress = false);
+                              }
+                            }
+                          },
+                    icon: joinRequestInProgress
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_rounded),
+                    label: Text(
+                      joinRequestInProgress
+                          ? "Sending Request..."
+                          : "Send Request To Join Existing FYP",
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Do not create duplicate FYP. Ask the existing team to invite you.",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ],
           ],
         );
       },
     ),
     onSave: () async {
-      await Provider.of<StudentProvider>(context, listen: false).createProject({
-        "title": titleCtrl.text,
-        "description": descCtrl.text,
-        "demoUrl": demoCtrl.text,
-        "gitHubUrl": githubCtrl.text,
+      final provider = Provider.of<StudentProvider>(context, listen: false);
+      final trimmedTitle = titleCtrl.text.trim();
+
+      if (trimmedTitle.isEmpty) {
+        throw Exception("Project title is required.");
+      }
+
+      final projectData = {
+        "title": trimmedTitle,
+        "description": descCtrl.text.trim(),
+        "demoUrl": demoCtrl.text.trim(),
+        "gitHubUrl": githubCtrl.text.trim(),
         "type": selectedType,
-      });
+      };
+
+      await provider.createProject(projectData, throwOnError: true);
+
+      if (selectedType == 2 && addPartner) {
+        final partnerRegNo = partnerRegCtrl.text.trim().toUpperCase();
+        if (partnerRegNo.isNotEmpty) {
+          if (!regNoPattern.hasMatch(partnerRegNo)) {
+            throw Exception(
+              "Use format AA00-AAA-000 for partner registration number.",
+            );
+          }
+
+          if (validatedPartnerRegNo != partnerRegNo ||
+              partnerLookupInProgress) {
+            throw Exception("Wait for partner verification before submitting.");
+          }
+
+          if (!partnerFound) {
+            throw Exception(
+              "Partner is not in database yet. Add them later after they sign up.",
+            );
+          }
+
+          if (partnerHasFinalYearProject) {
+            throw Exception(
+              "Partner already has an FYP. Use 'Send Request To Join Existing FYP' in this form. Duplicate FYP entries are not allowed.",
+            );
+          }
+
+          await provider.fetchProfile();
+          final createdProject = provider.student?.projects
+              .where(
+                (p) =>
+                    p.type == ProjectType.FinalYear &&
+                    p.currentStudentIsCreator &&
+                    p.title.trim().toLowerCase() == trimmedTitle.toLowerCase(),
+              )
+              .toList();
+
+          if (createdProject == null || createdProject.isEmpty) {
+            throw Exception(
+              "Project created, but partner invite could not be prepared. Please invite from project members.",
+            );
+          }
+
+          try {
+            await provider.inviteStudent(
+              createdProject.first.projectId,
+              partnerRegNo,
+            );
+          } catch (e) {
+            throw Exception(
+              "Project created, but partner invitation failed: ${e.toString().replaceFirst('Exception: ', '')}",
+            );
+          }
+        }
+      }
     },
   );
 }

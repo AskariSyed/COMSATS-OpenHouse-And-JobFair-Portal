@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace JobFairPortal.Controllers
 {
@@ -703,9 +704,36 @@ namespace JobFairPortal.Controllers
             if (student == null)
                 return NotFound("Student not found.");
 
+            var normalizedTitle = (dto.Title ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedTitle))
+                return BadRequest("Project title is required.");
+
+            if (dto.Type == ProjectType.FinalYear)
+            {
+                var hasExistingAcceptedFyp = await _context.StudentProjects
+                    .Include(sp => sp.Project)
+                    .AnyAsync(sp => sp.StudentId == student.StudentId
+                                    && sp.Status == ProjectInviteStatus.Accepted
+                                    && sp.Project.Type == ProjectType.FinalYear);
+
+                if (hasExistingAcceptedFyp)
+                {
+                    return BadRequest("You already have a Final Year Project. Please delete or leave your existing FYP before creating another.");
+                }
+
+                var duplicateFypTitleExists = await _context.Projects
+                    .AnyAsync(p => p.Type == ProjectType.FinalYear
+                                   && (p.Title ?? string.Empty).Trim().ToLower() == normalizedTitle.ToLower());
+
+                if (duplicateFypTitleExists)
+                {
+                    return Conflict("A Final Year Project with this title already exists. Two projects with the same FYP title cannot be entered. Ask partners to join the existing project.");
+                }
+            }
+
             var project = new Project
             {
-                Title = dto.Title,
+                Title = normalizedTitle,
                 Type = dto.Type,
                 Description = dto.Description,
                 Skills = dto.Skills,
@@ -746,6 +774,171 @@ namespace JobFairPortal.Controllers
             });
 
         }
+
+        [HttpGet("projects/partner-lookup")]
+        public async Task<IActionResult> LookupProjectPartner([FromQuery] string registrationNo)
+        {
+            if (string.IsNullOrWhiteSpace(registrationNo))
+                return BadRequest("Registration number is required.");
+
+            var normalizedRegNo = registrationNo.Trim().ToUpper();
+            if (!Regex.IsMatch(normalizedRegNo, @"^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$"))
+                return BadRequest("Use format AA00-AAA-000 (e.g. FA22-BCS-155).");
+
+            var student = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => (s.RegistrationNo ?? string.Empty).ToUpper() == normalizedRegNo);
+
+            if (student == null)
+            {
+                return Ok(new
+                {
+                    IsAvailable = false,
+                    RegistrationNumber = normalizedRegNo,
+                    Message = "Student not found in the portal yet. Add this partner later after they sign up."
+                });
+            }
+
+            var acceptedFyp = await _context.StudentProjects
+                .Include(sp => sp.Project)
+                .Where(sp => sp.StudentId == student.StudentId
+                             && sp.Status == ProjectInviteStatus.Accepted
+                             && sp.Project.Type == ProjectType.FinalYear)
+                .Select(sp => new
+                {
+                    sp.ProjectId,
+                    sp.Project.Title
+                })
+                .FirstOrDefaultAsync();
+
+            var hasFinalYearProject = acceptedFyp != null;
+
+            return Ok(new
+            {
+                IsAvailable = true,
+                student.StudentId,
+                FullName = student.User?.FullName,
+                RegistrationNumber = normalizedRegNo,
+                HasFinalYearProject = hasFinalYearProject,
+                ExistingFinalYearProjectId = acceptedFyp?.ProjectId,
+                ExistingFinalYearProjectTitle = acceptedFyp?.Title,
+                CanBeInvitedToNewFinalYearProject = !hasFinalYearProject,
+                Message = hasFinalYearProject
+                    ? "This student already has a Final Year Project. Ask them to join one team only, and avoid duplicate FYP entries."
+                    : "Student found and eligible to be invited."
+            });
+        }
+
+        [HttpPost("projects/fyp/request-join")]
+        public async Task<IActionResult> RequestJoinPartnerFyp([FromBody] FypJoinRequestDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var requester = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (requester == null)
+                return NotFound("Student not found.");
+
+            var normalizedRegNo = (dto.RegistrationNumber ?? string.Empty).Trim().ToUpper();
+            if (!Regex.IsMatch(normalizedRegNo, @"^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$"))
+                return BadRequest("Use format AA00-AAA-000 (e.g. FA22-BCS-155).");
+
+            var partner = await _context.Students
+                .Include(s => s.User)
+                .FirstOrDefaultAsync(s => (s.RegistrationNo ?? string.Empty).ToUpper() == normalizedRegNo);
+
+            if (partner == null)
+                return NotFound("Student not found with this registration number.");
+
+            if (partner.StudentId == requester.StudentId)
+                return BadRequest("You cannot send a join request to yourself.");
+
+            var partnerFypMembership = await _context.StudentProjects
+                .Include(sp => sp.Project)
+                .FirstOrDefaultAsync(sp => sp.StudentId == partner.StudentId
+                                           && sp.Status == ProjectInviteStatus.Accepted
+                                           && sp.Project.Type == ProjectType.FinalYear);
+
+            if (partnerFypMembership == null)
+                return BadRequest("This student is registered but has not created a Final Year Project yet. Join request can only be sent to a student who already has an FYP.");
+
+            var requesterAcceptedFyp = await _context.StudentProjects
+                .Include(sp => sp.Project)
+                .AnyAsync(sp => sp.StudentId == requester.StudentId
+                                && sp.Status == ProjectInviteStatus.Accepted
+                                && sp.Project.Type == ProjectType.FinalYear);
+
+            if (requesterAcceptedFyp)
+            {
+                return Conflict("You already have a Final Year Project. Delete/leave it first before requesting to join another FYP.");
+            }
+
+            var requesterAlreadyInTargetProject = await _context.StudentProjects
+                .AnyAsync(sp => sp.StudentId == requester.StudentId
+                                && sp.ProjectId == partnerFypMembership.ProjectId);
+
+            if (requesterAlreadyInTargetProject)
+                return BadRequest("You already have a pending/accepted/rejected status in this project.");
+
+            var joinRequestMembership = new StudentProject
+            {
+                ProjectId = partnerFypMembership.ProjectId,
+                StudentId = requester.StudentId,
+                IsCreator = false,
+                Status = ProjectInviteStatus.Pending,
+                role = "JoinRequest"
+            };
+
+            _context.StudentProjects.Add(joinRequestMembership);
+            await _context.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(partner.FcmToken))
+            {
+                var requestText =
+                    $"{requester.User?.FullName ?? requester.RegistrationNo} requested to join your FYP team.";
+
+                var message = new Message
+                {
+                    Token = partner.FcmToken,
+                    Notification = new FirebaseAdmin.Messaging.Notification
+                    {
+                        Title = "FYP Team Join Request",
+                        Body = requestText
+                    },
+                    Data = new Dictionary<string, string>
+                    {
+                        { "Type", "FypJoinRequest" },
+                        { "RequesterStudentId", requester.StudentId.ToString() },
+                        { "RequesterRegistrationNo", requester.RegistrationNo ?? string.Empty },
+                        { "TargetProjectId", partnerFypMembership.ProjectId.ToString() },
+                        { "TargetProjectTitle", partnerFypMembership.Project.Title ?? string.Empty },
+                        { "PartnerHasExistingFyp", bool.TrueString }
+                    }
+                };
+
+                try
+                {
+                    await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new { Message = "Failed to send join request notification.", Error = ex.Message });
+                }
+            }
+
+            return Ok(new
+            {
+                Message = "Join request sent. Ask your partner/team lead to invite you to their existing FYP. Duplicate FYP projects are not allowed.",
+                TargetProjectId = partnerFypMembership.ProjectId,
+                TargetProjectTitle = partnerFypMembership.Project.Title,
+                PartnerHasExistingFyp = true
+            });
+        }
+
         [HttpPost("projects/{projectId}/invite")]
         public async Task<IActionResult> InviteStudentToProject(int projectId, [FromBody] ProjectInviteDto dto)
         {
@@ -768,18 +961,46 @@ namespace JobFairPortal.Controllers
             if (!isInProject)
                 return BadRequest("You must be part of the project to invite others.");
 
+            var project = await _context.Projects
+                .FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+            if (project == null)
+                return NotFound("Project not found.");
+
+            var normalizedRegNo = (dto.RegistrationNumber ?? string.Empty).Trim().ToUpper();
+            if (string.IsNullOrWhiteSpace(normalizedRegNo))
+                return BadRequest("Registration number is required.");
+
             var invitee = await _context.Students
                 .Include(s => s.User)
-                .FirstOrDefaultAsync(s => s.RegistrationNo == dto.RegistrationNumber);
+                .FirstOrDefaultAsync(s => (s.RegistrationNo ?? string.Empty).ToUpper() == normalizedRegNo);
 
             if (invitee == null)
                 return NotFound("Student not found with this registration number.");
+
+            if (invitee.StudentId == inviter.StudentId)
+                return BadRequest("You cannot invite yourself.");
 
             var existingInvite = await _context.StudentProjects
                 .FirstOrDefaultAsync(sp => sp.ProjectId == projectId && sp.StudentId == invitee.StudentId);
 
             if (existingInvite != null)
                 return BadRequest("This student has already been invited or is already a member.");
+
+            if (project.Type == ProjectType.FinalYear)
+            {
+                var inviteeHasAcceptedFinalYearProject = await _context.StudentProjects
+                    .Include(sp => sp.Project)
+                    .AnyAsync(sp => sp.StudentId == invitee.StudentId
+                                    && sp.Status == ProjectInviteStatus.Accepted
+                                    && sp.Project.Type == ProjectType.FinalYear
+                                    && sp.ProjectId != projectId);
+
+                if (inviteeHasAcceptedFinalYearProject)
+                {
+                    return Conflict("This student already has a Final Year Project. All partners should join one FYP only. Ask them to leave/delete the previous FYP before accepting another.");
+                }
+            }
 
             var newInvite = new StudentProject
             {
@@ -839,7 +1060,7 @@ namespace JobFairPortal.Controllers
                 return NotFound("Student not found.");
 
             var invitations = student.StudentProjects
-                .Where(sp => sp.Status == ProjectInviteStatus.Pending)
+                .Where(sp => sp.Status == ProjectInviteStatus.Pending && (sp.role ?? string.Empty) != "JoinRequest")
                 .Select(sp => new
                 {
                     sp.Id,
@@ -850,6 +1071,116 @@ namespace JobFairPortal.Controllers
                 }).ToList();
 
             return Ok(invitations);
+        }
+
+        [HttpGet("projects/join-requests/incoming")]
+        public async Task<IActionResult> GetIncomingFypJoinRequests()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var currentStudent = await _context.Students
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (currentStudent == null)
+                return NotFound("Student not found.");
+
+            var creatorProjectIds = await _context.StudentProjects
+                .Where(sp => sp.StudentId == currentStudent.StudentId
+                             && sp.IsCreator
+                             && sp.Status == ProjectInviteStatus.Accepted
+                             && sp.Project.Type == ProjectType.FinalYear)
+                .Select(sp => sp.ProjectId)
+                .Distinct()
+                .ToListAsync();
+
+            if (!creatorProjectIds.Any())
+                return Ok(new List<object>());
+
+            var incomingRequests = await _context.StudentProjects
+                .Include(sp => sp.Project)
+                .Include(sp => sp.Student)
+                    .ThenInclude(s => s.User)
+                .Where(sp => creatorProjectIds.Contains(sp.ProjectId)
+                             && sp.Status == ProjectInviteStatus.Pending
+                             && (sp.role ?? string.Empty) == "JoinRequest")
+                .Select(sp => new
+                {
+                    sp.Id,
+                    sp.ProjectId,
+                    ProjectTitle = sp.Project.Title,
+                    sp.Project.Type,
+                    RequesterStudentId = sp.StudentId,
+                    RequesterName = sp.Student.User.FullName,
+                    RequesterRegistrationNo = sp.Student.RegistrationNo,
+                    RequesterProfilePicUrl = sp.Student.ProfilePicUrl
+                })
+                .ToListAsync();
+
+            return Ok(incomingRequests);
+        }
+
+        [HttpPost("projects/join-requests/{requestId}/respond")]
+        public async Task<IActionResult> RespondToJoinRequest(int requestId, [FromQuery] bool accept)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out int userId))
+                return Unauthorized();
+
+            var currentStudent = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (currentStudent == null)
+                return NotFound("Student not found.");
+
+            var joinRequest = await _context.StudentProjects
+                .Include(sp => sp.Project)
+                .FirstOrDefaultAsync(sp => sp.Id == requestId && (sp.role ?? string.Empty) == "JoinRequest");
+
+            if (joinRequest == null)
+                return NotFound("Join request not found.");
+
+            // Verify current user is the creator of the project
+            var isCreator = await _context.StudentProjects
+                .AnyAsync(sp => sp.ProjectId == joinRequest.ProjectId 
+                                && sp.StudentId == currentStudent.StudentId 
+                                && sp.IsCreator 
+                                && sp.Status == ProjectInviteStatus.Accepted);
+
+            if (!isCreator)
+                return Unauthorized("Only the project creator can respond to join requests.");
+
+            if (accept)
+            {
+                // Check if the requester already has an FYP if this is an FYP
+                if (joinRequest.Project.Type == ProjectType.FinalYear)
+                {
+                    var hasAnotherAcceptedFyp = await _context.StudentProjects
+                        .Include(sp => sp.Project)
+                        .AnyAsync(sp => sp.StudentId == joinRequest.StudentId
+                                        && sp.Status == ProjectInviteStatus.Accepted
+                                        && sp.Project.Type == ProjectType.FinalYear
+                                        && sp.ProjectId != joinRequest.ProjectId);
+
+                    if (hasAnotherAcceptedFyp)
+                    {
+                        return Conflict("This student already has a Final Year Project.");
+                    }
+                }
+                joinRequest.Status = ProjectInviteStatus.Accepted;
+            }
+            else
+            {
+                joinRequest.Status = ProjectInviteStatus.Rejected;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                Message = accept ? "Join request accepted." : "Join request rejected.",
+                joinRequest.Project.Title,
+                joinRequest.Status
+            });
         }
 
 
@@ -870,6 +1201,24 @@ namespace JobFairPortal.Controllers
 
             if (invite == null)
                 return NotFound("Invitation not found.");
+
+            if (string.Equals(invite.role, "JoinRequest", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("This item is a join request you sent, not an invitation you can accept/reject.");
+
+            if (accept && invite.Project.Type == ProjectType.FinalYear)
+            {
+                var hasAnotherAcceptedFyp = await _context.StudentProjects
+                    .Include(sp => sp.Project)
+                    .AnyAsync(sp => sp.StudentId == student.StudentId
+                                    && sp.Status == ProjectInviteStatus.Accepted
+                                    && sp.Project.Type == ProjectType.FinalYear
+                                    && sp.ProjectId != invite.ProjectId);
+
+                if (hasAnotherAcceptedFyp)
+                {
+                    return Conflict("You already have a Final Year Project. Please delete or leave your previous FYP before accepting this invitation.");
+                }
+            }
 
             invite.Status = accept ? ProjectInviteStatus.Accepted : ProjectInviteStatus.Rejected;
 
@@ -2986,7 +3335,26 @@ namespace JobFairPortal.Controllers
                     .ToList();
             }
 
-            var pendingInvites = student.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Pending);
+            var pendingInvites = student.StudentProjects
+                .Count(sp => sp.Status == ProjectInviteStatus.Pending && (sp.role ?? string.Empty) != "JoinRequest");
+
+            var creatorProjectIdsForJoinRequests = await _context.StudentProjects
+                .Where(sp => sp.StudentId == student.StudentId
+                             && sp.IsCreator
+                             && sp.Status == ProjectInviteStatus.Accepted
+                             && sp.Project.Type == ProjectType.FinalYear)
+                .Select(sp => sp.ProjectId)
+                .Distinct()
+                .ToListAsync();
+
+            var incomingJoinRequestsCount = 0;
+            if (creatorProjectIdsForJoinRequests.Any())
+            {
+                incomingJoinRequestsCount = await _context.StudentProjects
+                    .CountAsync(sp => creatorProjectIdsForJoinRequests.Contains(sp.ProjectId)
+                                      && sp.Status == ProjectInviteStatus.Pending
+                                      && (sp.role ?? string.Empty) == "JoinRequest");
+            }
 
             var notices = new List<object>();
             if (activeJobFair != null)
@@ -3032,7 +3400,7 @@ namespace JobFairPortal.Controllers
                 ActionsRequired = new
                 {
                     PendingInterviewRequestsCount = pendingRequests.Count(r => r.RequestedBy == "Company"),
-                    PendingProjectInvitesCount = pendingInvites
+                    PendingProjectInvitesCount = pendingInvites + incomingJoinRequestsCount
                 },
                 InterviewStats = new
                 {

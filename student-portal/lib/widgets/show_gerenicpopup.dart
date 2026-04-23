@@ -10,6 +10,7 @@ Future<dynamic> showGenericDialog({
   required Future<dynamic> Function() onSave,
   required BuildContext context,
   bool mounted = true,
+  String successMessage = "Saved Successfully!",
 }) {
   return showDialog(
     context: context,
@@ -170,6 +171,12 @@ Future<dynamic> showGenericDialog({
                                               'Save operation failed.',
                                             );
                                           }
+
+                                          final resolvedSuccessMessage =
+                                              (result is String &&
+                                                  result.trim().isNotEmpty)
+                                              ? result
+                                              : successMessage;
                                           if (mounted) {
                                             await Provider.of<StudentProvider>(
                                               context,
@@ -181,8 +188,8 @@ Future<dynamic> showGenericDialog({
 
                                           showTopSnackBar(
                                             Overlay.of(context),
-                                            const CustomSnackBar.success(
-                                              message: "Saved Successfully!",
+                                            CustomSnackBar.success(
+                                              message: resolvedSuccessMessage,
                                             ),
                                           );
                                         } catch (e) {

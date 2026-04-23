@@ -42,6 +42,8 @@ class StudentProvider with ChangeNotifier {
 
   List<ProjectInvitation> _invitations = [];
   List<ProjectInvitation> get invitations => _invitations;
+  List<Map<String, dynamic>> _incomingJoinRequests = [];
+  List<Map<String, dynamic>> get incomingJoinRequests => _incomingJoinRequests;
   List<InterviewRequest> _interviewRequests = [];
   List<InterviewRequest> get interviewRequests => _interviewRequests;
   List<Interview> _scheduledInterviews = [];
@@ -141,6 +143,7 @@ class StudentProvider with ChangeNotifier {
     _interviewRequests = [];
     _scheduledInterviews = [];
     _invitations = [];
+    _incomingJoinRequests = [];
     clearSessionPromptSkips();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
@@ -747,7 +750,10 @@ class StudentProvider with ChangeNotifier {
     return false;
   }
 
-  Future<bool> createProject(Map<String, dynamic> projectData) async {
+  Future<bool> createProject(
+    Map<String, dynamic> projectData, {
+    bool throwOnError = false,
+  }) async {
     if (_student == null) return false;
     _setLoading(true);
 
@@ -775,7 +781,20 @@ class StudentProvider with ChangeNotifier {
       }
       return true;
     }
-    debugPrint("❌ Failed to create project: ${response.body}");
+    String errorMessage = "Failed to create project.";
+    try {
+      final body = json.decode(response.body);
+      errorMessage = body['Message'] ?? body['message'] ?? response.body;
+    } catch (_) {
+      if (response.body.isNotEmpty) {
+        errorMessage = response.body;
+      }
+    }
+
+    debugPrint("❌ Failed to create project: $errorMessage");
+    if (throwOnError) {
+      throw Exception(errorMessage);
+    }
     return false;
   }
   // --- 7. PROJECT MANAGEMENT ---
@@ -827,6 +846,70 @@ class StudentProvider with ChangeNotifier {
       _setLoading(false);
       rethrow; // Re-throw the exception so the UI's catch block can display it
     }
+  }
+
+  Future<Map<String, dynamic>> lookupProjectPartnerByRegistration(
+    String regNo,
+  ) async {
+    if (_student == null) throw Exception("Student not loaded.");
+
+    final response = await http.get(
+      Uri.parse(
+        "$baseUrl/Student/projects/partner-lookup?registrationNo=${Uri.encodeComponent(regNo)}",
+      ),
+      headers: _authHeaders,
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      throw Exception("Unexpected response from server.");
+    }
+
+    String errorMessage = "Unable to validate registration number.";
+    try {
+      final body = json.decode(response.body);
+      errorMessage = body['Message'] ?? body['message'] ?? response.body;
+    } catch (_) {
+      if (response.body.isNotEmpty) {
+        errorMessage = response.body;
+      }
+    }
+    throw Exception(errorMessage);
+  }
+
+  Future<String> requestJoinPartnerFyp(String regNo) async {
+    if (_student == null) throw Exception("Student not loaded.");
+
+    final payload = <String, dynamic>{"registrationNumber": regNo};
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/Student/projects/fyp/request-join"),
+      headers: _authHeaders,
+      body: json.encode(payload),
+    );
+
+    if (response.statusCode == 200) {
+      final body = json.decode(response.body);
+      if (body is Map<String, dynamic>) {
+        return (body['Message'] ?? body['message'] ?? "Join request sent.")
+            .toString();
+      }
+      return "Join request sent.";
+    }
+
+    String errorMessage = "Unable to send join request.";
+    try {
+      final body = json.decode(response.body);
+      errorMessage = body['Message'] ?? body['message'] ?? response.body;
+    } catch (_) {
+      if (response.body.isNotEmpty) {
+        errorMessage = response.body;
+      }
+    }
+    throw Exception(errorMessage);
   }
 
   // Leave a project (Remove Self)
@@ -933,6 +1016,30 @@ class StudentProvider with ChangeNotifier {
     }
   }
 
+  Future<void> fetchIncomingJoinRequests() async {
+    if (_student == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/Student/projects/join-requests/incoming"),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        _incomingJoinRequests = data
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+            )
+            .toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error fetching incoming join requests: $e");
+    }
+  }
+
   // 2. Respond to Invitation (Accept/Reject)
   Future<bool> respondToInvitation(int inviteId, bool accept) async {
     try {
@@ -953,10 +1060,58 @@ class StudentProvider with ChangeNotifier {
         notifyListeners();
         return true;
       }
+
+      String errorMessage = "Failed to respond to invitation.";
+      try {
+        final body = json.decode(response.body);
+        errorMessage = body['Message'] ?? body['message'] ?? response.body;
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          errorMessage = response.body;
+        }
+      }
+      throw Exception(errorMessage);
       return false;
     } catch (e) {
       _setLoading(false);
-      return false;
+      rethrow;
+    }
+  }
+
+  // 4. Respond to Join Request (Accept/Reject as Project Lead)
+  Future<bool> respondToJoinRequest(int requestId, bool accept) async {
+    try {
+      _setLoading(true);
+      final response = await http.post(
+        Uri.parse(
+          "$baseUrl/Student/projects/join-requests/$requestId/respond?accept=$accept",
+        ),
+        headers: _authHeaders,
+      );
+      _setLoading(false);
+
+      if (response.statusCode == 200) {
+        // Remove from local list immediately
+        _incomingJoinRequests.removeWhere((i) => i['id'] == requestId);
+        // If accepted, we should refresh the full profile to see the new partner in the project list
+        if (accept) await fetchProfile();
+        notifyListeners();
+        return true;
+      }
+
+      String errorMessage = "Failed to respond to join request.";
+      try {
+        final body = json.decode(response.body);
+        errorMessage = body['Message'] ?? body['message'] ?? response.body;
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          errorMessage = response.body;
+        }
+      }
+      throw Exception(errorMessage);
+    } catch (e) {
+      _setLoading(false);
+      rethrow;
     }
   }
 

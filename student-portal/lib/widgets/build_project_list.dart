@@ -20,7 +20,12 @@ Widget buildProjectsList(
   BuildContext context,
   Function(Project) onManage,
 ) {
-  if (projects == null || projects.isEmpty) {
+  // 🔹 Filter only accepted projects (don't show pending invites or join requests here)
+  final acceptedProjects = projects
+      ?.where((p) => p.currentStudentStatus == ProjectInviteStatus.Accepted)
+      .toList();
+
+  if (acceptedProjects == null || acceptedProjects.isEmpty) {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(16.0),
@@ -57,7 +62,7 @@ Widget buildProjectsList(
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
-        children: projects.map((project) {
+        children: acceptedProjects.map((project) {
           return SizedBox(
             width: columns > 1 ? cardWidth : double.infinity,
             child: ProjectCard(project: project, onManage: onManage),

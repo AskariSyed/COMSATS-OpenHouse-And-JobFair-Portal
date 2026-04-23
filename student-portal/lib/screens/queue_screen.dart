@@ -67,6 +67,20 @@ class _QueueScreenState extends State<QueueScreen> {
     return scheduledTime.toLocal().isBefore(DateTime.now());
   }
 
+  bool _isJobFairDay(DateTime? scheduledTime) {
+    if (scheduledTime == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final scheduledDate = DateTime(
+      scheduledTime.year,
+      scheduledTime.month,
+      scheduledTime.day,
+    );
+    // Returns true if the scheduled date is today or in the future
+    // (User said "not after that", implying if today > scheduledDate, it's over)
+    return !scheduledDate.isBefore(today);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -611,7 +625,7 @@ class _QueueScreenState extends State<QueueScreen> {
             ],
           ),
         ),
-        if (isOverdueQueued) ...[
+        if (isOverdueQueued && _isJobFairDay(interview.scheduledTime)) ...[
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
@@ -698,7 +712,7 @@ class _QueueScreenState extends State<QueueScreen> {
             ),
           ],
         ),
-        if (isOverdueQueued) ...[
+        if (isOverdueQueued && _isJobFairDay(interview.scheduledTime)) ...[
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerLeft,
@@ -937,7 +951,9 @@ class _QueueScreenState extends State<QueueScreen> {
   bool _showQuickStudentActions(Interview interview) {
     final status = interview.status.toLowerCase();
     // Show actions for queued (upcoming) or currently interviewing students
-    return status == 'queued' || status == 'inprogress';
+    // ONLY on the job fair day
+    return (status == 'queued' || status == 'inprogress') &&
+        _isJobFairDay(interview.scheduledTime);
   }
 
   Future<void> _sendQueueAction(Interview interview, String type) async {
