@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Loader2, GraduationCap, AlertCircle, Clock, CheckCircle2, XCircle, UserPlus, Eye, Send, Calendar, Download, X, Plus, ArrowUpDown } from 'lucide-react';
-import { getStudents, getFileUrl, sendInterviewRequest, getAnalytics } from '../api';
+import { getStudents, getFileUrl, sendInterviewRequest, getAnalytics, getCompanyProfile } from '../api';
 import { allSkillsList, skillsData } from '../../data/skills';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -18,6 +18,9 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
+  const [companySkills, setCompanySkills] = useState([]);
+  const [hoveredStudentId, setHoveredStudentId] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState(null);
   const searchDebounceRef = useRef(null);
   const deptDebounceRef = useRef(null);
   const backendSearchRef = useRef({});
@@ -36,25 +39,85 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
         Number(pageSizeOverride ?? pageSizeRef.current ?? DEFAULT_PAGE_SIZE) ||
         DEFAULT_PAGE_SIZE;
       // Call backend with all active query parameters, including tab status filter
-      const paginatedParams = { ...queryParams, page, pageSize: effectivePageSize };
-      if (listMode !== 'all') {
-        paginatedParams.status = listMode;
-      }
-      const data = await getStudents(paginatedParams);
-      
-      // Handle paginated response
-      if (data?.items) {
-        setStudents(data.items || []);
-        setTotalCount(data.totalCount || 0);
-        setCurrentPage(Number(data.page) || page);
-        if (data.pageSize) {
-          setPageSize(Number(data.pageSize) || effectivePageSize);
+      // For "recommended" tab we perform client-side matching and sorting
+      if (listMode === 'recommended') {
+        // Ensure we have company skills available. Use a local array to avoid
+        // relying on state update timing when computing matches below.
+        let skillsArr = Array.isArray(companySkills) ? companySkills : [];
+        try {
+          if (!skillsArr || skillsArr.length === 0) {
+            const profile = await getCompanyProfile();
+            const jobs = profile?.jobs?.jobs || profile?.jobs || [];
+            const aggregated = (jobs || []).flatMap(j => j.requiredSkills || j.RequiredSkills || []);
+            const unique = Array.from(new Set((aggregated || []).map(s => String(s || '').toLowerCase())));
+            setCompanySkills(unique);
+            skillsArr = unique;
+          }
+        } catch (err) {
+          // If company profile fails, proceed without recommended results
+          setBackendSearchLoading(false);
+          onError(err.message || 'Failed to load company profile for recommendations');
+          return;
         }
-      } else {
-        // Handle legacy non-paginated response (backward compatibility)
-        setStudents(data || []);
-        setTotalCount(data?.length || 0);
+
+        // Fetch a large page to perform client-side ranking. Note: this may be heavy for very large datasets.
+        const allParams = { ...queryParams, page: 1, pageSize: 10000 };
+        const data = await getStudents(allParams);
+
+        const allItems = data?.items || data || [];
+
+        const skillsSet = new Set((skillsArr || []).map(s => String(s || '').toLowerCase()));
+        const scored = (allItems || []).map((stu) => {
+          // Normalize student skills whether they come as array or comma-separated string
+          let raw = stu.skills ?? stu.Skills ?? [];
+          let origSkills = [];
+          if (Array.isArray(raw)) {
+            origSkills = raw.map(s => String(s || '').trim()).filter(Boolean);
+          } else if (typeof raw === 'string') {
+            origSkills = raw.split(/[,;|]/).map(s => String(s || '').trim()).filter(Boolean);
+          }
+
+          const lowered = origSkills.map(s => s.toLowerCase());
+          const matched = origSkills.filter((s, idx) => skillsSet.has(lowered[idx]));
+          // Deduplicate matched skills while preserving order/casing
+          const seen = new Set();
+          const uniqueMatched = matched.filter(s => {
+            const k = s.toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+
+          const matchCount = uniqueMatched.length;
+          return { ...stu, _matchCount: matchCount, _matchedSkills: uniqueMatched };
+        })
+        .filter(s => s._matchCount > 0)
+        .sort((a,b) => b._matchCount - a._matchCount || String((b.Name||b.name||'')).localeCompare(String((a.Name||a.name||''))));
+
+        setStudents(scored);
+        setTotalCount(scored.length);
         setCurrentPage(page);
+      } else {
+        const paginatedParams = { ...queryParams, page, pageSize: effectivePageSize };
+        if (listMode !== 'all') {
+          paginatedParams.status = listMode;
+        }
+        const data = await getStudents(paginatedParams);
+        
+        // Handle paginated response
+        if (data?.items) {
+          setStudents(data.items || []);
+          setTotalCount(data.totalCount || 0);
+          setCurrentPage(Number(data.page) || page);
+          if (data.pageSize) {
+            setPageSize(Number(data.pageSize) || effectivePageSize);
+          }
+        } else {
+          // Handle legacy non-paginated response (backward compatibility)
+          setStudents(data || []);
+          setTotalCount(data?.length || 0);
+          setCurrentPage(page);
+        }
       }
       backendSearchRef.current = queryParams;
     } catch (err) {
@@ -145,6 +208,10 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   }, []);
 
   const normalize = (val) => String(val || '').trim().toLowerCase();
+  const normalizedCompanySkills = useMemo(
+    () => new Set((companySkills || []).map((skill) => normalize(skill)).filter(Boolean)),
+    [companySkills]
+  );
   const cleanReg = (val) => normalize(val).replace(/[^a-z0-9]/g, '');
 
   const getPktDateParts = (inputDate) => {
@@ -408,6 +475,11 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
   // Sorting Logic
   const getSortedStudents = () => {
+    // When showing recommended students, sort by computed match count (descending)
+    if (listMode === 'recommended') {
+      return [...filteredStudents].sort((a, b) => (b._matchCount || 0) - (a._matchCount || 0) || String((a.Name||a.name||'')).localeCompare(String((b.Name||b.name||''))));
+    }
+
     return [...filteredStudents].sort((a, b) => {
       if (sortBy === 'cgpa') {
         const cgpaA = Number(a.CGPA ?? a.cgpa ?? -1);
@@ -432,7 +504,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStartIndex = (safeCurrentPage - 1) * pageSize;
-  const pagedStudents = sortedStudents;
+  const pagedStudents = Array.isArray(sortedStudents) ? sortedStudents.slice(pageStartIndex, pageStartIndex + pageSize) : sortedStudents;
 
   const getStudentId = (s) => s.StudentId || s.studentId || s.id;
 
@@ -546,6 +618,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
         <div className="flex flex-wrap gap-2">
           {[
             { key: 'all', label: 'All Students' },
+            { key: 'recommended', label: 'Recommended' },
             { key: 'hired', label: 'Hired' },
             { key: 'shortlisted', label: 'Shortlisted' },
             { key: 'rejected', label: 'Rejected' }
@@ -567,26 +640,26 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6">
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-200 mb-4">
+        <form onSubmit={handleSearch} className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Search Student <span className="text-gray-400">(Name or Registration)</span></label>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase block mb-0.5">Search Student <span className="text-gray-400">(Name or Reg)</span></label>
               <input
-                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={filters.search}
                 placeholder="e.g. Ali or SP22-BCS-001"
                 onChange={(e) => handleSearchInputChange(e.target.value)}
               />
-              {backendSearchLoading && <p className="text-xs text-blue-600 mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Searching...</p>}
+              {backendSearchLoading && <p className="text-[10px] text-blue-600 mt-0.5 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Searching...</p>}
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Department</label>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase block mb-0.5">Department</label>
               <select
                 value={filters.department}
                 onChange={(e) => handleDepartmentChange(e.target.value)}
-                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">All Departments</option>
                 {departmentOptions.map((dept) => (
@@ -596,11 +669,11 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Add Skill</label>
-              <div className="flex gap-2 items-center">
+              <label className="text-[11px] font-semibold text-gray-500 uppercase block mb-0.5">Add Skill</label>
+              <div className="flex gap-1 items-center">
                 <input
                   type="text"
-                  className="flex-1 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 border rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={skillToAdd}
                   placeholder="Type to search skills..."
                   onChange={(e) => setSkillToAdd(e.target.value)}
@@ -616,7 +689,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                   type="button"
                   onClick={() => skillToAdd.trim() && handleAddSkill(skillToAdd)}
                   disabled={!skillToAdd.trim()}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  className="px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                   title="Add skill (or press Enter)"
                   aria-label="Add skill"
                 >
@@ -631,9 +704,9 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">Sort By</label>
+              <label className="text-[11px] font-semibold text-gray-500 uppercase block mb-0.5">Sort By</label>
               <select 
-                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                className="w-full border rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
@@ -644,14 +717,14 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
               </select>
             </div>
 
-            <div className="flex items-end gap-2">
-              <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+            <div className="flex items-end gap-1 flex-nowrap">
+              <button type="submit" className="flex-1 min-w-0 bg-blue-600 text-white py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 hover:bg-blue-700 transition-colors text-xs whitespace-nowrap">
                 <Search className="w-4 h-4" /> Refresh
               </button>
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                className="flex-1 min-w-0 bg-gray-100 text-gray-700 py-1.5 px-2 rounded-lg hover:bg-gray-200 transition-colors text-xs whitespace-nowrap"
               >
                 Clear
               </button>
@@ -660,9 +733,9 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
 
           {/* Skill suggestions with side-by-side display */}
           {skillToAdd.trim() && availableSkills.filter(s => s.toLowerCase().includes(skillToAdd.toLowerCase())).length > 0 && (
-            <div className="border-t pt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Suggestions</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="border-t pt-2">
+              <p className="text-[11px] font-semibold text-gray-500 uppercase mb-1">Suggestions</p>
+              <div className="flex flex-wrap gap-1">
                 {availableSkills
                   .filter(s => s.toLowerCase().includes(skillToAdd.toLowerCase()))
                   .slice(0, 8)
@@ -671,9 +744,9 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                       key={skill}
                       type="button"
                       onClick={() => handleAddSkill(skill)}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                     >
-                      <span className="text-lg">+</span> {skill}
+                      <span className="text-sm">+</span> {skill}
                     </button>
                   ))}
               </div>
@@ -682,11 +755,11 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
         </form>
 
         {/* Selected Skills */}
-        <div className="mt-3 min-h-7">
+        <div className="mt-2 min-h-7">
           {filters.skills.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1">
               {filters.skills.map((skill) => (
-                <span key={skill} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded-full text-[11px] font-medium">
+                <span key={skill} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full text-[11px] font-medium">
                   {skill}
                   <button
                     type="button"
@@ -759,11 +832,114 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                     <div className="text-gray-700 truncate" title={student.Department || student.department}>{student.Department || student.department || 'N/A'}</div>
                     <div className="font-medium text-gray-800">{cgpa !== undefined && cgpa !== null ? Number(cgpa).toFixed(2) : 'N/A'}</div>
                     <div className="col-span-2 text-purple-700 font-medium truncate" title={fypTitle || 'No FYP title'}>{fypTitle || 'N/A'}</div>
-                    <div className="col-span-2" title={allSkills}>
-                      {skills.length > 0 ? (
-                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full inline-block">
-                          {skills.length} skill{skills.length > 1 ? 's' : ''}
-                        </span>
+                    <div className="col-span-2 relative">
+                      {listMode === 'recommended' && (student._matchedSkills || []).length > 0 ? (
+                        <div 
+                          className="relative inline-block"
+                            onMouseEnter={(e) => {
+                            setHoveredStudentId(getStudentId(student));
+                            const tooltipWidth = 280;
+                            const tooltipHeight = 150;
+                            let leftPos = e.clientX - tooltipWidth - 10;
+                            let topPos = e.clientY + 10;
+                            
+                            // Ensure not off left edge
+                            if (leftPos < 10) {
+                              leftPos = 10;
+                            }
+                            // Boundary check for bottom edge
+                            if (topPos + tooltipHeight > window.innerHeight) {
+                              topPos = e.clientY - tooltipHeight - 10;
+                            }
+                            
+                            setTooltipPos({ top: topPos, left: leftPos });
+                          }}
+                          onMouseLeave={() => setHoveredStudentId(null)}
+                        >
+                          <span className="relative overflow-visible text-[10px] bg-amber-50 text-amber-800 border border-amber-100 px-2 py-0.5 pr-7 rounded-full inline-flex items-center cursor-pointer hover:bg-amber-100 transition-colors max-w-[180px]">
+                              <span className="truncate flex-1">
+                                {(student._matchedSkills || []).slice(0,3).join(', ')}{(student._matchedSkills || []).length > 3 ? ` +${(student._matchedSkills || []).length - 3}` : ''}
+                              </span>
+                              <span className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 bg-amber-600 text-white text-[9px] font-bold rounded-full shadow-md ring-2 ring-white z-10 flex-shrink-0">
+                                {(student._matchedSkills || []).length}
+                              </span>
+                          </span>
+                          {hoveredStudentId === getStudentId(student) && tooltipPos && (
+                            <div 
+                              className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-2xl p-3 w-max max-w-xs"
+                              style={{ top: `${tooltipPos.top}px`, left: `${tooltipPos.left}px` }}
+                            >
+                              <p className="text-xs font-semibold text-gray-700 mb-2">All Skills (✓ matched):</p>
+                              <div className="flex flex-wrap gap-1">
+                                {(skills || []).map((skill, idx) => {
+                                  const isMatched = (student._matchedSkills || []).some(m => m.toLowerCase() === String(skill).toLowerCase());
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className={`text-[11px] px-2 py-1 rounded-full font-medium ${
+                                        isMatched
+                                          ? 'bg-green-100 text-green-800 border border-green-300'
+                                          : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                      }`}
+                                    >
+                                      {skill}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : skills.length > 0 ? (
+                        <div 
+                          className="relative inline-block"
+                          onMouseEnter={(e) => {
+                            setHoveredStudentId(getStudentId(student));
+                            const tooltipWidth = 250;
+                            const tooltipHeight = 150;
+                            let leftPos = e.clientX - tooltipWidth - 10;
+                            let topPos = e.clientY + 10;
+                            
+                            // Ensure not off left edge
+                            if (leftPos < 10) {
+                              leftPos = 10;
+                            }
+                            // Boundary check for bottom edge
+                            if (topPos + tooltipHeight > window.innerHeight) {
+                              topPos = e.clientY - tooltipHeight - 10;
+                            }
+                            
+                            setTooltipPos({ top: topPos, left: leftPos });
+                          }}
+                          onMouseLeave={() => setHoveredStudentId(null)}
+                        >
+                          <span className="relative overflow-visible text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 pr-7 rounded-full inline-flex items-center cursor-pointer hover:bg-blue-100 transition-colors max-w-[180px]">
+                              <span className="truncate flex-1">
+                                {skills.length} skill{skills.length > 1 ? 's' : ''}
+                              </span>
+                              <span className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 bg-blue-600 text-white text-[9px] font-bold rounded-full shadow-md ring-2 ring-white z-10 flex-shrink-0">
+                                {skills.length}
+                              </span>
+                          </span>
+                          {hoveredStudentId === getStudentId(student) && tooltipPos && (
+                            <div 
+                              className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-2xl p-3 w-max max-w-xs"
+                              style={{ top: `${tooltipPos.top}px`, left: `${tooltipPos.left}px` }}
+                            >
+                              <p className="text-xs font-semibold text-gray-700 mb-2">All Skills:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {(skills || []).map((skill, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="text-[11px] px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-700 border border-blue-200"
+                                  >
+                                    {skill}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[11px] text-gray-400">N/A</span>
                       )}
@@ -860,12 +1036,117 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
                       <td className="px-2 py-2.5 text-xs text-purple-700 font-medium text-center align-middle">
                         <span className="block truncate" title={fypTitle || 'No FYP title'}>{fypTitle || 'N/A'}</span>
                       </td>
-                      <td className="px-2 py-2.5 text-center align-middle w-[140px] min-w-[140px] max-w-[140px]">
-                        <div className="w-full flex justify-center" title={allSkills}>
-                          {skills.length > 0 ? (
-                            <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full truncate max-w-[120px]">
-                              {skills.length} skill{skills.length > 1 ? 's' : ''}
-                            </span>
+                      <td className="px-2 py-2.5 text-center align-middle w-[140px] min-w-[140px] max-w-[140px] relative">
+                        <div className="w-full flex justify-center">
+                          {listMode === 'recommended' && (student._matchedSkills || []).length > 0 ? (
+                            <div 
+                              className="relative inline-block"
+                              onMouseEnter={(e) => {
+                                setHoveredStudentId(getStudentId(student));
+                                const tooltipWidth = 280;
+                                const tooltipHeight = 150;
+                                let leftPos = e.clientX - tooltipWidth - 10;
+                                let topPos = e.clientY + 10;
+                                
+                                // Ensure not off left edge
+                                if (leftPos < 10) {
+                                  leftPos = 10;
+                                }
+                                // Boundary check for bottom edge
+                                if (topPos + tooltipHeight > window.innerHeight) {
+                                  topPos = e.clientY - tooltipHeight - 10;
+                                }
+                                
+                                setTooltipPos({ top: topPos, left: leftPos });
+                              }}
+                              onMouseLeave={() => setHoveredStudentId(null)}
+                            >
+                              <span className="relative overflow-visible text-[10px] bg-amber-50 text-amber-800 border border-amber-100 px-2 py-0.5 pr-6 rounded-full inline-flex items-center cursor-pointer hover:bg-amber-100 transition-colors max-w-[120px]">
+                                <span className="truncate flex-1">
+                                  {(student._matchedSkills || []).slice(0,3).join(', ')}{(student._matchedSkills || []).length > 3 ? ` +${(student._matchedSkills || []).length - 3}` : ''}
+                                </span>
+                                <span className="absolute right-0.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-4 h-4 bg-amber-600 text-white text-[8px] font-bold rounded-full shadow-sm z-10 flex-shrink-0">
+                                  {(student._matchedSkills || []).length}
+                                </span>
+                              </span>
+                              {hoveredStudentId === getStudentId(student) && tooltipPos && (
+                                <div 
+                                  className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-2xl p-3 w-max max-w-xs"
+                                  style={{ top: `${tooltipPos.top}px`, left: `${tooltipPos.left}px` }}
+                                >
+                                  <p className="text-xs font-semibold text-gray-700 mb-2">All Skills (✓ matched):</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(skills || []).map((skill, idx) => {
+                                      const isMatched = (student._matchedSkills || []).some(m => m.toLowerCase() === String(skill).toLowerCase());
+                                      return (
+                                        <span
+                                          key={idx}
+                                          className={`text-[11px] px-2 py-1 rounded-full font-medium ${
+                                            isMatched
+                                              ? 'bg-green-100 text-green-800 border border-green-300'
+                                              : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                          }`}
+                                        >
+                                          {skill}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : skills.length > 0 ? (
+                            <div 
+                              className="relative inline-block"
+                              onMouseEnter={(e) => {
+                                setHoveredStudentId(getStudentId(student));
+                                const tooltipWidth = 250;
+                                const tooltipHeight = 120;
+                                let leftPos = e.clientX - tooltipWidth - 10;
+                                let topPos = e.clientY + 10;
+                                
+                                // Ensure not off left edge
+                                if (leftPos < 10) {
+                                  leftPos = 10;
+                                }
+                                // Boundary check for bottom edge
+                                if (topPos + tooltipHeight > window.innerHeight) {
+                                  topPos = e.clientY - tooltipHeight - 10;
+                                }
+                                
+                                setTooltipPos({ top: topPos, left: leftPos });
+                              }}
+                              onMouseLeave={() => setHoveredStudentId(null)}
+                            >
+                              <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full truncate max-w-[120px] cursor-pointer hover:bg-blue-100 transition-colors inline-block">
+                                {skills.length} skill{skills.length > 1 ? 's' : ''}
+                              </span>
+                              {hoveredStudentId === getStudentId(student) && tooltipPos && (
+                                <div 
+                                  className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-2xl p-3 w-max max-w-xs"
+                                  style={{ top: `${tooltipPos.top}px`, left: `${tooltipPos.left}px` }}
+                                >
+                                  <p className="text-xs font-semibold text-gray-700 mb-2">All Skills:</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(skills || []).map((skill, idx) => {
+                                      const isMatched = normalizedCompanySkills.has(normalize(skill));
+                                      return (
+                                        <span
+                                          key={idx}
+                                          className={`text-[11px] px-2 py-1 rounded-full font-medium border ${
+                                            isMatched
+                                              ? 'bg-green-100 text-green-800 border-green-300'
+                                              : 'bg-blue-100 text-blue-700 border-blue-200'
+                                          }`}
+                                        >
+                                          {skill}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-[11px] text-gray-400">N/A</span>
                           )}
@@ -889,7 +1170,7 @@ export default function StudentDirectory({ onSelect, onError, onSuccess, onNavig
       )}
 
       {/* Pagination Controls */}
-      {students.length > 0 && totalCount > pageSize && (
+      {students.length > 0 && totalCount > 0 && (
         <div className="mt-4 flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200">
           <div className="text-sm text-gray-600">
             Showing <span className="font-semibold">{pageStartIndex + 1}</span> to <span className="font-semibold">{Math.min(pageStartIndex + pageSize, totalCount)}</span> of <span className="font-semibold">{totalCount}</span> students

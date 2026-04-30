@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, Users, Bell, LogOut, BookOpen, Calendar, Menu, X, ChevronRight, Building2, Package, ClipboardList, CheckCircle } from 'lucide-react';
 import logo from '../../assets/CuiWahJobFairLogo.png';
 
-export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children, notificationCounts = {}, nextIncomingInterview = null, surveySubmitted = false }) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+function IncomingInterviewCountdown({ nextIncomingInterview }) {
   const [now, setNow] = useState(Date.now());
+  const VISIBILITY_WINDOW_SECONDS = 10 * 60;
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -17,6 +17,44 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
     const diff = Math.floor((target - now) / 1000);
     return diff >= 0 ? diff : null;
   }, [nextIncomingInterview, now]);
+
+  const overdueSeconds = useMemo(() => {
+    if (!nextIncomingInterview?.scheduledTime) return null;
+    const target = new Date(nextIncomingInterview.scheduledTime).getTime();
+    const diff = Math.floor((now - target) / 1000);
+    return diff > 0 ? diff : null;
+  }, [nextIncomingInterview, now]);
+
+  const isOverdue = Boolean(nextIncomingInterview?.isOverdue) || overdueSeconds != null;
+  const visibleSeconds = upcomingSecondsLeft ?? overdueSeconds;
+  const isWithinVisibilityWindow = visibleSeconds != null && visibleSeconds <= VISIBILITY_WINDOW_SECONDS;
+
+  if (!isWithinVisibilityWindow) return null;
+
+  const formatCountdown = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  return (
+    <div className={`hidden md:flex absolute top-4 left-4 z-30 rounded-xl shadow px-4 py-3 items-center gap-3 border ${isOverdue ? 'bg-red-100 border-red-300 text-red-900' : 'bg-amber-100 border-amber-300 text-amber-900'}`}>
+      <Calendar className="w-4 h-4" />
+      <div className="text-xs">
+        <div className="font-semibold">{isOverdue ? 'Interview Passed' : 'Incoming Interview'}</div>
+        <div>
+          {nextIncomingInterview.studentName || 'Candidate'}
+          {isOverdue
+            ? ` passed ${formatCountdown(visibleSeconds)} ago`
+            : ` in ${formatCountdown(visibleSeconds)}`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout({ user, onLogout, activeTab, onTabChange, children, notificationCounts = {}, nextIncomingInterview = null, surveySubmitted = false }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const formatCountdown = (seconds) => {
     if (seconds == null) return '--:--';
@@ -137,15 +175,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {nextIncomingInterview && upcomingSecondsLeft != null && (
-          <div className="hidden md:flex absolute top-4 left-4 z-30 bg-amber-100 border border-amber-300 text-amber-900 rounded-xl shadow px-4 py-3 items-center gap-3">
-            <Calendar className="w-4 h-4" />
-            <div className="text-xs">
-              <div className="font-semibold">Incoming Interview</div>
-              <div>{nextIncomingInterview.studentName || 'Candidate'} in {formatCountdown(upcomingSecondsLeft)} mins</div>
-            </div>
-          </div>
-        )}
+        <IncomingInterviewCountdown nextIncomingInterview={nextIncomingInterview} />
 
         <header className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-2 font-bold text-gray-900">

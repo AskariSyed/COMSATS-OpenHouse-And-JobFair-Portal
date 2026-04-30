@@ -80,13 +80,24 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
   const rejectedCount = interviews?.rejectedCount ?? 0;
   const didNotAppearCount = interviews?.didNotAppearCount ?? 0;
 
+  const validUpcomingInterviews = (interviews?.scheduledInterviews || [])
+    .filter(int => {
+      const status = String(int.status || '').toLowerCase();
+      if (!['queued', 'accepted', 'inprogress', ''].includes(status)) return false;
+      const time = new Date(int.scheduledTime).getTime();
+      if (Number.isNaN(time)) return false;
+      return time > (Date.now() - 12 * 60 * 60 * 1000);
+    })
+    .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())
+    .slice(0, 3);
+
   return (
     <div className="space-y-8 pb-10">
       <div className="flex justify-between items-end">
         <div>
-           <h2 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h2>
-           <p className="text-gray-500">Overview for {data.companyName}</p>
-           {roomName && <p className="text-xs text-blue-700 mt-1">Assigned Room: {roomName}</p>}
+          <h2 className="text-2xl font-bold text-gray-900">Recruitment Dashboard</h2>
+          <p className="text-gray-500">Overview for {data.companyName}</p>
+          {roomName && <p className="text-xs text-blue-700 mt-1">Assigned Room: {roomName}</p>}
         </div>
         <div className="flex items-center gap-2">
           {shouldShowScheduleAll && (
@@ -122,32 +133,32 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
           )}
         </div>
       </div>
-      
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          icon={TrendingUp} title="Hiring Rate" 
-          value={`${summary.hiringRate}%`} 
+        <StatCard
+          icon={TrendingUp} title="Hiring Rate"
+          value={`${summary.hiringRate}%`}
           sub={`Conversion: ${summary.conversionRate}%`}
-          color="blue" 
+          color="blue"
         />
-        <StatCard 
-          icon={Users} title="Candidates" 
-          value={summary.totalStudentsCalled} 
+        <StatCard
+          icon={Users} title="Candidates"
+          value={summary.totalStudentsCalled}
           sub="Total reached out"
-          color="purple" 
+          color="purple"
         />
-        <StatCard 
-          icon={CheckCircle} title="Hired" 
-          value={summary.totalHired} 
+        <StatCard
+          icon={CheckCircle} title="Hired"
+          value={summary.totalHired}
           sub="Offers accepted"
-          color="green" 
+          color="green"
         />
-        <StatCard 
-          icon={BookOpen} title="FYP Projects" 
-          value={summary.totalFYPProjects} 
+        <StatCard
+          icon={BookOpen} title="FYP Projects"
+          value={summary.totalFYPProjects}
           sub="Projects Tracked"
-          color="orange" 
+          color="orange"
         />
       </div>
 
@@ -200,7 +211,7 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Pipeline Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
           <h3 className="font-bold text-gray-900 mb-6">Recruitment Pipeline</h3>
@@ -238,27 +249,27 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
 
         {/* Action Items */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
-           <h3 className="font-bold text-gray-900 mb-4">Upcoming</h3>
-           <div className="space-y-4 flex-1">
-             {interviews.scheduledInterviews && interviews.scheduledInterviews.length > 0 ? (
-                interviews.scheduledInterviews.slice(0, 3).map((int, i) => (
-                  <div key={i} className="flex gap-3 items-start p-3 bg-blue-50 rounded-xl">
-                    <Clock className="w-5 h-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{int.studentName}</p>
-                      <p className="text-xs text-blue-700">
-                        {new Date(int.scheduledTime).toLocaleDateString()} at {new Date(int.scheduledTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </p>
-                    </div>
+          <h3 className="font-bold text-gray-900 mb-4">Upcoming</h3>
+          <div className="space-y-4 flex-1">
+            {validUpcomingInterviews.length > 0 ? (
+              validUpcomingInterviews.map((int, i) => (
+                <div key={i} className="flex gap-3 items-start p-3 bg-blue-50 rounded-xl">
+                  <Clock className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{int.studentName}</p>
+                    <p className="text-xs text-blue-700">
+                      {new Date(int.scheduledTime).toLocaleDateString()} at {new Date(int.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
-                ))
-             ) : (
-                <div className="text-center text-gray-400 py-8">
-                  <CheckCircle className="w-12 h-12 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">No upcoming interviews.</p>
-               </div>
-             )}
-           </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-400 py-8">
+                <CheckCircle className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">No upcoming interviews.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -275,7 +286,7 @@ function StatCard({ icon: Icon, title, value, sub, color }) {
     <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colors[color]}`}>
-           <Icon className="w-6 h-6" />
+          <Icon className="w-6 h-6" />
         </div>
       </div>
       <div>
@@ -290,9 +301,9 @@ function StatCard({ icon: Icon, title, value, sub, color }) {
 function OutcomeCard({ icon: Icon, label, value, color, onClick, tooltip }) {
   const palettes = {
     slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-600', text: 'text-slate-900', sub: 'text-slate-500' },
-    blue:  { bg: 'bg-blue-50',  border: 'border-blue-200',  icon: 'bg-blue-100 text-blue-600',  text: 'text-blue-900',  sub: 'text-blue-500'  },
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-600', text: 'text-blue-900', sub: 'text-blue-500' },
     green: { bg: 'bg-green-50', border: 'border-green-200', icon: 'bg-green-100 text-green-600', text: 'text-green-900', sub: 'text-green-500' },
-    red:   { bg: 'bg-red-50',   border: 'border-red-200',   icon: 'bg-red-100 text-red-600',   text: 'text-red-900',   sub: 'text-red-500'   },
+    red: { bg: 'bg-red-50', border: 'border-red-200', icon: 'bg-red-100 text-red-600', text: 'text-red-900', sub: 'text-red-500' },
     amber: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-600', text: 'text-amber-900', sub: 'text-amber-500' },
   };
   const p = palettes[color] || palettes.slate;

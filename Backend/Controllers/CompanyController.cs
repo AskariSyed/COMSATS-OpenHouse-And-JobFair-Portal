@@ -777,25 +777,88 @@ namespace JobFairPortal.Controllers
                     .FirstOrDefault() == targetStatus);
             }
 
-            // Apply skills filter (must-have ALL skills)
-            if (!string.IsNullOrWhiteSpace(skills))
+            // Apply skills filter (must-have ALL skills). EF cannot translate
+            // case-insensitive comparisons over the JSON-backed primitive collection,
+            // so we switch to client evaluation only when skills are supplied.
+            var skillList = (string.IsNullOrWhiteSpace(skills)
+                    ? new List<string>()
+                    : skills.Split(',')
+                        .Select(s => s.Trim())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList())
+                .Select(s => s.ToLowerInvariant())
+                .ToList();
+
+            if (skillList.Any())
             {
-                var skillList = skills.Split(',')
-                    .Select(s => s.Trim().ToLower())
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                var baseStudents = await query.ToListAsync();
+                var filteredStudents = baseStudents
+                    .Where(s => s.Skills != null && skillList.All(skill =>
+                        s.Skills.Any(sk => string.Equals((sk ?? string.Empty).Trim(), skill, StringComparison.OrdinalIgnoreCase))))
                     .ToList();
 
-                if (skillList.Any())
+                var filteredTotalCount = filteredStudents.Count;
+                var filteredSkip = (page - 1) * pageSize;
+                var filteredPageStudents = filteredStudents
+                    .Skip(filteredSkip)
+                    .Take(pageSize)
+                    .Select(s => new
+                    {
+                        StudentId = s.StudentId,
+                        Name = s.User.FullName,
+                        RegistrationNo = s.RegistrationNo,
+                        Department = s.Department,
+                        CGPA = (float)s.CGPA,
+                        Skills = s.Skills,
+                        ProfilePicUrl = s.ProfilePicUrl,
+                        FypTitle = s.StudentProjects
+                            .Where(sp => sp.Project.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)
+                            .Select(sp => sp.Project.Title)
+                            .FirstOrDefault(),
+                        CurrentInterviewStatus = _context.Interviews
+                            .Where(i => i.CompanyId == currentCompany.CompanyId && i.StudentId == s.StudentId && i.JobFairId == activeJobFair.JobFairId)
+                            .OrderByDescending(i => i.UpdatedAt)
+                            .Select(i => i.Status.ToString())
+                            .FirstOrDefault(),
+
+                        InterviewRequest = new
+                        {
+                            HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId),
+                            Status = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                                .Select(ir => ir.Status.ToString())
+                                .FirstOrDefault(),
+                            RequestId = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                                .Select(ir => (int?)ir.RequestId)
+                                .FirstOrDefault(),
+                            RequestDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                                .Select(ir => ir.CreatedAt)
+                                .FirstOrDefault(),
+                            ResponseDate = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                                .Select(ir => ir.UpdatedAt)
+                                .FirstOrDefault(),
+                            RequestedBy = s.InterviewRequests
+                                .Where(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId)
+                                .Select(ir => ir.RequestedBy)
+                                .FirstOrDefault()
+                        }
+                    })
+                    .ToList();
+
+                return Ok(new
                 {
-                    query = query.Where(s =>
-                        skillList.All(skill =>
-                            (s.Skills != null && s.Skills.Any(sk => sk.ToLower() == skill))
-                        )
-                    );
-                }
+                    items = filteredPageStudents,
+                    totalCount = filteredTotalCount,
+                    page,
+                    pageSize,
+                    totalPages = (int)Math.Ceiling((double)filteredTotalCount / pageSize)
+                });
             }
 
-            // Get total count AFTER all filters (including skills) are applied
+            // Get total count AFTER all filters (without skills)
             var totalCount = await query.CountAsync();
 
             // Apply pagination
@@ -821,7 +884,7 @@ namespace JobFairPortal.Controllers
                         .OrderByDescending(i => i.UpdatedAt)
                         .Select(i => i.Status.ToString())
                         .FirstOrDefault(),
-                    
+
                     InterviewRequest = new
                     {
                         HasRequest = s.InterviewRequests.Any(ir => ir.CompanyId == currentCompany.CompanyId && ir.JobFairId == activeJobFair.JobFairId),

@@ -200,6 +200,8 @@ export default function App() {
 
     let intervalId;
 
+    const INTERVIEW_OVERDUE_WINDOW_MS = 10 * 60 * 1000;
+
     const refreshCompanyNotifications = async () => {
       try {
         const [pendingData, analyticsData] = await Promise.all([
@@ -214,23 +216,30 @@ export default function App() {
           const status = String(i?.status || i?.Status || '').toLowerCase();
           if (!t || (status !== 'queued' && status !== 'accepted' && status !== 'inprogress' && status !== '')) return false;
           const ts = new Date(t).getTime();
-          return !Number.isNaN(ts) && ts > now;
+          return !Number.isNaN(ts) && Math.abs(ts - now) <= INTERVIEW_OVERDUE_WINDOW_MS;
         }).sort((a, b) => {
           const ta = new Date(a.scheduledTime || a.ScheduledTime).getTime();
           const tb = new Date(b.scheduledTime || b.ScheduledTime).getTime();
-          return ta - tb;
+          const taDelta = Math.abs(ta - now);
+          const tbDelta = Math.abs(tb - now);
+          return taDelta - tbDelta;
         });
 
         const next = scheduled.length > 0 ? scheduled[0] : null;
-        const incomingWithin30 = next ? ((new Date(next.scheduledTime || next.ScheduledTime).getTime() - now) <= 30 * 60 * 1000) : false;
+        const nextTime = next ? new Date(next.scheduledTime || next.ScheduledTime).getTime() : null;
+        const deltaMs = nextTime != null && !Number.isNaN(nextTime) ? nextTime - now : null;
+        const isOverdue = deltaMs != null && deltaMs < 0;
+        const isVisible = deltaMs != null && Math.abs(deltaMs) <= INTERVIEW_OVERDUE_WINDOW_MS;
 
         setNotificationCounts({
-          interviews: pendingCount + (incomingWithin30 ? 1 : 0),
+          interviews: pendingCount + (isVisible ? 1 : 0),
           overview: pendingCount
         });
-        setNextIncomingInterview(incomingWithin30 ? {
+        setNextIncomingInterview(isVisible ? {
           scheduledTime: next.scheduledTime || next.ScheduledTime,
-          studentName: next.studentName || next.StudentName || next.registrationNo || 'Candidate'
+          studentName: next.studentName || next.StudentName || next.registrationNo || 'Candidate',
+          isOverdue,
+          overdueMinutes: isOverdue ? Math.floor(Math.abs(deltaMs) / 60000) : 0,
         } : null);
       } catch (err) {
         console.warn('Failed to refresh company notification badges', err);
