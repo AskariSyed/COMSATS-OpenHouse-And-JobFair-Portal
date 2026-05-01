@@ -735,7 +735,7 @@ class _RequestsScreenState extends State<RequestsScreen>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      _buildStatusBadge(req.status),
+                      _buildStatusBadge(req.status, req.requestedBy),
                       if (actions != null && actions.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         ConstrainedBox(
@@ -755,7 +755,8 @@ class _RequestsScreenState extends State<RequestsScreen>
                 ],
               ),
               if (req.status == RequestStatus.Rejected &&
-                  req.reasonForReject != null) ...[
+                  req.reasonForReject != null &&
+                  req.reasonForReject!.isNotEmpty) ...[
                 SizedBox(height: isMobile ? 12 : 16),
                 Container(
                   width: double.infinity,
@@ -783,7 +784,7 @@ class _RequestsScreenState extends State<RequestsScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Update: ${req.reasonForReject}",
+                          "Reason: ${req.reasonForReject}",
                           style: TextStyle(
                             color: isDark
                                 ? Colors.indigo.shade300
@@ -818,7 +819,7 @@ class _RequestsScreenState extends State<RequestsScreen>
     );
   }
 
-  Widget _buildStatusBadge(RequestStatus status) {
+  Widget _buildStatusBadge(RequestStatus status, RequestedBy requestedBy) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
     String text;
@@ -831,9 +832,11 @@ class _RequestsScreenState extends State<RequestsScreen>
         icon = Icons.check_circle_outline;
         break;
       case RequestStatus.Rejected:
-        color = Colors.indigo;
-        text = "Under Review";
-        icon = Icons.hourglass_top;
+        // If the company invited the student and the student rejected, show "Declined"
+        // If the student sent the request and company rejected, show "Rejected"
+        color = Colors.red;
+        text = requestedBy == RequestedBy.Company ? "Declined" : "Rejected";
+        icon = Icons.cancel_outlined;
         break;
       default:
         color = Colors.orange;

@@ -15,7 +15,6 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
     getAnalytics()
       .then((analyticsData) => {
         setData(analyticsData);
-        // Check if today is job fair day and store date in localStorage
         if (analyticsData.jobFairDate) {
           localStorage.setItem('jobFairDate', analyticsData.jobFairDate);
           const jobFairDate = new Date(analyticsData.jobFairDate).toDateString();
@@ -62,7 +61,6 @@ export default function AnalyticsView({ onError, onSuccess, onNavigateToIntervie
   if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto w-10 h-10 text-blue-600" /></div>;
   if (!data) return <div className="text-center text-gray-500 p-12">No analytics data available.</div>;
 
-  // Destructure based on C# Controller JSON structure (camelCase)
   const { summary, interviews } = data;
   const canToggleWalkIn = Boolean(data.canToggleWalkInInterviewing);
   const isWalkInInterviewing = Boolean(data.isWalkInInterviewing);

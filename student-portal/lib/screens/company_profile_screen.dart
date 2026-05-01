@@ -809,10 +809,10 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
 
     if (interviewStatus == 'rejected') {
       return _buildStatusCard(
-        color: Colors.indigo,
-        icon: Icons.hourglass_top,
-        title: "Under Review",
-        subtitle: "Your profile is still being reviewed by the company.",
+        color: Colors.red,
+        icon: Icons.cancel_outlined,
+        title: "Not Selected",
+        subtitle: "The company has decided to move forward with other candidates.",
       );
     }
 
@@ -844,12 +844,21 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
     }
 
     if (requestStatus == 'rejected') {
-      return _buildStatusCard(
-        color: Colors.indigo,
-        icon: Icons.hourglass_top,
-        title: "Request Under Review",
-        subtitle: "Your request was updated and remains under review.",
-      );
+      if (requestedBy == 'company') {
+        return _buildStatusCard(
+          color: Colors.red,
+          icon: Icons.cancel_outlined,
+          title: "Request Declined",
+          subtitle: "You have declined the interview request from this company.",
+        );
+      } else {
+        return _buildStatusCard(
+          color: Colors.red,
+          icon: Icons.cancel_outlined,
+          title: "Request Rejected",
+          subtitle: "Your interview request was not accepted by the company.",
+        );
+      }
     }
 
     // NO REQUEST/INTERVIEW -> SHOW BUTTON

@@ -806,6 +806,7 @@ class _JobsScreenState extends State<JobsScreen> {
 
   Widget _buildRecommendedJobCard(dynamic jobData) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final colorScheme = theme.colorScheme;
     final jobTitle = jobData['jobTitle'] ?? 'Unknown Job';
     final companyName = jobData['companyName'] ?? 'Unknown Company';
@@ -843,11 +844,15 @@ class _JobsScreenState extends State<JobsScreen> {
           decoration: BoxDecoration(
             color: theme.cardColor,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: isDark ? 0.2 : 0.1),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: theme.shadowColor.withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: theme.shadowColor.withValues(alpha: isDark ? 0.3 : 0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -1047,11 +1052,15 @@ class _CompanyJobCardState extends State<CompanyJobCard> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: theme.brightness == Brightness.dark ? 0.2 : 0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: theme.shadowColor.withValues(alpha: theme.brightness == Brightness.dark ? 0.3 : 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),

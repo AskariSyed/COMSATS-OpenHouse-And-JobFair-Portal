@@ -290,10 +290,16 @@ Future<dynamic> showGenericDialog({
                                             }
                                             if (context.mounted)
                                               Navigator.pop(ctx);
+                                            final resolvedSuccessMessage =
+                                                (result is String &&
+                                                    result.trim().isNotEmpty)
+                                                ? result
+                                                : successMessage;
+
                                             showTopSnackBar(
                                               Overlay.of(context),
-                                              const CustomSnackBar.success(
-                                                message: "Saved Successfully!",
+                                              CustomSnackBar.success(
+                                                message: resolvedSuccessMessage,
                                               ),
                                             );
                                           } catch (e) {

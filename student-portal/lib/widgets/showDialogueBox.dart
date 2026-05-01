@@ -1540,6 +1540,13 @@ void showProjectDialog(BuildContext context, {Project? project}) {
   final githubCtrl = TextEditingController(text: project?.gitHubUrl ?? "");
   int selectedType = project?.type.index ?? 0;
 
+  final studentProvider = Provider.of<StudentProvider>(context, listen: false);
+  final student = studentProvider.student;
+  bool alreadyHasFyp = student?.projects.any(
+        (p) => p.type == ProjectType.FinalYear && p.projectId != project?.projectId,
+      ) ??
+      false;
+
   showGenericDialog(
     context: context,
     title: isEditing ? "Edit Project" : "Add Project",
@@ -1554,11 +1561,15 @@ void showProjectDialog(BuildContext context, {Project? project}) {
                 labelText: "Project Type",
                 border: OutlineInputBorder(),
               ),
-              items: const [
-                DropdownMenuItem(value: 0, child: Text("Semester Project")),
-                DropdownMenuItem(value: 1, child: Text("Freelance Project")),
-                DropdownMenuItem(value: 2, child: Text("Final Year Project")),
-                DropdownMenuItem(value: 3, child: Text("Other")),
+              items: [
+                const DropdownMenuItem(value: 0, child: Text("Semester Project")),
+                const DropdownMenuItem(value: 1, child: Text("Freelance Project")),
+                if (!alreadyHasFyp)
+                  const DropdownMenuItem(
+                    value: 2,
+                    child: Text("Final Year Project"),
+                  ),
+                const DropdownMenuItem(value: 3, child: Text("Other")),
               ],
               onChanged: (v) => setState(() => selectedType = v!),
             ),
@@ -1600,9 +1611,9 @@ void showProjectDialog(BuildContext context, {Project? project}) {
       data.removeWhere((key, value) => value == "");
       final provider = Provider.of<StudentProvider>(context, listen: false);
       if (isEditing) {
-        await provider.updateProject(project.projectId, data);
+        return await provider.updateProject(project.projectId, data);
       } else {
-        await provider.createProject(data);
+        return await provider.createProject(data, throwOnError: true);
       }
     },
   );

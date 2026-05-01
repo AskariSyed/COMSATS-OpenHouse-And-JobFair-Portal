@@ -46,6 +46,7 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
   const [refreshKey, setRefreshKey] = useState(0); 
   
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
   const [acceptedRequests, setAcceptedRequests] = useState([]);
   const [completedInterviews, setCompletedInterviews] = useState([]);
   const [scheduledInterviews, setScheduledInterviews] = useState([]);
@@ -131,8 +132,9 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
     Promise.all([
       getPendingInterviewRequests(),
       getAllInterviewRequests('Accepted'),
-      getAnalytics()
-    ]).then(([requestsData, acceptedData, analyticsData]) => {
+      getAnalytics(),
+      getAllInterviewRequests()
+    ]).then(([requestsData, acceptedData, analyticsData, allRequestsData]) => {
       const normalizedScheduled = (analyticsData.interviews?.scheduledInterviews || [])
         .map((interview) => ({
           interviewId: interview.interviewId ?? interview.InterviewId ?? interview.id ?? interview.Id ?? null,
@@ -188,7 +190,15 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
 
       setIsInterviewWindowClosed(hasCutoffPassed(analyticsData?.jobFairDate));
 
-      setPendingRequests(requestsData.pendingRequests || []);
+      // Inbox: pending requests sent by students to company
+      setPendingRequests((requestsData.pendingRequests || []).filter(
+        (r) => r.requestedBy === 1 || r.requestedBy === 'Student'
+      ));
+      // Sent: all requests sent by company to students (any status)
+      const allReqs = allRequestsData?.requests || [];
+      setSentRequests(allReqs.filter(
+        (r) => r.requestedBy === 0 || String(r.requestedBy).toLowerCase() === 'company'
+      ));
       setAcceptedRequests(acceptedOnly);
       setCompletedInterviews(completed);
       setScheduledInterviews(normalizedScheduled);
@@ -402,13 +412,14 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
     );
   };
 
-  const filteredPendingRequests = pendingRequests.filter((req) => {
-    if (pendingView === 'all') return true;
-    const isIncoming = req.requestedBy === 1 || req.requestedBy === 'Student';
-    if (pendingView === 'inbox') return isIncoming;
-    if (pendingView === 'sent') return !isIncoming;
-    return true;
-  });
+  const filteredPendingRequests = (() => {
+    if (pendingView === 'all') return [...pendingRequests, ...sentRequests];
+    if (pendingView === 'inbox') return pendingRequests;
+    return sentRequests;
+  })();
+
+  // displayedPendingRequests is now the same as filteredPendingRequests
+  const displayedPendingRequests = filteredPendingRequests;
 
   const handleStartInterview = async (interview) => {
     if (!canStartInterview(interview)) {
@@ -801,7 +812,7 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
       {/* --- Tabs --- */}
       <div className="border-b border-gray-200 overflow-x-auto">
         <div className="flex gap-6 min-w-max">
-          <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length} active={activeTab} onClick={setActiveTab} />
+          <TabBtn id="pending" label="Inbox & Sent" count={pendingRequests.length + sentRequests.length} active={activeTab} onClick={setActiveTab} />
           <TabBtn id="accepted" label="Accepted" count={acceptedRequests.length} active={activeTab} onClick={setActiveTab} />
           <TabBtn id="scheduled" label="Scheduled Interviews" active={activeTab} onClick={setActiveTab} />
           <TabBtn id="completed" label="Completed" count={completedInterviews.length} active={activeTab} onClick={setActiveTab} />
@@ -812,18 +823,20 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
       {activeTab === 'pending' && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <button onClick={() => setPendingView('all')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>All ({pendingRequests.length})</button>
-            <button onClick={() => setPendingView('inbox')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'inbox' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Inbox ({pendingRequests.filter(r => r.requestedBy === 1 || r.requestedBy === 'Student').length})</button>
-            <button onClick={() => setPendingView('sent')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'sent' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Sent ({pendingRequests.filter(r => !(r.requestedBy === 1 || r.requestedBy === 'Student')).length})</button>
+            <button onClick={() => setPendingView('all')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>All ({pendingRequests.length + sentRequests.length})</button>
+            <button onClick={() => setPendingView('inbox')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'inbox' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Inbox ({pendingRequests.length})</button>
+            <button onClick={() => setPendingView('sent')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold ${pendingView === 'sent' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Sent ({sentRequests.length})</button>
           </div>
 
-          {filteredPendingRequests.length === 0 ? (
-            <EmptyState message="No pending requests." />
+          {displayedPendingRequests.length === 0 ? (
+            <EmptyState message={pendingView === 'sent' ? 'No interview requests sent yet.' : 'No pending requests.'} />
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {filteredPendingRequests.map(req => {
+              {displayedPendingRequests.map(req => {
                 // Logic: Check who requested (0 = Company, 1 = Student)
                 const isIncoming = req.requestedBy === 1 || req.requestedBy === 'Student';
+                const reqStatus = String(req.status || '').toLowerCase();
+                const isSentPending = !isIncoming && reqStatus === 'pending';
 
                 return (
                   <div 
@@ -889,10 +902,16 @@ export default function InterviewManager({ user, roomName, onError, onSuccess, o
                               <XCircle className="w-4 h-4" /> Reject
                             </button>
                         </>
-                      ) : (
+                      ) : isSentPending ? (
                         <div className="flex items-center gap-2 text-gray-400 bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 text-sm font-medium cursor-default">
                             <Clock className="w-4 h-4" /> Awaiting Student Response...
                         </div>
+                      ) : (
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                          reqStatus === 'accepted' ? 'bg-green-50 text-green-700 border-green-200' :
+                          reqStatus === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-gray-50 text-gray-500 border-gray-200'
+                        }`}>{req.status}</span>
                       )}
                     </div>
                   </div>

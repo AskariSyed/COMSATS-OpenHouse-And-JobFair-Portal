@@ -149,7 +149,11 @@ class _ProjectCardState extends State<ProjectCard>
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade800
+              : Colors.grey.shade200,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -325,8 +329,10 @@ class _ProjectCardState extends State<ProjectCard>
                                               ? FontWeight.bold
                                               : FontWeight.w500,
                                           color: member['isMe']
-                                              ? Colors.black
-                                              : Colors.grey.shade800,
+                                              ? Theme.of(context).brightness == Brightness.dark
+                                                  ? Colors.white
+                                                  : Colors.black
+                                              : Colors.grey.shade600,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -389,7 +395,9 @@ class _ProjectCardState extends State<ProjectCard>
           Container(
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            color: Colors.grey.shade50.withValues(alpha: 0.3),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.grey.shade50.withValues(alpha: 0.3),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -471,7 +479,9 @@ class _ProjectCardState extends State<ProjectCard>
                     icon: project.currentStudentIsCreator
                         ? Icons.settings
                         : Icons.more_vert,
-                    color: Colors.grey.shade700,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey.shade300
+                        : Colors.grey.shade700,
                     tooltip: "Options",
                     onTap: () => _managePopupKey.currentState?.show(),
                   ),

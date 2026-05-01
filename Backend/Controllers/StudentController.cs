@@ -2061,7 +2061,23 @@ namespace JobFairPortal.Controllers
                 project.Skills = dto.Skills;
 
             if (dto.Type.HasValue)
+            {
+                // Guard: student can only have one FinalYear project
+                if (dto.Type.Value == ProjectType.FinalYear && project.Type != ProjectType.FinalYear)
+                {
+                    var alreadyHasFyp = await _context.StudentProjects
+                        .AnyAsync(sp =>
+                            sp.StudentId == student.StudentId &&
+                            sp.ProjectId != projectId &&
+                            sp.Status == ProjectInviteStatus.Accepted &&
+                            sp.Project.Type == ProjectType.FinalYear);
+
+                    if (alreadyHasFyp)
+                        return BadRequest("You already have a Final Year Project. A student can only have one active FYP.");
+                }
+
                 project.Type = dto.Type.Value;
+            }
 
             if (!string.IsNullOrWhiteSpace(dto.ClientName))
                 project.ClientName = dto.ClientName;

@@ -989,11 +989,22 @@ class StudentProvider with ChangeNotifier {
         await fetchProfile();
         return true;
       }
-      debugPrint("❌ Update project failed: ${response.body}");
-      return false;
+
+      String errorMessage = "Failed to update project.";
+      try {
+        final body = json.decode(response.body);
+        errorMessage = body['Message'] ?? body['message'] ?? response.body;
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          errorMessage = response.body;
+        }
+      }
+
+      debugPrint("❌ Update project failed: $errorMessage");
+      throw Exception(errorMessage);
     } catch (e) {
       _setLoading(false);
-      return false;
+      rethrow;
     }
   }
 
