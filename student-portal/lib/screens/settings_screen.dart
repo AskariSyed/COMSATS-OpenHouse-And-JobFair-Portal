@@ -257,7 +257,7 @@ class SettingsScreen extends StatelessWidget {
     if (student == null) return;
 
     if (!kIsWeb) {
-      // 📱 Native handling: Launch the new Interactive Live Preview interface
+      // 📱 Native: Launch the Interactive Live Preview interface
       Navigator.push(
         context,
         MaterialPageRoute(builder: (ctx) => const CVLivePreviewScreen()),
@@ -265,7 +265,7 @@ class SettingsScreen extends StatelessWidget {
       return;
     }
 
-    // 🌐 Web Handling: Just pop it into a browser tab
+    // 🌐 Web: Native Browser Tab Preview (Fixed for Safari)
     final customEmail = await _askCvEditPreference(
       context,
       title: 'Preview CV',
@@ -309,6 +309,8 @@ class SettingsScreen extends StatelessWidget {
       }
     }
   }
+
+
 
   Future<void> _handleUploadGeneratedCv(BuildContext context) async {
     final studentProvider = Provider.of<StudentProvider>(

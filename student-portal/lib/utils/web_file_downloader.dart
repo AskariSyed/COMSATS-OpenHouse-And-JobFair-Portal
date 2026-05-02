@@ -18,4 +18,9 @@ class WebFileDownloader {
   static void downloadFromUrl(String url, String fileName) {
     impl.downloadFromUrl(url, fileName);
   }
+
+  static void openPreview(Uint8List bytes, {String mimeType = 'application/pdf'}) {
+    impl.openPreview(bytes, mimeType: mimeType);
+  }
 }
+

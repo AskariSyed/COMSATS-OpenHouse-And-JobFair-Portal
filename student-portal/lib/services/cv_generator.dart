@@ -634,10 +634,11 @@ class CVGenerator {
     String? fileName,
   }) async {
     if (!kIsWeb) return;
-
-    final url = Uri.dataFromBytes(pdfBytes, mimeType: 'application/pdf');
-    await launchUrl(url, webOnlyWindowName: '_blank');
+    WebFileDownloader.openPreview(pdfBytes, mimeType: 'application/pdf');
   }
+
+
+
 
   /// Internal method to generate PDF bytes
   static Future<Uint8List> _generatePdfBytes(

@@ -27,3 +27,10 @@ void downloadFromUrl(String url, String fileName) {
   anchor.click();
   anchor.remove();
 }
+
+void openPreview(Uint8List bytes, {String mimeType = 'application/pdf'}) {
+  final blob = html.Blob([bytes], mimeType);
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  html.window.open(url, '_blank');
+}
+
