@@ -1241,6 +1241,11 @@ const SurveyResponses = () => {
   };
 
   const downloadAllCDCForms = async () => {
+    if (surveys.length === 0) {
+      toast.error('No data available to download');
+      return;
+    }
+
     const cdcSurveys = surveys.filter((s) => s.type === 'CDC');
     if (cdcSurveys.length === 0) {
       toast.error('No CDC survey responses available');
@@ -1505,6 +1510,348 @@ const SurveyResponses = () => {
     } catch (error) {
       toast.dismiss(loadingToastId);
       toast.error('Failed to generate CDC forms PDF');
+    }
+  };
+
+  const downloadAllDepartmentForms = async () => {
+    if (surveys.length === 0) {
+      toast.error('No data available to download');
+      return;
+    }
+
+    const departmentSurveys = surveys.filter((s) => s.type === 'Department');
+    if (departmentSurveys.length === 0) {
+      toast.error('No departmental survey responses available');
+      return;
+    }
+
+    const loadingToastId = toast.loading('Preparing Department survey forms PDF...');
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const { jobFairLabel, logoDataUrl } = await getPdfBrandingAssets();
+
+      const groupedByCompany = departmentSurveys.reduce((map, surveyItem) => {
+        const companyName = (surveyItem.companyName || 'Unknown Company').trim();
+        if (!map.has(companyName)) map.set(companyName, []);
+        map.get(companyName).push(surveyItem);
+        return map;
+      }, new Map());
+
+      const pageMargin = 14;
+      const pageInnerWidth = pageWidth - pageMargin * 2;
+      const normalizeLikert = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+      const wrapText = (text, maxWidth = pageInnerWidth - 24) => doc.splitTextToSize(String(text || ''), maxWidth);
+      const ensurePageSpace = (currentY, requiredHeight) => {
+        if (currentY + requiredHeight > pageHeight - 12) {
+          doc.addPage();
+          return 20;
+        }
+        return currentY;
+      };
+
+      const pickCompanyMeta = (companyName) => {
+        const match = companies.find(
+          (c) => String(c?.name || c?.Name || '').trim().toLowerCase() === companyName.toLowerCase()
+        );
+
+        return {
+          name: companyName || '_________________',
+          focalPersonName: match?.focalPersonName || match?.FocalPersonName || '_________________',
+          representativeCount:
+            match?.repsCount ??
+            match?.RepsCount ??
+            match?.representativeCount ??
+            match?.RepresentativeCount ??
+            match?.reps ??
+            match?.Reps ??
+            '_________________',
+          email:
+            match?.focalPersonEmail ||
+            match?.FocalPersonEmail ||
+            match?.email ||
+            match?.Email ||
+            match?.contactEmail ||
+            match?.ContactEmail ||
+            match?.companyEmail ||
+            match?.CompanyEmail ||
+            '_________________',
+          contactNo:
+            match?.focalPersonPhone ||
+            match?.FocalPersonPhone ||
+            match?.phone ||
+            match?.Phone ||
+            match?.contactNo ||
+            match?.ContactNo ||
+            match?.companyPhone ||
+            match?.CompanyPhone ||
+            '_________________',
+          employedCount:
+            match?.graduatesEmployedCount ||
+            match?.GraduatesEmployedCount ||
+            match?.currentlyEmployedCount ||
+            match?.CurrentlyEmployedCount ||
+            '',
+        };
+      };
+
+      const drawPageHeader = (submittedAt) => {
+        if (logoDataUrl) {
+          doc.addImage(logoDataUrl, 'PNG', 14, 8, 20, 20);
+        }
+
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Job Fair/Open House (${jobFairLabel})`, pageWidth / 2, 14, { align: 'center' });
+        doc.text('Employer\'s Survey Form', pageWidth - 14, 14, { align: 'right' });
+        doc.text('CDC CUI, Wah Campus (cdc@ciitwah.edu.pk)', pageWidth / 2, 20, { align: 'center' });
+
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        doc.text(`Submitted At: ${submittedAt}`, 40, 28);
+      };
+
+      const likertOptions = [
+        { key: 'Exceptionally', label: 'Exceptionally' },
+        { key: 'ToAGreatExtent', label: 'To a great extent' },
+        { key: 'Moderately', label: 'Moderately' },
+        { key: 'Somewhat', label: 'Somewhat' },
+        { key: 'NotAtAll', label: 'Not at All' },
+      ];
+
+      const renderLikertSection = (sectionTitle, sectionSubtitle, questionKeys, responses, sectionY) => {
+        const sectionTextWidth = pageInnerWidth - 42;
+        const titleLines = wrapText(sectionTitle, sectionTextWidth);
+        const subtitleLines = sectionSubtitle ? wrapText(sectionSubtitle, sectionTextWidth) : [];
+        const estimatedHeight = (titleLines.length * 5) + (subtitleLines.length * 4.2) + 20 + (questionKeys.length * 13);
+        sectionY = ensurePageSpace(sectionY, estimatedHeight);
+
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(9.2);
+        doc.text(titleLines, pageMargin, sectionY);
+        let localY = sectionY + (titleLines.length * 5.2);
+
+        if (sectionSubtitle) {
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(8.2);
+          doc.text(subtitleLines, pageMargin, localY);
+          localY += Math.max(5, subtitleLines.length * 4.2);
+        }
+
+        const questionRows = questionKeys.map((key, index) => {
+          const answer = responses?.[key] ?? responses?.[key.charAt(0).toLowerCase() + key.slice(1)] ?? '';
+          const questionText = wrapText(SURVEY_QUESTIONS.Department[key] || key, 88).join('\n');
+          return [
+            String(index + 1),
+            questionText,
+            ...likertOptions.map((option) => (normalizeLikert(answer) === normalizeLikert(option.key) ? '✓' : '')),
+          ];
+        });
+
+        autoTable(doc, {
+          startY: localY + 2,
+          head: [['Sr.', 'Question', ...likertOptions.map((option) => option.label)]],
+          body: questionRows,
+          theme: 'grid',
+          tableWidth: pageInnerWidth,
+          styles: { fontSize: 7.2, cellPadding: 1.2, valign: 'middle', overflow: 'linebreak' },
+          headStyles: { fillColor: [243, 244, 246], textColor: 40, fontStyle: 'bold', fontSize: 6.2, cellPadding: 0.9 },
+          columnStyles: {
+            0: { cellWidth: 9, halign: 'center' },
+            1: { cellWidth: 77 },
+            2: { cellWidth: 19, halign: 'center' },
+            3: { cellWidth: 19, halign: 'center' },
+            4: { cellWidth: 19, halign: 'center' },
+            5: { cellWidth: 19, halign: 'center' },
+            6: { cellWidth: 19, halign: 'center' },
+          },
+          didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index >= 2 && String(data.cell.raw || '') === '✓') {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fontSize = 11;
+              data.cell.styles.textColor = [22, 101, 52];
+              data.cell.styles.fillColor = [220, 252, 231];
+            }
+
+            if (data.section === 'body' && data.column.index === 1) {
+              data.cell.styles.fontSize = 6.7;
+              data.cell.styles.cellPadding = 1;
+              data.cell.styles.overflow = 'linebreak';
+            }
+          },
+        });
+
+        return (doc.lastAutoTable?.finalY || localY + 20) + 6;
+      };
+
+      const renderCommentSection = (title, comment, sectionY) => {
+        const titleLines = wrapText(title);
+        const estimatedHeight = (titleLines.length * 5) + 20;
+        sectionY = ensurePageSpace(sectionY, estimatedHeight);
+
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(9.5);
+        doc.text(titleLines, pageMargin, sectionY);
+
+        const trimmedComment = String(comment || '').trim();
+        if (!trimmedComment) {
+          return sectionY + (titleLines.length * 5.2) + 6;
+        }
+
+        autoTable(doc, {
+          startY: sectionY + (titleLines.length * 5.2) + 2,
+          body: [[trimmedComment]],
+          theme: 'grid',
+          styles: { fontSize: 8.5, minCellHeight: 14, cellPadding: 2.5 },
+          margin: { left: 14, right: 14 },
+        });
+
+        return (doc.lastAutoTable?.finalY || sectionY + 12) + 5;
+      };
+
+      let isFirstPage = true;
+
+      for (const [companyName, companyForms] of groupedByCompany.entries()) {
+        const sortedForms = [...companyForms].sort(
+          (a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()
+        );
+
+        for (const surveyForm of sortedForms) {
+          if (!isFirstPage) doc.addPage();
+          isFirstPage = false;
+
+          const responses = surveyForm.responses || {};
+          const submittedAt = surveyForm.submittedAt
+            ? new Date(surveyForm.submittedAt).toLocaleString()
+            : 'N/A';
+          const meta = pickCompanyMeta(companyName);
+
+          drawPageHeader(submittedAt);
+
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(11);
+          doc.text('Contact Details:', 14, 35);
+          doc.setFont(undefined, 'normal');
+
+          autoTable(doc, {
+            startY: 38,
+            head: [['Field', 'Value']],
+            body: [
+              ['Name', meta.focalPersonName],
+              ['Organization', meta.name],
+              ['Representative Count', String(meta.representativeCount || '_________________')],
+              ['Email', meta.email],
+              ['Contact No.', meta.contactNo],
+            ],
+            theme: 'grid',
+            tableWidth: pageInnerWidth,
+            styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [243, 244, 246], textColor: 40 },
+            columnStyles: {
+              0: { cellWidth: 42 },
+              1: { cellWidth: pageInnerWidth - 42 },
+            },
+          });
+
+          let sectionY = (doc.lastAutoTable?.finalY || 58) + 6;
+
+          const employedCountValue = String(
+            responses.GraduatesCurrentlyEmployed ??
+            responses.graduatesCurrentlyEmployed ??
+            responses.CurrentlyEmployedCount ??
+            responses.currentlyEmployedCount ??
+            meta.representativeCount ??
+            meta.employedCount ??
+            ''
+          ).trim();
+
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(9);
+          const employedQuestionLines = wrapText('How many graduates of BS programs of Computer Science Department of CUI Islamabad Campus are currently employed in your organization?');
+          sectionY = ensurePageSpace(sectionY, (employedQuestionLines.length * 5) + 14);
+          doc.text(employedQuestionLines, pageMargin, sectionY);
+          sectionY += (employedQuestionLines.length * 5.2) + 2;
+          autoTable(doc, {
+            startY: sectionY,
+            head: [['Response']],
+            body: [[employedCountValue || '_________________']],
+            theme: 'grid',
+            tableWidth: pageInnerWidth - 2,
+            styles: { fontSize: 9, cellPadding: 2.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [243, 244, 246], textColor: 40 },
+          });
+          sectionY = (doc.lastAutoTable?.finalY || sectionY + 10) + 6;
+
+          sectionY = renderLikertSection(
+            'PEO-1: Inculcate in-depth knowledge, analytical skills, creativity in the computing domain.',
+            'From your experience of working with our computing graduates, to which extent they:',
+            ['PEO1_Q1', 'PEO1_Q2', 'PEO1_Q3'],
+            responses,
+            sectionY
+          );
+
+          sectionY = renderLikertSection(
+            'PEO-2: Attain the ability to adapt in an evolving technological environment, assimilate new information with a strong focus on entrepreneurship.',
+            'From your experience of working with our computing graduates, to which extent they:',
+            ['PEO2_Q1', 'PEO2_Q2'],
+            responses,
+            sectionY
+          );
+
+          sectionY = renderLikertSection(
+            'PEO-3: Instill moral and ethical values, along with the ability to communicate effectively with computing community.',
+            'From your experience of working with our computing graduates, to which extent they:',
+            ['PEO3_Q1', 'PEO3_Q2'],
+            responses,
+            sectionY
+          );
+
+          sectionY = renderLikertSection(
+            'PEO-4: Train graduates to contribute towards the knowledge economy and socio-economic growth of the country.',
+            'From your experience of working with our computing graduates, to which extent they:',
+            ['PEO4_Q1', 'PEO4_Q2', 'PEO4_Q3'],
+            responses,
+            sectionY
+          );
+
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(10);
+          doc.text('Comments / Suggestions:', 14, sectionY);
+          sectionY += 6;
+
+          sectionY = renderCommentSection(
+            'What additional technologies / programming languages / skills do you think are currently in demand and should be taught to our computing students at CUI, Islamabad?',
+            responses.TechnologiesSuggestion,
+            sectionY
+          );
+
+          sectionY = renderCommentSection(
+            'Please feel free to give your input / feedback about the CUI graduates in terms of their professional attributes (specific strengths and weaknesses) that may be connected to their education before joining your organization.',
+            responses.GeneralFeedback,
+            sectionY
+          );
+
+          sectionY = renderCommentSection(
+            'Any comments or suggestions that you may have in the future to help us improve the quality of our educational program objectives and the graduates.',
+            responses.ImprovementSuggestions,
+            sectionY
+          );
+
+          doc.setFontSize(8);
+          doc.setTextColor(110);
+          doc.text('Generated by Job Fair Portal', pageWidth - 14, pageHeight - 8, { align: 'right' });
+        }
+      }
+
+      doc.save(`Department_Survey_Forms_All_Companies_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.dismiss(loadingToastId);
+      toast.success('Department survey forms PDF downloaded');
+    } catch (error) {
+      toast.dismiss(loadingToastId);
+      toast.error('Failed to generate Department forms PDF');
     }
   };
 
@@ -1828,6 +2175,12 @@ const SurveyResponses = () => {
               className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center transition shadow-sm"
             >
               <Download size={16} className="mr-2 text-purple-600" /> CDC Forms PDF
+            </button>
+            <button
+              onClick={downloadAllDepartmentForms}
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center transition shadow-sm"
+            >
+              <Download size={16} className="mr-2 text-amber-600" /> Departmental Forms PDF
             </button>
             <button
               onClick={downloadPDFReport}
