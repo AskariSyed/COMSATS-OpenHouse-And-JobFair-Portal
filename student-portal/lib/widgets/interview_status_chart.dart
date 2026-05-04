@@ -23,64 +23,113 @@ class InterviewStatusChart extends StatelessWidget {
       );
     }
 
-    return AspectRatio(
-      aspectRatio: 1.3,
-      child: Row(
-        children: <Widget>[
-          const SizedBox(height: 18),
-          Expanded(
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: PieChart(
-                PieChartData(
-                  sections: _showingSections(
-                    pendingCount,
-                    acceptedCount,
-                    scheduledCount,
-                  ),
-                  borderData: FlBorderData(show: false),
-                  sectionsSpace: 0,
-                  centerSpaceRadius: 40,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmall = constraints.maxWidth < 360;
+
+        final chart = AspectRatio(
+          aspectRatio: 1,
+          child: PieChart(
+            PieChartData(
+              sections: _showingSections(
+                pendingCount,
+                acceptedCount,
+                scheduledCount,
               ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 0,
+              centerSpaceRadius: isSmall ? 30 : 40,
             ),
           ),
-          const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        );
+
+        final legend = Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: const <Widget>[
+            Indicator(
+              color: Colors.orange,
+              text: 'Pending',
+              isSquare: true,
+              gradient: LinearGradient(
+                colors: [Colors.orangeAccent, Colors.deepOrange],
+              ),
+            ),
+            Indicator(
+              color: Colors.green,
+              text: 'Accepted',
+              isSquare: true,
+              gradient: LinearGradient(
+                colors: [Colors.greenAccent, Colors.green],
+              ),
+            ),
+            Indicator(
+              color: Colors.blue,
+              text: 'Scheduled',
+              isSquare: true,
+              gradient: LinearGradient(
+                colors: [Colors.lightBlueAccent, Colors.blue],
+              ),
+            ),
+          ],
+        );
+
+        if (isSmall) {
+          return Column(
+            children: [
+              SizedBox(height: 200, child: chart),
+              const SizedBox(height: 12),
+              legend,
+            ],
+          );
+        }
+
+        return AspectRatio(
+          aspectRatio: 1.3,
+          child: Row(
             children: <Widget>[
-              Indicator(
-                color: Colors.orange,
-                text: 'Pending',
-                isSquare: true,
-                gradient: LinearGradient(
-                  colors: [Colors.orangeAccent, Colors.deepOrange],
+              Expanded(child: chart),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 120,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const <Widget>[
+                    Indicator(
+                      color: Colors.orange,
+                      text: 'Pending',
+                      isSquare: true,
+                      gradient: LinearGradient(
+                        colors: [Colors.orangeAccent, Colors.deepOrange],
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Indicator(
+                      color: Colors.green,
+                      text: 'Accepted',
+                      isSquare: true,
+                      gradient: LinearGradient(
+                        colors: [Colors.greenAccent, Colors.green],
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Indicator(
+                      color: Colors.blue,
+                      text: 'Scheduled',
+                      isSquare: true,
+                      gradient: LinearGradient(
+                        colors: [Colors.lightBlueAccent, Colors.blue],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(height: 4),
-              Indicator(
-                color: Colors.green,
-                text: 'Accepted',
-                isSquare: true,
-                gradient: LinearGradient(
-                  colors: [Colors.greenAccent, Colors.green],
-                ),
-              ),
-              SizedBox(height: 4),
-              Indicator(
-                color: Colors.blue,
-                text: 'Scheduled',
-                isSquare: true,
-                gradient: LinearGradient(
-                  colors: [Colors.lightBlueAccent, Colors.blue],
-                ),
-              ),
-              SizedBox(height: 18),
             ],
           ),
-          const SizedBox(width: 28),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -182,7 +231,7 @@ class Indicator extends StatelessWidget {
         Text(
           text,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 13,
             fontWeight: FontWeight.bold,
             color: textColor,
           ),

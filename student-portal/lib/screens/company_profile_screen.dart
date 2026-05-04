@@ -43,7 +43,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
   ) {
     if (scheduledTime == null) return false;
     if (interviewStatus.toLowerCase() != 'queued') return false;
-    return scheduledTime.toLocal().isBefore(DateTime.now());
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5));
+    return scheduledTime.toUtc().add(const Duration(hours: 5)).isBefore(now);
   }
 
   @override
@@ -595,7 +596,10 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
       interviewStatus,
     );
     final scheduledDisplay = scheduledTime != null
-        ? '${scheduledTime.toLocal().day.toString().padLeft(2, '0')}-${scheduledTime.toLocal().month.toString().padLeft(2, '0')}-${scheduledTime.toLocal().year} ${scheduledTime.toLocal().hour.toString().padLeft(2, '0')}:${scheduledTime.toLocal().minute.toString().padLeft(2, '0')}'
+        ? () {
+            final pkt = scheduledTime.toUtc().add(const Duration(hours: 5));
+            return '${pkt.day.toString().padLeft(2, '0')}-${pkt.month.toString().padLeft(2, '0')}-${pkt.year} ${pkt.hour.toString().padLeft(2, '0')}:${pkt.minute.toString().padLeft(2, '0')} PKT';
+          }()
         : null;
 
     if (requestStatus == 'pending') {
@@ -812,7 +816,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
         color: Colors.red,
         icon: Icons.cancel_outlined,
         title: "Not Selected",
-        subtitle: "The company has decided to move forward with other candidates.",
+        subtitle:
+            "The company has decided to move forward with other candidates.",
       );
     }
 
@@ -849,7 +854,8 @@ class _CompanyProfileScreenState extends State<CompanyProfileScreen> {
           color: Colors.red,
           icon: Icons.cancel_outlined,
           title: "Request Declined",
-          subtitle: "You have declined the interview request from this company.",
+          subtitle:
+              "You have declined the interview request from this company.",
         );
       } else {
         return _buildStatusCard(

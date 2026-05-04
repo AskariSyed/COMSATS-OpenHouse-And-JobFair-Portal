@@ -1371,7 +1371,9 @@ class StudentProvider with ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
-        await fetchInterviewRequests(); // Refresh list
+        await fetchInterviewRequests(); // Refresh requests list
+        // Also refresh scheduled interviews so upcomingInterviewCount is accurate
+        await fetchScheduledInterviews();
         return null;
       }
       return _extractApiError(response, fallback: 'Failed to accept');
@@ -1389,7 +1391,9 @@ class StudentProvider with ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
-        await fetchInterviewRequests(); // Refresh list
+        await fetchInterviewRequests(); // Refresh requests list
+        // Refresh scheduled interviews in case backend created/updated a scheduled item
+        await fetchScheduledInterviews();
         return null;
       }
       return _extractApiError(response, fallback: 'Failed to reject');

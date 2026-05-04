@@ -41,8 +41,11 @@ class _QueueScreenState extends State<QueueScreen> {
 
   String _getFormattedCountdown(DateTime? scheduledTime) {
     if (scheduledTime == null) return "TBD";
-    final now = DateTime.now();
-    final diff = scheduledTime.difference(now);
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5));
+    final diff = scheduledTime
+        .toUtc()
+        .add(const Duration(hours: 5))
+        .difference(now);
     final bool isFuture = !diff.isNegative;
     final absDiff = diff.abs();
 
@@ -64,17 +67,19 @@ class _QueueScreenState extends State<QueueScreen> {
     final scheduledTime = interview.scheduledTime;
     if (scheduledTime == null) return false;
     if (interview.status.toLowerCase() != 'queued') return false;
-    return scheduledTime.toLocal().isBefore(DateTime.now());
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5));
+    return scheduledTime.toUtc().add(const Duration(hours: 5)).isBefore(now);
   }
 
   bool _isJobFairDay(DateTime? scheduledTime) {
     if (scheduledTime == null) return false;
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5));
     final today = DateTime(now.year, now.month, now.day);
+    final pktScheduled = scheduledTime.toUtc().add(const Duration(hours: 5));
     final scheduledDate = DateTime(
-      scheduledTime.year,
-      scheduledTime.month,
-      scheduledTime.day,
+      pktScheduled.year,
+      pktScheduled.month,
+      pktScheduled.day,
     );
     // Returns true if the scheduled date is today or in the future
     // (User said "not after that", implying if today > scheduledDate, it's over)
@@ -991,8 +996,8 @@ class _QueueScreenState extends State<QueueScreen> {
   }
 
   String _formatActualDateTime(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    return "${local.day.toString().padLeft(2, '0')} ${_getMonthName(local.month)} ${local.year}, ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}";
+    final pkt = dateTime.toUtc().add(const Duration(hours: 5));
+    return "${pkt.day.toString().padLeft(2, '0')} ${_getMonthName(pkt.month)} ${pkt.year}, ${pkt.hour.toString().padLeft(2, '0')}:${pkt.minute.toString().padLeft(2, '0')} PKT";
   }
 
   String _getMonthName(int month) {

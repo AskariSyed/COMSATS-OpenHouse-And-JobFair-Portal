@@ -632,6 +632,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -640,128 +641,157 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Filter Companies",
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 8,
+              ),
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.6,
+                minChildSize: 0.3,
+                maxChildSize: 0.95,
+                builder: (ctx, scrollController) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Filter Companies",
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedIndustries.clear();
+                                      _showOnlyHiring = false;
+                                      _selectedSortOption = 'Name (A-Z)';
+                                    });
+                                    setModalState(() {});
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text("Clear All"),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "Sort By",
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children:
+                                  [
+                                    'Name (A-Z)',
+                                    'Name (Z-A)',
+                                    'Most Openings',
+                                  ].map((option) {
+                                    final isSelected =
+                                        _selectedSortOption == option;
+                                    return ChoiceChip(
+                                      label: Text(option),
+                                      selected: isSelected,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setModalState(() {
+                                            _selectedSortOption = option;
+                                          });
+                                          setState(() {});
+                                        }
+                                      },
+                                    );
+                                  }).toList(),
+                            ),
+                            const SizedBox(height: 20),
+                            SwitchListTile(
+                              title: const Text("Only Hiring Companies"),
+                              subtitle: const Text(
+                                "Show companies with open jobs",
+                              ),
+                              value: _showOnlyHiring,
+                              onChanged: (val) {
+                                setModalState(() {
+                                  _showOnlyHiring = val;
+                                });
+                                setState(() {});
+                              },
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            const SizedBox(height: 16),
+                            if (industries.isNotEmpty) ...[
+                              Text(
+                                "Industry",
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: industries.map((industry) {
+                                  final isSelected = _selectedIndustries
+                                      .contains(industry);
+                                  return FilterChip(
+                                    label: Text(industry!),
+                                    selected: isSelected,
+                                    onSelected: (selected) {
+                                      setModalState(() {
+                                        if (selected) {
+                                          _selectedIndustries.add(industry);
+                                        } else {
+                                          _selectedIndustries.remove(industry);
+                                        }
+                                      });
+                                      setState(() {});
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _onSearchChanged(_searchController.text);
+                                  setState(() {});
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text("Apply Filters"),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                         ),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedIndustries.clear();
-                            _showOnlyHiring = false;
-                            _selectedSortOption = 'Name (A-Z)';
-                          });
-                          setModalState(() {});
-                          Navigator.pop(context);
-                        },
-                        child: const Text("Clear All"),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Sort By",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: ['Name (A-Z)', 'Name (Z-A)', 'Most Openings'].map(
-                      (option) {
-                        final isSelected = _selectedSortOption == option;
-                        return ChoiceChip(
-                          label: Text(option),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setModalState(() {
-                                _selectedSortOption = option;
-                              });
-                              setState(() {});
-                            }
-                          },
-                        );
-                      },
-                    ).toList(),
-                  ),
-                  const SizedBox(height: 20),
-                  SwitchListTile(
-                    title: const Text("Only Hiring Companies"),
-                    subtitle: const Text("Show companies with open jobs"),
-                    value: _showOnlyHiring,
-                    onChanged: (val) {
-                      setModalState(() {
-                        _showOnlyHiring = val;
-                      });
-                      setState(() {});
-                    },
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 16),
-                  if (industries.isNotEmpty) ...[
-                    Text(
-                      "Industry",
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: industries.map((industry) {
-                        final isSelected = _selectedIndustries.contains(
-                          industry,
-                        );
-                        return FilterChip(
-                          label: Text(industry!),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setModalState(() {
-                              if (selected) {
-                                _selectedIndustries.add(industry);
-                              } else {
-                                _selectedIndustries.remove(industry);
-                              }
-                            });
-                            setState(() {});
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _onSearchChanged(_searchController.text);
-                        setState(() {});
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text("Apply Filters"),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             );
           },

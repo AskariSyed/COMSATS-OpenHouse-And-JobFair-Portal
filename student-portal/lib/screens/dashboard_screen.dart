@@ -1053,36 +1053,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 16),
         Text('Next Interview', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        if (stats.nextInterview == null)
-          _buildDashboardCard(
-            context,
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(child: Text('No upcoming interviews')),
-            ),
-          )
-        else
-          _buildDashboardCard(
-            context,
-            child: ListTile(
-              leading: stats.nextInterview!.companyLogo != null
-                  ? CircleAvatar(
-                      backgroundImage: NetworkImage(
-                        stats.nextInterview!.companyLogo!,
-                      ),
-                    )
-                  : const CircleAvatar(child: Icon(Icons.business)),
-              title: Text(stats.nextInterview!.companyName),
-              subtitle: Text(
-                stats.nextInterview!.scheduledTime != null
-                    ? DateFormat.yMMMd().add_jm().format(
-                        stats.nextInterview!.scheduledTime!,
+        // Hide next interview if its status indicates it has already been finalised
+        Builder(
+          builder: (context) {
+            final next = stats.nextInterview;
+            final finalStatuses = {
+              'hired',
+              'shortlisted',
+              'rejected',
+              'didnotappear',
+              'did not appear',
+            };
+            final displayNext =
+                (next != null &&
+                    !finalStatuses.contains(next.status.toLowerCase()))
+                ? next
+                : null;
+
+            if (displayNext == null) {
+              return _buildDashboardCard(
+                context,
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: Text('No upcoming interviews')),
+                ),
+              );
+            }
+
+            // Convert time to PKT (UTC+5) for display regardless of device timezone
+            DateTime? pkTime;
+            if (displayNext.scheduledTime != null) {
+              try {
+                pkTime = displayNext.scheduledTime!.toUtc().add(
+                  Duration(hours: 5),
+                );
+              } catch (_) {
+                pkTime = displayNext.scheduledTime;
+              }
+            }
+
+            return _buildDashboardCard(
+              context,
+              child: ListTile(
+                leading: displayNext.companyLogo != null
+                    ? CircleAvatar(
+                        backgroundImage: NetworkImage(displayNext.companyLogo!),
                       )
-                    : 'Scheduled',
+                    : const CircleAvatar(child: Icon(Icons.business)),
+                title: Text(displayNext.companyName),
+                subtitle: Text(
+                  pkTime != null
+                      ? DateFormat.yMMMd().add_jm().format(pkTime)
+                      : 'Scheduled',
+                ),
+                trailing: Chip(label: Text(displayNext.status)),
               ),
-              trailing: Chip(label: Text(stats.nextInterview!.status)),
-            ),
-          ),
+            );
+          },
+        ),
       ],
     );
   }

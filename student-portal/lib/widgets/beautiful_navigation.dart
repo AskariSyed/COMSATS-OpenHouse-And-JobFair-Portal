@@ -632,6 +632,7 @@ class BeautifulMobileNavBar extends StatelessWidget {
                     Icons.list_alt_outlined,
                     "Interviews",
                     4,
+                    badgeCount: studentProvider.upcomingInterviewCount,
                     iconSize: iconSize,
                     iconPadding: iconPadding,
                   ),
