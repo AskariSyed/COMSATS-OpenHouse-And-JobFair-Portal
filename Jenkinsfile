@@ -7,6 +7,10 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
+    triggers {
+        githubPush()
+    }
+
     parameters {
         string(name: 'BACKEND_URL', defaultValue: 'http://127.0.0.1:5158', description: 'Backend URL used when building the portals.')
         string(name: 'DEPLOY_ROOT', defaultValue: '/var/www', description: 'Local deployment root on the Jenkins agent or target server.')
@@ -210,7 +214,7 @@ set -euo pipefail
 
 sudo mkdir -p "${DEPLOY_ROOT}/admin" "${DEPLOY_ROOT}/company" "${DEPLOY_ROOT}/student" "${DEPLOY_ROOT}/student/downloads" "${DEPLOY_ROOT}/jfair" "${DEPLOY_ROOT}/api" "${DEPLOY_ROOT}/uploads" "${DEPLOY_ROOT}/api/config"
 sudo apt-get update -y
-sudo apt-get install -y tar gzip unzip webp
+sudo apt-get install -y tar gzip unzip webp nginx
 
 if [ "${ADMIN_CHANGED}" = "true" ] && [ -f .deploy-artifacts/admin.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/admin"/*
