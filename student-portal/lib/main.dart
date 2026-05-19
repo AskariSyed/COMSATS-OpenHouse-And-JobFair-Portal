@@ -41,7 +41,7 @@ void _pushWhenReady(WidgetBuilder builder) {
   });
 }
 
-// Handles navigation based on notification data payload
+// Handles navigation based on notification data payload. Supports multiple payload formats for flexibility:
 void _openNotificationTargetByData(Map<String, dynamic> data) {
   final type = (data['Type'] ?? data['type'] ?? '').toString().toLowerCase();
   final screen = (data['screen'] ?? data['Screen'] ?? '')
