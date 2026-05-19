@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar, Star, XCircle, UserX, ClipboardList } from 'lucide-react';
 import { getAnalytics, scheduleAllInterviews, setWalkInInterviewing } from '../api';
+import { PieChart, Users, CheckCircle, BookOpen, Loader2, TrendingUp, Clock, AlertCircle, Calendar, Star, XCircle, UserX, ClipboardList } from 'lucide-react';
 
 export default function AnalyticsView({ onError, onSuccess, onNavigateToInterviews, attendanceStatus = null }) {
   const [data, setData] = useState(null);

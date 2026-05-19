@@ -12,13 +12,13 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/student" element={<StudentPage />} />
+        <Route path="/student" element={<StudentPage/>} />
         <Route path="/company" element={<CompanyPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/how-to-use" element={<HowToUsePage />} />
         <Route path="/team" element={<TeamPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/"  replace />} />
     </Routes>
   );
 }
