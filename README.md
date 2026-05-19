@@ -195,6 +195,28 @@ flutter build web --release
 
 ---
 
+## Jenkins Deployment (No SSH Required)
+
+The repository includes a root [Jenkinsfile](Jenkinsfile) that mirrors the GitHub Actions deployment flow, but runs the build and deployment steps locally on the Jenkins agent. That means the target server does not need to be reachable over SSH from Jenkins, as long as the agent itself can run the deploy commands on the host.
+
+Recommended setup:
+
+- Run Jenkins on the target server, or use a dedicated agent with local shell access to the deployment directories.
+- Make sure the agent can run `sudo` for `/var/www`, `systemctl`, and `nginx` commands.
+- Install the same toolchain used by the repo builds: Node.js 20, Flutter, .NET 8, Java/Android tooling, `tar`, `unzip`, and `webp`.
+- Create Jenkins secret text credentials with these IDs:
+	- `jobfair-firebase-api-key`
+	- `jobfair-firebase-auth-domain`
+	- `jobfair-firebase-project-id`
+	- `jobfair-firebase-storage-bucket`
+	- `jobfair-firebase-messaging-sender-id`
+	- `jobfair-firebase-app-id`
+	- `jobfair-firebase-vapid-key`
+	- `jobfair-firebase-config-json`
+- Pass `BACKEND_URL` as a Jenkins build parameter if the backend is not served from `http://127.0.0.1:5158` on the agent.
+
+---
+
 ## Backend Setup (.NET API)
 
 ### Key files
