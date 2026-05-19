@@ -242,7 +242,13 @@ if [ "${STUDENT_CHANGED}" = "true" ] && [ -f .deploy-artifacts/student.tar.gz ];
     done
   fi
 
-  sudo find "${DEPLOY_ROOT}/student" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.json' -o -name '*.wasm' \) -exec gzip -k -9 -f {} \;
+    find "${DEPLOY_ROOT}/student" -type f | while IFS= read -r file; do
+        case "$file" in
+            *.js|*.mjs|*.css|*.json|*.wasm)
+                sudo gzip -k -9 -f "$file"
+                ;;
+        esac
+    done
   sudo find "${DEPLOY_ROOT}/student" -name '*.map' -delete
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/student"
 fi
