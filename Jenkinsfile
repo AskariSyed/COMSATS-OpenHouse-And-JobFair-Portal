@@ -116,12 +116,34 @@ echo 'Secret validation passed.'
                     sh '''#!/usr/bin/env bash
 set -euo pipefail
 
+install_flutter() {
+  local flutter_root="/opt/flutter"
+
+  sudo apt-get update -y
+  sudo apt-get install -y git curl xz-utils unzip
+
+  if [ ! -d "$flutter_root/.git" ]; then
+    sudo rm -rf "$flutter_root"
+    sudo git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$flutter_root"
+  fi
+
+  sudo chown -R "$USER":"$USER" "$flutter_root"
+  export PATH="$flutter_root/bin:$PATH"
+}
+
+flutter_bin=""
 for candidate in /opt/flutter/bin/flutter /usr/local/flutter/bin/flutter "$HOME/flutter/bin/flutter" "$HOME/snap/flutter/common/flutter/bin/flutter"; do
   if [ -x "$candidate" ]; then
-    export PATH="$(dirname "$candidate"):$PATH"
+    flutter_bin="$candidate"
     break
   fi
 done
+
+if [ -z "$flutter_bin" ]; then
+  install_flutter
+else
+  export PATH="$(dirname "$flutter_bin"):$PATH"
+fi
 
 command -v flutter
 flutter pub get
