@@ -41,7 +41,7 @@ void _pushWhenReady(WidgetBuilder builder) {
   });
 }
 
-// Handles navigation based on notification data payload. yload formats for :
+// Handles navigation based on notification data payload. yload  for :
 void _openNotificationTargetByData(Map<String, dynamic> data) {
   final type = (data['Type'] ?? data['type'] ?? '').toString().toLowerCase();
   final screen = (data['screen'] ?? data['Screen'] ?? '')

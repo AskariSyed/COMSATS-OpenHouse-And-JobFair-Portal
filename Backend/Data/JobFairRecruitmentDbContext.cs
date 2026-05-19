@@ -12,6 +12,7 @@ namespace JobFairPortal.Data
         {
         }
 
+// DbSet properties for each entity
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Student> Students { get; set; } = null!;
         public DbSet<Company> Companies { get; set; } = null!;

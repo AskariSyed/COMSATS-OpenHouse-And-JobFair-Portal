@@ -8,7 +8,7 @@ export default function FYPDetails({ projectId, onBack, onSelectStudent, onError
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Hits the 'full-details' endpoint
+    // Hits the 'full-details' endpoint to get comprehensive project info including students and their roles
     getProjectDetails(projectId)
       .then(data => setProject(data))
       .catch(err => onError(err.message))

@@ -9,7 +9,6 @@ import { requestFcmToken, subscribeToForegroundMessages } from './lib/firebase';
 import { getCompanyProfile, registerFcmToken, getCompanyParticipationPrompt, participateInActiveJobFair, getPendingInterviewRequests, getAnalytics } from './lib/api';
 
 export default function App() {
-
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('login');
   const [activeTab, setActiveTab] = useState('overview');
@@ -32,7 +31,7 @@ export default function App() {
     if (Notification.permission !== 'granted') {
       return;
     }
-
+// Try to show notification via Service Worker if available, otherwise fallback to standard Notification API
     try {
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.ready;

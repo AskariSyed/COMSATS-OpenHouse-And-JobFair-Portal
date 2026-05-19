@@ -22,3 +22,4 @@ export default function App() {
     </Routes>
   );
 }
+// Main application component defining routes for the landing page and nested pages for students, companies, admin, etc.
