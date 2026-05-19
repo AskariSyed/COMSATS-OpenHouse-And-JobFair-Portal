@@ -113,9 +113,21 @@ echo 'Secret validation passed.'
         stage('Build Student Portal') {
             steps {
                 dir('student-portal') {
-                    sh 'flutter pub get'
-                    sh "flutter build web --release --dart-define=BACKEND_BASE_URL=${params.BACKEND_URL} --dart-define=APP_ENV=production"
-                    sh "flutter build apk --release --dart-define=BACKEND_BASE_URL=${params.BACKEND_URL} --dart-define=APP_ENV=production"
+                    sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+for candidate in /opt/flutter/bin/flutter /usr/local/flutter/bin/flutter "$HOME/flutter/bin/flutter" "$HOME/snap/flutter/common/flutter/bin/flutter"; do
+  if [ -x "$candidate" ]; then
+    export PATH="$(dirname "$candidate"):$PATH"
+    break
+  fi
+done
+
+command -v flutter
+flutter pub get
+flutter build web --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
+flutter build apk --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
+'''
                 }
             }
         }
