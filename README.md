@@ -230,7 +230,7 @@ Recommended setup:
 - SignalR hub: `/hubs/companyRequests`
 - Static file serving for uploaded content via `/uploads`
 - Swagger in Development environment
--checkin jenkins
+-checkin jenkins 2
 ### Local run
 
 ```bash
