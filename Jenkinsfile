@@ -41,35 +41,6 @@ pipeline {
             }
         }
 
-        stage('Detect Changes') {
-            steps {
-                script {
-                    def changedFiles = sh(script: 'git diff --name-only HEAD~1 HEAD 2>/dev/null || true', returnStdout: true).trim()
-
-                    if (!changedFiles) {
-                        env.ADMIN_CHANGED = 'true'
-                        env.COMPANY_CHANGED = 'true'
-                        env.LANDING_CHANGED = 'true'
-                        env.STUDENT_CHANGED = 'true'
-                        env.BACKEND_CHANGED = 'true'
-                    } else {
-                        def fileList = changedFiles.readLines()
-                        env.ADMIN_CHANGED = fileList.any { it.startsWith('admin-portal/') } ? 'true' : 'false'
-                        env.COMPANY_CHANGED = fileList.any { it.startsWith('company-portal/') } ? 'true' : 'false'
-                        env.LANDING_CHANGED = fileList.any { it.startsWith('landing-page/') } ? 'true' : 'false'
-                        env.STUDENT_CHANGED = fileList.any { it.startsWith('student-portal/') } ? 'true' : 'false'
-                        env.BACKEND_CHANGED = fileList.any { it.startsWith('Backend/') } ? 'true' : 'false'
-                    }
-
-                    echo "Admin:   ${env.ADMIN_CHANGED}"
-                    echo "Company: ${env.COMPANY_CHANGED}"
-                    echo "Landing: ${env.LANDING_CHANGED}"
-                    echo "Student: ${env.STUDENT_CHANGED}"
-                    echo "Backend: ${env.BACKEND_CHANGED}"
-                }
-            }
-        }
-
         stage('Validate Secrets') {
             steps {
                 sh '''#!/usr/bin/env bash
@@ -109,9 +80,6 @@ echo 'Secret validation passed.'
         }
 
         stage('Build Admin Portal') {
-            when {
-                expression { env.ADMIN_CHANGED == 'true' }
-            }
             steps {
                 dir('admin-portal') {
                     withEnv(["VITE_BACKEND_URL=${params.BACKEND_URL}", "VITE_API_BASE_URL=${params.BACKEND_URL}"]) {
@@ -123,9 +91,6 @@ echo 'Secret validation passed.'
         }
 
         stage('Build Company Portal') {
-            when {
-                expression { env.COMPANY_CHANGED == 'true' }
-            }
             steps {
                 dir('company-portal') {
                     withEnv(["VITE_SERVER_URL=${params.BACKEND_URL}"]) {
@@ -137,9 +102,6 @@ echo 'Secret validation passed.'
         }
 
         stage('Build Landing Page') {
-            when {
-                expression { env.LANDING_CHANGED == 'true' }
-            }
             steps {
                 dir('landing-page') {
                     sh 'npm ci'
@@ -149,9 +111,6 @@ echo 'Secret validation passed.'
         }
 
         stage('Build Student Portal') {
-            when {
-                expression { env.STUDENT_CHANGED == 'true' }
-            }
             steps {
                 dir('student-portal') {
                     sh 'flutter pub get'
@@ -162,9 +121,6 @@ echo 'Secret validation passed.'
         }
 
         stage('Build Backend') {
-            when {
-                expression { env.BACKEND_CHANGED == 'true' }
-            }
             steps {
                 dir('Backend') {
                     sh 'dotnet restore'
@@ -181,24 +137,24 @@ set -euo pipefail
 
 mkdir -p .deploy-artifacts
 
-if [ "${ADMIN_CHANGED}" = "true" ] && [ -d admin-portal/dist ]; then
+if [ -d admin-portal/dist ]; then
   tar -czf .deploy-artifacts/admin.tar.gz -C admin-portal/dist .
 fi
 
-if [ "${COMPANY_CHANGED}" = "true" ] && [ -d company-portal/dist ]; then
+if [ -d company-portal/dist ]; then
   tar -czf .deploy-artifacts/company.tar.gz -C company-portal/dist .
 fi
 
-if [ "${LANDING_CHANGED}" = "true" ] && [ -d landing-page/dist ]; then
+if [ -d landing-page/dist ]; then
   tar -czf .deploy-artifacts/landing.tar.gz -C landing-page/dist .
 fi
 
-if [ "${STUDENT_CHANGED}" = "true" ] && [ -d student-portal/build/web ]; then
+if [ -d student-portal/build/web ]; then
   tar -czf .deploy-artifacts/student.tar.gz -C student-portal/build/web .
   cp student-portal/build/app/outputs/flutter-apk/app-release.apk .deploy-artifacts/student-portal.apk
 fi
 
-if [ "${BACKEND_CHANGED}" = "true" ] && [ -d Backend/publish ]; then
+if [ -d Backend/publish ]; then
   tar -czf .deploy-artifacts/backend.tar.gz -C Backend/publish .
 fi
 
@@ -216,25 +172,25 @@ sudo mkdir -p "${DEPLOY_ROOT}/admin" "${DEPLOY_ROOT}/company" "${DEPLOY_ROOT}/st
 sudo apt-get update -y
 sudo apt-get install -y tar gzip unzip webp nginx
 
-if [ "${ADMIN_CHANGED}" = "true" ] && [ -f .deploy-artifacts/admin.tar.gz ]; then
+if [ -f .deploy-artifacts/admin.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/admin"/*
   sudo tar -xzf .deploy-artifacts/admin.tar.gz -C "${DEPLOY_ROOT}/admin"
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/admin"
 fi
 
-if [ "${COMPANY_CHANGED}" = "true" ] && [ -f .deploy-artifacts/company.tar.gz ]; then
+if [ -f .deploy-artifacts/company.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/company"/*
   sudo tar -xzf .deploy-artifacts/company.tar.gz -C "${DEPLOY_ROOT}/company"
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/company"
 fi
 
-if [ "${LANDING_CHANGED}" = "true" ] && [ -f .deploy-artifacts/landing.tar.gz ]; then
+if [ -f .deploy-artifacts/landing.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/jfair"/*
   sudo tar -xzf .deploy-artifacts/landing.tar.gz -C "${DEPLOY_ROOT}/jfair"
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/jfair"
 fi
 
-if [ "${STUDENT_CHANGED}" = "true" ] && [ -f .deploy-artifacts/student.tar.gz ]; then
+if [ -f .deploy-artifacts/student.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/student"/*
   sudo tar -xzf .deploy-artifacts/student.tar.gz -C "${DEPLOY_ROOT}/student"
   sudo cp .deploy-artifacts/student-portal.apk "${DEPLOY_ROOT}/student/downloads/student-portal.apk"
@@ -257,7 +213,7 @@ if [ "${STUDENT_CHANGED}" = "true" ] && [ -f .deploy-artifacts/student.tar.gz ];
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/student"
 fi
 
-if [ "${BACKEND_CHANGED}" = "true" ] && [ -f .deploy-artifacts/backend.tar.gz ]; then
+if [ -f .deploy-artifacts/backend.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/api"/*
   sudo tar -xzf .deploy-artifacts/backend.tar.gz -C "${DEPLOY_ROOT}/api"
 
