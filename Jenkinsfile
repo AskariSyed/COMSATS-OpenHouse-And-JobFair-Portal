@@ -208,6 +208,10 @@ sudo mkdir -p "${DEPLOY_ROOT}/admin" "${DEPLOY_ROOT}/company" "${DEPLOY_ROOT}/st
 sudo apt-get update -y
 sudo apt-get install -y tar gzip unzip webp nginx
 
+sudo cp jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
+sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
+sudo rm -f /etc/nginx/sites-enabled/default
+
 if [ -f .deploy-artifacts/admin.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/admin"/*
   sudo tar -xzf .deploy-artifacts/admin.tar.gz -C "${DEPLOY_ROOT}/admin"
