@@ -676,9 +676,9 @@ class _MyAppState extends State<MyApp> {
             pageTransitionsTheme: PageTransitionsTheme(
               builders: {
                 TargetPlatform.android: CustomPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
                 TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
                 TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
               },
             ),
@@ -740,9 +740,9 @@ class _MyAppState extends State<MyApp> {
             pageTransitionsTheme: PageTransitionsTheme(
               builders: {
                 TargetPlatform.android: CustomPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
                 TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
                 TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
               },
             ),
