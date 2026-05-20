@@ -122,12 +122,14 @@ install_flutter() {
   sudo apt-get update -y
   sudo apt-get install -y git curl xz-utils unzip
 
+  FLUTTER_TAG="${FLUTTER_TAG:-stable}"
+
   if [ ! -d "$flutter_root/.git" ]; then
     sudo rm -rf "$flutter_root"
-    sudo git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$flutter_root"
+    sudo git clone --depth 1 -b "$FLUTTER_TAG" https://github.com/flutter/flutter.git "$flutter_root"
   fi
 
-  sudo chown -R "$USER":"$USER" "$flutter_root"
+  sudo chown -R jenkins:jenkins "$flutter_root"
   export PATH="$flutter_root/bin:$PATH"
 }
 
@@ -147,7 +149,7 @@ fi
 
 command -v flutter
 flutter pub get
-flutter build web --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
+flutter build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
 flutter build apk --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
 '''
                 }
