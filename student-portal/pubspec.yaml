@@ -77,13 +77,6 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
-dependency_overrides:
-  # image_editor_plus 1.0.8 requires font_awesome_flutter ^10.0.0, but
-  # font_awesome_flutter >=10.x fails to compile on Flutter 3.27+ because
-  # IconData was made final. v11.0.0 fixes this with @staticIconProvider.
-  # This override forces the resolved version to 11.x for all packages.
-  font_awesome_flutter: ^11.0.0
-
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

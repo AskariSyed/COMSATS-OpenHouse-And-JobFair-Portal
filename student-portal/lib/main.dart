@@ -673,12 +673,12 @@ class _MyAppState extends State<MyApp> {
             scaffoldBackgroundColor: Colors.white,
             cardColor: Colors.white,
             primaryColor: Colors.blue.shade600,
-            pageTransitionsTheme: PageTransitionsTheme(
+            pageTransitionsTheme: const PageTransitionsTheme(
               builders: {
                 TargetPlatform.android: CustomPageTransitionsBuilder(),
-                TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
                 TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
                 TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
               },
             ),
@@ -737,12 +737,12 @@ class _MyAppState extends State<MyApp> {
             scaffoldBackgroundColor: const Color(0xFF121212),
             cardColor: const Color(0xFF1E1E1E),
             primaryColor: Colors.blue.shade400,
-            pageTransitionsTheme: PageTransitionsTheme(
+            pageTransitionsTheme: const PageTransitionsTheme(
               builders: {
                 TargetPlatform.android: CustomPageTransitionsBuilder(),
-                TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
                 TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
                 TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
               },
             ),
