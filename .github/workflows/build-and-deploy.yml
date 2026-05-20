@@ -128,12 +128,13 @@ jobs:
           landing-page/package-lock.json
     
     # Setup Flutter for Student portal
-    - name: Setup Flutter
+    - name: Setup Flutter (Pinned)
       if: steps.changes.outputs.student == 'true'
       uses: subosito/flutter-action@v2
       with:
+        flutter-version: '3.35.0'
         channel: stable
-        cache: true
+        cache: false
 
     # Setup Java for Android APK build
     - name: Setup Java
