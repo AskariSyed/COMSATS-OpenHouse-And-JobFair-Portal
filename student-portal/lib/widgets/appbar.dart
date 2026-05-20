@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
-
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/screens/sigin.dart';
-import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 PreferredSizeWidget buildAppBar(
   BuildContext context,
