@@ -12,6 +12,10 @@ package-lock.json
 # Build artifacts
 dist
 build
+**/dist
+**/build
+**/bin
+**/obj
 .dart_tool
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -51,6 +55,10 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# Large repository documents and reports that are not needed for image builds
+*.docx
+Test_Cases_*.csv
 
 # Secrets (never include in images)
 secrets/

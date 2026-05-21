@@ -17,6 +17,7 @@ pipeline {
     }
 
     environment {
+      FLUTTER_VERSION = '3.35.0'
         VITE_FIREBASE_API_KEY = credentials('jobfair-firebase-api-key')
         VITE_FIREBASE_AUTH_DOMAIN = credentials('jobfair-firebase-auth-domain')
         VITE_FIREBASE_PROJECT_ID = credentials('jobfair-firebase-project-id')
@@ -117,40 +118,39 @@ echo 'Secret validation passed.'
 set -euo pipefail
 
 install_flutter() {
-  local flutter_root="/opt/flutter"
+  local preferred_flutter_root="/opt/flutter-${FLUTTER_VERSION}"
+  local managed_flutter_root="$WORKSPACE/.tooling/flutter-${FLUTTER_VERSION}"
+  local selected_flutter_root=""
 
   sudo apt-get update -y
   sudo apt-get install -y git curl xz-utils unzip
 
-  FLUTTER_TAG="${FLUTTER_TAG:-stable}"
-
-  if [ ! -d "$flutter_root/.git" ]; then
-    sudo rm -rf "$flutter_root"
-    sudo git clone --depth 1 -b "$FLUTTER_TAG" https://github.com/flutter/flutter.git "$flutter_root"
+  if [ -x "$preferred_flutter_root/bin/flutter" ] && "$preferred_flutter_root/bin/flutter" --version | grep -q "Flutter ${FLUTTER_VERSION}"; then
+    selected_flutter_root="$preferred_flutter_root"
+  else
+    mkdir -p "$WORKSPACE/.tooling"
+    if [ ! -d "$managed_flutter_root/.git" ] || ! "$managed_flutter_root/bin/flutter" --version | grep -q "Flutter ${FLUTTER_VERSION}"; then
+      rm -rf "$managed_flutter_root"
+      git clone --depth 1 -b "${FLUTTER_VERSION}" https://github.com/flutter/flutter.git "$managed_flutter_root"
+    fi
+    selected_flutter_root="$managed_flutter_root"
   fi
 
-  sudo chown -R jenkins:jenkins "$flutter_root"
-  export PATH="$flutter_root/bin:$PATH"
+  [ -d "$preferred_flutter_root" ] && sudo chown -R jenkins:jenkins "$preferred_flutter_root" || true
+  [ -d "$managed_flutter_root" ] && chown -R jenkins:jenkins "$managed_flutter_root" || true
+
+  export PATH="$selected_flutter_root/bin:$PATH"
 }
 
-flutter_bin=""
-for candidate in /opt/flutter/bin/flutter /usr/local/flutter/bin/flutter "$HOME/flutter/bin/flutter" "$HOME/snap/flutter/common/flutter/bin/flutter"; do
-  if [ -x "$candidate" ]; then
-    flutter_bin="$candidate"
-    break
-  fi
-done
+install_flutter
 
-if [ -z "$flutter_bin" ]; then
-  install_flutter
-else
-  export PATH="$(dirname "$flutter_bin"):$PATH"
-fi
+FLUTTER_BIN="$(command -v flutter)"
 
-command -v flutter
-flutter pub get
-flutter build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
-flutter build apk --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
+"$FLUTTER_BIN" --version
+
+"$FLUTTER_BIN" pub get
+"$FLUTTER_BIN" build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
+"$FLUTTER_BIN" build apk --release --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
 '''
                 }
             }

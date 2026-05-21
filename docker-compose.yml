@@ -1,26 +1,5 @@
 
 services:
-  # PostgreSQL Database (Supabase alternative for local development)
-  postgres:
-    image: postgres:16-alpine
-    container_name: jobfair-postgres
-    environment:
-      POSTGRES_USER: ${DB_USER:-jobfair_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobfair_password}
-      POSTGRES_DB: ${DB_NAME:-jobfair_db}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - jobfair-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jobfair_user}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # .NET 8 Backend API
   backend:
     build:
@@ -31,7 +10,7 @@ services:
       - "5158:5158"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${DB_NAME:-jobfair_db};Username=${DB_USER:-jobfair_user};Password=${DB_PASSWORD:-jobfair_password};SslMode=Disable"
+      ConnectionStrings__DefaultConnection: ${SUPABASE_CONNECTION_STRING:?Set SUPABASE_CONNECTION_STRING in .env}
       CORS__AllowedOrigins__0: "http://localhost:3001"
       CORS__AllowedOrigins__1: "http://localhost:3002"
       CORS__AllowedOrigins__2: "http://localhost:3003"
@@ -43,9 +22,6 @@ services:
       SMTP__Port: ${SMTP_PORT:-587}
       SMTP__Username: ${SMTP_USERNAME}
       SMTP__Password: ${SMTP_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - ./Backend/config:/app/config:ro
       - backend_uploads:/app/uploads
@@ -122,7 +98,6 @@ services:
       - jobfair-network
 
 volumes:
-  postgres_data:
   backend_uploads:
 
 networks:

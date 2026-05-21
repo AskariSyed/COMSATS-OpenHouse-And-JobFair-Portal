@@ -14,6 +14,12 @@ class BackendConfig {
     final trimmed = rawBaseUrl.trim();
     if (trimmed.isEmpty) return '';
 
+    if (trimmed.startsWith('/')) {
+      return trimmed.length > 1 && trimmed.endsWith('/')
+          ? trimmed.substring(0, trimmed.length - 1)
+          : trimmed;
+    }
+
     final uri = Uri.tryParse(trimmed);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return '';
 
@@ -30,6 +36,9 @@ class BackendConfig {
 
     return normalized.toString();
   }
+
+  static bool get _usesRelativeApiBase =>
+      _resolvedServerBaseUrl.startsWith('/');
 
   static String get _resolvedServerBaseUrl {
     final normalizedConfigured = _normalizeBaseUrl(configuredServerBaseUrl);
@@ -53,6 +62,10 @@ class BackendConfig {
   }
 
   static String get serverBaseUrl {
+    if (_usesRelativeApiBase) {
+      return '';
+    }
+
     if (_isInsecureBackendOnSecurePage) {
       final origin = Uri.base.origin;
       if (origin.isNotEmpty && origin != 'null') {
@@ -65,6 +78,7 @@ class BackendConfig {
 
   static String get apiBaseUrl {
     if (_isInsecureBackendOnSecurePage) return '/api';
+    if (_usesRelativeApiBase) return _resolvedServerBaseUrl;
     return '$serverBaseUrl/api';
   }
 
@@ -96,7 +110,14 @@ class BackendConfig {
     }
 
     if (relativeOrAbsolutePath.startsWith('/')) {
+      if (_usesRelativeApiBase || _isInsecureBackendOnSecurePage) {
+        return relativeOrAbsolutePath;
+      }
       return '$serverBaseUrl$relativeOrAbsolutePath';
+    }
+
+    if (_usesRelativeApiBase || _isInsecureBackendOnSecurePage) {
+      return '/$relativeOrAbsolutePath';
     }
 
     return '$serverBaseUrl/$relativeOrAbsolutePath';

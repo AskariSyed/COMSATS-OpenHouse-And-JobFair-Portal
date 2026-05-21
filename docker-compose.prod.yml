@@ -1,28 +1,14 @@
 # Docker Compose for Production Environment
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3.8'
-
 services:
   backend:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: ${SUPABASE_CONNECTION_STRING:?Set SUPABASE_CONNECTION_STRING in .env}
     restart: always
     deploy:
       replicas: 1
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '1'
-          memory: 1G
-
-  postgres:
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    restart: always
-    deploy:
       resources:
         limits:
           cpus: '2'
@@ -64,7 +50,5 @@ services:
           memory: 512M
 
 secrets:
-  db_password:
-    file: ./secrets/db_password.txt
   jwt_secret:
     file: ./secrets/jwt_secret.txt

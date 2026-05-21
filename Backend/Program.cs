@@ -243,13 +243,17 @@ app.MapControllers();
 app.MapHub<CompanyRequestsHub>("/hubs/companyRequests");
 
 // ---------------------------
-// Initialize Admin User
+// Initialize database and admin user
 // ---------------------------
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<JobFairRecruitmentDbContext>();
     try
     {
+        Console.WriteLine("🔄 Applying EF Core migrations...");
+        await context.Database.MigrateAsync();
+        Console.WriteLine("✅ EF Core migrations applied.");
+
         // Check if any admin exists
         var adminExists = await context.Users.AnyAsync(u => u.Role == UserRole.Admin);
         if (!adminExists)
@@ -282,7 +286,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"❌ Error initializing admin: {ex.Message}");
+        Console.WriteLine($"❌ Error during database initialization: {ex.Message}");
+        throw;
     }
 }
 

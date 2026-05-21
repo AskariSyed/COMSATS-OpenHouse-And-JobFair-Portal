@@ -383,6 +383,11 @@ If EF CLI is not installed:
 dotnet tool install --global dotnet-ef
 ```
 
+Docker note:
+- `docker-compose.single.yml` expects `SUPABASE_CONNECTION_STRING` in `.env`.
+- The backend applies EF Core migrations automatically on container startup before seeding the default admin user.
+- The legacy `docker-compose.yml` / `docker-compose.prod.yml` stack now uses the same Supabase connection string too.
+
 ---
 
 ## Notifications (Firebase + SignalR)

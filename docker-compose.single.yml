@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+        BACKEND_BASE_URL: ${BACKEND_BASE_URL:-/api}
+        APP_ENV: ${APP_ENV:-production}
+        FIREBASE_VAPID_KEY: ${FIREBASE_VAPID_KEY:-}
+    container_name: jobfair-portal-app
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__DefaultConnection: ${SUPABASE_CONNECTION_STRING:?Set SUPABASE_CONNECTION_STRING in .env}
+    ports:
+      - "80:80"
+    volumes:
+      - student_uploads:/app/backend/uploads/student
+      - company_uploads:/app/backend/wwwroot/uploads/companies
+    networks:
+      - jobfair-network
+
+volumes:
+  student_uploads:
+  company_uploads:
+
+networks:
+  jobfair-network:
+    driver: bridge
