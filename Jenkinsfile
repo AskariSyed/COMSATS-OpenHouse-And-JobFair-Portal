@@ -298,7 +298,10 @@ fi
 if [ -f .deploy-artifacts/student.tar.gz ]; then
   sudo rm -rf "${DEPLOY_ROOT}/student"/*
   sudo tar -xzf .deploy-artifacts/student.tar.gz -C "${DEPLOY_ROOT}/student"
-  sudo cp .deploy-artifacts/student-portal.apk "${DEPLOY_ROOT}/student/downloads/student-portal.apk"
+  sudo mkdir -p "${DEPLOY_ROOT}/student/downloads"
+  if [ -f .deploy-artifacts/student-portal.apk ]; then
+    sudo cp .deploy-artifacts/student-portal.apk "${DEPLOY_ROOT}/student/downloads/student-portal.apk"
+  fi
 
   if command -v cwebp >/dev/null 2>&1; then
     for png in "${DEPLOY_ROOT}/student"/icons/*.png; do
