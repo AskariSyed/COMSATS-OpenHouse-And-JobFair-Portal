@@ -196,9 +196,34 @@ FLUTTER_BIN="$(command -v flutter)"
         stage('Build Backend') {
             steps {
                 dir('Backend') {
-                    sh 'dotnet restore'
-                    sh 'dotnet build --configuration Release'
-                    sh 'dotnet publish --configuration Release --output publish'
+                    sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+install_dotnet() {
+  local dotnet_root="$WORKSPACE/.tooling/dotnet"
+  local dotnet_bin="$dotnet_root/dotnet"
+
+  sudo apt-get update -y
+  sudo apt-get install -y curl ca-certificates
+
+  if [ ! -x "$dotnet_bin" ]; then
+    mkdir -p "$dotnet_root"
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$WORKSPACE/.tooling/dotnet-install.sh"
+    chmod +x "$WORKSPACE/.tooling/dotnet-install.sh"
+    "$WORKSPACE/.tooling/dotnet-install.sh" --channel 8.0 --install-dir "$dotnet_root"
+  fi
+
+  export DOTNET_ROOT="$dotnet_root"
+  export PATH="$DOTNET_ROOT:$PATH"
+}
+
+install_dotnet
+
+dotnet --info
+dotnet restore
+dotnet build --configuration Release
+dotnet publish --configuration Release --output publish
+'''
                 }
             }
         }
