@@ -121,10 +121,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "emailOrRegNo": regNo,
-          "password": password,
-        }),
+        body: json.encode({"emailOrRegNo": regNo, "password": password}),
       );
 
       if (response.statusCode == 200) {
@@ -206,16 +203,16 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   void _setupFCMAfterLogin(String authToken) async {
     try {
       String? fcmToken;
-      NotificationSettings settings = await _firebaseMessaging.requestPermission(
-        alert: true, badge: true, sound: true
-      );
+      NotificationSettings settings = await _firebaseMessaging
+          .requestPermission(alert: true, badge: true, sound: true);
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
         if (kIsWeb) {
           const vapidKey = String.fromEnvironment(
             'FIREBASE_VAPID_KEY',
-            defaultValue: 'BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s',
+            defaultValue:
+                'BF03FtvADQR8PrW4u7iYfaYnZdiU6tsXAxZTPRrVVb9HQ115gpq89FAUmIzp_NFh7PBYO2AW0UbmO-leT5g2V6s',
           );
           fcmToken = await _firebaseMessaging.getToken(vapidKey: vapidKey);
         } else {
@@ -227,7 +224,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("fcmToken", fcmToken);
 
-        final registerUrl = "${BackendConfig.apiBaseUrl}/Student/register-fcm-token";
+        final registerUrl =
+            "${BackendConfig.apiBaseUrl}/Student/register-fcm-token";
         await http.post(
           Uri.parse(registerUrl),
           headers: {
