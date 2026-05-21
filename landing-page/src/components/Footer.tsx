@@ -14,14 +14,14 @@ export function Footer() {
         <div> 
           <p className="text-sm font-bold text-slate-900">Portal Links</p>
           <div className="mt-3 space-y-2 text-sm text-slate-600">
-            <a className="block hover:text-blue-600" href="https://student.jfair.tech">student.jfair.tech</a>
-            <a className="block hover:text-blue-600" href="https://company.jfair.tech">company.jfair.tech</a>
-            <a className="block hover:text-blue-600" href="https://admin.jfair.tech">admin.jfair.tech</a>
+            <a className="block hover:text-blue-600" href="https://comsats.student.jfair.tech">comsats.student.jfair.tech</a>
+            <a className="block hover:text-blue-600" href="https://comsats.company.jfair.tech">comsats.company.jfair.tech</a>
+            <a className="block hover:text-blue-600" href="https://comsats.admin.jfair.tech">comsats.admin.jfair.tech</a>
           </div>
         </div>
 
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-900">
-          <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.
+          <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing.
         </div>
       </div>
     </footer>

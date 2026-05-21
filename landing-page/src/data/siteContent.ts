@@ -1,8 +1,8 @@
 export const portalUrls = {
-  student: 'https://student.jfair.tech',
-  company: 'https://company.jfair.tech',
-  admin: 'https://admin.jfair.tech',
-  studentApk: 'https://student.jfair.tech/downloads/student-portal.apk'
+  student: 'https://comsats.student.jfair.tech',
+  company: 'https://comsats.company.jfair.tech',
+  admin: 'https://comsats.admin.jfair.tech',
+  studentApk: 'https://comsats.student.jfair.tech/downloads/student-portal.apk'
 };
 
 export const featureGrid = [

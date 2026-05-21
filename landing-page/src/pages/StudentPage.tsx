@@ -20,7 +20,7 @@ const studentFaqs = [
   {
     question: 'How do I use the portal on iPhone?',
     answer: [
-      'Open Safari and go to student.jfair.tech.',
+      'Open Safari and go to comsats.student.jfair.tech.',
       'Wait for the page to load.',
       'Tap the Share button at the bottom of Safari.',
       'Scroll if needed and choose Add to Home Screen.',
@@ -105,7 +105,7 @@ export function StudentPage() {
         <article className="rounded-2xl border border-blue-200 bg-blue-50 p-6 transition-transform duration-300 hover:-translate-y-1">
           <h3 className="flex items-center gap-2 text-lg font-bold text-blue-900"><Apple className="h-5 w-5" />iPhone</h3>
           <div className="mt-2 text-sm text-blue-800">
-            <p>Open Safari and go to student.jfair.tech.</p>
+            <p>Open Safari and go to comsats.student.jfair.tech.</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-blue-900">
               <li>Wait for the page to load.</li>
               <li>Tap Share at the bottom of Safari.</li>

@@ -204,7 +204,7 @@ export function HomePage() {
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">
               <div className="mb-2 flex items-center gap-2"><Apple className="h-4 w-4" />iPhone</div>
               <ul className="list-disc space-y-1 pl-5 font-normal text-blue-900">
-                <li>Open Safari and go to student.jfair.tech</li>
+                <li>Open Safari and go to comsats.student.jfair.tech</li>
                 <li>Wait for the page to load</li>
                 <li>Tap Share at the bottom</li>
                 <li>Choose Add to Home Screen</li>
