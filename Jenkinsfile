@@ -273,15 +273,9 @@ sudo mkdir -p "${DEPLOY_ROOT}/admin" "${DEPLOY_ROOT}/company" "${DEPLOY_ROOT}/st
 sudo apt-get update -y
 sudo apt-get install -y tar gzip unzip webp nginx
 
-if [ -f /etc/letsencrypt/live/jfair.tech/fullchain.pem ] && [ -f /etc/letsencrypt/live/jfair.tech/privkey.pem ]; then
-  sudo cp jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
-  sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
-  sudo rm -f /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
-else
-  sudo cp jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf
-  sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
-  sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
-fi
+sudo cp jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf
+sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
+sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
 sudo rm -f /etc/nginx/sites-enabled/default
 
 if [ -f .deploy-artifacts/admin.tar.gz ]; then
