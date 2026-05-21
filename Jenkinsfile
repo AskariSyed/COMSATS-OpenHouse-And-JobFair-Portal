@@ -322,6 +322,16 @@ if [ -f .deploy-artifacts/student.tar.gz ]; then
 fi
 
 if [ -f .deploy-artifacts/backend.tar.gz ]; then
+  DOTNET_SERVICE_ROOT="/opt/jobfair-dotnet"
+  DOTNET_EXEC="${DOTNET_SERVICE_ROOT}/dotnet"
+
+  if [ ! -x "$DOTNET_EXEC" ]; then
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$WORKSPACE/.tooling/dotnet-install.sh"
+    chmod +x "$WORKSPACE/.tooling/dotnet-install.sh"
+    sudo mkdir -p "$DOTNET_SERVICE_ROOT"
+    sudo "$WORKSPACE/.tooling/dotnet-install.sh" --channel 8.0 --runtime aspnetcore --install-dir "$DOTNET_SERVICE_ROOT"
+  fi
+
   sudo rm -rf "${DEPLOY_ROOT}/api"/*
   sudo tar -xzf .deploy-artifacts/backend.tar.gz -C "${DEPLOY_ROOT}/api"
 
@@ -335,14 +345,14 @@ if [ -f .deploy-artifacts/backend.tar.gz ]; then
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/api" "${DEPLOY_ROOT}/uploads"
   sudo chown -h www-data:www-data "${DEPLOY_ROOT}/api/uploads" "${DEPLOY_ROOT}/api/wwwroot/uploads"
 
-  sudo tee /etc/systemd/system/jobfair-backend.service >/dev/null <<'UNIT'
+  sudo tee /etc/systemd/system/jobfair-backend.service >/dev/null <<UNIT
 [Unit]
 Description=JobFair Backend API
 After=network.target
 
 [Service]
 WorkingDirectory=${DEPLOY_ROOT}/api
-ExecStart=/usr/bin/dotnet ${DEPLOY_ROOT}/api/JobFairPortal.dll
+ExecStart=${DOTNET_EXEC} ${DEPLOY_ROOT}/api/JobFairPortal.dll
 Restart=always
 RestartSec=5
 KillSignal=SIGINT
@@ -350,6 +360,7 @@ SyslogIdentifier=jobfair-backend
 User=www-data
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=DOTNET_ROOT=${DOTNET_SERVICE_ROOT}
 
 [Install]
 WantedBy=multi-user.target
