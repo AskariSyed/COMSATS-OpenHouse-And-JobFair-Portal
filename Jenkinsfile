@@ -12,7 +12,7 @@ pipeline {
     }
 
     parameters {
-        string(name: 'BACKEND_URL', defaultValue: 'http://127.0.0.1:5158', description: 'Backend URL used when building the portals.')
+      string(name: 'BACKEND_URL', defaultValue: 'https://comsats.api.jfair.tech', description: 'Backend URL used when building the portals.')
         string(name: 'DEPLOY_ROOT', defaultValue: '/var/www', description: 'Local deployment root on the Jenkins agent or target server.')
     }
 
@@ -383,6 +383,21 @@ sudo systemctl reload nginx
 '''
             }
         }
+
+    stage('Report Endpoints') {
+      steps {
+        sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Landing page: http://${DEPLOY_ROOT:-/var/www}/jfair (fallback port 8084)"
+echo "Backend API:  ${BACKEND_URL}"
+echo "Admin portal: http://${DEPLOY_ROOT:-/var/www}/admin or https://comsats.admin.jfair.tech"
+echo "Company portal: http://${DEPLOY_ROOT:-/var/www}/company or https://comsats.company.jfair.tech"
+echo "Student portal: http://${DEPLOY_ROOT:-/var/www}/student or https://comsats.student.jfair.tech"
+echo "API domain:   https://comsats.api.jfair.tech"
+'''
+      }
+    }
     }
 
     post {
