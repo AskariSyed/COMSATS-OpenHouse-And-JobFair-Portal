@@ -142,11 +142,48 @@ install_flutter() {
   export PATH="$selected_flutter_root/bin:$PATH"
 }
 
+install_android_sdk() {
+  local android_sdk_root="$WORKSPACE/.tooling/android-sdk"
+  local cmdline_tools_zip="$WORKSPACE/.tooling/commandlinetools-linux.zip"
+  local sdkmanager_bin="$android_sdk_root/cmdline-tools/latest/bin/sdkmanager"
+
+  sudo apt-get update -y
+  sudo apt-get install -y openjdk-17-jdk
+
+  mkdir -p "$WORKSPACE/.tooling" "$android_sdk_root/cmdline-tools"
+
+  if [ ! -x "$sdkmanager_bin" ]; then
+    curl -fsSL -o "$cmdline_tools_zip" "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+    rm -rf "$android_sdk_root/cmdline-tools/latest"
+    mkdir -p "$android_sdk_root/cmdline-tools/latest"
+    unzip -q -o "$cmdline_tools_zip" -d "$android_sdk_root/cmdline-tools/latest"
+
+    if [ -d "$android_sdk_root/cmdline-tools/latest/cmdline-tools" ]; then
+      mv "$android_sdk_root/cmdline-tools/latest/cmdline-tools"/* "$android_sdk_root/cmdline-tools/latest/"
+      rmdir "$android_sdk_root/cmdline-tools/latest/cmdline-tools"
+    fi
+  fi
+
+  export ANDROID_SDK_ROOT="$android_sdk_root"
+  export ANDROID_HOME="$android_sdk_root"
+  export PATH="$android_sdk_root/cmdline-tools/latest/bin:$android_sdk_root/platform-tools:$PATH"
+
+  yes | "$sdkmanager_bin" --sdk_root="$ANDROID_SDK_ROOT" --licenses >/dev/null || true
+  "$sdkmanager_bin" --sdk_root="$ANDROID_SDK_ROOT" --install \
+    "platform-tools" \
+    "platforms;android-34" \
+    "platforms;android-35" \
+    "build-tools;34.0.0" \
+    "build-tools;35.0.0"
+}
+
 install_flutter
+install_android_sdk
 
 FLUTTER_BIN="$(command -v flutter)"
 
 "$FLUTTER_BIN" --version
+"$FLUTTER_BIN" config --android-sdk "$ANDROID_SDK_ROOT"
 
 "$FLUTTER_BIN" pub get
 "$FLUTTER_BIN" build web --release --no-wasm-dry-run --dart-define=BACKEND_BASE_URL="$BACKEND_URL" --dart-define=APP_ENV=production
@@ -187,6 +224,9 @@ fi
 
 if [ -d student-portal/build/web ]; then
   tar -czf .deploy-artifacts/student.tar.gz -C student-portal/build/web .
+fi
+
+if [ -f student-portal/build/app/outputs/flutter-apk/app-release.apk ]; then
   cp student-portal/build/app/outputs/flutter-apk/app-release.apk .deploy-artifacts/student-portal.apk
 fi
 
