@@ -318,7 +318,9 @@ if [ -f .deploy-artifacts/landing.tar.gz ]; then
 fi
 
 if [ -f .deploy-artifacts/student.tar.gz ]; then
-  sudo rm -rf "${DEPLOY_ROOT}/student"/*
+  # remove all student files except persisted downloads directory
+  sudo mkdir -p "${DEPLOY_ROOT}/student"
+  sudo find "${DEPLOY_ROOT}/student" -mindepth 1 -maxdepth 1 ! -name 'downloads' -exec rm -rf {} + || true
   sudo tar -xzf .deploy-artifacts/student.tar.gz -C "${DEPLOY_ROOT}/student"
   sudo mkdir -p "${DEPLOY_ROOT}/student/downloads"
   if [ -f .deploy-artifacts/student-portal.apk ]; then
@@ -343,7 +345,7 @@ if [ -f .deploy-artifacts/student.tar.gz ]; then
   sudo chown -R www-data:www-data "${DEPLOY_ROOT}/student"
 fi
 
-if [ -f .deploy-artifacts/backend.tar.gz ]; then
+  if [ -f .deploy-artifacts/backend.tar.gz ]; then
   DOTNET_SERVICE_ROOT="/opt/jobfair-dotnet"
   DOTNET_EXEC="${DOTNET_SERVICE_ROOT}/dotnet"
 
@@ -354,7 +356,9 @@ if [ -f .deploy-artifacts/backend.tar.gz ]; then
     sudo "$WORKSPACE/.tooling/dotnet-install.sh" --channel 8.0 --runtime aspnetcore --install-dir "$DOTNET_SERVICE_ROOT"
   fi
 
-  sudo rm -rf "${DEPLOY_ROOT}/api"/*
+  # remove api contents but preserve the persistent uploads directory
+  sudo mkdir -p "${DEPLOY_ROOT}/api"
+  sudo find "${DEPLOY_ROOT}/api" -mindepth 1 -maxdepth 1 ! -name 'uploads' -exec rm -rf {} + || true
   sudo tar -xzf .deploy-artifacts/backend.tar.gz -C "${DEPLOY_ROOT}/api"
 
   printf '%s\n' "${FIREBASE_CONFIG_JSON}" | sudo tee "${DEPLOY_ROOT}/api/config/hirebridge-c28e9-firebase-adminsdk-fbsvc-22c59be5ca.json" >/dev/null
