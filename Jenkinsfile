@@ -14,6 +14,7 @@ pipeline {
     parameters {
       string(name: 'BACKEND_URL', defaultValue: 'https://comsats.api.jfair.tech', description: 'Backend URL used when building the portals.')
         string(name: 'DEPLOY_ROOT', defaultValue: '/var/www', description: 'Local deployment root on the Jenkins agent or target server.')
+        booleanParam(name: 'APPLY_NGINX_CONFIG', defaultValue: false, description: 'If true, copy nginx config files from the repository to the server. Safe default: false.')
     }
 
     environment {
@@ -273,15 +274,29 @@ sudo mkdir -p "${DEPLOY_ROOT}/admin" "${DEPLOY_ROOT}/company" "${DEPLOY_ROOT}/st
 sudo apt-get update -y
 sudo apt-get install -y tar gzip unzip webp nginx
 
-if [ -f /etc/letsencrypt/live/comsats.jfair.tech/fullchain.pem ] && [ -f /etc/letsencrypt/live/comsats.jfair.tech/privkey.pem ]; then
-  sudo cp jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
-  sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
-  sudo rm -f /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
-else
-  sudo cp jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf
-  sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
-  sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
-fi
+  if [ "${APPLY_NGINX_CONFIG:-false}" = "true" ]; then
+    echo "APPLY_NGINX_CONFIG=true -> updating nginx configs from repository (backing up current files)..."
+    # backup existing configs when present
+    sudo mkdir -p /etc/nginx/sites-available
+    if [ -f /etc/nginx/sites-available/jfair-domains.conf ]; then
+      sudo cp /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf.bak.$(date +%s) || true
+    fi
+    if [ -f /etc/nginx/sites-available/jobfair-ip.nginx.conf ]; then
+      sudo cp /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf.bak.$(date +%s) || true
+    fi
+
+    if [ -f /etc/letsencrypt/live/comsats.jfair.tech/fullchain.pem ] && [ -f /etc/letsencrypt/live/comsats.jfair.tech/privkey.pem ]; then
+      sudo cp jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
+      sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
+      sudo rm -f /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
+    else
+      sudo cp jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf
+      sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
+      sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
+    fi
+  else
+    echo "APPLY_NGINX_CONFIG=false -> skipping nginx config updates. To enable, set APPLY_NGINX_CONFIG=true in the job parameters."
+  fi
 sudo rm -f /etc/nginx/sites-enabled/default
 
 if [ -f .deploy-artifacts/admin.tar.gz ]; then
