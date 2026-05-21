@@ -222,7 +222,7 @@ install_dotnet
 dotnet --info
 dotnet restore
 dotnet build --configuration Release
-dotnet publish --configuration Release --output publish
+dotnet publish JobFairPortal.csproj --configuration Release --output publish
 '''
                 }
             }
