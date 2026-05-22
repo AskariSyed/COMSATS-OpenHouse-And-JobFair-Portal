@@ -294,8 +294,15 @@ sudo apt-get install -y tar gzip unzip webp nginx
       sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
       sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
     fi
+
+    # Remove the legacy combined site file so nginx cannot load a duplicate
+    # comsats.jfair.tech server block from sites-enabled/*.
+    sudo rm -f /etc/nginx/sites-enabled/jfair.conf /etc/nginx/sites-enabled/jfair.conf.disabled
   else
     echo "APPLY_NGINX_CONFIG=false -> skipping nginx config updates. To enable, set APPLY_NGINX_CONFIG=true in the job parameters."
+    # Even when nginx config copying is disabled, make sure the legacy site
+    # file is not still active and shadowing the new domains config.
+    sudo rm -f /etc/nginx/sites-enabled/jfair.conf /etc/nginx/sites-enabled/jfair.conf.disabled
   fi
 sudo rm -f /etc/nginx/sites-enabled/default
 
