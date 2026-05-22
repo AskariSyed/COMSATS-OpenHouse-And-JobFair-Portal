@@ -279,7 +279,7 @@ sudo apt-get install -y tar gzip unzip webp nginx
 sudo rm -rf "${DEPLOY_ROOT}/admin"/* "${DEPLOY_ROOT}/company"/* "${DEPLOY_ROOT}/jfair"/* "${DEPLOY_ROOT}/student"/* "${DEPLOY_ROOT}/api"/*
 sudo mkdir -p "${DEPLOY_ROOT}/student/downloads" "${DEPLOY_ROOT}/uploads" "${DEPLOY_ROOT}/api/config"
 
-  if [ "${APPLY_NGINX_CONFIG:-false}" = "true" ]; then
+  if true; then
     echo "APPLY_NGINX_CONFIG=true -> updating nginx configs from repository (backing up current files)..."
     # backup existing configs when present
     sudo mkdir -p /etc/nginx/sites-available
