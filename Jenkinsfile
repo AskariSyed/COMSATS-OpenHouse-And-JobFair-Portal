@@ -36,7 +36,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/AskariSyed/StudentJobFairPortal.git',
+                        url: 'https://github.com/AskariSyed/COMSATS-OpenHouse-And-JobFair-Portal.git',
                         credentialsId: 'github-pat'
                     ]]
                 ])
