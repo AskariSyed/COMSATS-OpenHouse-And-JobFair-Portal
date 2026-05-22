@@ -13,6 +13,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.SignalR;
 using JobFairPortal.Hubs;
+using System.Diagnostics;
+using Microsoft.AspNetCore.Http;
 
 // Disable default inbound claim mapping
 JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
@@ -209,11 +211,35 @@ if (app.Environment.IsDevelopment())
 }
 app.Use(async (context, next) =>
 {
-    if (context.Request.Headers.ContainsKey("Authorization"))
-    {
-        Console.WriteLine("🔑 Raw Authorization Header: " + context.Request.Headers["Authorization"]);
-    }
+    var isApiRequest = context.Request.Path.StartsWithSegments("/api");
+    var requestStartedAtUtc = DateTimeOffset.UtcNow;
+    var requestStartedAt = Stopwatch.GetTimestamp();
+    var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
     await next();
+
+    if (!isApiRequest)
+    {
+        return;
+    }
+
+    var elapsedMs = Stopwatch.GetElapsedTime(requestStartedAt).TotalMilliseconds;
+    var userName = context.User?.Identity?.IsAuthenticated == true
+        ? context.User.Identity?.Name ?? "authenticated"
+        : "anonymous";
+    var resource = $"{context.Request.Path}{context.Request.QueryString}";
+    var endpoint = context.GetEndpoint()?.DisplayName ?? "unknown";
+
+    app.Logger.LogInformation(
+        "API hit time_utc={RequestTimeUtc} method={Method} resource={Resource} endpoint={Endpoint} status={StatusCode} duration_ms={DurationMs:F0} ip={RemoteIp} user={User}",
+        requestStartedAtUtc.ToString("O"),
+        context.Request.Method,
+        resource,
+        endpoint,
+        context.Response.StatusCode,
+        elapsedMs,
+        remoteIp,
+        userName);
 });
 
 // Enable serving files from wwwroot
