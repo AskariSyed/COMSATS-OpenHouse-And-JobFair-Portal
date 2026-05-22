@@ -193,7 +193,7 @@ export default function DashboardLayout({ user, onLogout, activeTab, onTabChange
           {/* FYP Disclaimer */}
           <div className="mt-12 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center max-w-2xl mx-auto">
             <p className="text-sm text-blue-700 font-medium">
-              📚 <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing.
+              📚 <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.
             </p>
           </div>
         </div>

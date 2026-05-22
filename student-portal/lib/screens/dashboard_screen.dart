@@ -514,7 +514,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             border: Border.all(color: Colors.blue.shade200),
                           ),
                           child: Text(
-                            '📚 Disclaimer: This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing.',
+                            '📚 Disclaimer: This is a Final Year Project by COMSATS Students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.blue.shade700,

@@ -236,7 +236,7 @@ export default function LoginPage({ onLogin, onNavigate, onError }) {
 
               <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-center">
                 <p className="text-xs font-medium text-blue-800">
-                  📚 <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing.
+                  📚 <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.
                 </p>
               </div>
             </div>
