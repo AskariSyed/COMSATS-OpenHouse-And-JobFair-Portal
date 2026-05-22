@@ -15,12 +15,15 @@ import 'package:student_job_fair_portal/services/skill_service.dart';
 class CVEditorDialog extends StatefulWidget {
   const CVEditorDialog({super.key});
 
+  static const String discardResult = '__cv_editor_discard__';
+
   @override
   State<CVEditorDialog> createState() => _CVEditorDialogState();
 }
 
 class _CVEditorDialogState extends State<CVEditorDialog> {
   bool loading = false;
+  bool _isLoadingInitialContent = true;
   bool _initialized = false;
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -37,23 +40,31 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
   }
 
   Future<void> _loadKnownSkills() async {
-    final categories = await SkillService().loadSkills();
-    final uniqueSkills = <String>[];
-    final seen = <String>{};
+    try {
+      final categories = await SkillService().loadSkills();
+      final uniqueSkills = <String>[];
+      final seen = <String>{};
 
-    for (final category in categories) {
-      for (final skill in category.skills) {
-        final value = skill.trim();
-        if (value.isEmpty) continue;
-        final key = value.toLowerCase();
-        if (seen.add(key)) uniqueSkills.add(value);
+      for (final category in categories) {
+        for (final skill in category.skills) {
+          final value = skill.trim();
+          if (value.isEmpty) continue;
+          final key = value.toLowerCase();
+          if (seen.add(key)) uniqueSkills.add(value);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _allKnownSkills = uniqueSkills;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingInitialContent = false;
+        });
       }
     }
-
-    if (!mounted) return;
-    setState(() {
-      _allKnownSkills = uniqueSkills;
-    });
   }
 
   void _onSkillInputChanged() {
@@ -924,11 +935,35 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
       _initialized = true;
     }
 
+    if (_isLoadingInitialContent) {
+      return Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: SizedBox(
+          width: 360,
+          height: 220,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading CV editor...',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final screenSize = MediaQuery.of(context).size;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 900,
@@ -946,21 +981,20 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                   top: Radius.circular(12),
                 ),
               ),
-              child: Row(
+                  child: Row(
                 children: [
                   const Icon(Icons.description, size: 28),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Edit CV Contents',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () =>
+                        Navigator.pop(context, CVEditorDialog.discardResult),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -1997,7 +2031,10 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                                 children: [
                                   Expanded(
                                     child: OutlinedButton(
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed: () => Navigator.pop(
+                                        context,
+                                        CVEditorDialog.discardResult,
+                                      ),
                                       child: const Text('Close'),
                                     ),
                                   ),

@@ -281,20 +281,56 @@ class BeautifulWebNavBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
         ],
-        Container(
-          width: compact ? 34 : 40,
-          height: compact ? 34 : 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
-          ),
-          child: profileImageUrl != null
-              ? ClipOval(
-                  child: CachedNetworkImage(
-                    imageUrl: profileImageUrl!,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                    errorWidget: (context, url, error) => Center(
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              if (currentRoute == 'Profile') return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+            },
+            child: Container(
+              width: compact ? 34 : 40,
+              height: compact ? 34 : 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
+              ),
+              child: profileImageUrl != null
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: profileImageUrl!,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                        errorWidget: (context, url, error) => Center(
+                          child: Text(
+                            userName.isNotEmpty
+                                ? userName[0].toUpperCase()
+                                : "U",
+                            style: TextStyle(
+                              color: primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        placeholder: (context, url) => Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
                       child: Text(
                         userName.isNotEmpty ? userName[0].toUpperCase() : "U",
                         style: TextStyle(
@@ -303,27 +339,8 @@ class BeautifulWebNavBar extends StatelessWidget {
                         ),
                       ),
                     ),
-                    placeholder: (context, url) => Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(primary),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : Center(
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : "U",
-                    style: TextStyle(
-                      color: primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+            ),
+          ),
         ),
         const SizedBox(width: 6),
 

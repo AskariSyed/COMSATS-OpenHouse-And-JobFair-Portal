@@ -12,7 +12,10 @@ void downloadFromUrl(String url, String fileName) {
   // No-op on non-web platforms.
 }
 
-void openPreview(Uint8List bytes, {String mimeType = 'application/pdf'}) {
+void openPreviewTab() {
   // No-op on non-web platforms.
 }
 
+void openPreview(Uint8List bytes, {String mimeType = 'application/pdf'}) {
+  // No-op on non-web platforms.
+}

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:html' as html;
 
+html.WindowBase? _previewWindow;
+
 void downloadBytes(
   Uint8List bytes,
   String fileName, {
@@ -28,9 +30,19 @@ void downloadFromUrl(String url, String fileName) {
   anchor.remove();
 }
 
+void openPreviewTab() {
+  _previewWindow = html.window.open('about:blank', '_blank');
+}
+
 void openPreview(Uint8List bytes, {String mimeType = 'application/pdf'}) {
   final blob = html.Blob([bytes], mimeType);
   final url = html.Url.createObjectUrlFromBlob(blob);
-  html.window.open(url, '_blank');
-}
+  final previewWindow = _previewWindow;
+  if (previewWindow != null) {
+    previewWindow.location.href = url;
+    _previewWindow = null;
+    return;
+  }
 
+  html.window.location.href = url;
+}

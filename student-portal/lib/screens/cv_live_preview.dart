@@ -71,9 +71,11 @@ class _CVLivePreviewScreenState extends State<CVLivePreviewScreen> {
     // Show the CV Editor Overlay
     final returnedEmail = await showDialog<String>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => const CVEditorDialog(),
     );
-    if (returnedEmail != null) {
+    if (returnedEmail != null &&
+        returnedEmail != CVEditorDialog.discardResult) {
       _activeCustomEmail = returnedEmail;
     }
     // Once closed, re-fetch profile and re-generate PDF naturally mimicking side-by-side!

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:student_job_fair_portal/config/backend_config.dart';
@@ -7,30 +9,29 @@ import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:student_job_fair_portal/model/student.dart';
+import 'package:student_job_fair_portal/screens/companies_screen.dart';
+import 'package:student_job_fair_portal/screens/cv_live_preview.dart';
+import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
+import 'package:student_job_fair_portal/screens/job_screen.dart';
+import 'package:student_job_fair_portal/screens/notifications_screen.dart';
+import 'package:student_job_fair_portal/screens/sigin.dart';
+import 'package:student_job_fair_portal/services/cv_generator.dart';
+import 'package:student_job_fair_portal/utils/password_validator.dart';
+import 'package:student_job_fair_portal/utils/web_file_downloader.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
+import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
+import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
+import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
+import 'package:student_job_fair_portal/widgets/web_footer.dart';
 
 // Providers & Widgets
 import 'package:student_job_fair_portal/provider/theme_provider.dart';
 import 'package:student_job_fair_portal/provider/student_provider.dart';
 import 'package:student_job_fair_portal/provider/notification_provider.dart';
-import 'package:student_job_fair_portal/model/student.dart';
-import 'package:student_job_fair_portal/utils/password_validator.dart';
-import 'package:student_job_fair_portal/screens/sigin.dart';
-import 'package:student_job_fair_portal/screens/notifications_screen.dart';
-import 'package:student_job_fair_portal/screens/dashboard_screen.dart';
-import 'package:student_job_fair_portal/screens/job_screen.dart';
-import 'package:student_job_fair_portal/screens/companies_screen.dart';
-import 'package:student_job_fair_portal/widgets/beautiful_appbar.dart';
-import 'package:student_job_fair_portal/widgets/notice_board_popup.dart';
-import 'package:student_job_fair_portal/widgets/beautiful_navigation.dart';
-import 'package:student_job_fair_portal/widgets/cv_editor_dialog.dart';
-import 'package:student_job_fair_portal/widgets/web_footer.dart';
-import 'package:student_job_fair_portal/services/cv_generator.dart';
-import 'package:student_job_fair_portal/screens/cv_live_preview.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  static const String _cvEditCancelled = '__cv_edit_cancelled__';
 
   final List<Map<String, String>> _developers = const [
     {
@@ -41,10 +42,12 @@ class SettingsScreen extends StatelessWidget {
     {
       "name": "Hassan Askari",
       "id": "FA22-BCS-155",
-      "role": "Full Stack Developer",
+      "role": "Backend & Database",
     },
     {"name": "Sulimana Huma", "id": "FA22-BCS-073", "role": "UI/UX Designer"},
   ];
+
+  static const String _cvEditCancelled = '__cv_edit_cancelled__';
 
   Future<void> _launchEmail() async {
     final Uri emailLaunchUri = Uri(
@@ -53,7 +56,7 @@ class SettingsScreen extends StatelessWidget {
       query: 'subject=Job Fair Portal Support',
     );
     if (!await launchUrl(emailLaunchUri)) {
-      debugPrint("Could not launch email");
+      debugPrint('Could not launch email');
     }
   }
 
@@ -67,10 +70,27 @@ class SettingsScreen extends StatelessWidget {
   }) async {
     final shouldEdit = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        title: Center(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(ctx).textTheme.titleMedium,
+          ),
+        ),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(ctx).textTheme.bodyMedium,
+        ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(primaryAction),
@@ -83,13 +103,23 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
 
+    // Distinguish three outcomes:
+    // - null => user cancelled the dialog entirely
+    // - false => user chose the primary action (e.g. 'Preview Now')
+    // - true => user chose to edit first
+    if (shouldEdit == null) return _cvEditCancelled;
+
+    if (shouldEdit == false) return '';
+
     if (shouldEdit == true && context.mounted) {
       final result = await showDialog<String>(
         context: context,
+        barrierDismissible: false,
         builder: (ctx) => const CVEditorDialog(),
       );
 
-      if (result == null && cancelOnEditorClose) {
+      if ((result == null || result == CVEditorDialog.discardResult) &&
+          cancelOnEditorClose) {
         return _cvEditCancelled;
       }
 
@@ -136,7 +166,7 @@ class SettingsScreen extends StatelessWidget {
       if (updatedStudent != null) {
         await CVGenerator.generateAndSaveCV(
           updatedStudent,
-          customEmail: customEmail,
+          customEmail: (customEmail == '' ? null : customEmail),
         );
       }
 
@@ -215,6 +245,7 @@ class SettingsScreen extends StatelessWidget {
       secondaryAction: 'Yes, Edit First',
     );
 
+    if (customEmail == null || customEmail == _cvEditCancelled) return;
     if (!context.mounted) return;
 
     showTopSnackBar(
@@ -272,9 +303,15 @@ class SettingsScreen extends StatelessWidget {
       message: 'Would you like to review and edit your CV before previewing?',
       primaryAction: 'Preview Now',
       secondaryAction: 'Edit First',
+      cancelOnEditorClose: true,
     );
 
+    if (customEmail == _cvEditCancelled) return;
     if (!context.mounted) return;
+
+    if (kIsWeb) {
+      WebFileDownloader.openPreviewTab();
+    }
 
     try {
       showTopSnackBar(
@@ -288,7 +325,7 @@ class SettingsScreen extends StatelessWidget {
 
       final Uint8List pdfBytes = await CVGenerator.generatePdfBytes(
         updatedStudent,
-        customEmail: customEmail,
+        customEmail: (customEmail == '' ? null : customEmail),
       );
 
       await CVGenerator.previewPdfOnWeb(pdfBytes);
@@ -309,8 +346,6 @@ class SettingsScreen extends StatelessWidget {
       }
     }
   }
-
-
 
   Future<void> _handleUploadGeneratedCv(BuildContext context) async {
     final studentProvider = Provider.of<StudentProvider>(
@@ -485,11 +520,62 @@ class SettingsScreen extends StatelessWidget {
     required BuildContext context,
     required IconData icon,
     required String tooltip,
+    required String label,
     required List<Color> colors,
     required VoidCallback onTap,
     bool isMobile = false,
   }) {
     final size = isMobile ? 46.0 : 52.0;
+    if (isMobile) {
+      return Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: SizedBox(
+              height: 70,
+              child: Ink(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(colors: colors),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.first.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 18),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -543,7 +629,6 @@ class SettingsScreen extends StatelessWidget {
         Theme.of(context).iconTheme.color?.withValues(alpha: 0.7) ??
         Colors.grey;
 
-    // Mobile Layout
     if (isMobile) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -569,7 +654,6 @@ class SettingsScreen extends StatelessWidget {
       );
     }
 
-    // Web Layout
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
@@ -577,10 +661,7 @@ class SettingsScreen extends StatelessWidget {
           SingleChildScrollView(
             child: Column(
               children: [
-                // Hero Section with Job Fair Info
                 _buildWebHeroSection(context, student, isDark, cardColor),
-
-                // Main Settings Content
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 40,
@@ -592,21 +673,23 @@ class SettingsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Section Title for Settings
                           Text(
-                            "Manage Your Account",
-                            style: Theme.of(context).textTheme.headlineLarge
+                            'Manage Your Account',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineLarge
                                 ?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).textTheme.bodyLarge?.color,
+                                  color:
+                                      Theme.of(context).textTheme.bodyLarge?.color,
                                 ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "Customize your preferences and manage your account",
-                            style: Theme.of(context).textTheme.titleMedium
+                            'Customize your preferences and manage your account',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(
                                   color: Theme.of(
                                     context,
@@ -614,12 +697,9 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                           ),
                           const SizedBox(height: 40),
-
-                          // 3-Column Layout for Web
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Column 1
                               Expanded(
                                 child: Column(
                                   children: [
@@ -651,8 +731,6 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 25),
-
-                              // Column 2
                               Expanded(
                                 child: Column(
                                   children: [
@@ -667,8 +745,6 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 25),
-
-                              // Column 3
                               Expanded(
                                 child: Column(
                                   children: [
@@ -700,11 +776,10 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Web Navigation Bar
           BeautifulWebNavBar(
             currentRoute: 'Settings',
             profileImageUrl: profileImageUrl,
-            userName: student?.user.fullName ?? "User",
+            userName: student?.user.fullName ?? 'User',
           ),
         ],
       ),
@@ -1069,7 +1144,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(
-                  "cuonline.cuiwah.edu.pk",
+                  "wah-student.comsats.edu.pk",
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(fontSize: isMobile ? 12 : 13),
@@ -1080,7 +1155,7 @@ class SettingsScreen extends StatelessWidget {
                   color: iconColor,
                 ),
                 onTap: () => launchUrl(
-                  Uri.parse("https://cuonline.cuiwah.edu.pk:8095/"),
+                  Uri.parse("https://wah-student.comsats.edu.pk/"),
                   mode: LaunchMode.externalApplication,
                 ),
               ),
@@ -1308,53 +1383,147 @@ class SettingsScreen extends StatelessWidget {
                   : Colors.grey.withValues(alpha: 0.12),
             ),
           ),
-          child: Wrap(
-            spacing: isMobile ? 14 : 16,
-            runSpacing: isMobile ? 12 : 14,
-            alignment: WrapAlignment.center,
-            children: [
-              _buildCircleActionButton(
-                context: context,
-                icon: Icons.file_download_rounded,
-                tooltip: 'Save Profile as PDF',
-                colors: [Colors.green.shade600, Colors.green.shade800],
-                isMobile: isMobile,
-                onTap: () => _handleSaveProfileAsPdf(context),
-              ),
-              if (!kIsWeb)
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final buttons = <Widget>[
                 _buildCircleActionButton(
                   context: context,
-                  icon: Icons.share_rounded,
-                  tooltip: 'Share Profile',
-                  colors: [Colors.blue.shade600, Colors.blue.shade800],
+                  icon: Icons.lock_reset_rounded,
+                  tooltip: 'Change Password',
+                  label: 'Change Password',
+                  colors: [Colors.indigo.shade600, Colors.indigo.shade800],
                   isMobile: isMobile,
-                  onTap: () => _handleShareProfile(context),
+                  onTap: () => _showChangePasswordDialog(context),
                 ),
-              _buildCircleActionButton(
-                context: context,
-                icon: Icons.preview_rounded,
-                tooltip: 'Preview Generated CV',
-                colors: [Colors.orange.shade600, Colors.orange.shade800],
-                isMobile: isMobile,
-                onTap: () => _handlePreviewGeneratedCv(context, isMobile),
-              ),
-              _buildCircleActionButton(
-                context: context,
-                icon: Icons.cloud_upload_rounded,
-                tooltip: 'Upload My PDF CV',
-                colors: [Colors.teal.shade600, Colors.teal.shade800],
-                isMobile: isMobile,
-                onTap: () => _handleUploadOwnCv(context),
-              ),
-              _buildCircleActionButton(
-                context: context,
-                icon: Icons.logout_rounded,
-                tooltip: 'Logout',
-                colors: [Colors.red.shade600, Colors.red.shade800],
-                isMobile: isMobile,
-                onTap: () => _handleLogout(context),
-              ),
-            ],
+                _buildCircleActionButton(
+                  context: context,
+                  icon: Icons.file_download_rounded,
+                  tooltip: 'Download Generate CV',
+                  label: 'Download CV',
+                  colors: [Colors.green.shade600, Colors.green.shade800],
+                  isMobile: isMobile,
+                  onTap: () => _handleSaveProfileAsPdf(context),
+                ),
+                if (!kIsWeb)
+                  _buildCircleActionButton(
+                    context: context,
+                    icon: Icons.share_rounded,
+                    tooltip: 'Share Profile',
+                    label: 'Share',
+                    colors: [Colors.blue.shade600, Colors.blue.shade800],
+                    isMobile: isMobile,
+                    onTap: () => _handleShareProfile(context),
+                  ),
+                _buildCircleActionButton(
+                  context: context,
+                  icon: Icons.preview_rounded,
+                  tooltip: 'Preview Generated CV',
+                  label: 'Preview CV',
+                  colors: [Colors.orange.shade600, Colors.orange.shade800],
+                  isMobile: isMobile,
+                  onTap: () => _handlePreviewGeneratedCv(context, isMobile),
+                ),
+                _buildCircleActionButton(
+                  context: context,
+                  icon: Icons.cloud_upload_rounded,
+                  tooltip: 'Upload My PDF CV',
+                  label: 'Upload CV',
+                  colors: [Colors.teal.shade600, Colors.teal.shade800],
+                  isMobile: isMobile,
+                  onTap: () => _handleUploadOwnCv(context),
+                ),
+                _buildCircleActionButton(
+                  context: context,
+                  icon: Icons.logout_rounded,
+                  tooltip: 'Logout',
+                  label: 'Logout',
+                  colors: [Colors.red.shade600, Colors.red.shade800],
+                  isMobile: isMobile,
+                  onTap: () => _handleLogout(context),
+                ),
+              ];
+
+              final horizontalSpacing = isMobile ? 8.0 : 16.0;
+              final estimatedButtonWidth = isMobile ? 78.0 : 104.0;
+              final fitsOneRow =
+                  !isMobile ||
+                  constraints.maxWidth >=
+                      (buttons.length * estimatedButtonWidth) +
+                          ((buttons.length - 1) * horizontalSpacing);
+
+              Widget buildRow(List<Widget> rowButtons) {
+                return Row(
+                  children: [
+                    for (var i = 0; i < rowButtons.length; i++) ...[
+                      Expanded(child: rowButtons[i]),
+                      if (i != rowButtons.length - 1)
+                        SizedBox(width: horizontalSpacing),
+                    ],
+                  ],
+                );
+              }
+
+              if (fitsOneRow) {
+                return buildRow(buttons);
+              }
+
+              if (isMobile) {
+                final buttonWidth =
+                    ((constraints.maxWidth - (2 * horizontalSpacing)) / 3)
+                        .clamp(86.0, 92.0)
+                        .toDouble();
+
+                Widget buildFixedRow(
+                  List<Widget> rowButtons, {
+                  bool centered = false,
+                }) {
+                  final rowWidth =
+                      (rowButtons.length * buttonWidth) +
+                      ((rowButtons.length - 1) * horizontalSpacing);
+                  return Row(
+                    mainAxisAlignment: centered
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: rowWidth,
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < rowButtons.length; i++) ...[
+                              SizedBox(
+                                width: buttonWidth,
+                                child: rowButtons[i],
+                              ),
+                              if (i != rowButtons.length - 1)
+                                SizedBox(width: horizontalSpacing),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                final firstRow = buttons.take(3).toList();
+                final secondRow = buttons.skip(3).toList();
+
+                return Column(
+                  children: [
+                    buildFixedRow(firstRow),
+                    if (secondRow.isNotEmpty) const SizedBox(height: 10),
+                    if (secondRow.isNotEmpty)
+                      buildFixedRow(secondRow, centered: true),
+                  ],
+                );
+              }
+
+              return Wrap(
+                spacing: 16,
+                runSpacing: 14,
+                alignment: WrapAlignment.center,
+                children: buttons,
+              );
+            },
           ),
         ),
 
@@ -1362,7 +1531,7 @@ class SettingsScreen extends StatelessWidget {
         // 3. DEVELOPER CREDITS (Mobile Only)
         // ----------------------------------------------------------------
         if (isMobile) ...[
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
           _buildSectionHeader(context, "Meet the Team"),
           Column(
             children: _developers
@@ -1945,104 +2114,148 @@ class SettingsScreen extends StatelessWidget {
     ];
     final colorIndex = dev['name']!.hashCode.abs() % gradientColors.length;
     final devColor = gradientColors[colorIndex];
+    const teamUrl = 'https://comsats.jfair.tech/team';
 
     return Padding(
-      padding: EdgeInsets.only(bottom: isMobile ? 12 : 0),
-      child: Container(
-        padding: EdgeInsets.all(isMobile ? 16 : 20),
-        decoration: BoxDecoration(
-          color: cardColor,
+      padding: EdgeInsets.only(bottom: isMobile ? 8 : 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-              spreadRadius: 0,
-            ),
-          ],
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.grey.withValues(alpha: 0.15),
-            width: 1,
+          onTap: () => launchUrl(
+            Uri.parse(teamUrl),
+            mode: LaunchMode.externalApplication,
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: isMobile ? 50 : 60,
-              height: isMobile ? 50 : 60,
-              decoration: BoxDecoration(
-                color: devColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: devColor.withValues(alpha: 0.3),
-                  width: 2,
+          child: Container(
+            padding: EdgeInsets.all(isMobile ? 10 : 18),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                  spreadRadius: 0,
                 ),
-              ),
-              child: Center(
-                child: Text(
-                  dev['name']![0],
-                  style: TextStyle(
-                    color: devColor.shade700,
-                    fontWeight: FontWeight.bold,
-                    fontSize: isMobile ? 22 : 26,
-                  ),
-                ),
+              ],
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.grey.withValues(alpha: 0.15),
+                width: 1,
               ),
             ),
-            SizedBox(width: isMobile ? 14 : 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    dev['name']!,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 15 : 17,
-                      color: textColor,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: isMobile ? 40 : 54,
+                  height: isMobile ? 40 : 54,
+                  decoration: BoxDecoration(
+                    color: devColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: devColor.withValues(alpha: 0.3),
+                      width: 2,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    dev['role']!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: isMobile ? 12 : 13,
+                  child: Center(
+                    child: Text(
+                      dev['name']![0],
+                      style: TextStyle(
+                        color: devColor.shade700,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 18 : 24,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: isMobile ? 10 : 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        dev['name']!,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 14 : 17,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        dev['role']!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: isMobile ? 11 : 13,
+                          fontWeight: FontWeight.w600,
+                          color: devColor,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: devColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          dev['id']!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontSize: isMobile ? 9 : 11,
+                                color: devColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse(teamUrl),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 10,
+                      vertical: 6,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: Icon(
+                    Icons.open_in_new,
+                    size: isMobile ? 14 : 16,
+                    color: devColor,
+                  ),
+                  label: Text(
+                    'Open',
+                    style: TextStyle(
+                      fontSize: isMobile ? 10 : 11,
                       fontWeight: FontWeight.w600,
                       color: devColor,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: devColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      dev['id']!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontSize: isMobile ? 10 : 11,
-                        color: devColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   // Helper method to build appearance section for web
+  // ignore: unused_element
   Widget _buildAppearanceSection(
     BuildContext context,
     bool isDark,
@@ -2102,6 +2315,7 @@ class SettingsScreen extends StatelessWidget {
   }
 
   // Helper method to build CV section for web
+  // ignore: unused_element
   Widget _buildCVSection(
     BuildContext context,
     Color cardColor,
@@ -2170,6 +2384,7 @@ class SettingsScreen extends StatelessWidget {
   }
 
   // Helper method to build support section for web
+  // ignore: unused_element
   Widget _buildSupportSection(
     BuildContext context,
     Color cardColor,
@@ -2255,10 +2470,10 @@ class SettingsScreen extends StatelessWidget {
               dividerColor,
               Icons.account_circle_outlined,
               "Student Portal",
-              "cuonline.cuiwah.edu.pk",
+              "wah-student.comsats.edu.pk",
               Icons.open_in_new,
               onTap: () => launchUrl(
-                Uri.parse("https://cuonline.cuiwah.edu.pk:8095/"),
+                Uri.parse("https://wah-student.comsats.edu.pk/"),
                 mode: LaunchMode.externalApplication,
               ),
             ),
@@ -2285,6 +2500,7 @@ class SettingsScreen extends StatelessWidget {
   }
 
   // Account Actions section for web (Change Password + Logout)
+  // ignore: unused_element
   Widget _buildAccountActionsSection(
     BuildContext context,
     Color cardColor,
@@ -2493,6 +2709,7 @@ class SettingsScreen extends StatelessWidget {
   }
 
   // Quick Actions Section
+  // ignore: unused_element
   Widget _buildQuickActionsSection(
     BuildContext context,
     Color cardColor,
@@ -2710,6 +2927,70 @@ class SettingsScreen extends StatelessWidget {
       builder: (context, constraints) {
         final bool compactLayout = isMobile || constraints.maxWidth < 420;
 
+        final upcomingStatusText = upcomingFair == null
+            ? "No upcoming fair"
+            : upcomingFair.isRegistered
+            ? "Registered"
+            : "Not registered";
+
+        final upcomingStatusColor = upcomingFair == null
+            ? Colors.blueGrey
+            : upcomingFair.isRegistered
+            ? Colors.green
+            : Colors.orange;
+
+        Widget statTile(
+          String title,
+          String value,
+          IconData icon,
+          Color color,
+        ) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        value,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -2734,161 +3015,85 @@ class SettingsScreen extends StatelessWidget {
               children: [
                 _buildSectionHeader(context, "Job Fair Information"),
                 SizedBox(height: compactLayout ? 16 : 20),
-                // Current Fair
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(compactLayout ? 14 : 16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).primaryColor.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                if (compactLayout)
+                  Column(
                     children: [
-                      Text(
-                        "Current Registration",
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Current Registration",
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              fairName,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "$companyCount Companies • $jobCount Positions",
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Chip(
+                                label: Text(
+                                  isRegistered
+                                      ? "Registered"
+                                      : "Not Registered",
+                                ),
+                                backgroundColor: isRegistered
+                                    ? Colors.green.withValues(alpha: 0.2)
+                                    : Colors.orange.withValues(alpha: 0.2),
+                                labelStyle: TextStyle(
+                                  color: isRegistered
+                                      ? Colors.green.shade700
+                                      : Colors.orange.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      compactLayout
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  fairName,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "$companyCount Companies • $jobCount Positions",
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 10),
-                                Chip(
-                                  label: Text(
-                                    isRegistered
-                                        ? "Registered"
-                                        : "Not Registered",
-                                  ),
-                                  backgroundColor: isRegistered
-                                      ? Colors.green.withValues(alpha: 0.2)
-                                      : Colors.orange.withValues(alpha: 0.2),
-                                  labelStyle: TextStyle(
-                                    color: isRegistered
-                                        ? Colors.green.shade700
-                                        : Colors.orange.shade700,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        fairName,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "$companyCount Companies • $jobCount Positions",
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Chip(
-                                  label: Text(
-                                    isRegistered
-                                        ? "Registered"
-                                        : "Not Registered",
-                                  ),
-                                  backgroundColor: isRegistered
-                                      ? Colors.green.withValues(alpha: 0.2)
-                                      : Colors.orange.withValues(alpha: 0.2),
-                                  labelStyle: TextStyle(
-                                    color: isRegistered
-                                        ? Colors.green.shade700
-                                        : Colors.orange.shade700,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(compactLayout ? 14 : 16),
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.deepPurple.withValues(alpha: 0.25),
-                      width: 1,
-                    ),
-                  ),
-                  child: upcomingFair == null
-                      ? (compactLayout
-                            ? Column(
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.deepPurple.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: upcomingFair == null
+                            ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.event_busy_outlined,
-                                    color: Colors.deepPurple.shade400,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    "No upcoming job fair announced after current fair.",
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                  ),
-                                ],
-                              )
-                            : Row(
                                 children: [
                                   Icon(
                                     Icons.event_busy_outlined,
@@ -2905,169 +3110,315 @@ class SettingsScreen extends StatelessWidget {
                                     ),
                                   ),
                                 ],
-                              ))
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Upcoming Job Fair",
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            compactLayout
-                                ? Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        upcomingFair.semester,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Chip(
-                                        label: Text(
-                                          upcomingFair.isRegistered
-                                              ? "Registered"
-                                              : "Not Registered",
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Upcoming Job Fair",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    upcomingFair.semester,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Chip(
+                                    label: Text(
+                                      upcomingFair.isRegistered
+                                          ? "Registered"
+                                          : "Not Registered",
+                                    ),
+                                    backgroundColor: upcomingFair.isRegistered
+                                        ? Colors.green.withValues(alpha: 0.2)
+                                        : Colors.orange.withValues(alpha: 0.2),
+                                    labelStyle: TextStyle(
+                                      color: upcomingFair.isRegistered
+                                          ? Colors.green.shade700
+                                          : Colors.orange.shade700,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (!upcomingFair.isRegistered) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(
+                                          alpha: 0.12,
                                         ),
-                                        backgroundColor:
-                                            upcomingFair.isRegistered
-                                            ? Colors.green.withValues(
-                                                alpha: 0.2,
-                                              )
-                                            : Colors.orange.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                        labelStyle: TextStyle(
-                                          color: upcomingFair.isRegistered
-                                              ? Colors.green.shade700
-                                              : Colors.orange.shade700,
-                                          fontWeight: FontWeight.bold,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.3,
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              upcomingFair.semester,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            color: Colors.orange.shade700,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              "If you want to register for this fair, please contact IT Center.",
                                               style: Theme.of(
                                                 context,
                                               ).textTheme.bodySmall,
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Chip(
-                                        label: Text(
-                                          upcomingFair.isRegistered
-                                              ? "Registered"
-                                              : "Not Registered",
-                                        ),
-                                        backgroundColor:
-                                            upcomingFair.isRegistered
-                                            ? Colors.green.withValues(
-                                                alpha: 0.2,
-                                              )
-                                            : Colors.orange.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                        labelStyle: TextStyle(
-                                          color: upcomingFair.isRegistered
-                                              ? Colors.green.shade700
-                                              : Colors.orange.shade700,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                            if (!upcomingFair.isRegistered) ...[
-                              const SizedBox(height: 10),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: Colors.orange.withValues(alpha: 0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Colors.orange.shade700,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        "If you want to register for this fair, please contact IT Center.",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Colors.orange.shade800,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
+                                ],
+                              ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Theme.of(
+                                    context,
+                                  ).primaryColor.withValues(alpha: 0.25),
                                 ),
                               ),
-                            ],
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Current Registration",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    fairName,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "$companyCount Companies • $jobCount Positions",
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "$currentFairDay • ${dayLabel(currentFairDaysUntil)}",
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Chip(
+                                      label: Text(
+                                        isRegistered
+                                            ? "Registered"
+                                            : "Not Registered",
+                                      ),
+                                      backgroundColor: isRegistered
+                                          ? Colors.green.withValues(alpha: 0.2)
+                                          : Colors.orange.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                      labelStyle: TextStyle(
+                                        color: isRegistered
+                                            ? Colors.green.shade700
+                                            : Colors.orange.shade700,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.deepPurple.withValues(
+                                  alpha: 0.08,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.deepPurple.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                ),
+                              ),
+                              child: upcomingFair == null
+                                  ? Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.event_busy_outlined,
+                                          color: Colors.deepPurple.shade400,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            "No upcoming job fair announced after current fair.",
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "Upcoming Job Fair",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                upcomingFair.semester,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                "${upcomingFair.totalCompanies} Companies • ${upcomingFair.totalJobs} Positions",
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodySmall,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                "${formatDate(upcomingFair.date)} • ${dayLabel(upcomingFair.daysUntil)}",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Chip(
+                                          label: Text(
+                                            upcomingFair.isRegistered
+                                                ? "Registered"
+                                                : "Not Registered",
+                                          ),
+                                          backgroundColor:
+                                              upcomingFair.isRegistered
+                                              ? Colors.green.withValues(
+                                                  alpha: 0.2,
+                                                )
+                                              : Colors.orange.withValues(
+                                                  alpha: 0.2,
+                                                ),
+                                          labelStyle: TextStyle(
+                                            color: upcomingFair.isRegistered
+                                                ? Colors.green.shade700
+                                                : Colors.orange.shade700,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
                           ],
                         ),
-                ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            statTile(
+                              "Current Fair",
+                              fairName,
+                              Icons.event_available,
+                              Theme.of(context).primaryColor,
+                            ),
+                            const SizedBox(height: 12),
+                            statTile(
+                              "Companies / Jobs",
+                              "$companyCount / $jobCount",
+                              Icons.apartment,
+                              Colors.teal,
+                            ),
+                            const SizedBox(height: 12),
+                            statTile(
+                              "Status",
+                              upcomingStatusText,
+                              Icons.info_outline,
+                              upcomingStatusColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -3092,10 +3443,12 @@ class NotificationPermissionWidget extends StatefulWidget {
   });
 
   @override
-  State<NotificationPermissionWidget> createState() => _NotificationPermissionWidgetState();
+  State<NotificationPermissionWidget> createState() =>
+      _NotificationPermissionWidgetState();
 }
 
-class _NotificationPermissionWidgetState extends State<NotificationPermissionWidget> {
+class _NotificationPermissionWidgetState
+    extends State<NotificationPermissionWidget> {
   bool _isChecking = true;
   bool _isGranted = false;
 
@@ -3110,8 +3463,9 @@ class _NotificationPermissionWidgetState extends State<NotificationPermissionWid
     final settings = await messaging.getNotificationSettings();
     if (mounted) {
       setState(() {
-        _isGranted = settings.authorizationStatus == AuthorizationStatus.authorized || 
-                     settings.authorizationStatus == AuthorizationStatus.provisional;
+        _isGranted =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
         _isChecking = false;
       });
     }
@@ -3120,17 +3474,25 @@ class _NotificationPermissionWidgetState extends State<NotificationPermissionWid
   Future<void> _requestPermission() async {
     setState(() => _isChecking = true);
     final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+    final settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     if (mounted) {
       setState(() {
-        _isGranted = settings.authorizationStatus == AuthorizationStatus.authorized || 
-                     settings.authorizationStatus == AuthorizationStatus.provisional;
+        _isGranted =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
         _isChecking = false;
       });
       if (!_isGranted) {
         showTopSnackBar(
           Overlay.of(context),
-          const CustomSnackBar.info(message: 'Please allow notifications from your browser/device settings.'),
+          const CustomSnackBar.info(
+            message:
+                'Please allow notifications from your browser/device settings.',
+          ),
         );
       }
     }
@@ -3189,4 +3551,3 @@ class _NotificationPermissionWidgetState extends State<NotificationPermissionWid
     );
   }
 }
-
