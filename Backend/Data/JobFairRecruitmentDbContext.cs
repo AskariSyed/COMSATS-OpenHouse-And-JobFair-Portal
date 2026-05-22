@@ -1,4 +1,4 @@
-﻿using JobFairPortal.Models;
+using JobFairPortal.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Text.Json;
@@ -374,6 +374,12 @@ namespace JobFairPortal.Data
             modelBuilder.Entity<Project>()
                 .Property(p => p.Type)
                 .HasConversion<string>();
+
+            modelBuilder.Entity<Project>()
+                .HasIndex(p => p.Type);
+
+            modelBuilder.Entity<Project>()
+                .HasIndex(p => p.CreatedAt);
 
             // StudentProject Status as string
             modelBuilder.Entity<StudentProject>()

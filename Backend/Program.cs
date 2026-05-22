@@ -1,4 +1,4 @@
-﻿using FirebaseAdmin;
+using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using JobFairPortal.Data;
 using JobFairPortal.Services;
@@ -27,7 +27,7 @@ dataSourceBuilder.EnableDynamicJson();
 var dataSource =  dataSourceBuilder.Build();
  
 builder.Services.AddDbContext<JobFairRecruitmentDbContext>(options =>
-    options.UseNpgsql(dataSource));
+    options.UseNpgsql(dataSource, o => o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 
 builder.Services.AddControllers();
 
