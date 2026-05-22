@@ -316,8 +316,4 @@ using (var scope = app.Services.CreateScope())
         throw;
     }
 }
-
-// ---------------------------
-// 4. Run App
-// ---------------------------
 app.Run();
