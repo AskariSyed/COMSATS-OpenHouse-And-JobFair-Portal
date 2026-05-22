@@ -29,6 +29,34 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
     }
   }
 
+  String _extractErrorMessage(Map<String, dynamic> data) {
+    final directMessage = data['Message'] ?? data['message'];
+    if (directMessage is String && directMessage.trim().isNotEmpty) {
+      return directMessage.trim();
+    }
+
+    final errors = data['errors'];
+    if (errors is Map) {
+      for (final value in errors.values) {
+        if (value is List && value.isNotEmpty) {
+          final first = value.first;
+          if (first is String && first.trim().isNotEmpty) {
+            return first.trim();
+          }
+        } else if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+    }
+
+    final title = data['title'];
+    if (title is String && title.trim().isNotEmpty) {
+      return title.trim();
+    }
+
+    return "Registration failed.";
+  }
+
   Future<void> signUpStudent() async {
     final regNo = regNoController.text.trim();
     final regNoPattern = RegExp(r'^[A-Z]{2}\d{2}-[A-Z]{3}-\d{3}$');
@@ -90,7 +118,7 @@ class _StudentSignUpScreenState extends State<StudentSignUpScreen> {
       } else {
         showTopSnackBar(
           Overlay.of(context),
-          CustomSnackBar.error(message: "${data['Message']}"),
+          CustomSnackBar.error(message: _extractErrorMessage(data)),
         );
       }
     } catch (e) {
