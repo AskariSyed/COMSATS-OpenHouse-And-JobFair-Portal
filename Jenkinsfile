@@ -290,7 +290,7 @@ sudo mkdir -p "${DEPLOY_ROOT}/student/downloads" "${DEPLOY_ROOT}/uploads" "${DEP
       sudo cp /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf.bak.$(date +%s) || true
     fi
 
-    if [ -f /etc/letsencrypt/live/comsats.jfair.tech/fullchain.pem ] && [ -f /etc/letsencrypt/live/comsats.jfair.tech/privkey.pem ]; then
+    if sudo test -f /etc/letsencrypt/live/comsats.jfair.tech/fullchain.pem && sudo test -f /etc/letsencrypt/live/comsats.jfair.tech/privkey.pem; then
       sudo cp jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
       sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
       sudo rm -f /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
