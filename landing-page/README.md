@@ -37,4 +37,4 @@ npm run preview
 ## Disclaimer
 The footer includes:
 
-`Disclaimer: This is a Final Year Project by COMSATS students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.`
+`Disclaimer: This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing`

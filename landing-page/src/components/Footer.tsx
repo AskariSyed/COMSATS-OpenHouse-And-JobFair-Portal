@@ -21,7 +21,7 @@ export function Footer() {
         </div>
 
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-900">
-          <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) and does not refer to any official COMSATS platform, policy, or communication.
+          <strong>Disclaimer:</strong> This is a Final Year Project by COMSATS Students (Class of 2026) Currently in Beta Testing
         </div>
       </div>
     </footer>
