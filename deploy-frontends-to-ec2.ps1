@@ -5,6 +5,7 @@ param(
     [string]$Ec2User = "ubuntu",
     [string]$BackendUrl = "http://52.221.35.144:5158",
     [switch]$UseRelativeApi,
+    [switch]$ApplyNginxConfig,
 
     [string]$FirebaseEnvFilePath,
     [string]$FirebaseApiKey,
@@ -26,6 +27,8 @@ $companyZip = Join-Path $workDir "company.zip"
 $studentZip = Join-Path $workDir "student.zip"
 $studentApk = Join-Path $workDir "student-portal.apk"
 $landingZip = Join-Path $workDir "landing.zip"
+$nginxDomainsConfig = Join-Path $workDir "jfair-domains.conf"
+$nginxIpConfig = Join-Path $workDir "jobfair-ip.nginx.conf"
 
 function Write-Step {
     param([string]$Message)
@@ -197,6 +200,13 @@ if ($LASTEXITCODE -ne 0) { throw "Upload failed: student-portal.apk" }
 & scp @sshOptions -i $PemKeyPath $landingZip "${Ec2User}@${Ec2Host}:/tmp/landing.zip"
 if ($LASTEXITCODE -ne 0) { throw "Upload failed: landing.zip" }
 
+Copy-Item (Join-Path $repoRoot "jfair-domains.conf") $nginxDomainsConfig -Force
+Copy-Item (Join-Path $repoRoot "jobfair-ip.nginx.conf") $nginxIpConfig -Force
+& scp @sshOptions -i $PemKeyPath $nginxDomainsConfig "${Ec2User}@${Ec2Host}:/tmp/jfair-domains.conf"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: jfair-domains.conf" }
+& scp @sshOptions -i $PemKeyPath $nginxIpConfig "${Ec2User}@${Ec2Host}:/tmp/jobfair-ip.nginx.conf"
+if ($LASTEXITCODE -ne 0) { throw "Upload failed: jobfair-ip.nginx.conf" }
+
 Write-Step "Deploying static files on EC2"
 $remoteDeployScript = @'
 set -e
@@ -252,6 +262,33 @@ sudo systemctl reload nginx
 & ssh @sshOptions -i $PemKeyPath "${Ec2User}@${Ec2Host}" $remoteDeployScript
 if ($LASTEXITCODE -ne 0) {
     throw "Remote deployment failed."
+}
+
+if ($ApplyNginxConfig) {
+    Write-Step "Applying nginx config on EC2"
+    $remoteNginxScript = @'
+set -e
+if [ -f /etc/letsencrypt/live/comsats.jfair.tech/fullchain.pem ] && [ -f /etc/letsencrypt/live/comsats.jfair.tech/privkey.pem ]; then
+  sudo cp /tmp/jfair-domains.conf /etc/nginx/sites-available/jfair-domains.conf
+  sudo ln -sfn /etc/nginx/sites-available/jfair-domains.conf /etc/nginx/sites-enabled/jfair-domains.conf
+  sudo rm -f /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
+else
+  sudo cp /tmp/jobfair-ip.nginx.conf /etc/nginx/sites-available/jobfair-ip.nginx.conf
+  sudo ln -sfn /etc/nginx/sites-available/jobfair-ip.nginx.conf /etc/nginx/sites-enabled/jobfair-ip.nginx.conf
+  sudo rm -f /etc/nginx/sites-enabled/jfair-domains.conf
+fi
+
+sudo rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/jfair.conf /etc/nginx/sites-enabled/jfair.conf.disabled
+sudo nginx -t
+sudo systemctl reload nginx
+'@
+
+    & ssh @sshOptions -i $PemKeyPath "${Ec2User}@${Ec2Host}" $remoteNginxScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "Nginx config update failed."
+    }
+} else {
+    Write-Host "Nginx config was uploaded to /tmp, but not activated. Re-run with -ApplyNginxConfig to switch the live site to jfair-domains.conf." -ForegroundColor Yellow
 }
 
 Write-Step "Deployment completed"

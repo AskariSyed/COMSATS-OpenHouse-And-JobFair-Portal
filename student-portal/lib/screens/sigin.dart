@@ -37,7 +37,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   final String apiUrl = "${BackendConfig.apiBaseUrl}/Auth/student/login";
   static const String _apkDownloadUrl = String.fromEnvironment(
     'STUDENT_APK_URL',
-    defaultValue: 'https://student.jfair.tech/downloads/student-portal.apk',
+    defaultValue: 'https://comsats.student.jfair.tech/downloads/student-portal.apk',
   );
 
   String _friendlyLoginError(Object error) {
