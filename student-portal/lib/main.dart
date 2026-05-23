@@ -819,13 +819,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
-    _checkAppUpdate();
+    _initializeApp();
   }
 
-  void _checkAppUpdate() {
+  Future<void> _initializeApp() async {
+    await _checkAuth();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      UpdateService.checkForUpdate(context, navigatorKey: navigatorKey);
+      final currentContext = navigatorKey.currentContext;
+      if (currentContext != null) {
+        UpdateService.checkForUpdate(currentContext, navigatorKey: navigatorKey);
+      }
     });
   }
 

@@ -1,6 +1,6 @@
 {
-  "latest_version": "1.0.7",
-  "build_number": 8,
+  "latest_version": "1.0.8",
+  "build_number": 9,
   "apk_url": "https://comsats.student.jfair.tech/downloads/student-portal.apk",
   "force_update": true,
   "whats_new": "• Small bug fixes and performance improvements"

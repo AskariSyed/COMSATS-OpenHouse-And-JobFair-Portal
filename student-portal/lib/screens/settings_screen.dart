@@ -1573,6 +1573,11 @@ class SettingsScreen extends StatelessWidget {
     ) {
       return InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.normal,
+          color: isDark ? Colors.white70 : Colors.black54,
+          fontSize: 14,
+        ),
         floatingLabelBehavior: FloatingLabelBehavior.auto,
         prefixIcon: Icon(icon, size: 20, color: const Color(0xFF2563EB)),
         suffixIcon: IconButton(
