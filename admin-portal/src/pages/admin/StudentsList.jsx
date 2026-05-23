@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Search, Filter, Eye, BookOpen, Award, XCircle, Bell, Edit2, X, Save, ArrowUpDown, ChevronDown, ChevronUp
+  Search, Filter, Eye, BookOpen, Award, XCircle, Bell, Edit2, X, Save, ArrowUpDown, ChevronDown, ChevronUp, FileText
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
 import api, { getFileUrl, updateStudentCredentials } from '../../lib/api';
 import { getAllJobFairs } from '../../lib/api';
@@ -84,6 +86,101 @@ const StudentsList = () => {
   const clearSearch = () => {
     setSearchTerm('');
     fetchStudents(1, '', selectedJobFairId);
+  };
+
+  const downloadStudentsList = async () => {
+    try {
+      const toastId = toast.loading('Generating Excel file...');
+      const query = [];
+      if (selectedJobFairId) query.push(`jobFairId=${selectedJobFairId}`);
+      if (searchTerm) query.push(`search=${encodeURIComponent(searchTerm)}`);
+      const queryString = query.length ? `?${query.join('&')}` : '';
+
+      const response = await api.get(`/admin/students/export${queryString}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `StudentsList_${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      toast.dismiss(toastId);
+      toast.success('Downloaded successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to download students list');
+    }
+  };
+
+  const downloadPdfReport = async () => {
+    const toastId = toast.loading('Preparing PDF report...');
+    try {
+      const query = [];
+      if (selectedJobFairId) query.push(`jobFairId=${selectedJobFairId}`);
+      if (searchTerm) query.push(`search=${encodeURIComponent(searchTerm)}`);
+      query.push(`page=1&pageSize=10000`);
+      const queryString = query.length ? `?${query.join('&')}` : '';
+
+      const res = await api.get(`/admin/students${queryString}`);
+      const allStudents = res.data.students || [];
+
+      const doc = new jsPDF();
+      
+      doc.setFontSize(18);
+      doc.setTextColor(79, 70, 229);
+      doc.text("Student Profile Completeness Report", 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
+
+      const total = allStudents.length;
+      const complete = allStudents.filter(s => s.isProfileComplete).length;
+      const incomplete = total - complete;
+
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text(`Total Students: ${total}  |  Complete: ${complete}  |  Incomplete: ${incomplete}`, 14, 40);
+
+      const tableData = allStudents.map(s => {
+        return [
+          s.name || '-',
+          s.registrationNo || '-',
+          s.department || '-',
+          s.cgpa?.toFixed(2) || '-',
+          s.isProfileComplete ? 'Yes' : 'No',
+          s.isProfileComplete ? '-' : (s.missingItems || 'Unknown')
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 45,
+        head: [['Name', 'Reg No', 'Department', 'CGPA', 'Profile Complete', 'Missing Details']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 10 },
+        didParseCell: function (data) {
+          if (data.section === 'body' && data.column.index === 4) {
+            const status = data.cell.raw;
+            if (status === 'Yes') data.cell.styles.textColor = [16, 185, 129];
+            if (status === 'No') data.cell.styles.textColor = [225, 29, 72];
+          }
+        }
+      });
+
+      doc.save(`Student_Profiles_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.dismiss(toastId);
+      toast.success("PDF downloaded successfully!");
+    } catch (error) {
+      console.error(error);
+      toast.dismiss(toastId);
+      toast.error('Failed to generate PDF report');
+    }
   };
 
   const handleEditClick = (student) => {
@@ -168,6 +265,21 @@ const StudentsList = () => {
         
         <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
           
+          <button 
+            onClick={downloadPdfReport}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 shadow-sm transition"
+          >
+            <FileText size={16} className="text-indigo-600" /> PDF Report
+          </button>
+
+          {/* Download CSV Button */}
+          <button 
+            onClick={downloadStudentsList}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm transition"
+          >
+            <BookOpen size={16} /> Download Excel
+          </button>
+
           {/* Notify All Button */}
           <button 
             onClick={() => setNotifyModal({ open: true, student: null })}
@@ -256,6 +368,9 @@ const StudentsList = () => {
                     CGPA <ArrowUpDown size={12} />
                   </button>
                 </th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
+                  Complete
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
               </tr>
             </thead>
@@ -263,7 +378,7 @@ const StudentsList = () => {
               {loading ? (
                  [...Array(5)].map((_, i) => (
                    <tr key={i} className="animate-pulse">
-                      <td colSpan="7" className="px-6 py-4"><div className="h-10 bg-gray-100 rounded w-full"></div></td>
+                      <td colSpan="8" className="px-6 py-4"><div className="h-10 bg-gray-100 rounded w-full"></div></td>
                    </tr>
                  ))
               ) : sortedStudents.length > 0 ? (
@@ -297,6 +412,11 @@ const StudentsList = () => {
                       <td className="px-6 py-4 text-sm font-mono text-gray-600">{s.registrationNo}</td>
                       <td className="px-6 py-4"><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{s.department}</span></td>
                       <td className="px-6 py-4"><span className={`font-bold ${s.cgpa >= 3.0 ? 'text-emerald-600' : 'text-gray-600'}`}>{s.cgpa?.toFixed(2)}</span></td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${s.isProfileComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          {s.isProfileComplete ? 'Yes' : 'No'}
+                        </span>
+                      </td>
 
                       <td className="px-6 py-4 text-right">
                         {editingId === s.studentId ? (
@@ -394,7 +514,7 @@ const StudentsList = () => {
 
                     {expandedStudentId === s.studentId && (
                       <tr className="bg-gray-50">
-                        <td colSpan="5" className="px-6 py-4">
+                        <td colSpan="6" className="px-6 py-4">
                           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
                             <div className="px-4 py-3 border-b bg-gray-50">
                               <p className="text-sm font-semibold text-gray-700">Interview History</p>
@@ -448,7 +568,7 @@ const StudentsList = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-6 py-16 text-center">
+                  <td colSpan="8" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <div className="bg-gray-100 p-4 rounded-full mb-3">
                         <Search size={32} className="text-gray-400" />

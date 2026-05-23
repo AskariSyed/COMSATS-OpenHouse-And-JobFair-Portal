@@ -226,6 +226,86 @@ namespace JobFairPortal.Controllers
             });
         }
 
+
+        [HttpGet("students/export")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> ExportStudents([FromQuery] int? jobFairId = null, [FromQuery] string? search = null, [FromQuery] string? department = null)
+        {
+            jobFairId ??= await GetActiveJobFairIdAsync();
+            var query = _context.Students
+                .Include(s => s.User)
+                .Include(s => s.Educations)
+                .Include(s => s.StudentProjects)
+                    .ThenInclude(sp => sp.Project)
+                .Include(s => s.JobFairParticipations)
+                .AsQueryable();
+
+            if (jobFairId.HasValue)
+            {
+                query = query.Where(s => s.JobFairParticipations.Any(p => p.JobFairId == jobFairId.Value));
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(s =>
+                    (s.User != null && (s.User.FullName ?? string.Empty).ToLower().Contains(searchLower)) ||
+                    s.RegistrationNo.ToLower().Contains(searchLower) ||
+                    (s.User != null && (s.User.Email ?? string.Empty).ToLower().Contains(searchLower)));
+            }
+            if (!string.IsNullOrWhiteSpace(department))
+            {
+                query = query.Where(s => s.Department == department);
+            }
+
+            var students = await query.ToListAsync();
+
+            ExcelPackage.License.SetNonCommercialPersonal("Hassan Askari");
+            var stream = new MemoryStream();
+            using (var package = new ExcelPackage(stream))
+            {
+                var worksheet = package.Workbook.Worksheets.Add("Students");
+                
+                worksheet.Cells[1, 1].Value = "Name";
+                worksheet.Cells[1, 2].Value = "Registration No";
+                worksheet.Cells[1, 3].Value = "Department";
+                worksheet.Cells[1, 4].Value = "CGPA";
+                worksheet.Cells[1, 5].Value = "Email";
+                worksheet.Cells[1, 6].Value = "Phone";
+                worksheet.Cells[1, 7].Value = "Profile Complete";
+                worksheet.Cells[1, 8].Value = "Missing Details";
+
+                for (int i = 0; i < students.Count; i++)
+                {
+                    var s = students[i];
+                    var missingItems = new List<string>();
+                    if (s.CGPA <= 0) missingItems.Add("CGPA");
+                    if (string.IsNullOrWhiteSpace(s.User?.FullName)) missingItems.Add("Name");
+                    if (string.IsNullOrWhiteSpace(s.User?.Phone)) missingItems.Add("Phone");
+                    if (!s.Educations.Any()) missingItems.Add("Education");
+                    if (s.Skills == null || s.Skills.Count < 3) missingItems.Add("Skills (<3)");
+                    if (!s.StudentProjects.Any(sp => sp.Project?.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)) missingItems.Add("FYP");
+                    if (string.IsNullOrWhiteSpace(s.CvUrl)) missingItems.Add("CV");
+
+                    bool isComplete = !missingItems.Any();
+
+                    worksheet.Cells[i + 2, 1].Value = s.User?.FullName;
+                    worksheet.Cells[i + 2, 2].Value = s.RegistrationNo;
+                    worksheet.Cells[i + 2, 3].Value = s.Department;
+                    worksheet.Cells[i + 2, 4].Value = s.CGPA;
+                    worksheet.Cells[i + 2, 5].Value = s.User?.Email;
+                    worksheet.Cells[i + 2, 6].Value = s.User?.Phone;
+                    worksheet.Cells[i + 2, 7].Value = isComplete ? "Yes" : "No";
+                    worksheet.Cells[i + 2, 8].Value = isComplete ? "None" : string.Join(", ", missingItems);
+                }
+                worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+                await package.SaveAsync();
+            }
+            stream.Position = 0;
+            var jfName = jobFairId.HasValue ? $"JobFair_{jobFairId.Value}_" : "";
+            return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Students_{jfName}{DateTime.Now:yyyyMMdd}.xlsx");
+        }
+
         // -----------------------------
         // 2. Add Room
         // -----------------------------
@@ -1873,17 +1953,31 @@ namespace JobFairPortal.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            var students = participations.Select(p => new
+            var students = participations.Select(p => 
             {
-                StudentId = p.Student.StudentId,
-                Name = p.Student.User.FullName,
-                Email = p.Student.User.Email,
-                Phone = p.Student.User.Phone,
-                RegistrationNo = p.Student.RegistrationNo,
-                Department = p.Student.Department,
-                CGPA = p.Student.CGPA,
-                ProfilePicUrl = p.Student.ProfilePicUrl,
-                ProfilePic = p.Student.ProfilePicUrl,
+                var missingItems = new List<string>();
+                if (p.Student.CGPA <= 0) missingItems.Add("CGPA");
+                if (string.IsNullOrWhiteSpace(p.Student.User?.FullName)) missingItems.Add("Name");
+                if (string.IsNullOrWhiteSpace(p.Student.User?.Phone)) missingItems.Add("Phone");
+                if (!p.Student.Educations.Any()) missingItems.Add("Education");
+                if (p.Student.Skills == null || p.Student.Skills.Count < 3) missingItems.Add("Skills (<3)");
+                if (!p.Student.StudentProjects.Any(sp => sp.Project?.Type == ProjectType.FinalYear && sp.Status == ProjectInviteStatus.Accepted)) missingItems.Add("FYP");
+                if (string.IsNullOrWhiteSpace(p.Student.CvUrl)) missingItems.Add("CV");
+
+                return new
+                {
+                    StudentId = p.Student.StudentId,
+                    Name = p.Student.User?.FullName,
+                    Email = p.Student.User?.Email,
+                    Phone = p.Student.User?.Phone,
+                    RegistrationNo = p.Student.RegistrationNo,
+                    Department = p.Student.Department,
+                    CGPA = p.Student.CGPA,
+                    ProfilePicUrl = p.Student.ProfilePicUrl,
+                    ProfilePic = p.Student.ProfilePicUrl,
+                    CvUrl = p.Student.CvUrl,
+                    IsProfileComplete = !missingItems.Any(),
+                    MissingItems = missingItems.Any() ? string.Join(", ", missingItems) : "None",
                 Skills = p.Student.Skills ?? new List<string>(),
                 FypTitle = p.Student.StudentProjects
                     .Where(sp => sp.Project != null && sp.Project.Type == ProjectType.FinalYear)
@@ -1911,6 +2005,7 @@ namespace JobFairPortal.Controllers
                 CreatedAt = p.Student.CreatedAt,
                 UpdatedAt = p.Student.UpdatedAt,
                 RegisteredAt = p.RegisteredAt // Include when they registered for this fair
+                };
             }).ToList();
 
             return Ok(new
