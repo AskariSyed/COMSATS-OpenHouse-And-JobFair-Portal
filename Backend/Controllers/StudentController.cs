@@ -929,7 +929,7 @@ namespace JobFairPortal.Controllers
                 }
                 catch (Exception ex)
                 {
-                    return StatusCode(500, new { Message = "Failed to send join request notification.", Error = ex.Message });
+                    _logger.LogWarning($"Failed to send join request notification: {ex.Message}");
                 }
             }
 
@@ -1040,7 +1040,7 @@ namespace JobFairPortal.Controllers
                 }
                 catch (Exception ex)
                 {
-                    return StatusCode(500, new { Message = "Invite sent, but failed to send FCM notification.", Error = ex.Message });
+                    _logger.LogWarning($"Failed to send project invitation FCM notification: {ex.Message}");
                 }
             }
 

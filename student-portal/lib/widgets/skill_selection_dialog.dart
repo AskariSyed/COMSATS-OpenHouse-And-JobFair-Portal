@@ -97,9 +97,16 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
   Widget build(BuildContext context) {
     final bool isWeb = MediaQuery.of(context).size.width > 800;
     final displayedSkills = _getFilteredSkills();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF181A20) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final searchFillColor = isDark ? const Color(0xFF23242A) : Colors.grey.shade50;
+    final borderColor = isDark ? Colors.grey.shade800 : Colors.grey.shade300;
+    final footerBgColor = isDark ? Colors.blue.withValues(alpha: 0.1) : Colors.blue.shade50;
+    final footerTextColor = isDark ? Colors.blue.shade200 : Colors.blue.shade900;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       appBar: AppBar(
         title: isWeb
             ? const Text("Select Skills")
@@ -115,9 +122,9 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
                   const Text("Select Skills"),
                 ],
               ),
-        backgroundColor: Colors.white,
+        backgroundColor: bgColor,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: textColor,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, _selectedSkills),
@@ -136,14 +143,20 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
               children: [
                 // 🔹 SEARCH BAR
                 TextField(
+                  style: TextStyle(color: textColor),
                   decoration: InputDecoration(
                     labelText: "Search Skills (e.g. React, SQL)",
-                    prefixIcon: const Icon(Icons.search),
+                    labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                    prefixIcon: Icon(Icons.search, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
                     filled: true,
-                    fillColor: Colors.grey.shade50,
+                    fillColor: searchFillColor,
                   ),
                   onChanged: _onSearchChanged,
                 ),
@@ -155,21 +168,24 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: borderColor),
                       borderRadius: BorderRadius.circular(12),
+                      color: searchFillColor,
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _selectedDepartment,
+                        dropdownColor: searchFillColor,
                         isExpanded: true,
-                        icon: const Icon(Icons.filter_list),
+                        icon: Icon(Icons.filter_list, color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                         items: _allDepartments.map((String dept) {
                           return DropdownMenuItem<String>(
                             value: dept,
                             child: Text(
                               dept,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w500,
+                                color: textColor,
                               ),
                             ),
                           );
@@ -191,23 +207,23 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : displayedSkills.isEmpty
-                ? const Center(child: Text("No skills found."))
+                ? Center(child: Text("No skills found.", style: TextStyle(color: textColor)))
                 : isWeb
-                ? _buildWebGrid(displayedSkills) // Grid for Web
-                : _buildMobileList(displayedSkills), // List for Mobile
+                ? _buildWebGrid(displayedSkills, isDark) // Grid for Web
+                : _buildMobileList(displayedSkills, isDark), // List for Mobile
           ),
 
           // 🔹 Footer showing count
           if (_selectedSkills.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
-              color: Colors.blue.shade50,
+              color: footerBgColor,
               child: Row(
                 children: [
                   Text(
                     "${_selectedSkills.length} skills selected",
                     style: TextStyle(
-                      color: Colors.blue.shade900,
+                      color: footerTextColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -221,7 +237,7 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
     );
   }
 
-  Widget _buildWebGrid(List<String> skills) {
+  Widget _buildWebGrid(List<String> skills, bool isDark) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Wrap(
@@ -238,9 +254,9 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? Colors.blue.withValues(alpha: 0.1)
-                    : Colors.white,
+                    : (isDark ? const Color(0xFF23242A) : Colors.white),
                 border: Border.all(
-                  color: isSelected ? Colors.blue : Colors.grey.shade300,
+                  color: isSelected ? Colors.blue : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -262,8 +278,8 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
                             ? FontWeight.bold
                             : FontWeight.normal,
                         color: isSelected
-                            ? Colors.blue.shade900
-                            : Colors.black87,
+                            ? (isDark ? Colors.blue.shade200 : Colors.blue.shade900)
+                            : (isDark ? Colors.white : Colors.black87),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -277,18 +293,20 @@ class _SkillSelectionDialogState extends State<SkillSelectionDialog> {
     );
   }
 
-  Widget _buildMobileList(List<String> skills) {
+  Widget _buildMobileList(List<String> skills, bool isDark) {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       itemCount: skills.length,
-      separatorBuilder: (ctx, i) => const Divider(height: 1),
+      separatorBuilder: (ctx, i) => Divider(height: 1, color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
       itemBuilder: (context, index) {
         final skill = skills[index];
         final isSelected = _selectedSkills.contains(skill);
         return CheckboxListTile(
-          title: Text(skill),
+          title: Text(skill, style: TextStyle(color: isDark ? Colors.white : Colors.black)),
           value: isSelected,
           activeColor: Theme.of(context).primaryColor,
+          checkColor: Colors.white,
+          side: BorderSide(color: isDark ? Colors.grey.shade400 : Colors.black54),
           onChanged: (val) => _toggleSkill(skill),
         );
       },

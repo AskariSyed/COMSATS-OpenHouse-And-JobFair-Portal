@@ -409,6 +409,10 @@ Future<void> showAddSkillDialog(BuildContext context, bool mounted) async {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      clipBehavior: Clip.antiAliasWithSaveLayer,
       builder: (context) =>
           const SkillSelectionDialog(previouslySelectedSkills: []),
     );
