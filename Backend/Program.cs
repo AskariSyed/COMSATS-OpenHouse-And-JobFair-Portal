@@ -216,11 +216,37 @@ app.Use(async (context, next) =>
     var requestStartedAt = Stopwatch.GetTimestamp();
     var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-    await next();
-
     if (!isApiRequest)
     {
+        await next();
         return;
+    }
+
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var elapsedMsFail = Stopwatch.GetElapsedTime(requestStartedAt).TotalMilliseconds;
+        var userNameFail = context.User?.Identity?.IsAuthenticated == true
+            ? context.User.Identity?.Name ?? "authenticated"
+            : "anonymous";
+        var resourceFail = $"{context.Request.Path}{context.Request.QueryString}";
+        var endpointFail = context.GetEndpoint()?.DisplayName ?? "unknown";
+
+        app.Logger.LogError(ex,
+            "API hit time_utc={RequestTimeUtc} method={Method} resource={Resource} endpoint={Endpoint} status={StatusCode} duration_ms={DurationMs:F0} ip={RemoteIp} user={User} error={Error}",
+            requestStartedAtUtc.ToString("O"),
+            context.Request.Method,
+            resourceFail,
+            endpointFail,
+            500,
+            elapsedMsFail,
+            remoteIp,
+            userNameFail,
+            ex.Message);
+        throw;
     }
 
     var elapsedMs = Stopwatch.GetElapsedTime(requestStartedAt).TotalMilliseconds;
