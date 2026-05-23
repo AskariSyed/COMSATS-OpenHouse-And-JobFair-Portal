@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace JobFairPortal.Controllers
 {
@@ -20,12 +21,14 @@ namespace JobFairPortal.Controllers
 
         private readonly ILogger<SurveyController> _logger;
         private readonly IHubContext<CompanyRequestsHub> _hubContext;
+        private readonly IMemoryCache _cache;
 
-        public SurveyController(JobFairRecruitmentDbContext context, ILogger<SurveyController> logger, IHubContext<CompanyRequestsHub> hubContext)
+        public SurveyController(JobFairRecruitmentDbContext context, ILogger<SurveyController> logger, IHubContext<CompanyRequestsHub> hubContext, IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
             _hubContext = hubContext;
+            _cache = cache;
         }
 
         private async Task NotifyDashboardUpdate()
@@ -319,22 +322,27 @@ namespace JobFairPortal.Controllers
         [HttpGet("all-companies")]
         public async Task<IActionResult> GetAllCompaniesWithSurveys()
         {
-            var companiesWithSurveys = await _context.Companies
-                .Include(c => c.Surveys)
-                .Select(c => new
-                {
-                    c.CompanyId,
-                    c.Name,
-                    Surveys = c.Surveys.Select(s => new
+            var cacheKey = "Admin_AllCompanies_With_Surveys";
+            var companiesWithSurveys = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return await _context.Companies
+                    .Include(c => c.Surveys)
+                    .Select(c => new
                     {
-                        s.SurveyId,
-                        Type = s.Type.ToString(),
-                        s.SubmittedAt,
-                        // Uses the specific Deserializer logic
-                        Responses = DeserializeResponses(s.Responses)
-                    }).ToList()
-                })
-                .ToListAsync();
+                        c.CompanyId,
+                        c.Name,
+                        Surveys = c.Surveys.Select(s => new
+                        {
+                            s.SurveyId,
+                            Type = s.Type.ToString(),
+                            s.SubmittedAt,
+                            // Uses the specific Deserializer logic
+                            Responses = DeserializeResponses(s.Responses)
+                        }).ToList()
+                    })
+                    .ToListAsync();
+            });
 
             if (!companiesWithSurveys.Any())
             {

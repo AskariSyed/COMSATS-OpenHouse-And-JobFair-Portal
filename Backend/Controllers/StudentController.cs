@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace JobFairPortal.Controllers
 {
@@ -26,17 +27,19 @@ namespace JobFairPortal.Controllers
         private readonly ILogger<StudentController> _logger;
         private readonly IHubContext<CompanyRequestsHub> _hubContext;
         private readonly MailKitMailService _mailService;
+        private readonly IMemoryCache _cache;
         private static readonly TimeZoneInfo JobFairTimeZone = ResolveJobFairTimeZone();
         private static readonly TimeSpan InterviewCutoffLocal = TimeSpan.FromHours(16.5);
         private static readonly TimeSpan WalkInStartLocal = new TimeSpan(9, 0, 0);
         private static readonly TimeSpan WalkInEndLocal = new TimeSpan(16, 30, 0);
 
-        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext)
+        public StudentController(JobFairRecruitmentDbContext context, ILogger<StudentController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext, IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
             _mailService = mailService;
             _hubContext = hubContext;
+            _cache = cache;
         }
 
         private async Task NotifyDashboardUpdate()
@@ -2503,33 +2506,53 @@ namespace JobFairPortal.Controllers
             if (!isParticipant)
                 return BadRequest("You are not registered for the current job fair. Please join via the dashboard.");
 
-            // 3. Fetch Companies via Participation Table
-            var companies = await _context.CompanyJobFairParticipations
-                .Where(p => p.JobFairId == activeJobFair.JobFairId)
-                .Include(p => p.Company)
-                    .ThenInclude(c => c.Jobs.Where(j => j.JobFairId == activeJobFair.JobFairId)) // Filter jobs by fair
-                .Include(p => p.Company)
-                    .ThenInclude(c => c.InterviewRequests.Where(ir => ir.StudentId == student.StudentId && ir.JobFairId == activeJobFair.JobFairId))
-                .Select(p => new
-                {
-                    p.Company.CompanyId,
-                    p.Company.Name,
-                    p.Company.Industry,
-                    p.Company.LogoUrl,
-                    p.Company.Website,
-                    JobCount = _context.Jobs.Count(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId),
-                    OpenPositions = _context.Jobs
-                        .Where(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId)
-                        .Sum(j => (int?)j.NumberOfJobs) ?? 0,
-                    InterviewRequestStatus = p.Company.InterviewRequests
-                        .Select(ir => ir.Status.ToString())
-                        .FirstOrDefault() ?? "None",
-                    CanRequestInterview = !p.Company.InterviewRequests.Any(),
-                    IsWalkInInterviewing = p.IsPresent
-                        && p.Company.IsWalkInInterviewing
-                        && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow)
-                })
+            // 3. Fetch Base Companies via Cache
+            var cacheKey = $"Student_Companies_JobFair_{activeJobFair.JobFairId}";
+            var baseCompanies = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return await _context.CompanyJobFairParticipations
+                    .Where(p => p.JobFairId == activeJobFair.JobFairId)
+                    .Select(p => new
+                    {
+                        p.Company.CompanyId,
+                        p.Company.Name,
+                        p.Company.Industry,
+                        p.Company.LogoUrl,
+                        p.Company.Website,
+                        JobCount = _context.Jobs.Count(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId),
+                        OpenPositions = _context.Jobs
+                            .Where(j => j.CompanyId == p.CompanyId && j.JobFairId == activeJobFair.JobFairId)
+                            .Sum(j => (int?)j.NumberOfJobs) ?? 0,
+                        IsWalkInInterviewing = p.IsPresent
+                            && p.Company.IsWalkInInterviewing
+                            && IsWithinWalkInWindow(activeJobFair.date, DateTime.UtcNow)
+                    })
+                    .ToListAsync();
+            });
+
+            // 4. Fetch Student's Interview Requests for this Job Fair
+            var studentRequests = await _context.InterviewRequests
+                .Where(ir => ir.StudentId == student.StudentId && ir.JobFairId == activeJobFair.JobFairId)
+                .Select(ir => new { ir.CompanyId, Status = ir.Status.ToString() })
                 .ToListAsync();
+
+            var requestDict = studentRequests.ToDictionary(r => r.CompanyId, r => r.Status);
+
+            // 5. Merge
+            var companies = baseCompanies.Select(c => new
+            {
+                c.CompanyId,
+                c.Name,
+                c.Industry,
+                c.LogoUrl,
+                c.Website,
+                c.JobCount,
+                c.OpenPositions,
+                InterviewRequestStatus = requestDict.TryGetValue(c.CompanyId, out var status) ? status : "None",
+                CanRequestInterview = !requestDict.ContainsKey(c.CompanyId),
+                c.IsWalkInInterviewing
+            }).ToList();
 
             var totalCompanies = companies.Count;
             var totalPages = Math.Max(1, (int)Math.Ceiling(totalCompanies / (double)pageSize));
@@ -2691,32 +2714,37 @@ namespace JobFairPortal.Controllers
                 });
             }
 
-            // 2. Filter Jobs by Active Fair
-            var jobs = await _context.Jobs
-                .Include(j => j.Company)
-                .Where(j => j.JobFairId == activeJobFairId)
-                .Where(j => _context.CompanyJobFairParticipations
-                    .Any(p => p.JobFairId == activeJobFairId && p.CompanyId == j.CompanyId))
-                .Select(j => new
-                {
-                    j.JobId,
-                    j.JobTitle,
-                    j.JobDescription,
-                    j.RequiredSkills,
-                    j.JobType,
-                    j.NumberOfJobs,
-                    Company = new
+            // 2. Fetch Jobs via Cache
+            var cacheKey = $"Student_Jobs_JobFair_{activeJobFairId}";
+            var jobs = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return await _context.Jobs
+                    .Include(j => j.Company)
+                    .Where(j => j.JobFairId == activeJobFairId)
+                    .Where(j => _context.CompanyJobFairParticipations
+                        .Any(p => p.JobFairId == activeJobFairId && p.CompanyId == j.CompanyId))
+                    .Select(j => new
                     {
-                        j.Company.CompanyId,
-                        j.Company.Name,
-                        j.Company.Industry,
-                        j.Company.LogoUrl,
-                        j.Company.Website,
-                        j.Company.CompanyEmail,
-                        j.Company.CompanyPhone
-                    }
-                })
-                .ToListAsync();
+                        j.JobId,
+                        j.JobTitle,
+                        j.JobDescription,
+                        j.RequiredSkills,
+                        j.JobType,
+                        j.NumberOfJobs,
+                        Company = new
+                        {
+                            j.Company.CompanyId,
+                            j.Company.Name,
+                            j.Company.Industry,
+                            j.Company.LogoUrl,
+                            j.Company.Website,
+                            j.Company.CompanyEmail,
+                            j.Company.CompanyPhone
+                        }
+                    })
+                    .ToListAsync();
+            });
 
             var totalJobs = jobs.Count;
             var totalPages = Math.Max(1, (int)Math.Ceiling(totalJobs / (double)pageSize));

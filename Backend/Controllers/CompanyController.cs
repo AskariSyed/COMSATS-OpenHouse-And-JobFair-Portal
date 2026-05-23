@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace JobFairPortal.Controllers
 {
@@ -31,13 +32,15 @@ namespace JobFairPortal.Controllers
         private static readonly TimeSpan LunchBreakEndLocal = new TimeSpan(14, 0, 0);
 
         private readonly IHubContext<CompanyRequestsHub> _hubContext;
+        private readonly IMemoryCache _cache;
 
-        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext)
+        public CompanyController(JobFairRecruitmentDbContext context, ILogger<CompanyController> logger, MailKitMailService mailService, IHubContext<CompanyRequestsHub> hubContext, IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
             _mailService = mailService;
             _hubContext = hubContext;
+            _cache = cache;
         }
 
         private async Task NotifyDashboardUpdate()
@@ -338,20 +341,67 @@ namespace JobFairPortal.Controllers
                 });
             }
 
-            var projectsQuery = _context.Projects
-                .Where(p => p.Type == ProjectType.FinalYear)
-                .Where(p => p.StudentProjects.Any(sp =>
-                    sp.Status == ProjectInviteStatus.Accepted &&
-                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered)))
-                .Include(p => p.StudentProjects)
-                    .ThenInclude(sp => sp.Student)
-                        .ThenInclude(s => s.User)
-                .AsQueryable();
+            // 1. Fetch All FYPs via Cache
+            var cacheKey = $"Company_FYPs_JobFair_{activeJobFair.JobFairId}";
+            var allProjects = await _cache.GetOrCreateAsync(cacheKey, async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return await _context.Projects
+                    .Where(p => p.Type == ProjectType.FinalYear)
+                    .Where(p => p.StudentProjects.Any(sp =>
+                        sp.Status == ProjectInviteStatus.Accepted &&
+                        sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered)))
+                    .Include(p => p.StudentProjects)
+                        .ThenInclude(sp => sp.Student)
+                            .ThenInclude(s => s.User)
+                    .Include(p => p.StudentProjects)
+                        .ThenInclude(sp => sp.Student)
+                            .ThenInclude(s => s.ContactLinks)
+                    .Select(p => new
+                    {
+                        ProjectId = p.ProjectId,
+                        Title = p.Title,
+                        Description = p.Description,
+                        Skills = p.Skills,
+                        DemoUrl = p.DemoUrl,
+                        GitHubUrl = p.GitHubUrl,
+                        StartDate = p.StartDate,
+                        EndDate = p.EndDate,
+                        Type = p.Type.ToString(),
+                        ClientName = p.ClientName,
+                        Supervisor = p.Supervisor,
+                        TotalStudents = p.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Accepted),
+
+                        // Basic student list
+                        Students = p.StudentProjects
+                            .Where(sp =>
+                                sp.Status == ProjectInviteStatus.Accepted &&
+                                sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered))
+                            .Select(sp => new
+                            {
+                                StudentId = sp.Student.StudentId,
+                                Name = sp.Student.User.FullName,
+                                RegistrationNo = sp.Student.RegistrationNo,
+                                Department = sp.Student.Department,
+                                CGPA = sp.Student.CGPA,
+                                StudentGitHubUrl = sp.Student.ContactLinks
+                                    .Where(cl => cl.Platform == ContactPlatform.GitHub)
+                                    .Select(cl => cl.Url)
+                                    .FirstOrDefault(),
+                                Role = sp.role,
+                                IsCreator = sp.IsCreator
+                            }).ToList()
+                    })
+                    .ToListAsync();
+            });
+
+            // 2. Apply Filters in Memory
+            var filteredProjects = allProjects.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(fypQuery))
             {
                 var fypNeedle = fypQuery.Trim().ToLower();
-                projectsQuery = projectsQuery.Where(p => (p.Title ?? "").ToLower().Contains(fypNeedle));
+                filteredProjects = filteredProjects.Where(p => (p.Title ?? "").ToLower().Contains(fypNeedle));
             }
 
             if (!string.IsNullOrWhiteSpace(studentQuery))
@@ -359,73 +409,33 @@ namespace JobFairPortal.Controllers
                 var studentNeedle = studentQuery.Trim().ToLower();
                 var studentRegNeedle = new string(studentNeedle.Where(char.IsLetterOrDigit).ToArray());
 
-                projectsQuery = projectsQuery.Where(p => p.StudentProjects.Any(sp =>
-                    sp.Status == ProjectInviteStatus.Accepted &&
-                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered) &&
-                    (
-                        (sp.Student.User.FullName ?? "").ToLower().Contains(studentNeedle) ||
-                        ((sp.Student.RegistrationNo ?? "").Replace("-", "").ToLower().Contains(studentRegNeedle))
-                    )));
+                filteredProjects = filteredProjects.Where(p => p.Students.Any(s =>
+                    (s.Name ?? "").ToLower().Contains(studentNeedle) ||
+                    (s.RegistrationNo ?? "").Replace("-", "").ToLower().Contains(studentRegNeedle)));
             }
 
             if (!string.IsNullOrWhiteSpace(department))
             {
                 var deptNeedle = department.Trim().ToLower();
-                projectsQuery = projectsQuery.Where(p => p.StudentProjects.Any(sp =>
-                    sp.Status == ProjectInviteStatus.Accepted &&
-                    sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered) &&
-                    (sp.Student.Department ?? "").ToLower().Contains(deptNeedle)));
+                filteredProjects = filteredProjects.Where(p => p.Students.Any(s =>
+                    (s.Department ?? "").ToLower().Contains(deptNeedle)));
             }
 
-            var totalCount = await projectsQuery.CountAsync();
+            // 3. Paginate
+            var totalCount = filteredProjects.Count();
             var skip = (page - 1) * pageSize;
 
-            var projects = await projectsQuery
+            var pagedProjects = filteredProjects
                 .OrderByDescending(p => p.ProjectId)
                 .Skip(skip)
                 .Take(pageSize)
-                .Select(p => new
-                {
-                    ProjectId = p.ProjectId,
-                    Title = p.Title,
-                    Description = p.Description,
-                    Skills = p.Skills,
-                    DemoUrl = p.DemoUrl,
-                    GitHubUrl = p.GitHubUrl,
-                    StartDate = p.StartDate,
-                    EndDate = p.EndDate,
-                    Type = p.Type.ToString(),
-                    ClientName = p.ClientName,
-                    Supervisor = p.Supervisor,
-                    TotalStudents = p.StudentProjects.Count(sp => sp.Status == ProjectInviteStatus.Accepted),
-
-                    // Basic student list (without detailed info)
-                    Students = p.StudentProjects
-                        .Where(sp =>
-                            sp.Status == ProjectInviteStatus.Accepted &&
-                            sp.Student.JobFairParticipations.Any(jp => jp.JobFairId == activeJobFair.JobFairId && jp.HasRegistered))
-                        .Select(sp => new
-                        {
-                            StudentId = sp.Student.StudentId,
-                            Name = sp.Student.User.FullName,
-                            RegistrationNo = sp.Student.RegistrationNo,
-                            Department = sp.Student.Department,
-                            CGPA = sp.Student.CGPA,
-                            StudentGitHubUrl = sp.Student.ContactLinks
-                                .Where(cl => cl.Platform == ContactPlatform.GitHub)
-                                .Select(cl => cl.Url)
-                                .FirstOrDefault(),
-                            Role = sp.role,
-                            IsCreator = sp.IsCreator
-                        }).ToList()
-                })
-                .ToListAsync();
+                .ToList();
 
             return Ok(new
             {
                 TotalProjects = totalCount,
-                Projects = projects,
-                items = projects,
+                Projects = pagedProjects,
+                items = pagedProjects,
                 totalCount = totalCount,
                 page,
                 pageSize,
