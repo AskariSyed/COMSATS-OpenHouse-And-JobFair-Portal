@@ -18,6 +18,8 @@ class MarketOverviewChart extends StatelessWidget {
     final maxY = maxVal == 0 ? 10.0 : maxVal * 1.2;
 
     return BarChart(
+      swapAnimationDuration: const Duration(milliseconds: 800),
+      swapAnimationCurve: Curves.easeInOut,
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxY,

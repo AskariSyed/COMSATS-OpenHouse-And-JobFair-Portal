@@ -1041,11 +1041,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                hasInterviewChartData
-                    ? AppPieChartReveal(
-                        child: InterviewStatusChart(stats: stats),
-                      )
-                    : InterviewStatusChart(stats: stats),
+                InterviewStatusChart(stats: stats),
               ],
             ),
           ),
