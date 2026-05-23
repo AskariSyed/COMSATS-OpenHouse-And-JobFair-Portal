@@ -657,7 +657,7 @@ namespace JobFairPortal.Controllers
                 certification.Issuer = dto.Issuer;
 
             if (dto.IssueDate.HasValue)
-                certification.IssueDate = dto.IssueDate.Value;
+                certification.IssueDate = DateTime.SpecifyKind(dto.IssueDate.Value, DateTimeKind.Utc);
 
             if (!string.IsNullOrWhiteSpace(dto.CredentialUrl))
                 certification.CredentialUrl = dto.CredentialUrl;
@@ -667,10 +667,20 @@ namespace JobFairPortal.Controllers
 
             await _context.SaveChangesAsync();
 
+            var responseDto = new
+            {
+                certification.CertificationId,
+                certification.Title,
+                certification.Issuer,
+                certification.IssueDate,
+                certification.CredentialUrl,
+                certification.CredentialId
+            };
+
             return Ok(new
             {
                 Message = "Certification updated successfully",
-                Certification = certification
+                Certification = responseDto
             });
         }
 
