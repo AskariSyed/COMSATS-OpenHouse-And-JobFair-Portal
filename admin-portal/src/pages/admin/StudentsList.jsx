@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 import SendNotificationModal from '../../lib/components/SendNotificationModal';
 import api, { getFileUrl, updateStudentCredentials } from '../../lib/api';
 import { getAllJobFairs } from '../../lib/api';
+import LogoWithoutBg from '../../assets/LogoWithoutBg.png';
 
 // 🔧 CONFIGURATION
 
@@ -18,6 +19,7 @@ const StudentsList = () => {
   const [students, setStudents] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalCount: 0 });
   const [loading, setLoading] = useState(true);
+  const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [jobFairs, setJobFairs] = useState([]);
   const [selectedJobFairId, setSelectedJobFairId] = useState('');
@@ -31,13 +33,13 @@ const StudentsList = () => {
   const [notifyModal, setNotifyModal] = useState({ open: false, student: null });
 
   // Fetch Students (Accepts page AND search query)
-  const fetchStudents = useCallback(async (page = 1, search = '', jobFairId = '') => {
+  const fetchStudents = useCallback(async (page = 1, search = '', jobFairId = '', limit = pageSize) => {
     setLoading(true);
     try {
       // Append search param if it exists
       const searchQuery = search ? `&search=${encodeURIComponent(search)}` : '';
       const jobFairQuery = jobFairId ? `&jobFairId=${encodeURIComponent(jobFairId)}` : '';
-      const res = await api.get(`/admin/students?page=${page}&pageSize=15${searchQuery}${jobFairQuery}`);
+      const res = await api.get(`/admin/students?page=${page}&pageSize=${limit}${searchQuery}${jobFairQuery}`);
       
       setStudents(res.data.students);
       setMeta({
@@ -79,13 +81,13 @@ const StudentsList = () => {
   // Handler: When user types
   const handleSearch = (e) => {
     e.preventDefault(); 
-    fetchStudents(1, searchTerm, selectedJobFairId);
+    fetchStudents(1, searchTerm, selectedJobFairId, pageSize);
   };
 
   // Handler: Clear search
   const clearSearch = () => {
     setSearchTerm('');
-    fetchStudents(1, '', selectedJobFairId);
+    fetchStudents(1, '', selectedJobFairId, pageSize);
   };
 
   const downloadStudentsList = async () => {
@@ -116,6 +118,30 @@ const StudentsList = () => {
     }
   };
 
+  const getPdfBrandingAssets = async () => {
+    const logoDataUrl = await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = LogoWithoutBg;
+    });
+
+    return { logoDataUrl };
+  };
+
   const downloadPdfReport = async () => {
     const toastId = toast.loading('Preparing PDF report...');
     try {
@@ -128,15 +154,21 @@ const StudentsList = () => {
       const res = await api.get(`/admin/students${queryString}`);
       const allStudents = res.data.students || [];
 
+      const { logoDataUrl } = await getPdfBrandingAssets();
+
       const doc = new jsPDF();
+      
+      if (logoDataUrl) {
+        doc.addImage(logoDataUrl, 'PNG', 14, 10, 20, 20);
+      }
       
       doc.setFontSize(18);
       doc.setTextColor(79, 70, 229);
-      doc.text("Student Profile Completeness Report", 14, 20);
+      doc.text("Student Profile Completeness Report", 40, 24);
       
       doc.setFontSize(10);
       doc.setTextColor(100);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 32);
 
       const total = allStudents.length;
       const complete = allStudents.filter(s => s.isProfileComplete).length;
@@ -144,33 +176,55 @@ const StudentsList = () => {
 
       doc.setFontSize(12);
       doc.setTextColor(0);
-      doc.text(`Total Students: ${total}  |  Complete: ${complete}  |  Incomplete: ${incomplete}`, 14, 40);
+      doc.text(`Total Students: ${total}  |  Complete: ${complete}  |  Incomplete: ${incomplete}`, 40, 44);
 
-      const tableData = allStudents.map(s => {
-        return [
-          s.name || '-',
-          s.registrationNo || '-',
-          s.department || '-',
-          s.cgpa?.toFixed(2) || '-',
-          s.isProfileComplete ? 'Yes' : 'No',
-          s.isProfileComplete ? '-' : (s.missingItems || 'Unknown')
-        ];
+      // Group by department
+      const grouped = {};
+      allStudents.forEach(s => {
+        const dept = s.department || 'Other';
+        if (!grouped[dept]) grouped[dept] = [];
+        grouped[dept].push(s);
       });
 
-      autoTable(doc, {
-        startY: 45,
-        head: [['Name', 'Reg No', 'Department', 'CGPA', 'Profile Complete', 'Missing Details']],
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] },
-        styles: { fontSize: 10 },
-        didParseCell: function (data) {
-          if (data.section === 'body' && data.column.index === 4) {
-            const status = data.cell.raw;
-            if (status === 'Yes') data.cell.styles.textColor = [16, 185, 129];
-            if (status === 'No') data.cell.styles.textColor = [225, 29, 72];
-          }
+      let startY = 55;
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      Object.keys(grouped).forEach(dept => {
+        if (startY > pageHeight - 40) {
+          doc.addPage();
+          startY = 20;
         }
+
+        doc.setFontSize(14);
+        doc.setTextColor(31, 41, 55);
+        doc.text(`Department: ${dept}`, 14, startY);
+
+        const tableData = grouped[dept].map(s => {
+          return [
+            s.name || '-',
+            s.registrationNo || '-',
+            s.isProfileComplete ? 'Yes' : 'No',
+            s.isProfileComplete ? '-' : (s.missingItems || 'Unknown')
+          ];
+        });
+
+        autoTable(doc, {
+          startY: startY + 5,
+          head: [['Name', 'Reg No', 'Profile Complete', 'Missing Details']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: { fillColor: [79, 70, 229] },
+          styles: { fontSize: 10 },
+          didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 2) {
+              const status = data.cell.raw;
+              if (status === 'Yes') data.cell.styles.textColor = [16, 185, 129];
+              if (status === 'No') data.cell.styles.textColor = [225, 29, 72];
+            }
+          }
+        });
+
+        startY = doc.lastAutoTable.finalY + 15;
       });
 
       doc.save(`Student_Profiles_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -309,6 +363,21 @@ const StudentsList = () => {
                 </option>
               );
             })}
+          </select>
+
+          {/* Page Size Selection */}
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const newSize = Number(e.target.value);
+              setPageSize(newSize);
+              fetchStudents(1, searchTerm, selectedJobFairId, newSize);
+            }}
+            className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+          >
+            <option value={10}>10 / page</option>
+            <option value={20}>20 / page</option>
+            <option value={50}>50 / page</option>
           </select>
 
           {/* Search Form */}
@@ -601,14 +670,14 @@ const StudentsList = () => {
             </span>
             <div className="flex gap-2">
                 <button 
-                  onClick={() => fetchStudents(meta.page - 1, searchTerm, selectedJobFairId)} 
+                  onClick={() => fetchStudents(meta.page - 1, searchTerm, selectedJobFairId, pageSize)} 
                   disabled={meta.page <= 1} 
                   className="px-4 py-2 border rounded-lg bg-white text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button 
-                  onClick={() => fetchStudents(meta.page + 1, searchTerm, selectedJobFairId)} 
+                  onClick={() => fetchStudents(meta.page + 1, searchTerm, selectedJobFairId, pageSize)} 
                   disabled={meta.page >= meta.totalPages} 
                   className="px-4 py-2 border rounded-lg bg-white text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
                 >
