@@ -12,6 +12,7 @@ import 'package:student_job_fair_portal/model/project.dart';
 
 // Mixins
 import 'package:student_job_fair_portal/mixins/contactPlaytformToString.dart';
+import 'package:student_job_fair_portal/mixins/launchUrl.dart';
 
 // Utils
 import 'package:student_job_fair_portal/utils/image_utils.dart';
@@ -649,28 +650,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasCv
-                        ? Colors.green.withOpacity(0.12)
-                        : Colors.orange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: hasCv ? Colors.green : Colors.orange,
+                InkWell(
+                  onTap: hasCv
+                      ? () {
+                          final url = student?.cvUrl?.trim();
+                          if (url != null && url.isNotEmpty) {
+                            final resolvedUrl = url.startsWith('http')
+                                ? url
+                                : '$_serverBaseUrl$url';
+                            launchURL(resolvedUrl, context);
+                          }
+                        }
+                      : null,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                  ),
-                  child: Text(
-                    hasCv ? 'Current CV: Uploaded' : 'Current CV: Not Uploaded',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                    decoration: BoxDecoration(
                       color: hasCv
-                          ? Colors.green.shade800
-                          : Colors.orange.shade800,
+                          ? Colors.green.withOpacity(0.12)
+                          : Colors.orange.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: hasCv ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasCv) ...[
+                          Icon(
+                            Icons.remove_red_eye,
+                            size: 14,
+                            color: Colors.green.shade800,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          hasCv ? 'Current CV: Uploaded' : 'Current CV: Not Uploaded',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: hasCv
+                                ? Colors.green.shade800
+                                : Colors.orange.shade800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
