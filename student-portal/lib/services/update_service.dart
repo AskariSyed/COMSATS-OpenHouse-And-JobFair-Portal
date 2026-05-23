@@ -21,7 +21,7 @@ class UpdateService {
 
       // 2. Fetch remote version info ALWAYS from the designated student frontend subdomain
       // Because the backend API server (api.jfair.tech) does not host the Flutter web files.
-      final String versionUrl = 'https://student.jfair.tech/version.json';
+      final String versionUrl = 'https://comsats.student.jfair.tech/version.json';
 
       final response = await http
           .get(

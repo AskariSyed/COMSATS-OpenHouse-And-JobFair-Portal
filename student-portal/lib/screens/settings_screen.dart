@@ -675,21 +675,18 @@ class SettingsScreen extends StatelessWidget {
                         children: [
                           Text(
                             'Manage Your Account',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineLarge
+                            style: Theme.of(context).textTheme.headlineLarge
                                 ?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).textTheme.bodyLarge?.color,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodyLarge?.color,
                                 ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Customize your preferences and manage your account',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   color: Theme.of(
                                     context,
@@ -2218,32 +2215,18 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                TextButton.icon(
+                IconButton(
                   onPressed: () => launchUrl(
                     Uri.parse(teamUrl),
                     mode: LaunchMode.externalApplication,
                   ),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 8 : 10,
-                      vertical: 6,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  splashRadius: 18,
                   icon: Icon(
                     Icons.open_in_new,
-                    size: isMobile ? 14 : 16,
+                    size: isMobile ? 18 : 20,
                     color: devColor,
-                  ),
-                  label: Text(
-                    'Open',
-                    style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: devColor,
-                    ),
                   ),
                 ),
               ],

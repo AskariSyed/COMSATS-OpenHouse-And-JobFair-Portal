@@ -483,7 +483,15 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                   ],
                                   decoration: InputDecoration(
                                     labelText: 'Registration Number',
+                                    labelStyle: TextStyle(
+                                      fontWeight: FontWeight.normal,
+                                      color: subtitleColor,
+                                    ),
                                     hintText: 'FA22-BCS-155',
+                                    hintStyle: TextStyle(
+                                      fontWeight: FontWeight.normal,
+                                      color: subtitleColor.withOpacity(0.6),
+                                    ),
                                     prefixIcon: const Icon(
                                       Icons.badge_outlined,
                                       color: brandBlue,
@@ -525,6 +533,10 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
                                   },
                                   decoration: InputDecoration(
                                     labelText: 'Password',
+                                    labelStyle: TextStyle(
+                                      fontWeight: FontWeight.normal,
+                                      color: subtitleColor,
+                                    ),
                                     prefixIcon: const Icon(
                                       Icons.lock_outline,
                                       color: brandBlue,

@@ -981,7 +981,7 @@ class _CVEditorDialogState extends State<CVEditorDialog> {
                   top: Radius.circular(12),
                 ),
               ),
-                  child: Row(
+              child: Row(
                 children: [
                   const Icon(Icons.description, size: 28),
                   const SizedBox(width: 12),
