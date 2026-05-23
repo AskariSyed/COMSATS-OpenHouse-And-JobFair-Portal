@@ -2342,6 +2342,7 @@ public async Task<IActionResult> GetAllInterviewRequests(
             StudentCvUrl = r.Student.CvUrl,
             StudentProfilePic = r.Student.ProfilePicUrl,
             StudentSkills = r.Student.Skills,
+            RequestedBy = r.RequestedBy,
             Status = r.Status.ToString(),
             RejectionReason = r.ReasonForReject,
             RequestDate = r.CreatedAt,
