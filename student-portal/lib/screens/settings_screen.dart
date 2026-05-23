@@ -1333,29 +1333,7 @@ class SettingsScreen extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // ----------------------------------------------------------------
-        // CHANGE PASSWORD
-        // ----------------------------------------------------------------
-        ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          tileColor: isDark ? cardColor : Colors.white,
-          leading: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Color(0xFF2563EB),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.lock_reset, color: Colors.white),
-          ),
-          title: const Text('Change Password'),
-          subtitle: const Text('Update your account password'),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () => _showChangePasswordDialog(context),
-        ),
 
-        const SizedBox(height: 30),
 
         _buildSectionHeader(context, "Profile Actions"),
         Container(
@@ -1472,7 +1450,7 @@ class SettingsScreen extends StatelessWidget {
 
                 Widget buildFixedRow(
                   List<Widget> rowButtons, {
-                  bool centered = false,
+                  bool centered = true,
                 }) {
                   final rowWidth =
                       (rowButtons.length * buttonWidth) +
@@ -1480,7 +1458,7 @@ class SettingsScreen extends StatelessWidget {
                   return Row(
                     mainAxisAlignment: centered
                         ? MainAxisAlignment.center
-                        : MainAxisAlignment.start,
+                        : MainAxisAlignment.center,
                     children: [
                       SizedBox(
                         width: rowWidth,
@@ -1506,7 +1484,7 @@ class SettingsScreen extends StatelessWidget {
 
                 return Column(
                   children: [
-                    buildFixedRow(firstRow),
+                    buildFixedRow(firstRow, centered: true),
                     if (secondRow.isNotEmpty) const SizedBox(height: 10),
                     if (secondRow.isNotEmpty)
                       buildFixedRow(secondRow, centered: true),
